@@ -1,302 +1,564 @@
-# Epic 001: Product Catalog
+# Epic: Product Catalog Service
 
-## Overview
+## Epic Statement
 
-The Product Catalog is the foundational component of the ACME, Inc. e-commerce platform. It provides the data model, API, and user interfaces for managing and displaying products to customers.
+**As a** business stakeholder of ACME, Inc.,
+**I want** a Product Catalog service that serves as the central source of truth for all product information,
+**So that** customers can discover, browse, and evaluate products while administrators can efficiently manage the product inventory.
 
-## Goals
+## Business Context
 
-- Enable customers to browse, search, and filter products
-- Support rich product information including images, descriptions, pricing, and variants
-- Provide administrative capabilities for product management
-- Ensure scalability for a growing product inventory
-- Enable integration with inventory, pricing, and order systems
+The Product Catalog is a foundational bounded context within the ACME e-commerce platform. It owns all product-related data and exposes capabilities to both customer-facing applications and internal administrative systems. As a core domain service, it must be highly available, performant, and capable of evolving independently of other platform services.
+
+## Bounded Context
+
+The Product Catalog service operates as an autonomous bounded context with clear ownership boundaries.
+
+### Context Map
+
+```mermaid
+graph TB
+    subgraph Product Catalog Bounded Context
+        PC[Product Catalog Service]
+        PCR[(Product Read Store)]
+        PCW[(Product Write Store)]
+        PCE[Event Store]
+    end
+
+    subgraph Upstream Contexts
+        IM[Inventory Management]
+        PR[Pricing Service]
+        SUP[Supplier Management]
+    end
+
+    subgraph Downstream Contexts
+        ORD[Order Service]
+        CART[Shopping Cart]
+        SEARCH[Search Service]
+        REC[Recommendations]
+        ANA[Analytics]
+    end
+
+    IM -->|Stock Updates| PC
+    PR -->|Price Rules| PC
+    SUP -->|Product Data| PC
+
+    PC -->|Product Events| ORD
+    PC -->|Product Events| CART
+    PC -->|Product Events| SEARCH
+    PC -->|Product Events| REC
+    PC -->|Product Events| ANA
+```
+
+### Domain Ownership
+
+The Product Catalog service has exclusive ownership over:
+
+- Product definitions and descriptions
+- Product categorization and taxonomy
+- Product variants and options
+- Product media and assets
+- Product attributes and specifications
+- Category hierarchy and organization
+
+### Integration Boundaries
+
+| Integration | Direction | Pattern | Purpose |
+|-------------|-----------|---------|---------|
+| Inventory Management | Upstream | Event Consumer | Receive stock level updates |
+| Pricing Service | Upstream | Event Consumer | Receive price change events |
+| Supplier Management | Upstream | Event Consumer | Receive new product data |
+| Order Service | Downstream | Event Producer | Publish product snapshots |
+| Shopping Cart | Downstream | Query API | Provide product details |
+| Search Service | Downstream | Event Producer | Publish catalog changes |
+| Recommendations | Downstream | Event Producer | Publish product relationships |
+| Analytics | Downstream | Event Producer | Publish catalog activity |
 
 ## Domain Model
 
-### Core Entities
+### Aggregate Roots
 
-#### Product
+```mermaid
+classDiagram
+    class Product {
+        +ProductId id
+        +SKU sku
+        +ProductName name
+        +Slug slug
+        +Description description
+        +ProductStatus status
+        +List~ProductVariant~ variants
+        +List~ProductImage~ images
+        +CategoryAssignment category
+        +List~ProductAttribute~ attributes
+        +AuditInfo audit
+    }
 
-The primary entity representing an item for sale.
+    class Category {
+        +CategoryId id
+        +CategoryName name
+        +Slug slug
+        +Description description
+        +CategoryId parentId
+        +DisplayOrder order
+        +List~Category~ children
+    }
 
-| Field | Type | Description |
-|-------|------|-------------|
-| id | UUID | Unique identifier |
-| sku | string | Stock keeping unit (unique) |
-| name | string | Product display name |
-| slug | string | URL-friendly identifier |
-| description | text | Full product description |
-| shortDescription | string | Brief summary for listings |
-| status | enum | draft, active, archived |
-| createdAt | timestamp | Creation date |
-| updatedAt | timestamp | Last modification date |
+    class ProductAttribute {
+        +AttributeId id
+        +AttributeName name
+        +AttributeType type
+        +List~AttributeValue~ allowedValues
+    }
 
-#### ProductVariant
+    Product "1" --> "*" ProductVariant
+    Product "1" --> "*" ProductImage
+    Product "*" --> "1" Category
+    Product "*" --> "*" ProductAttribute
 
-Represents variations of a product (size, color, etc.).
+    class ProductVariant {
+        +VariantId id
+        +SKU sku
+        +VariantName name
+        +List~OptionValue~ options
+        +Weight weight
+        +Dimensions dimensions
+    }
 
-| Field | Type | Description |
-|-------|------|-------------|
-| id | UUID | Unique identifier |
-| productId | UUID | Parent product reference |
-| sku | string | Variant-specific SKU |
-| name | string | Variant display name |
-| price | decimal | Base price |
-| compareAtPrice | decimal | Original price (for sales) |
-| weight | decimal | Shipping weight |
-| inventoryQuantity | integer | Available stock |
-| attributes | jsonb | Key-value variant attributes |
-
-#### Category
-
-Hierarchical organization of products.
-
-| Field | Type | Description |
-|-------|------|-------------|
-| id | UUID | Unique identifier |
-| parentId | UUID | Parent category (nullable) |
-| name | string | Category name |
-| slug | string | URL-friendly identifier |
-| description | text | Category description |
-| displayOrder | integer | Sort order |
-
-#### ProductImage
-
-Media assets associated with products.
-
-| Field | Type | Description |
-|-------|------|-------------|
-| id | UUID | Unique identifier |
-| productId | UUID | Parent product reference |
-| variantId | UUID | Optional variant reference |
-| url | string | Image URL |
-| altText | string | Accessibility text |
-| displayOrder | integer | Sort order |
-| isPrimary | boolean | Primary image flag |
-
-#### ProductAttribute
-
-Flexible attributes for filtering and display.
-
-| Field | Type | Description |
-|-------|------|-------------|
-| id | UUID | Unique identifier |
-| name | string | Attribute name (e.g., "Material") |
-| type | enum | text, number, boolean, select |
-| values | array | Allowed values (for select type) |
-
-### Entity Relationships
-
-```
-Category (1) ──────── (n) Product
-Product (1) ──────── (n) ProductVariant
-Product (1) ──────── (n) ProductImage
-ProductVariant (1) ── (n) ProductImage
-Product (n) ──────── (n) ProductAttribute (with values)
+    class ProductImage {
+        +ImageId id
+        +ImageUrl url
+        +AltText altText
+        +DisplayOrder order
+        +Boolean isPrimary
+    }
 ```
 
-## API Design
+### Domain Events
 
-### RESTful Endpoints
+The following events represent significant state changes within the Product Catalog:
 
-#### Public API (Customer-facing)
+```mermaid
+graph LR
+    subgraph Product Lifecycle Events
+        PC1[ProductCreated]
+        PC2[ProductUpdated]
+        PC3[ProductPublished]
+        PC4[ProductArchived]
+        PC5[ProductDeleted]
+    end
 
-```
-GET    /api/v1/products                 # List products (paginated)
-GET    /api/v1/products/:slug           # Get product by slug
-GET    /api/v1/products/search          # Full-text search
-GET    /api/v1/categories               # List categories (tree)
-GET    /api/v1/categories/:slug         # Get category with products
-```
+    subgraph Variant Events
+        V1[VariantAdded]
+        V2[VariantUpdated]
+        V3[VariantRemoved]
+    end
 
-#### Admin API
+    subgraph Category Events
+        C1[CategoryCreated]
+        C2[CategoryUpdated]
+        C3[CategoryMoved]
+        C4[CategoryDeleted]
+        C5[ProductCategorized]
+        C6[ProductUncategorized]
+    end
 
-```
-POST   /api/v1/admin/products           # Create product
-PUT    /api/v1/admin/products/:id       # Update product
-DELETE /api/v1/admin/products/:id       # Archive product
-POST   /api/v1/admin/products/:id/variants    # Add variant
-PUT    /api/v1/admin/products/:id/variants/:vid  # Update variant
-POST   /api/v1/admin/products/:id/images      # Upload image
-DELETE /api/v1/admin/products/:id/images/:iid # Remove image
-POST   /api/v1/admin/categories         # Create category
-PUT    /api/v1/admin/categories/:id     # Update category
-DELETE /api/v1/admin/categories/:id     # Delete category
-```
-
-### Query Parameters
-
-| Parameter | Description | Example |
-|-----------|-------------|---------|
-| page | Page number | `?page=2` |
-| limit | Items per page (max 100) | `?limit=20` |
-| sort | Sort field and direction | `?sort=price:asc` |
-| category | Filter by category slug | `?category=electronics` |
-| minPrice | Minimum price filter | `?minPrice=10` |
-| maxPrice | Maximum price filter | `?maxPrice=100` |
-| attributes | Attribute filters | `?attributes[color]=red` |
-| q | Search query | `?q=wireless headphones` |
-
-## User Interface
-
-### Customer-Facing Pages
-
-1. **Product Listing Page (PLP)**
-   - Grid/list view toggle
-   - Faceted filtering (category, price, attributes)
-   - Sorting options
-   - Pagination
-   - Quick view modal
-
-2. **Product Detail Page (PDP)**
-   - Image gallery with zoom
-   - Variant selector
-   - Price display with sale indicators
-   - Add to cart functionality
-   - Related products
-   - Breadcrumb navigation
-
-3. **Search Results**
-   - Autocomplete suggestions
-   - Search result highlighting
-   - Filter refinement
-   - "Did you mean" suggestions
-
-### Admin Pages
-
-1. **Product List**
-   - Bulk actions (archive, publish)
-   - Quick edit inline
-   - Status filters
-   - Export functionality
-
-2. **Product Editor**
-   - Rich text description editor
-   - Drag-and-drop image upload
-   - Variant matrix builder
-   - SEO metadata fields
-   - Category assignment
-
-3. **Category Manager**
-   - Drag-and-drop tree organization
-   - Bulk product assignment
-
-## Technical Architecture
-
-### Technology Stack
-
-| Layer | Technology | Rationale |
-|-------|------------|-----------|
-| Frontend | React + TypeScript | Component-based, type-safe |
-| State | TanStack Query | Server state management |
-| Styling | Tailwind CSS | Utility-first, consistent |
-| API | Node.js + Express | JavaScript ecosystem |
-| Database | PostgreSQL | Relational, JSONB support |
-| Search | PostgreSQL full-text | Start simple, migrate if needed |
-| Images | S3 + CloudFront | Scalable media delivery |
-| Cache | Redis | Session and query caching |
-
-### Project Structure
-
-```
-src/
-├── api/
-│   ├── routes/
-│   │   ├── products.ts
-│   │   ├── categories.ts
-│   │   └── admin/
-│   ├── controllers/
-│   ├── middleware/
-│   └── validators/
-├── domain/
-│   ├── entities/
-│   │   ├── Product.ts
-│   │   ├── ProductVariant.ts
-│   │   ├── Category.ts
-│   │   └── ProductImage.ts
-│   ├── repositories/
-│   └── services/
-├── infrastructure/
-│   ├── database/
-│   │   ├── migrations/
-│   │   └── seeds/
-│   ├── storage/
-│   └── cache/
-└── web/
-    ├── components/
-    │   ├── product/
-    │   └── category/
-    ├── pages/
-    └── hooks/
+    subgraph Media Events
+        M1[ImageUploaded]
+        M2[ImageRemoved]
+        M3[ImageReordered]
+    end
 ```
 
-### Performance Considerations
+## Features
 
-- **Database indexing**: SKU, slug, category_id, status, full-text search
-- **Image optimization**: Multiple sizes, WebP format, lazy loading
-- **Caching strategy**: Category tree (long TTL), product lists (short TTL)
-- **Pagination**: Cursor-based for large datasets
+### F1: Product Information Management
 
-## Security
+**Description:** Enable administrators to create, update, and manage comprehensive product information throughout the product lifecycle.
 
-- Admin endpoints require authentication and authorization
-- Rate limiting on public search endpoints
-- Input validation and sanitization
-- SQL injection prevention via parameterized queries
-- XSS prevention in product descriptions
+**Capabilities:**
+- Create new products with required attributes
+- Edit product details including descriptions, specifications, and metadata
+- Manage product status transitions (draft → active → archived)
+- Support rich text descriptions with formatting
+- Track product change history for audit purposes
 
-## Integration Points
+**Acceptance Criteria:**
+- Products can be created in draft status and published when ready
+- All product changes are captured as domain events
+- Product history is queryable for audit and rollback purposes
+- Validation rules prevent invalid product states
 
-| System | Integration | Purpose |
-|--------|-------------|---------|
-| Inventory | Event-based | Stock level updates |
-| Pricing | API call | Dynamic pricing rules |
-| Orders | Read-only | Product snapshot at order time |
-| Analytics | Event stream | View and search tracking |
+---
 
-## Success Metrics
+### F2: Product Variant Management
 
-- Page load time < 2 seconds (P95)
-- Search results < 500ms
-- Admin product save < 1 second
-- Zero downtime deployments
-- 99.9% API availability
+**Description:** Support products with multiple variations such as size, color, material, or other distinguishing characteristics.
 
-## Implementation Phases
+**Capabilities:**
+- Define variant options (e.g., Size: S, M, L, XL)
+- Create variant combinations with unique identifiers
+- Manage variant-specific attributes (weight, dimensions)
+- Support variant-level media associations
 
-### Phase 1: Foundation
+**Acceptance Criteria:**
+- Variants inherit base product information while maintaining unique attributes
+- Each variant has a unique SKU for inventory tracking
+- Variant option combinations are validated for uniqueness
+- Variants can be individually activated or deactivated
 
-- Database schema and migrations
-- Core Product and Category entities
-- Basic CRUD API endpoints
-- Seed data for development
+---
 
-### Phase 2: Customer Experience
+### F3: Category Taxonomy Management
 
-- Product listing page with filtering
-- Product detail page
-- Basic search functionality
-- Image upload and display
+**Description:** Provide hierarchical organization of products through a flexible category system.
 
-### Phase 3: Admin Interface
+**Capabilities:**
+- Create and manage category hierarchies
+- Assign products to categories
+- Support multiple category assignments per product
+- Define category display ordering
+- Manage category metadata and descriptions
 
-- Product management UI
-- Category tree management
-- Bulk operations
-- Image management
+**Acceptance Criteria:**
+- Categories support unlimited nesting depth
+- Products can belong to multiple categories
+- Category changes propagate to downstream systems via events
+- Category deletion handles existing product assignments gracefully
 
-### Phase 4: Enhancement
+---
 
-- Advanced search with facets
-- Product variants
-- Performance optimization
-- Analytics integration
+### F4: Product Media Management
+
+**Description:** Manage visual assets associated with products including images, videos, and documents.
+
+**Capabilities:**
+- Upload and store product images
+- Support multiple images per product with ordering
+- Associate images with specific variants
+- Manage image metadata (alt text, captions)
+- Generate optimized image variants for different display contexts
+
+**Acceptance Criteria:**
+- Images are validated for format and size constraints
+- Primary image designation is enforced per product
+- Image deletion is handled with appropriate cleanup
+- Media events are published for downstream processing
+
+---
+
+### F5: Product Attribute System
+
+**Description:** Flexible attribute system for capturing product specifications and enabling faceted navigation.
+
+**Capabilities:**
+- Define custom attributes with types (text, number, boolean, selection)
+- Assign attributes to products with values
+- Support attribute grouping for display
+- Enable attribute-based filtering and search
+
+**Acceptance Criteria:**
+- Attributes support multiple data types with validation
+- Selection attributes have configurable allowed values
+- Attribute assignments are validated against attribute definitions
+- Attribute changes trigger appropriate events for search reindexing
+
+---
+
+### F6: Product Search and Discovery
+
+**Description:** Enable customers to find products through various discovery mechanisms.
+
+**Capabilities:**
+- Full-text search across product content
+- Faceted filtering by category, attributes, and status
+- Sorting by relevance, date, and custom criteria
+- Autocomplete and search suggestions
+- Search result highlighting
+
+**Acceptance Criteria:**
+- Search returns results within acceptable latency thresholds
+- Facet counts are accurate and performant
+- Search handles misspellings and synonyms appropriately
+- Search results respect product visibility rules
+
+---
+
+### F7: Product Browsing Experience
+
+**Description:** Provide optimized read models for customer-facing product browsing.
+
+**Capabilities:**
+- Product listing pages with pagination
+- Product detail page with complete information
+- Category-based product navigation
+- Related product associations
+- Recently viewed product tracking
+
+**Acceptance Criteria:**
+- Product listings support efficient pagination
+- Product details include all relevant information in single query
+- Category navigation reflects current hierarchy
+- Read models are eventually consistent with write models
+
+---
+
+### F8: Administrative Bulk Operations
+
+**Description:** Support efficient management of large product catalogs through bulk operations.
+
+**Capabilities:**
+- Bulk product import from external sources
+- Bulk status updates (publish, archive, delete)
+- Bulk category assignments
+- Export product data for external processing
+
+**Acceptance Criteria:**
+- Bulk operations provide progress feedback
+- Failed items in bulk operations are reported without blocking others
+- Bulk operations generate appropriate events for each affected product
+- Import operations validate data before committing changes
+
+---
+
+### F9: Product Availability and Visibility
+
+**Description:** Control product visibility across channels and time periods.
+
+**Capabilities:**
+- Schedule product publication and archival
+- Control product visibility by channel or region
+- Support product embargo dates for coordinated launches
+- Manage product lifecycle status transitions
+
+**Acceptance Criteria:**
+- Scheduled operations execute reliably at specified times
+- Visibility rules are enforced across all query interfaces
+- Status transitions follow defined lifecycle rules
+- Visibility changes are published as events
+
+## Architecture Considerations
+
+### Command Query Responsibility Segregation (CQRS)
+
+The Product Catalog will implement CQRS to optimize for different access patterns:
+
+```mermaid
+flowchart TB
+    subgraph Commands
+        CMD[Command Handler]
+        WM[(Write Model)]
+        ES[Event Store]
+    end
+
+    subgraph Queries
+        QH[Query Handler]
+        RM1[(Listing Read Model)]
+        RM2[(Detail Read Model)]
+        RM3[(Search Read Model)]
+    end
+
+    API[API Gateway] --> CMD
+    API --> QH
+
+    CMD --> WM
+    CMD --> ES
+    ES --> |Projections| RM1
+    ES --> |Projections| RM2
+    ES --> |Projections| RM3
+
+    QH --> RM1
+    QH --> RM2
+    QH --> RM3
+```
+
+**Write Side:**
+- Processes commands through domain aggregates
+- Persists events to event store
+- Optimized for consistency and business rule enforcement
+
+**Read Side:**
+- Multiple denormalized read models optimized for specific query patterns
+- Eventually consistent projections built from event stream
+- Independently scalable from write side
+
+### Event Sourcing
+
+Product state changes will be captured as an immutable sequence of events:
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant CommandHandler
+    participant Aggregate
+    participant EventStore
+    participant Projector
+    participant ReadModel
+
+    Client->>CommandHandler: UpdateProduct
+    CommandHandler->>EventStore: Load Events
+    EventStore-->>CommandHandler: Event Stream
+    CommandHandler->>Aggregate: Reconstitute
+    Aggregate-->>CommandHandler: Current State
+    CommandHandler->>Aggregate: Apply Command
+    Aggregate-->>CommandHandler: New Events
+    CommandHandler->>EventStore: Append Events
+    EventStore-->>Projector: New Events
+    Projector->>ReadModel: Update Projection
+```
+
+**Benefits:**
+- Complete audit trail of all product changes
+- Ability to rebuild read models from events
+- Temporal queries to view product state at any point in time
+- Support for debugging and rollback scenarios
+
+### Event-Driven Integration
+
+Product catalog events will be published for consumption by downstream services:
+
+```mermaid
+flowchart LR
+    PC[Product Catalog] --> EB[Event Bus]
+
+    EB --> SS[Search Service]
+    EB --> CS[Cart Service]
+    EB --> OS[Order Service]
+    EB --> RS[Recommendation Service]
+    EB --> AS[Analytics Service]
+
+    subgraph Event Types
+        E1[ProductCreated]
+        E2[ProductUpdated]
+        E3[ProductPublished]
+        E4[CategoryChanged]
+    end
+```
+
+**Event Contract:**
+- Events include all necessary data for consumer autonomy
+- Schema versioning supports backward compatibility
+- Events are idempotent-safe for at-least-once delivery
+
+### Service Discovery and Health
+
+The service will participate in platform service discovery:
+
+```mermaid
+flowchart TB
+    PC[Product Catalog Service]
+    SR[(Service Registry)]
+    LB[Load Balancer]
+    C1[Consumer 1]
+    C2[Consumer 2]
+
+    PC -->|Register| SR
+    PC -->|Heartbeat| SR
+    C1 -->|Discover| SR
+    C2 -->|Discover| SR
+    SR -->|Instances| LB
+    LB --> PC
+```
+
+**Health Checks:**
+- Liveness probe: Service process is running
+- Readiness probe: Service can handle requests (dependencies available)
+- Dependency health: Database, event store, message broker connectivity
+
+### Observability
+
+```mermaid
+flowchart TB
+    PC[Product Catalog Service]
+
+    subgraph Observability Stack
+        TR[Distributed Tracing]
+        MT[Metrics Collection]
+        LG[Log Aggregation]
+        AL[Alerting]
+    end
+
+    PC -->|Spans| TR
+    PC -->|RED Metrics| MT
+    PC -->|Structured Logs| LG
+    MT -->|SLO Breaches| AL
+    LG -->|Error Patterns| AL
+```
+
+**Key Metrics:**
+- Request rate, error rate, duration (RED) for all endpoints
+- Event publishing rate and latency
+- Read model projection lag
+- Query performance by type
+
+**Tracing:**
+- Trace context propagation across service boundaries
+- Span creation for significant operations
+- Correlation with downstream service calls
+
+## Broad Acceptance Criteria
+
+### Functional Requirements
+
+1. **Product Management**
+   - Administrators can perform full CRUD operations on products
+   - Product lifecycle states are enforced correctly
+   - All changes are auditable through event history
+
+2. **Category Management**
+   - Category hierarchy can be created and reorganized
+   - Products can be associated with categories
+   - Category changes are reflected in product queries
+
+3. **Search and Discovery**
+   - Customers can search products by text query
+   - Customers can filter products by attributes and categories
+   - Search results are relevant and performant
+
+4. **Integration**
+   - Events are published for all significant state changes
+   - Upstream events are processed correctly
+   - API contracts are versioned and documented
+
+### Non-Functional Requirements
+
+1. **Availability**
+   - Service meets defined SLO for uptime
+   - Graceful degradation when dependencies are unavailable
+   - Zero-downtime deployments
+
+2. **Performance**
+   - Product listing queries return within latency SLO
+   - Product detail queries return within latency SLO
+   - Search queries return within latency SLO
+
+3. **Scalability**
+   - Read and write workloads can be scaled independently
+   - Service handles expected catalog size growth
+   - Bulk operations complete within acceptable time frames
+
+4. **Observability**
+   - All requests are traceable end-to-end
+   - Metrics enable proactive capacity planning
+   - Alerts fire appropriately for SLO violations
+
+5. **Security**
+   - Administrative operations require authentication and authorization
+   - Public queries enforce visibility rules
+   - Input validation prevents injection attacks
 
 ## Open Questions
 
-1. Do we need multi-currency pricing support?
-2. What is the expected product catalog size (affects search strategy)?
-3. Are there existing brand guidelines for the UI?
-4. What authentication system will be used for admin access?
-5. Do we need localization for product content?
+1. What is the expected product catalog size at launch and projected growth?
+2. Are there multi-language/localization requirements for product content?
+3. What are the specific SLO targets for availability and latency?
+4. Are there existing brand or content guidelines for product descriptions?
+5. What is the integration timeline with upstream services (Inventory, Pricing)?
+6. Are there regulatory requirements affecting product data retention?
+
+## Dependencies
+
+- Identity and Access Management service for authentication/authorization
+- Event bus infrastructure for event-driven integration
+- Service discovery infrastructure for registration and health checks
+- Observability platform for metrics, tracing, and logging
