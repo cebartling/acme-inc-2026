@@ -50,3 +50,45 @@
 - Maintain data consistency across services and data stores
 - Enable incremental data synchronization and replication
 
+## Observability
+
+### Distributed Tracing
+
+- Propagate correlation IDs across service boundaries for end-to-end request tracking
+- Capture spans for each service interaction to visualize request flow
+- Measure latency at each hop to identify performance bottlenecks
+- Support trace sampling strategies to balance insight with overhead
+- Enable root cause analysis across distributed transactions
+
+### Metrics
+
+- Collect RED metrics (Rate, Errors, Duration) for all service endpoints
+- Track USE metrics (Utilization, Saturation, Errors) for infrastructure resources
+- Expose business metrics alongside technical metrics
+- Support dimensional metrics with tags for flexible aggregation
+- Enable real-time dashboards for operational visibility
+
+### Logging
+
+- Emit structured logs in a consistent format across all services
+- Include correlation IDs to link logs with distributed traces
+- Define log levels appropriately (DEBUG, INFO, WARN, ERROR)
+- Centralize log aggregation for cross-service querying
+- Implement log retention policies aligned with compliance requirements
+
+### Alerting
+
+- Define SLOs (Service Level Objectives) for critical user journeys
+- Create alerts based on SLO burn rates rather than static thresholds
+- Implement multi-window alerting to reduce false positives
+- Establish clear escalation paths and runbooks for each alert
+- Support alert suppression during maintenance windows
+
+### Health Checks
+
+- Implement liveness probes to detect crashed or deadlocked services
+- Implement readiness probes to manage traffic routing during startup
+- Include dependency health in readiness assessments
+- Expose health endpoints in a standardized format
+- Integrate health status with service discovery for automatic failover
+
