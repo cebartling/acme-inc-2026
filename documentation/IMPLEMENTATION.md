@@ -27,9 +27,24 @@
 - The workflow orchestrator service will house the saga pattern-based workflows
 - Debezium Kafka Connect connector to implement change data capture in command store
 
+#### Service projects
+
+- Identity management: `/backend-services/identity`
+- Product catalog: `/backend-services/product`
+- Inventory management: `/backend-services/inventory`
+- Customer management: `/backend-services/customer`
+- Order management: `/backend-services/order`
+- Notifications management: `/backend-services/notification`
+- Shipping and fulfillment management: `/backend-services/fulfillment`
+- Payment management: `/backend-services/payment`
+- Pricing management: `/backend-services/pricing`
+- Shopping cart management: `/backend-services/shopping-cart`
+- Analytics: `/backend-services/analytics`
+
 
 ### Frontend applications
 
+- Tanstack Start
 - React 19.2
 - Vite
 - Tailwind CSS 4 for styling
@@ -40,6 +55,11 @@
 - TanStack Table and Virtual for data tables
 - TanStack Router for routing
 - Vitest for unit testing
+
+#### Application projects
+
+- Customer-facing: `/frontend-apps/customer`
+- Admin-facing: `/frontend-apps/admin`
 
 ## Acceptance testing
 
