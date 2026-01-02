@@ -125,3 +125,108 @@ Commit all changes to this feature branch.
 When completed, create a PR for merging this feature branch back into
 the `main` branch on GitHub.
 ```
+
+## Notifications Management
+
+```
+Create an epic user story around notifications management
+for the ACME, Inc. e-commerce platform.
+Think hard about architecture and design of this bounded context service.
+List features that this service will provide. Keep things high-level and avoid
+making technology choices here.
+Broad acceptance criteria are welcomed, but more detailed acceptance criteria will
+be created when this epic user story is decomposed into smaller, focused user
+stories.
+All diagrams should use Mermaid.js. No ASCII art.
+Write the content to @documentation/epics/006-notifications-management.md.
+Take into account the architecture patterns and standards documented in
+@documentation/ARCHITECTURE.md.
+Create a feature branch from the `main` branch for this work.
+Commit all changes to this feature branch.
+When completed, create a PR for merging this feature branch back into
+the `main` branch on GitHub.
+```
+
+## Shipping and Fulfillment Management
+
+```
+Create an epic user story around shipping and fulfillment management
+for the ACME, Inc. e-commerce platform.
+Think hard about architecture and design of this bounded context service.
+List features that this service will provide. Keep things high-level and avoid
+making technology choices here.
+Broad acceptance criteria are welcomed, but more detailed acceptance criteria will
+be created when this epic user story is decomposed into smaller, focused user
+stories.
+All diagrams should use Mermaid.js. No ASCII art.
+Write the content to @documentation/epics/007-shipping-fulfillment-management.md.
+Take into account the architecture patterns and standards documented in
+@documentation/ARCHITECTURE.md.
+Create a feature branch from the `main` branch for this work.
+Commit all changes to this feature branch.
+When completed, create a PR for merging this feature branch back into
+the `main` branch on GitHub.
+```
+
+## Payment Management
+
+```
+Create an epic user story around payment management
+for the ACME, Inc. e-commerce platform.
+Think hard about architecture and design of this bounded context service.
+List features that this service will provide. Keep things high-level and avoid
+making technology choices here.
+Broad acceptance criteria are welcomed, but more detailed acceptance criteria will
+be created when this epic user story is decomposed into smaller, focused user
+stories.
+All diagrams should use Mermaid.js. No ASCII art.
+Write the content to @documentation/epics/008-payment-management.md.
+Take into account the architecture patterns and standards documented in
+@documentation/ARCHITECTURE.md.
+Create a feature branch from the `main` branch for this work.
+Commit all changes to this feature branch.
+When completed, create a PR for merging this feature branch back into
+the `main` branch on GitHub.
+```
+
+## Shopping Cart Management
+
+```
+Create an epic user story around shopping cart management
+for the ACME, Inc. e-commerce platform.
+Think hard about architecture and design of this bounded context service.
+List features that this service will provide. Keep things high-level and avoid
+making technology choices here.
+Broad acceptance criteria are welcomed, but more detailed acceptance criteria will
+be created when this epic user story is decomposed into smaller, focused user
+stories.
+All diagrams should use Mermaid.js. No ASCII art.
+Write the content to @documentation/epics/009-shopping-cart-management.md.
+Take into account the architecture patterns and standards documented in
+@documentation/ARCHITECTURE.md.
+Create a feature branch from the `main` branch for this work.
+Commit all changes to this feature branch.
+When completed, create a PR for merging this feature branch back into
+the `main` branch on GitHub.
+```
+
+## Analytics
+
+```
+Create an epic user story around analytics
+for the ACME, Inc. e-commerce platform.
+Think hard about architecture and design of this bounded context service.
+List features that this service will provide. Keep things high-level and avoid
+making technology choices here.
+Broad acceptance criteria are welcomed, but more detailed acceptance criteria will
+be created when this epic user story is decomposed into smaller, focused user
+stories.
+All diagrams should use Mermaid.js. No ASCII art.
+Write the content to @documentation/epics/010-analytics.md.
+Take into account the architecture patterns and standards documented in
+@documentation/ARCHITECTURE.md.
+Create a feature branch from the `main` branch for this work.
+Commit all changes to this feature branch.
+When completed, create a PR for merging this feature branch back into
+the `main` branch on GitHub.
+```
