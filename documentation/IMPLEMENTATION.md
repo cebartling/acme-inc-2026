@@ -2,6 +2,19 @@
 
 ## Technologies
 
+### Core infrastructure
+
+- PostgreSQL 16+ for read-write, command store
+- MongoDB 8.2+ for read-only, query store
+- Hashicorp Vault for secrets management
+- Confluent Kafka for events and messaging
+- Confluent Schema Registry for Avro schemas for Kafka messaging
+- Grafana for observability dashboards
+- Tempo for OTel tracing backend
+- Loki for OTel logging via OTel Collector
+- Prometheus for OTel metrics via OTel SDK/Collector
+
+
 ### Backend services
 
 - Kotlin 2.2
@@ -51,6 +64,7 @@
 - shadcn/ui UI components
 - Zod for schemas, validation
 - Zustand for state management
+- React Hook Form for user input forms
 - TanStack Query for data fetching
 - TanStack Table and Virtual for data tables
 - TanStack Router for routing
