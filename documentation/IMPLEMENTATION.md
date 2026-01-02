@@ -4,7 +4,6 @@
 
 ### Backend services
 
-- Backend services will be implemented in Kotlin and Spring Boot
 - Kotlin 2.2
 - Java 24
     - Project Loom: virtual threads usage
@@ -45,6 +44,5 @@
 ## Acceptance testing
 
 - User story acceptance criteria will be used to craft automated acceptance tests
-- Cucumber.js will be used for automating acceptance tests
-- Playwright will be used for browser automation
--
+- Cucumber.js should be used for automating acceptance tests
+- Playwright should be used for browser automation
