@@ -4,6 +4,9 @@
 
 ### Core infrastructure
 
+- Use Docker Compose to manage infrastructure services
+    - YAML file in repository root directory
+    - Dependency for all backend services and frontend applications 
 - PostgreSQL 16+ for read-write, command store
 - MongoDB 8.2+ for read-only, query store
 - Hashicorp Vault for secrets management
