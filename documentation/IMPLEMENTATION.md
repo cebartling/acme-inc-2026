@@ -100,6 +100,7 @@ Grafana Tempo (since v2.8.0) and Loki use Google's distroless base container ima
 - TanStack Query for data fetching
 - TanStack Table and Virtual for data tables
 - TanStack Router for routing
+- Mock Service Worker (msw) for API endpoint mocking
 - Vitest for unit testing
 
 ### Application projects
