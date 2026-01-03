@@ -5,12 +5,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "cucumber-js",
-    "test:smoke": "cucumber-js --tags @smoke",
-    "test:regression": "cucumber-js --tags @regression",
-    "test:customer": "cucumber-js --tags @customer",
-    "test:admin": "cucumber-js --tags @admin",
-    "test:headed": "HEADED=true cucumber-js",
+    "test": "node --import tsx ./node_modules/@cucumber/cucumber/bin/cucumber.js --import 'support/world.ts' --import 'support/hooks.ts' --import 'steps/**/*.ts'",
+    "test:smoke": "node --import tsx ./node_modules/@cucumber/cucumber/bin/cucumber.js --tags @smoke",
+    "test:regression": "node --import tsx ./node_modules/@cucumber/cucumber/bin/cucumber.js --tags @regression",
+    "test:customer": "node --import tsx ./node_modules/@cucumber/cucumber/bin/cucumber.js --tags @customer",
+    "test:admin": "node --import tsx ./node_modules/@cucumber/cucumber/bin/cucumber.js --tags @admin",
+    "test:headed": "HEADED=true node --import tsx ./node_modules/@cucumber/cucumber/bin/cucumber.js",
     "allure:generate": "allure generate allure-results --clean -o allure-report",
     "allure:open": "allure open allure-report",
     "allure:serve": "allure serve allure-results",
@@ -41,6 +41,7 @@
     "eslint-config-prettier": "^9.1.0",
     "prettier": "^3.4.2",
     "ts-node": "^10.9.2",
+    "tsx": "^4.21.0",
     "typescript": "^5.7.2"
   },
   "engines": {
