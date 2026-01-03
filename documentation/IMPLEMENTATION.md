@@ -93,6 +93,7 @@ Grafana Tempo (since v2.8.0) and Loki use Google's distroless base container ima
 - Vite
 - Tailwind CSS 4 for styling
 - shadcn/ui UI components
+- shadcn icons
 - Zod for schemas, validation
 - Zustand for state management
 - React Hook Form for user input forms
