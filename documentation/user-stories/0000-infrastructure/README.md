@@ -8,7 +8,9 @@
 
 ## Overview
 
-This user story establishes the foundational infrastructure for the ACME Inc. e-commerce platform. The infrastructure uses Docker Compose to orchestrate all required services, enabling developers to run the complete platform locally with a single command.
+This user story establishes the foundational infrastructure for the ACME Inc. e-commerce platform. The infrastructure
+uses Docker Compose to orchestrate all required services, enabling developers to run the complete platform locally with
+a single command.
 
 ## Business Value
 
@@ -21,32 +23,32 @@ This user story establishes the foundational infrastructure for the ACME Inc. e-
 
 ### Data Stores
 
-| Component | Version | Docker Image | Purpose |
-|-----------|---------|--------------|---------|
-| PostgreSQL | 16+ | `quay.io/debezium/postgres:latest` | Command store (read-write) for CQRS pattern |
-| MongoDB | 8.2+ | `mongo:8.2` | Query store (read-only) for optimized reads |
+| Component  | Version | Docker Image                       | Purpose                                     |
+|------------|---------|------------------------------------|---------------------------------------------|
+| PostgreSQL | 16+     | `quay.io/debezium/postgres:latest` | Command store (read-write) for CQRS pattern |
+| MongoDB    | 8.2+    | `mongo:8.2`                        | Query store (read-only) for optimized reads |
 
 ### Messaging & Event Streaming
 
-| Component | Docker Image | Purpose |
-|-----------|--------------|---------|
-| Confluent Kafka | `confluentinc/cp-kafka:latest` | Event streaming and async messaging between services |
-| Confluent Schema Registry | `confluentinc/cp-schema-registry:latest` | Avro schema management for Kafka messages |
-| Debezium Kafka Connect | `quay.io/debezium/connect:latest` | Change Data Capture from PostgreSQL to Kafka |
+| Component                 | Docker Image                             | Purpose                                              |
+|---------------------------|------------------------------------------|------------------------------------------------------|
+| Confluent Kafka           | `confluentinc/cp-kafka:latest`           | Event streaming and async messaging between services |
+| Confluent Schema Registry | `confluentinc/cp-schema-registry:latest` | Avro schema management for Kafka messages            |
+| Debezium Kafka Connect    | `quay.io/debezium/connect:latest`        | Change Data Capture from PostgreSQL to Kafka         |
 
 ### Security
 
-| Component | Purpose |
-|-----------|---------|
+| Component       | Purpose                                            |
+|-----------------|----------------------------------------------------|
 | HashiCorp Vault | Secrets management, API keys, database credentials |
 
 ### Observability Stack
 
-| Component | Purpose |
-|-----------|---------|
-| Grafana | Observability dashboards and visualization |
-| Tempo | Distributed tracing backend (OpenTelemetry) |
-| Loki | Log aggregation backend (OpenTelemetry) |
+| Component  | Purpose                                        |
+|------------|------------------------------------------------|
+| Grafana    | Observability dashboards and visualization     |
+| Tempo      | Distributed tracing backend (OpenTelemetry)    |
+| Loki       | Log aggregation backend (OpenTelemetry)        |
 | Prometheus | Metrics collection and storage (OpenTelemetry) |
 
 ## Architecture Diagram
@@ -198,8 +200,8 @@ The `docker-compose.yml` file should be placed in the repository root for easy a
 ### PostgreSQL Setup
 
 - **Use Debezium-sourced image**: `quay.io/debezium/postgres:latest`
-  - Pre-configured with logical replication enabled
-  - Replication slots already configured for CDC
+    - Pre-configured with logical replication enabled
+    - Replication slots already configured for CDC
 - Create separate databases for each backend service
 - Configure appropriate connection pooling settings
 - Include initialization scripts for schema setup
@@ -220,7 +222,7 @@ The `docker-compose.yml` file should be placed in the repository root for easy a
 ### Debezium Configuration
 
 - **Use Debezium Connect image**: `quay.io/debezium/connect:latest`
-  - Includes PostgreSQL connector plugin pre-installed
+    - Includes PostgreSQL connector plugin pre-installed
 - Configure connectors for each PostgreSQL database
 - Use Avro format with Schema Registry integration
 - Set up appropriate topic naming conventions

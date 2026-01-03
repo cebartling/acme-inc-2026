@@ -2,7 +2,8 @@
 
 ## Overview
 
-This document defines the acceptance criteria for User Story 0000: Core Infrastructure Setup. Each criterion includes verification steps and expected outcomes.
+This document defines the acceptance criteria for User Story 0000: Core Infrastructure Setup. Each criterion includes
+verification steps and expected outcomes.
 
 ## AC-001: Docker Compose Orchestration
 
@@ -41,6 +42,7 @@ docker compose ps
 Use the Debezium-sourced PostgreSQL image: `quay.io/debezium/postgres:latest`
 
 This image comes pre-configured with:
+
 - Logical replication enabled (`wal_level = logical`)
 - Replication slots configured for CDC
 
@@ -427,20 +429,20 @@ docker network inspect acme-inc-network
 
 ## Summary Checklist
 
-| AC | Description | Status |
-|----|-------------|--------|
-| AC-001 | Docker Compose Orchestration | [ ] |
-| AC-002 | PostgreSQL Command Store | [ ] |
-| AC-003 | MongoDB Query Store | [ ] |
-| AC-004 | Confluent Kafka Messaging | [ ] |
-| AC-005 | Schema Registry | [ ] |
-| AC-006 | Debezium CDC Connector | [ ] |
-| AC-007 | HashiCorp Vault Secrets | [ ] |
-| AC-008 | Grafana Dashboards | [ ] |
-| AC-009 | Tempo Distributed Tracing | [ ] |
-| AC-010 | Loki Log Aggregation | [ ] |
-| AC-011 | Prometheus Metrics | [ ] |
-| AC-012 | Service Dependencies | [ ] |
-| AC-013 | Data Persistence | [ ] |
-| AC-014 | Network Isolation | [ ] |
-| AC-015 | Documentation | [ ] |
+| AC     | Description                  | Status |
+|--------|------------------------------|--------|
+| AC-001 | Docker Compose Orchestration | [ ]    |
+| AC-002 | PostgreSQL Command Store     | [ ]    |
+| AC-003 | MongoDB Query Store          | [ ]    |
+| AC-004 | Confluent Kafka Messaging    | [ ]    |
+| AC-005 | Schema Registry              | [ ]    |
+| AC-006 | Debezium CDC Connector       | [ ]    |
+| AC-007 | HashiCorp Vault Secrets      | [ ]    |
+| AC-008 | Grafana Dashboards           | [ ]    |
+| AC-009 | Tempo Distributed Tracing    | [ ]    |
+| AC-010 | Loki Log Aggregation         | [ ]    |
+| AC-011 | Prometheus Metrics           | [ ]    |
+| AC-012 | Service Dependencies         | [ ]    |
+| AC-013 | Data Persistence             | [ ]    |
+| AC-014 | Network Isolation            | [ ]    |
+| AC-015 | Documentation                | [ ]    |
