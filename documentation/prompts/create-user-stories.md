@@ -36,7 +36,7 @@ the `main` branch on GitHub.
 
 ```
 Create user stories from the detailed journey steps found in @documentation/journeys/0002-create-customer-profile.md.
-Write user stories to @documentation/user-stories/0001-create-customer-profile directory.
+Write user stories to @documentation/user-stories/0002-create-customer-profile directory.
 Think hard about the implementation of this user story.
 Transfer acceptance criteria from user journey document to each new user story, where appropriate.
 All diagrams should use Mermaid.js. No ASCII art.
