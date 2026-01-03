@@ -12,6 +12,7 @@
 - Hashicorp Vault for secrets management
 - Confluent Kafka for events and messaging
 - Confluent Schema Registry for Avro schemas for Kafka messaging
+- Debezium Kafka Connect connector for change data capture on PostgreSQL tables
 - Grafana for observability dashboards
 - Tempo for OTel tracing backend
 - Loki for OTel logging via OTel Collector
@@ -41,7 +42,7 @@
 
 - Use saga pattern for reversible business transactions when implementing commands
 - The workflow orchestrator service will house the saga pattern-based workflows
-- Debezium Kafka Connect connector to implement change data capture in command store
+- Debezium Kafka Connect connector to implement change data capture between command store and query store
 
 #### Service projects
 
