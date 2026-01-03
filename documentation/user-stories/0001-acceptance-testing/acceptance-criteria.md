@@ -29,6 +29,7 @@ npm run build
 - [ ] `acceptance-tests` directory exists at repository root
 - [ ] `package.json` includes Cucumber.js dependency (`@cucumber/cucumber`)
 - [ ] `package.json` includes Playwright dependency (`@playwright/test`)
+- [ ] `package.json` includes Allure Cucumber.js adapter (`allure-cucumberjs`)
 - [ ] `package.json` includes TypeScript dependencies
 - [ ] `tsconfig.json` is properly configured for Node.js and ES modules
 - [ ] `cucumber.js` configuration file exists
@@ -256,32 +257,51 @@ npm run test -- --tags @api
 - [ ] API client base URL is configurable via environment variables
 - [ ] API client can be used for test data setup/teardown
 
-## AC-010: Test Reports
+## AC-010: Test Reports with Allure Report 3
 
 **Given** acceptance tests have been executed
 **When** tests complete
-**Then** comprehensive reports are generated
+**Then** comprehensive Allure reports are generated
 
 ### Verification
 
 ```bash
-# Run tests and generate reports
+# Run tests (generates allure-results)
 npm run test
 
-# Verify reports exist
-ls -la reports/
-# Expected: cucumber-report.html, cucumber-report.json, junit.xml
+# Generate Allure HTML report
+npm run allure:generate
+
+# Verify allure results exist
+ls -la allure-results/
+# Expected: *.json result files
+
+# Verify Allure report is generated
+ls -la allure-report/
+# Expected: index.html and supporting assets
+
+# Open Allure report in browser
+npm run allure:open
 ```
+
+### Allure Report Documentation
+
+See https://allurereport.org/docs/v3/ for complete Allure Report 3 documentation.
 
 ### Sub-criteria
 
-- [ ] HTML report is generated in `reports/` directory
-- [ ] JSON report is generated for programmatic access
-- [ ] JUnit XML report is generated for CI integration
-- [ ] Reports include scenario names and status
+- [ ] Allure Cucumber.js adapter is configured (`allure-cucumberjs`)
+- [ ] Test results are written to `allure-results/` directory
+- [ ] `npm run allure:generate` creates HTML report in `allure-report/`
+- [ ] `npm run allure:open` opens report in default browser
+- [ ] `npm run allure:serve` generates and serves report on local server
+- [ ] Reports include scenario names and status with Allure decorators
 - [ ] Reports include step details and duration
 - [ ] Reports include failure messages and stack traces
-- [ ] Reports include screenshots for failed scenarios
+- [ ] Reports include screenshots for failed scenarios as attachments
+- [ ] Reports support test history when results are preserved
+- [ ] Reports display environment information
+- [ ] JUnit XML report is also generated for CI integration
 - [ ] Report generation does not fail even if tests fail
 
 ## AC-011: Environment Configuration
@@ -327,7 +347,8 @@ npm run
 # Expected scripts:
 # - test, test:smoke, test:regression
 # - test:customer, test:admin
-# - test:headed, report
+# - test:headed
+# - allure:generate, allure:open, allure:serve
 ```
 
 ### Sub-criteria
@@ -338,7 +359,9 @@ npm run
 - [ ] `npm run test:customer` runs customer app tests only
 - [ ] `npm run test:admin` runs admin app tests only
 - [ ] `npm run test:headed` runs tests with visible browser
-- [ ] `npm run report` opens the HTML report
+- [ ] `npm run allure:generate` generates Allure HTML report from results
+- [ ] `npm run allure:open` opens Allure report in browser
+- [ ] `npm run allure:serve` generates and serves Allure report
 - [ ] Scripts use appropriate Cucumber CLI options
 
 ## AC-013: Sample Feature Implementation
@@ -439,7 +462,7 @@ cat reports/junit.xml
 | AC-007 | Test Hooks and Lifecycle           | [ ]    |
 | AC-008 | Custom World Class                 | [ ]    |
 | AC-009 | API Testing Support                | [ ]    |
-| AC-010 | Test Reports                       | [ ]    |
+| AC-010 | Test Reports with Allure Report 3  | [ ]    |
 | AC-011 | Environment Configuration          | [ ]    |
 | AC-012 | NPM Scripts                        | [ ]    |
 | AC-013 | Sample Feature Implementation      | [ ]    |

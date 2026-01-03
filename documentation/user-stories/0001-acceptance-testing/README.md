@@ -24,13 +24,13 @@ criteria.
 
 ## Technology Stack
 
-| Component   | Technology        | Purpose                                   |
-|-------------|-------------------|-------------------------------------------|
-| Test Runner | Cucumber.js       | BDD framework for executing Gherkin specs |
-| Browser     | Playwright        | Cross-browser automation and E2E testing  |
-| Language    | TypeScript        | Type-safe test implementation             |
-| Assertions  | Playwright Expect | Built-in assertion library                |
-| Reporting   | Cucumber HTML     | Test execution reports                    |
+| Component   | Technology        | Purpose                                        |
+|-------------|-------------------|------------------------------------------------|
+| Test Runner | Cucumber.js       | BDD framework for executing Gherkin specs      |
+| Browser     | Playwright        | Cross-browser automation and E2E testing       |
+| Language    | TypeScript        | Type-safe test implementation                  |
+| Assertions  | Playwright Expect | Built-in assertion library                     |
+| Reporting   | Allure Report 3   | Rich HTML test reports with history and trends |
 
 ## Architecture Diagram
 
@@ -65,7 +65,7 @@ graph TB
     end
 
     subgraph "Reporting"
-        HTML[HTML Report]
+        ALLURE[Allure Report 3<br/>HTML Dashboard]
         JSON[JSON Report]
         JUNIT[JUnit XML<br/>CI Integration]
     end
@@ -86,7 +86,7 @@ graph TB
     DOCKER --> CUSTOMER
     DOCKER --> ADMIN
 
-    CUCUMBER --> HTML
+    CUCUMBER --> ALLURE
     CUCUMBER --> JSON
     CUCUMBER --> JUNIT
 ```
@@ -183,10 +183,15 @@ acme-inc-2026/
 │   │   ├── api-client.ts            # API interaction utilities
 │   │   └── test-data.ts             # Test data factories
 │   │
-│   └── reports/                     # Generated test reports
-│       ├── cucumber-report.html
-│       ├── cucumber-report.json
-│       └── junit.xml
+│   ├── allure-results/              # Allure test result files
+│   │   └── *.json                   # Individual test results
+│   │
+│   ├── allure-report/               # Generated Allure HTML report
+│   │   └── index.html               # Report entry point
+│   │
+│   └── reports/                     # Additional test reports
+│       ├── cucumber-report.json     # JSON report for programmatic access
+│       └── junit.xml                # JUnit XML for CI integration
 ```
 
 ## Implementation Notes
@@ -197,9 +202,20 @@ The `cucumber.js` file configures the test runner:
 
 - **Feature paths**: Location of `.feature` files
 - **Step definitions**: TypeScript step definition files
-- **Formatters**: HTML, JSON, and JUnit reporters
+- **Formatters**: Allure, JSON, and JUnit reporters
 - **Parallel execution**: Configure worker processes
 - **Tags**: Filter scenarios by tags (e.g., `@smoke`, `@regression`)
+
+### Allure Report 3 Integration
+
+Allure Report 3 provides rich test reporting:
+
+- **Test history**: Track test results over time
+- **Trend charts**: Visualize pass/fail trends
+- **Categories**: Group failures by type
+- **Attachments**: Screenshots, logs, and traces attached to test results
+- **Environment info**: Display test environment details
+- **Documentation**: https://allurereport.org/docs/v3/
 
 ### Playwright Integration
 
@@ -275,15 +291,17 @@ flowchart LR
 
 ## NPM Scripts
 
-| Script                    | Description                        |
-|---------------------------|------------------------------------|
-| `npm run test`            | Run all acceptance tests           |
-| `npm run test:smoke`      | Run smoke test suite (@smoke tag)  |
-| `npm run test:regression` | Run full regression suite          |
-| `npm run test:customer`   | Run customer app tests only        |
-| `npm run test:admin`      | Run admin app tests only           |
-| `npm run test:headed`     | Run tests with visible browser     |
-| `npm run report`          | Generate HTML report from last run |
+| Script                    | Description                               |
+|---------------------------|-------------------------------------------|
+| `npm run test`            | Run all acceptance tests                  |
+| `npm run test:smoke`      | Run smoke test suite (@smoke tag)         |
+| `npm run test:regression` | Run full regression suite                 |
+| `npm run test:customer`   | Run customer app tests only               |
+| `npm run test:admin`      | Run admin app tests only                  |
+| `npm run test:headed`     | Run tests with visible browser            |
+| `npm run allure:generate` | Generate Allure HTML report from results  |
+| `npm run allure:open`     | Open Allure report in browser             |
+| `npm run allure:serve`    | Generate and serve Allure report          |
 
 ## Related Documents
 
