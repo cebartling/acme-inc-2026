@@ -89,3 +89,4 @@
 - User story acceptance criteria will be used to craft automated acceptance tests
 - Cucumber.js should be used for automating acceptance tests
 - Playwright should be used for browser automation
+- Acceptance tests project will reside in the `acceptance-tests` directory.
