@@ -5,22 +5,7 @@
 
 // Note: Replica set initialization is handled by the healthcheck in docker-compose
 // This script runs after MongoDB is ready and sets up application-specific resources
-
-// Switch to admin database for user creation
-db = db.getSiblingDB('admin');
-
-// Create application user for microservices
-db.createUser({
-  user: 'acme_app',
-  pwd: 'acme_app_password',
-  roles: [
-    { role: 'readWrite', db: 'acme_query' },
-    { role: 'readWrite', db: 'acme_orders_query' },
-    { role: 'readWrite', db: 'acme_inventory_query' },
-    { role: 'readWrite', db: 'acme_customers_query' },
-    { role: 'readWrite', db: 'acme_payments_query' }
-  ]
-});
+// Authentication is disabled for local development
 
 // =============================================================================
 // Orders Query Store

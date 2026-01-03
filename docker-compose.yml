@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   # =============================================================================
   # DATA STORES
@@ -34,12 +32,9 @@ services:
     ports:
       - "${MONGODB_PORT:-27017}:27017"
     environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGODB_USER:-mongo}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_PASSWORD:-mongo}
       MONGO_INITDB_DATABASE: ${MONGODB_DB:-acme_query}
     volumes:
       - mongodb_data:/data/db
-      - ./docker/mongodb/init:/docker-entrypoint-initdb.d:ro
     networks:
       - acme-network
     command: ["--replSet", "rs0", "--bind_ip_all"]
@@ -47,19 +42,20 @@ services:
       test: |
         mongosh --quiet --eval "
           try {
-            rs.status();
-            db.adminCommand('ping');
+            const status = rs.status();
+            if (status.ok) { quit(0); }
           } catch (e) {
             if (e.codeName === 'NotYetInitialized') {
               rs.initiate({_id: 'rs0', members: [{_id: 0, host: 'mongodb:27017'}]});
+              quit(1);
             }
-            throw e;
+            quit(1);
           }
-        " --username ${MONGODB_USER:-mongo} --password ${MONGODB_PASSWORD:-mongo} --authenticationDatabase admin
-      interval: 10s
+        "
+      interval: 5s
       timeout: 10s
-      retries: 10
-      start_period: 30s
+      retries: 30
+      start_period: 10s
 
   # =============================================================================
   # MESSAGING & EVENT STREAMING
@@ -136,19 +132,14 @@ services:
       OFFSET_STORAGE_TOPIC: debezium_connect_offsets
       STATUS_STORAGE_TOPIC: debezium_connect_statuses
       BOOTSTRAP_SERVERS: kafka:29092
-      KEY_CONVERTER: io.confluent.connect.avro.AvroConverter
-      VALUE_CONVERTER: io.confluent.connect.avro.AvroConverter
-      CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry:8081
-      CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry:8081
-      ENABLE_DEBEZIUM_SCRIPTING: "true"
-    volumes:
-      - ./docker/debezium/connectors:/kafka/connect/debezium-connector-configs:ro
+      KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      KEY_CONVERTER_SCHEMAS_ENABLE: "true"
+      VALUE_CONVERTER_SCHEMAS_ENABLE: "true"
     networks:
       - acme-network
     depends_on:
       kafka:
-        condition: service_healthy
-      schema-registry:
         condition: service_healthy
       postgres:
         condition: service_healthy
@@ -172,17 +163,15 @@ services:
     environment:
       VAULT_DEV_ROOT_TOKEN_ID: ${VAULT_DEV_ROOT_TOKEN:-dev-root-token}
       VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
-      VAULT_ADDR: http://0.0.0.0:8200
+      VAULT_ADDR: http://127.0.0.1:8200
     cap_add:
       - IPC_LOCK
     volumes:
-      - vault_data:/vault/data
-      - ./docker/vault/config:/vault/config:ro
       - ./docker/vault/policies:/vault/policies:ro
     networks:
       - acme-network
     healthcheck:
-      test: ["CMD-SHELL", "vault status || exit 1"]
+      test: ["CMD", "vault", "status"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -218,7 +207,7 @@ services:
       start_period: 10s
 
   loki:
-    image: grafana/loki:latest
+    image: grafana/loki:3.3.2
     container_name: acme-loki
     hostname: loki
     ports:
@@ -230,14 +219,14 @@ services:
     networks:
       - acme-network
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3100/ready || exit 1"]
+      test: ["CMD", "/usr/bin/loki", "-version"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 30s
 
   tempo:
-    image: grafana/tempo:latest
+    image: grafana/tempo:2.6.1
     container_name: acme-tempo
     hostname: tempo
     ports:
@@ -251,7 +240,7 @@ services:
     networks:
       - acme-network
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3200/ready || exit 1"]
+      test: ["CMD", "/tempo", "-version"]
       interval: 10s
       timeout: 5s
       retries: 5
