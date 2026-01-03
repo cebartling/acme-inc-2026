@@ -8,27 +8,29 @@
 
 ## Story Details
 
-| Field | Value |
-|-------|-------|
-| Story ID | US-0002-11 |
-| Epic | [US-0002: Create Customer Profile](./README.md) |
-| Priority | Must Have |
-| Phase | Phase 3 (Enhanced Features) |
-| Story Points | 8 |
+| Field        | Value                                           |
+|--------------|-------------------------------------------------|
+| Story ID     | US-0002-11                                      |
+| Epic         | [US-0002: Create Customer Profile](./README.md) |
+| Priority     | Must Have                                       |
+| Phase        | Phase 3 (Enhanced Features)                     |
+| Story Points | 8                                               |
 
 ## Description
 
-This story implements GDPR-compliant consent management in the Customer Management Service. Customers can grant, revoke, and review their consents for various data processing activities. All consent changes are immutable (append-only) and exportable for data subject requests.
+This story implements GDPR-compliant consent management in the Customer Management Service. Customers can grant, revoke,
+and review their consents for various data processing activities. All consent changes are immutable (append-only) and
+exportable for data subject requests.
 
 ## Consent Types
 
-| Consent Type | Description | Required | Default |
-|--------------|-------------|----------|---------|
-| DATA_PROCESSING | Basic data processing for service delivery | Yes | Granted at registration |
-| MARKETING | Marketing communications and promotions | No | Per registration choice |
-| ANALYTICS | Usage analytics and behavior tracking | No | Not granted |
-| THIRD_PARTY | Data sharing with partners | No | Not granted |
-| PERSONALIZATION | Personalized recommendations | No | Not granted |
+| Consent Type    | Description                                | Required | Default                 |
+|-----------------|--------------------------------------------|----------|-------------------------|
+| DATA_PROCESSING | Basic data processing for service delivery | Yes      | Granted at registration |
+| MARKETING       | Marketing communications and promotions    | No       | Per registration choice |
+| ANALYTICS       | Usage analytics and behavior tracking      | No       | Not granted             |
+| THIRD_PARTY     | Data sharing with partners                 | No       | Not granted             |
+| PERSONALIZATION | Personalized recommendations               | No       | Not granted             |
 
 ## API Contracts
 
@@ -356,77 +358,77 @@ stateDiagram-v2
 ```kotlin
 @Service
 class GrantConsentUseCase(
-    private val consentRepository: ConsentRepository,
-    private val eventPublisher: CustomerEventPublisher
+  private val consentRepository: ConsentRepository,
+  private val eventPublisher: CustomerEventPublisher
 ) {
-    @Transactional
-    suspend fun execute(
-        customerId: CustomerId,
-        request: GrantConsentRequest
-    ): ConsentRecord {
-        // Validate consent type exists
-        val consentType = ConsentType.valueOf(request.consentType)
+  @Transactional
+  suspend fun execute(
+    customerId: CustomerId,
+    request: GrantConsentRequest
+  ): ConsentRecord {
+    // Validate consent type exists
+    val consentType = ConsentType.valueOf(request.consentType)
 
-        // Check if required consent revocation
-        if (consentType == ConsentType.DATA_PROCESSING && !request.granted) {
-            throw RequiredConsentException(
-                "DATA_PROCESSING consent is required. To remove it, please close your account."
-            )
-        }
-
-        // Get current version
-        val currentVersion = consentRepository.getCurrentVersion(customerId, consentType) ?: 0
-
-        // Calculate expiration
-        val expiresAt = if (request.granted && consentType != ConsentType.DATA_PROCESSING) {
-            Instant.now().plus(365, ChronoUnit.DAYS)
-        } else {
-            null
-        }
-
-        // Create immutable record
-        val record = ConsentRecord(
-            id = UuidV7.generate(),
-            customerId = customerId,
-            consentType = consentType,
-            granted = request.granted,
-            source = request.source,
-            ipAddress = request.ipAddress,
-            userAgent = request.userAgent,
-            expiresAt = expiresAt,
-            version = currentVersion + 1
-        )
-
-        // Append (never update)
-        consentRepository.append(record)
-
-        // Refresh materialized view
-        consentRepository.refreshCurrentConsents()
-
-        // Publish event
-        val event = if (request.granted) {
-            ConsentGrantedEvent(
-                customerId = customerId,
-                consentId = record.id,
-                consentType = consentType,
-                grantedAt = record.createdAt,
-                source = record.source,
-                expiresAt = record.expiresAt
-            )
-        } else {
-            ConsentRevokedEvent(
-                customerId = customerId,
-                consentId = record.id,
-                consentType = consentType,
-                revokedAt = record.createdAt,
-                source = record.source
-            )
-        }
-
-        eventPublisher.publish(event)
-
-        return record
+    // Check if required consent revocation
+    if (consentType == ConsentType.DATA_PROCESSING && !request.granted) {
+      throw RequiredConsentException(
+        "DATA_PROCESSING consent is required. To remove it, please close your account."
+      )
     }
+
+    // Get current version
+    val currentVersion = consentRepository.getCurrentVersion(customerId, consentType) ?: 0
+
+    // Calculate expiration
+    val expiresAt = if (request.granted && consentType != ConsentType.DATA_PROCESSING) {
+      Instant.now().plus(365, ChronoUnit.DAYS)
+    } else {
+      null
+    }
+
+    // Create immutable record
+    val record = ConsentRecord(
+      id = UuidV7.generate(),
+      customerId = customerId,
+      consentType = consentType,
+      granted = request.granted,
+      source = request.source,
+      ipAddress = request.ipAddress,
+      userAgent = request.userAgent,
+      expiresAt = expiresAt,
+      version = currentVersion + 1
+    )
+
+    // Append (never update)
+    consentRepository.append(record)
+
+    // Refresh materialized view
+    consentRepository.refreshCurrentConsents()
+
+    // Publish event
+    val event = if (request.granted) {
+      ConsentGrantedEvent(
+        customerId = customerId,
+        consentId = record.id,
+        consentType = consentType,
+        grantedAt = record.createdAt,
+        source = record.source,
+        expiresAt = record.expiresAt
+      )
+    } else {
+      ConsentRevokedEvent(
+        customerId = customerId,
+        consentId = record.id,
+        consentType = consentType,
+        revokedAt = record.createdAt,
+        source = record.source
+      )
+    }
+
+    eventPublisher.publish(event)
+
+    return record
+  }
 }
 ```
 
@@ -451,11 +453,11 @@ flowchart TB
 
 ### Metrics
 
-| Metric | Type | Labels |
-|--------|------|--------|
+| Metric                  | Type    | Labels               |
+|-------------------------|---------|----------------------|
 | `consent_granted_total` | Counter | consent_type, source |
 | `consent_revoked_total` | Counter | consent_type, source |
-| `consent_export_total` | Counter | format |
+| `consent_export_total`  | Counter | format               |
 
 ### Tracing Spans
 

@@ -8,17 +8,19 @@
 
 ## Story Details
 
-| Field | Value |
-|-------|-------|
-| Story ID | US-0002-07 |
-| Epic | [US-0002: Create Customer Profile](./README.md) |
-| Priority | Must Have |
-| Phase | Phase 1 (MVP) |
-| Story Points | 3 |
+| Field        | Value                                           |
+|--------------|-------------------------------------------------|
+| Story ID     | US-0002-07                                      |
+| Epic         | [US-0002: Create Customer Profile](./README.md) |
+| Priority     | Must Have                                       |
+| Phase        | Phase 1 (MVP)                                   |
+| Story Points | 3                                               |
 
 ## Description
 
-This story implements the welcome email notification in the Notification Service. When a `CustomerActivated` event is consumed from Kafka, the service sends a personalized welcome email that includes account information and a call-to-action to start shopping.
+This story implements the welcome email notification in the Notification Service. When a `CustomerActivated` event is
+consumed from Kafka, the service sends a personalized welcome email that includes account information and a
+call-to-action to start shopping.
 
 ## System Context
 
@@ -47,30 +49,30 @@ sequenceDiagram
 
 ```json
 {
-  "recipientName": "Jane",
-  "recipientEmail": "customer@example.com",
-  "customerNumber": "ACME-202601-000142",
-  "shopUrl": "https://www.acme.com/shop",
-  "profileUrl": "https://www.acme.com/profile",
-  "supportEmail": "support@acme.com",
-  "companyName": "ACME Inc.",
-  "currentYear": 2026,
-  "marketingOptIn": false
+    "recipientName": "Jane",
+    "recipientEmail": "customer@example.com",
+    "customerNumber": "ACME-202601-000142",
+    "shopUrl": "https://www.acme.com/shop",
+    "profileUrl": "https://www.acme.com/profile",
+    "supportEmail": "support@acme.com",
+    "companyName": "ACME Inc.",
+    "currentYear": 2026,
+    "marketingOptIn": false
 }
 ```
 
 ### Email Structure
 
-| Section | Content |
-|---------|---------|
-| Subject | "Welcome to ACME, Jane!" |
-| Preheader | "Your account is ready. Start shopping now!" |
-| Header | ACME logo + "You're all set!" |
-| Body | Welcome message, customer number, quick start guide |
-| CTA Button | "Start Shopping" (links to shopUrl) |
-| Secondary CTA | "Complete Your Profile" (if profile < 100%) |
-| Marketing Section | Promotional content (only if marketingOptIn: true) |
-| Footer | Support contact, social links, unsubscribe (if marketing) |
+| Section           | Content                                                   |
+|-------------------|-----------------------------------------------------------|
+| Subject           | "Welcome to ACME, Jane!"                                  |
+| Preheader         | "Your account is ready. Start shopping now!"              |
+| Header            | ACME logo + "You're all set!"                             |
+| Body              | Welcome message, customer number, quick start guide       |
+| CTA Button        | "Start Shopping" (links to shopUrl)                       |
+| Secondary CTA     | "Complete Your Profile" (if profile < 100%)               |
+| Marketing Section | Promotional content (only if marketingOptIn: true)        |
+| Footer            | Support contact, social links, unsubscribe (if marketing) |
 
 ## Acceptance Criteria
 
@@ -104,9 +106,10 @@ sequenceDiagram
 **Given** a customer has opted in to marketing communications
 **When** the welcome email is rendered
 **Then** the email includes a promotional section with:
-  - Current offers or discounts
-  - Featured products
-  - "New customer" special offer (if applicable)
+
+- Current offers or discounts
+- Featured products
+- "New customer" special offer (if applicable)
 
 ### AC-0002-07-05: Call-to-Action
 
@@ -179,14 +182,16 @@ class CustomerActivatedHandler(
             category = if (customer.preferences.communication.marketing) "marketing" else "transactional"
         )
 
-        deliveryRepository.save(DeliveryRecord(
-            notificationType = "WELCOME_EMAIL",
-            recipientId = customer.id,
-            recipientEmail = customer.email.address,
-            providerMessageId = result.messageId,
-            status = result.status,
-            correlationId = event.correlationId
-        ))
+        deliveryRepository.save(
+            DeliveryRecord(
+                notificationType = "WELCOME_EMAIL",
+                recipientId = customer.id,
+                recipientEmail = customer.email.address,
+                providerMessageId = result.messageId,
+                status = result.status,
+                correlationId = event.correlationId
+            )
+        )
     }
 }
 ```
@@ -233,10 +238,10 @@ flowchart TB
 
 ### Metrics
 
-| Metric | Type | Labels |
-|--------|------|--------|
-| `welcome_email_sent_total` | Counter | marketing_included |
-| `welcome_email_duration_seconds` | Histogram | - |
+| Metric                           | Type      | Labels             |
+|----------------------------------|-----------|--------------------|
+| `welcome_email_sent_total`       | Counter   | marketing_included |
+| `welcome_email_duration_seconds` | Histogram | -                  |
 
 ### Tracing Spans
 

@@ -8,17 +8,19 @@
 
 ## Story Details
 
-| Field | Value |
-|-------|-------|
-| Story ID | US-0002-08 |
-| Epic | [US-0002: Create Customer Profile](./README.md) |
-| Priority | Must Have |
-| Phase | Phase 2 (Profile Completion) |
-| Story Points | 8 |
+| Field        | Value                                           |
+|--------------|-------------------------------------------------|
+| Story ID     | US-0002-08                                      |
+| Epic         | [US-0002: Create Customer Profile](./README.md) |
+| Priority     | Must Have                                       |
+| Phase        | Phase 2 (Profile Completion)                    |
+| Story Points | 8                                               |
 
 ## Description
 
-This story implements the profile completion wizard in the web application and the profile update API in the Customer Management Service. The wizard guides customers through providing personal details, adding addresses, setting preferences, and managing consent.
+This story implements the profile completion wizard in the web application and the profile update API in the Customer
+Management Service. The wizard guides customers through providing personal details, adding addresses, setting
+preferences, and managing consent.
 
 ## User Flow
 
@@ -42,37 +44,37 @@ flowchart TB
 
 ### Step 1: Personal Details
 
-| Field | Type | Required | Validation |
-|-------|------|----------|------------|
-| Phone Number | Phone Input | No | Valid format per country code |
-| Date of Birth | Date Picker | No | Age >= 13 years |
-| Gender | Select | No | Options: Male, Female, Non-binary, Prefer not to say |
-| Preferred Language | Select | No | en-US, es, fr, de, etc. |
-| Timezone | Select | No | IANA timezone list |
+| Field              | Type        | Required | Validation                                           |
+|--------------------|-------------|----------|------------------------------------------------------|
+| Phone Number       | Phone Input | No       | Valid format per country code                        |
+| Date of Birth      | Date Picker | No       | Age >= 13 years                                      |
+| Gender             | Select      | No       | Options: Male, Female, Non-binary, Prefer not to say |
+| Preferred Language | Select      | No       | en-US, es, fr, de, etc.                              |
+| Timezone           | Select      | No       | IANA timezone list                                   |
 
 ### Step 2: Add Address
 
-| Field | Type | Required | Validation |
-|-------|------|----------|------------|
-| Address Type | Select | Yes | SHIPPING, BILLING, BOTH |
-| Label | Text | No | e.g., "Home", "Office" |
-| Street Line 1 | Text | Yes | Max 100 chars |
-| Street Line 2 | Text | No | Max 100 chars |
-| City | Text | Yes | Max 50 chars |
-| State/Province | Text/Select | Yes | Based on country |
-| Postal Code | Text | Yes | Format per country |
-| Country | Select | Yes | ISO 3166-1 alpha-2 |
-| Set as Default | Checkbox | No | Default: true if first |
+| Field          | Type        | Required | Validation              |
+|----------------|-------------|----------|-------------------------|
+| Address Type   | Select      | Yes      | SHIPPING, BILLING, BOTH |
+| Label          | Text        | No       | e.g., "Home", "Office"  |
+| Street Line 1  | Text        | Yes      | Max 100 chars           |
+| Street Line 2  | Text        | No       | Max 100 chars           |
+| City           | Text        | Yes      | Max 50 chars            |
+| State/Province | Text/Select | Yes      | Based on country        |
+| Postal Code    | Text        | Yes      | Format per country      |
+| Country        | Select      | Yes      | ISO 3166-1 alpha-2      |
+| Set as Default | Checkbox    | No       | Default: true if first  |
 
 ### Step 3: Preferences
 
-| Preference | Type | Default |
-|------------|------|---------|
-| Email Notifications | Toggle | On |
-| SMS Notifications | Toggle | Off |
-| Push Notifications | Toggle | Off |
+| Preference               | Type   | Default               |
+|--------------------------|--------|-----------------------|
+| Email Notifications      | Toggle | On                    |
+| SMS Notifications        | Toggle | Off                   |
+| Push Notifications       | Toggle | Off                   |
 | Marketing Communications | Toggle | Based on registration |
-| Notification Frequency | Select | Immediate |
+| Notification Frequency   | Select | Immediate             |
 
 ### Step 4: Review & Confirm
 
@@ -133,7 +135,13 @@ Authorization: Bearer <jwt>
   "correlationId": "01941234-5678-7abc-def0-123456789051",
   "payload": {
     "customerId": "01941234-5678-7abc-def0-123456789020",
-    "changedFields": ["phone", "dateOfBirth", "gender", "preferredLocale", "timezone"],
+    "changedFields": [
+      "phone",
+      "dateOfBirth",
+      "gender",
+      "preferredLocale",
+      "timezone"
+    ],
     "profileCompleteness": 65
   }
 }
@@ -263,20 +271,20 @@ backend-services/customer/src/main/kotlin/com/acme/customer/
 ```kotlin
 @Component
 class PhoneNumberValidator {
-    private val phoneUtil = PhoneNumberUtil.getInstance()
+  private val phoneUtil = PhoneNumberUtil.getInstance()
 
-    fun validate(countryCode: String, number: String): ValidationResult {
-        return try {
-            val phoneNumber = phoneUtil.parse("$countryCode$number", null)
-            if (phoneUtil.isValidNumber(phoneNumber)) {
-                ValidationResult.Valid
-            } else {
-                ValidationResult.Invalid("Invalid phone number format")
-            }
-        } catch (e: NumberParseException) {
-            ValidationResult.Invalid("Unable to parse phone number")
-        }
+  fun validate(countryCode: String, number: String): ValidationResult {
+    return try {
+      val phoneNumber = phoneUtil.parse("$countryCode$number", null)
+      if (phoneUtil.isValidNumber(phoneNumber)) {
+        ValidationResult.Valid
+      } else {
+        ValidationResult.Invalid("Invalid phone number format")
+      }
+    } catch (e: NumberParseException) {
+      ValidationResult.Invalid("Unable to parse phone number")
     }
+  }
 }
 ```
 
@@ -300,12 +308,12 @@ stateDiagram-v2
 
 ### Metrics
 
-| Metric | Type | Labels |
-|--------|------|--------|
-| `profile_update_total` | Counter | status |
-| `profile_update_duration_seconds` | Histogram | - |
-| `wizard_step_completion_total` | Counter | step |
-| `wizard_abandonment_total` | Counter | step |
+| Metric                            | Type      | Labels |
+|-----------------------------------|-----------|--------|
+| `profile_update_total`            | Counter   | status |
+| `profile_update_duration_seconds` | Histogram | -      |
+| `wizard_step_completion_total`    | Counter   | step   |
+| `wizard_abandonment_total`        | Counter   | step   |
 
 ### Tracing Spans
 

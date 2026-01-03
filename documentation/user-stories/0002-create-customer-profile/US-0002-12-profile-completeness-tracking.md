@@ -8,30 +8,32 @@
 
 ## Story Details
 
-| Field | Value |
-|-------|-------|
-| Story ID | US-0002-12 |
-| Epic | [US-0002: Create Customer Profile](./README.md) |
-| Priority | Should Have |
-| Phase | Phase 3 (Enhanced Features) |
-| Story Points | 5 |
+| Field        | Value                                           |
+|--------------|-------------------------------------------------|
+| Story ID     | US-0002-12                                      |
+| Epic         | [US-0002: Create Customer Profile](./README.md) |
+| Priority     | Should Have                                     |
+| Phase        | Phase 3 (Enhanced Features)                     |
+| Story Points | 5                                               |
 
 ## Description
 
-This story implements profile completeness tracking and visualization. The completeness score is calculated based on weighted sections and displayed to customers with guidance on what to complete next. A `ProfileCompleted` event is published when a customer reaches 100%.
+This story implements profile completeness tracking and visualization. The completeness score is calculated based on
+weighted sections and displayed to customers with guidance on what to complete next. A `ProfileCompleted` event is
+published when a customer reaches 100%.
 
 ## Completeness Calculation
 
 Profile completeness is calculated based on weighted sections:
 
-| Section | Weight | Criteria for 100% |
-|---------|--------|-------------------|
-| Basic Info (name, email) | 25% | First name, last name, verified email |
-| Contact Info | 15% | Phone number added |
-| Personal Details | 15% | Date of birth OR gender provided |
-| Address | 20% | At least one validated address |
-| Preferences | 15% | Communication preferences set |
-| Consent | 10% | All required consents granted |
+| Section                  | Weight | Criteria for 100%                     |
+|--------------------------|--------|---------------------------------------|
+| Basic Info (name, email) | 25%    | First name, last name, verified email |
+| Contact Info             | 15%    | Phone number added                    |
+| Personal Details         | 15%    | Date of birth OR gender provided      |
+| Address                  | 20%    | At least one validated address        |
+| Preferences              | 15%    | Communication preferences set         |
+| Consent                  | 10%    | All required consents granted         |
 
 ```mermaid
 pie title Profile Completeness Weights
@@ -66,9 +68,18 @@ Authorization: Bearer <jwt>
       "score": 100,
       "isComplete": true,
       "items": [
-        {"name": "firstName", "complete": true},
-        {"name": "lastName", "complete": true},
-        {"name": "emailVerified", "complete": true}
+        {
+          "name": "firstName",
+          "complete": true
+        },
+        {
+          "name": "lastName",
+          "complete": true
+        },
+        {
+          "name": "emailVerified",
+          "complete": true
+        }
       ]
     },
     {
@@ -78,7 +89,11 @@ Authorization: Bearer <jwt>
       "score": 0,
       "isComplete": false,
       "items": [
-        {"name": "phoneNumber", "complete": false, "action": "Add phone number"}
+        {
+          "name": "phoneNumber",
+          "complete": false,
+          "action": "Add phone number"
+        }
       ]
     },
     {
@@ -88,8 +103,14 @@ Authorization: Bearer <jwt>
       "score": 100,
       "isComplete": true,
       "items": [
-        {"name": "dateOfBirth", "complete": true},
-        {"name": "gender", "complete": false}
+        {
+          "name": "dateOfBirth",
+          "complete": true
+        },
+        {
+          "name": "gender",
+          "complete": false
+        }
       ]
     },
     {
@@ -99,7 +120,10 @@ Authorization: Bearer <jwt>
       "score": 100,
       "isComplete": true,
       "items": [
-        {"name": "validatedAddress", "complete": true}
+        {
+          "name": "validatedAddress",
+          "complete": true
+        }
       ]
     },
     {
@@ -109,7 +133,10 @@ Authorization: Bearer <jwt>
       "score": 100,
       "isComplete": true,
       "items": [
-        {"name": "communicationPreferences", "complete": true}
+        {
+          "name": "communicationPreferences",
+          "complete": true
+        }
       ]
     },
     {
@@ -119,7 +146,11 @@ Authorization: Bearer <jwt>
       "score": 0,
       "isComplete": false,
       "items": [
-        {"name": "requiredConsents", "complete": false, "action": "Review consent settings"}
+        {
+          "name": "requiredConsents",
+          "complete": false,
+          "action": "Review consent settings"
+        }
       ]
     }
   ],
@@ -217,114 +248,114 @@ Authorization: Bearer <jwt>
 @Component
 class ProfileCompletenessCalculator {
 
-    companion object {
-        val SECTION_WEIGHTS = mapOf(
-            "basicInfo" to 25,
-            "contactInfo" to 15,
-            "personalDetails" to 15,
-            "address" to 20,
-            "preferences" to 15,
-            "consent" to 10
-        )
+  companion object {
+    val SECTION_WEIGHTS = mapOf(
+      "basicInfo" to 25,
+      "contactInfo" to 15,
+      "personalDetails" to 15,
+      "address" to 20,
+      "preferences" to 15,
+      "consent" to 10
+    )
+  }
+
+  fun calculate(customer: Customer): ProfileCompleteness {
+    val sections = listOf(
+      calculateBasicInfo(customer),
+      calculateContactInfo(customer),
+      calculatePersonalDetails(customer),
+      calculateAddress(customer),
+      calculatePreferences(customer),
+      calculateConsent(customer)
+    )
+
+    val overallScore = sections.sumOf { section ->
+      (section.score * SECTION_WEIGHTS[section.name]!!) / 100
     }
 
-    fun calculate(customer: Customer): ProfileCompleteness {
-        val sections = listOf(
-            calculateBasicInfo(customer),
-            calculateContactInfo(customer),
-            calculatePersonalDetails(customer),
-            calculateAddress(customer),
-            calculatePreferences(customer),
-            calculateConsent(customer)
+    return ProfileCompleteness(
+      customerId = customer.id,
+      overallScore = overallScore,
+      sections = sections,
+      nextAction = determineNextAction(sections)
+    )
+  }
+
+  private fun calculateBasicInfo(customer: Customer): SectionCompleteness {
+    val items = listOf(
+      ItemCompleteness("firstName", customer.name.firstName.isNotBlank()),
+      ItemCompleteness("lastName", customer.name.lastName.isNotBlank()),
+      ItemCompleteness("emailVerified", customer.email.verified)
+    )
+
+    val score = if (items.all { it.complete }) 100 else 0
+
+    return SectionCompleteness(
+      name = "basicInfo",
+      displayName = "Basic Information",
+      weight = SECTION_WEIGHTS["basicInfo"]!!,
+      score = score,
+      isComplete = score == 100,
+      items = items
+    )
+  }
+
+  private fun calculatePersonalDetails(customer: Customer): SectionCompleteness {
+    val hasDateOfBirth = customer.profile.dateOfBirth != null
+    val hasGender = customer.profile.gender != null
+
+    // OR logic: either one is sufficient
+    val score = if (hasDateOfBirth || hasGender) 100 else 0
+
+    val items = listOf(
+      ItemCompleteness("dateOfBirth", hasDateOfBirth),
+      ItemCompleteness("gender", hasGender)
+    )
+
+    return SectionCompleteness(
+      name = "personalDetails",
+      displayName = "Personal Details",
+      weight = SECTION_WEIGHTS["personalDetails"]!!,
+      score = score,
+      isComplete = score == 100,
+      items = items
+    )
+  }
+
+  private fun calculateAddress(customer: Customer): SectionCompleteness {
+    val hasValidatedAddress = customer.addresses.any { it.isValidated }
+
+    return SectionCompleteness(
+      name = "address",
+      displayName = "Address",
+      weight = SECTION_WEIGHTS["address"]!!,
+      score = if (hasValidatedAddress) 100 else 0,
+      isComplete = hasValidatedAddress,
+      items = listOf(
+        ItemCompleteness(
+          name = "validatedAddress",
+          complete = hasValidatedAddress,
+          action = if (!hasValidatedAddress) "Add a shipping address" else null
         )
+      )
+    )
+  }
 
-        val overallScore = sections.sumOf { section ->
-            (section.score * SECTION_WEIGHTS[section.name]!!) / 100
-        }
+  // ... similar methods for other sections
 
-        return ProfileCompleteness(
-            customerId = customer.id,
-            overallScore = overallScore,
-            sections = sections,
-            nextAction = determineNextAction(sections)
-        )
-    }
+  private fun determineNextAction(sections: List<SectionCompleteness>): NextAction? {
+    val incompleteSection = sections.firstOrNull { !it.isComplete }
+      ?: return null
 
-    private fun calculateBasicInfo(customer: Customer): SectionCompleteness {
-        val items = listOf(
-            ItemCompleteness("firstName", customer.name.firstName.isNotBlank()),
-            ItemCompleteness("lastName", customer.name.lastName.isNotBlank()),
-            ItemCompleteness("emailVerified", customer.email.verified)
-        )
+    val incompleteItem = incompleteSection.items.firstOrNull { !it.complete }
+      ?: return null
 
-        val score = if (items.all { it.complete }) 100 else 0
-
-        return SectionCompleteness(
-            name = "basicInfo",
-            displayName = "Basic Information",
-            weight = SECTION_WEIGHTS["basicInfo"]!!,
-            score = score,
-            isComplete = score == 100,
-            items = items
-        )
-    }
-
-    private fun calculatePersonalDetails(customer: Customer): SectionCompleteness {
-        val hasDateOfBirth = customer.profile.dateOfBirth != null
-        val hasGender = customer.profile.gender != null
-
-        // OR logic: either one is sufficient
-        val score = if (hasDateOfBirth || hasGender) 100 else 0
-
-        val items = listOf(
-            ItemCompleteness("dateOfBirth", hasDateOfBirth),
-            ItemCompleteness("gender", hasGender)
-        )
-
-        return SectionCompleteness(
-            name = "personalDetails",
-            displayName = "Personal Details",
-            weight = SECTION_WEIGHTS["personalDetails"]!!,
-            score = score,
-            isComplete = score == 100,
-            items = items
-        )
-    }
-
-    private fun calculateAddress(customer: Customer): SectionCompleteness {
-        val hasValidatedAddress = customer.addresses.any { it.isValidated }
-
-        return SectionCompleteness(
-            name = "address",
-            displayName = "Address",
-            weight = SECTION_WEIGHTS["address"]!!,
-            score = if (hasValidatedAddress) 100 else 0,
-            isComplete = hasValidatedAddress,
-            items = listOf(
-                ItemCompleteness(
-                    name = "validatedAddress",
-                    complete = hasValidatedAddress,
-                    action = if (!hasValidatedAddress) "Add a shipping address" else null
-                )
-            )
-        )
-    }
-
-    // ... similar methods for other sections
-
-    private fun determineNextAction(sections: List<SectionCompleteness>): NextAction? {
-        val incompleteSection = sections.firstOrNull { !it.isComplete }
-            ?: return null
-
-        val incompleteItem = incompleteSection.items.firstOrNull { !it.complete }
-            ?: return null
-
-        return NextAction(
-            section = incompleteSection.name,
-            action = incompleteItem.action ?: "Complete ${incompleteSection.displayName}",
-            url = getSectionUrl(incompleteSection.name)
-        )
-    }
+    return NextAction(
+      section = incompleteSection.name,
+      action = incompleteItem.action ?: "Complete ${incompleteSection.displayName}",
+      url = getSectionUrl(incompleteSection.name)
+    )
+  }
 }
 ```
 
@@ -333,53 +364,55 @@ class ProfileCompletenessCalculator {
 ```kotlin
 @Component
 class ProfileCompletenessUpdater(
-    private val calculator: ProfileCompletenessCalculator,
-    private val customerRepository: CustomerRepository,
-    private val eventPublisher: CustomerEventPublisher
+  private val calculator: ProfileCompletenessCalculator,
+  private val customerRepository: CustomerRepository,
+  private val eventPublisher: CustomerEventPublisher
 ) {
-    @EventListener
-    suspend fun onProfileUpdated(event: ProfileUpdatedEvent) {
-        updateCompleteness(event.customerId)
+  @EventListener
+  suspend fun onProfileUpdated(event: ProfileUpdatedEvent) {
+    updateCompleteness(event.customerId)
+  }
+
+  @EventListener
+  suspend fun onAddressAdded(event: AddressAddedEvent) {
+    updateCompleteness(event.customerId)
+  }
+
+  @EventListener
+  suspend fun onPreferencesUpdated(event: PreferencesUpdatedEvent) {
+    updateCompleteness(event.customerId)
+  }
+
+  @EventListener
+  suspend fun onConsentGranted(event: ConsentGrantedEvent) {
+    updateCompleteness(event.customerId)
+  }
+
+  private suspend fun updateCompleteness(customerId: CustomerId) {
+    val customer = customerRepository.findById(customerId)
+      ?: return
+
+    val previousScore = customer.profileCompleteness
+    val completeness = calculator.calculate(customer)
+
+    if (completeness.overallScore != previousScore) {
+      val updatedCustomer = customer.copy(
+        profileCompleteness = completeness.overallScore
+      )
+      customerRepository.save(updatedCustomer)
+
+      // Check for 100% completion
+      if (previousScore < 100 && completeness.overallScore == 100) {
+        eventPublisher.publish(
+          ProfileCompletedEvent(
+            customerId = customerId,
+            completedAt = Instant.now(),
+            timeToComplete = Duration.between(customer.registeredAt, Instant.now())
+          )
+        )
+      }
     }
-
-    @EventListener
-    suspend fun onAddressAdded(event: AddressAddedEvent) {
-        updateCompleteness(event.customerId)
-    }
-
-    @EventListener
-    suspend fun onPreferencesUpdated(event: PreferencesUpdatedEvent) {
-        updateCompleteness(event.customerId)
-    }
-
-    @EventListener
-    suspend fun onConsentGranted(event: ConsentGrantedEvent) {
-        updateCompleteness(event.customerId)
-    }
-
-    private suspend fun updateCompleteness(customerId: CustomerId) {
-        val customer = customerRepository.findById(customerId)
-            ?: return
-
-        val previousScore = customer.profileCompleteness
-        val completeness = calculator.calculate(customer)
-
-        if (completeness.overallScore != previousScore) {
-            val updatedCustomer = customer.copy(
-                profileCompleteness = completeness.overallScore
-            )
-            customerRepository.save(updatedCustomer)
-
-            // Check for 100% completion
-            if (previousScore < 100 && completeness.overallScore == 100) {
-                eventPublisher.publish(ProfileCompletedEvent(
-                    customerId = customerId,
-                    completedAt = Instant.now(),
-                    timeToComplete = Duration.between(customer.registeredAt, Instant.now())
-                ))
-            }
-        }
-    }
+  }
 }
 ```
 
@@ -419,12 +452,12 @@ flowchart TB
 
 ### Metrics
 
-| Metric | Type | Labels |
-|--------|------|--------|
-| `profile_completeness_distribution` | Histogram | - |
-| `profile_completed_total` | Counter | - |
-| `profile_section_completion_total` | Counter | section |
-| `time_to_complete_profile_seconds` | Histogram | - |
+| Metric                              | Type      | Labels  |
+|-------------------------------------|-----------|---------|
+| `profile_completeness_distribution` | Histogram | -       |
+| `profile_completed_total`           | Counter   | -       |
+| `profile_section_completion_total`  | Counter   | section |
+| `time_to_complete_profile_seconds`  | Histogram | -       |
 
 ### Tracing Spans
 

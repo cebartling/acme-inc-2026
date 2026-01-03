@@ -8,17 +8,19 @@
 
 ## Story Details
 
-| Field | Value |
-|-------|-------|
-| Story ID | US-0002-03 |
-| Epic | [US-0002: Create Customer Profile](./README.md) |
-| Priority | Must Have |
-| Phase | Phase 1 (MVP) |
-| Story Points | 8 |
+| Field        | Value                                           |
+|--------------|-------------------------------------------------|
+| Story ID     | US-0002-03                                      |
+| Epic         | [US-0002: Create Customer Profile](./README.md) |
+| Priority     | Must Have                                       |
+| Phase        | Phase 1 (MVP)                                   |
+| Story Points | 8                                               |
 
 ## Description
 
-This story implements the event-driven customer profile creation in the Customer Management Service. When a `UserRegistered` event is consumed from Kafka, the service automatically creates an initial customer profile with default settings and publishes a `CustomerRegistered` event for downstream consumers.
+This story implements the event-driven customer profile creation in the Customer Management Service. When a
+`UserRegistered` event is consumed from Kafka, the service automatically creates an initial customer profile with
+default settings and publishes a `CustomerRegistered` event for downstream consumers.
 
 ## System Context
 
@@ -53,11 +55,11 @@ Customer numbers follow a human-readable format for support and order references
 ACME-YYYYMM-NNNNNN
 ```
 
-| Component | Description | Example |
-|-----------|-------------|---------|
-| `ACME` | Platform prefix | ACME |
-| `YYYYMM` | Year and month of registration | 202601 |
-| `NNNNNN` | Sequential 6-digit number (zero-padded) | 000142 |
+| Component | Description                             | Example |
+|-----------|-----------------------------------------|---------|
+| `ACME`    | Platform prefix                         | ACME    |
+| `YYYYMM`  | Year and month of registration          | 202601  |
+| `NNNNNN`  | Sequential 6-digit number (zero-padded) | 000142  |
 
 Example: `ACME-202601-000142`
 
@@ -308,46 +310,119 @@ CREATE INDEX idx_customers_status ON customers(status);
 
 ```javascript
 {
-  "_id": "01941234-5678-7abc-def0-123456789020",
-  "userId": "01941234-5678-7abc-def0-123456789abc",
-  "customerNumber": "ACME-202601-000142",
-  "name": {
-    "firstName": "Jane",
-    "lastName": "Doe",
-    "displayName": "Jane Doe"
-  },
-  "email": {
-    "address": "customer@example.com",
-    "verified": false
-  },
-  "phone": null,
-  "status": "PENDING_VERIFICATION",
-  "type": "INDIVIDUAL",
-  "profile": {
-    "dateOfBirth": null,
-    "gender": null,
-    "preferredLocale": "en-US",
-    "timezone": "UTC",
-    "preferredCurrency": "USD"
-  },
-  "preferences": {
-    "communication": {
-      "email": true,
-      "sms": false,
-      "push": false,
-      "marketing": false
-    },
-    "privacy": {
-      "shareDataWithPartners": false,
-      "allowAnalytics": true
+  "_id"
+:
+  "01941234-5678-7abc-def0-123456789020",
+    "userId"
+:
+  "01941234-5678-7abc-def0-123456789abc",
+    "customerNumber"
+:
+  "ACME-202601-000142",
+    "name"
+:
+  {
+    "firstName"
+  :
+    "Jane",
+      "lastName"
+  :
+    "Doe",
+      "displayName"
+  :
+    "Jane Doe"
+  }
+,
+  "email"
+:
+  {
+    "address"
+  :
+    "customer@example.com",
+      "verified"
+  :
+    false
+  }
+,
+  "phone"
+:
+  null,
+    "status"
+:
+  "PENDING_VERIFICATION",
+    "type"
+:
+  "INDIVIDUAL",
+    "profile"
+:
+  {
+    "dateOfBirth"
+  :
+    null,
+      "gender"
+  :
+    null,
+      "preferredLocale"
+  :
+    "en-US",
+      "timezone"
+  :
+    "UTC",
+      "preferredCurrency"
+  :
+    "USD"
+  }
+,
+  "preferences"
+:
+  {
+    "communication"
+  :
+    {
+      "email"
+    :
+      true,
+        "sms"
+    :
+      false,
+        "push"
+    :
+      false,
+        "marketing"
+    :
+      false
     }
-  },
-  "addresses": [],
-  "segments": [],
-  "registeredAt": "2026-01-02T10:30:02Z",
-  "lastActivityAt": "2026-01-02T10:30:02Z",
-  "profileCompleteness": 25,
-  "_version": 1
+  ,
+    "privacy"
+  :
+    {
+      "shareDataWithPartners"
+    :
+      false,
+        "allowAnalytics"
+    :
+      true
+    }
+  }
+,
+  "addresses"
+:
+  [],
+    "segments"
+:
+  [],
+    "registeredAt"
+:
+  "2026-01-02T10:30:02Z",
+    "lastActivityAt"
+:
+  "2026-01-02T10:30:02Z",
+    "profileCompleteness"
+:
+  25,
+    "_version"
+:
+  1
 }
 ```
 
@@ -404,12 +479,12 @@ flowchart LR
 
 ### Metrics
 
-| Metric | Type | Labels |
-|--------|------|--------|
-| `customer_created_total` | Counter | status |
-| `customer_creation_duration_seconds` | Histogram | - |
-| `event_processing_lag_seconds` | Histogram | event_type |
-| `read_model_projection_duration_seconds` | Histogram | - |
+| Metric                                   | Type      | Labels     |
+|------------------------------------------|-----------|------------|
+| `customer_created_total`                 | Counter   | status     |
+| `customer_creation_duration_seconds`     | Histogram | -          |
+| `event_processing_lag_seconds`           | Histogram | event_type |
+| `read_model_projection_duration_seconds` | Histogram | -          |
 
 ### Tracing Spans
 

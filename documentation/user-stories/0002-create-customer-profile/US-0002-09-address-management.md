@@ -8,17 +8,19 @@
 
 ## Story Details
 
-| Field | Value |
-|-------|-------|
-| Story ID | US-0002-09 |
-| Epic | [US-0002: Create Customer Profile](./README.md) |
-| Priority | Must Have |
-| Phase | Phase 2 (Profile Completion) |
-| Story Points | 8 |
+| Field        | Value                                           |
+|--------------|-------------------------------------------------|
+| Story ID     | US-0002-09                                      |
+| Epic         | [US-0002: Create Customer Profile](./README.md) |
+| Priority     | Must Have                                       |
+| Phase        | Phase 2 (Profile Completion)                    |
+| Story Points | 8                                               |
 
 ## Description
 
-This story implements address management functionality in both the web application and the Customer Management Service. Customers can add multiple addresses, validate them against postal standards, set defaults, and manage address types (shipping/billing).
+This story implements address management functionality in both the web application and the Customer Management Service.
+Customers can add multiple addresses, validate them against postal standards, set defaults, and manage address types (
+shipping/billing).
 
 ## Address Validation Flow
 
@@ -304,36 +306,36 @@ CREATE UNIQUE INDEX idx_addresses_label ON customer_addresses(customer_id, label
 ```kotlin
 @Service
 class AddressValidator(
-    private val smartyClient: SmartyStreetsClient
+  private val smartyClient: SmartyStreetsClient
 ) {
-    suspend fun validate(address: AddressInput): ValidationResult {
-        val lookup = UsStreetLookup().apply {
-            street = address.street.line1
-            street2 = address.street.line2
-            city = address.city
-            state = address.state
-            zipCode = address.postalCode
-        }
-
-        smartyClient.send(lookup)
-
-        return when {
-            lookup.result.isEmpty() -> ValidationResult.Invalid(
-                message = "Address not found",
-                suggestions = emptyList()
-            )
-            lookup.result[0].analysis.dpvMatchCode == "Y" -> ValidationResult.Valid(
-                normalizedAddress = lookup.result[0].toNormalizedAddress(),
-                coordinates = Coordinates(
-                    latitude = lookup.result[0].metadata.latitude,
-                    longitude = lookup.result[0].metadata.longitude
-                )
-            )
-            else -> ValidationResult.NeedsCorrection(
-                suggestions = lookup.result.map { it.toSuggestion() }
-            )
-        }
+  suspend fun validate(address: AddressInput): ValidationResult {
+    val lookup = UsStreetLookup().apply {
+      street = address.street.line1
+      street2 = address.street.line2
+      city = address.city
+      state = address.state
+      zipCode = address.postalCode
     }
+
+    smartyClient.send(lookup)
+
+    return when {
+      lookup.result.isEmpty() -> ValidationResult.Invalid(
+        message = "Address not found",
+        suggestions = emptyList()
+      )
+      lookup.result[0].analysis.dpvMatchCode == "Y" -> ValidationResult.Valid(
+        normalizedAddress = lookup.result[0].toNormalizedAddress(),
+        coordinates = Coordinates(
+          latitude = lookup.result[0].metadata.latitude,
+          longitude = lookup.result[0].metadata.longitude
+        )
+      )
+      else -> ValidationResult.NeedsCorrection(
+        suggestions = lookup.result.map { it.toSuggestion() }
+      )
+    }
+  }
 }
 ```
 
@@ -361,12 +363,12 @@ flowchart TB
 
 ### Metrics
 
-| Metric | Type | Labels |
-|--------|------|--------|
-| `address_added_total` | Counter | type, validated |
-| `address_validation_total` | Counter | result (valid, invalid, corrected) |
-| `address_validation_duration_seconds` | Histogram | - |
-| `geocoding_duration_seconds` | Histogram | - |
+| Metric                                | Type      | Labels                             |
+|---------------------------------------|-----------|------------------------------------|
+| `address_added_total`                 | Counter   | type, validated                    |
+| `address_validation_total`            | Counter   | result (valid, invalid, corrected) |
+| `address_validation_duration_seconds` | Histogram | -                                  |
+| `geocoding_duration_seconds`          | Histogram | -                                  |
 
 ### Tracing Spans
 

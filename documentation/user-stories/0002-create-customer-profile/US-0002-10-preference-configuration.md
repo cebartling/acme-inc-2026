@@ -8,29 +8,30 @@
 
 ## Story Details
 
-| Field | Value |
-|-------|-------|
-| Story ID | US-0002-10 |
-| Epic | [US-0002: Create Customer Profile](./README.md) |
-| Priority | Must Have |
-| Phase | Phase 2 (Profile Completion) |
-| Story Points | 5 |
+| Field        | Value                                           |
+|--------------|-------------------------------------------------|
+| Story ID     | US-0002-10                                      |
+| Epic         | [US-0002: Create Customer Profile](./README.md) |
+| Priority     | Must Have                                       |
+| Phase        | Phase 2 (Profile Completion)                    |
+| Story Points | 5                                               |
 
 ## Description
 
-This story implements preference management in the Customer Management Service. Customers can configure communication channels (email, SMS, push), marketing preferences, notification frequency, and privacy settings.
+This story implements preference management in the Customer Management Service. Customers can configure communication
+channels (email, SMS, push), marketing preferences, notification frequency, and privacy settings.
 
 ## Preference Categories
 
 ### Communication Preferences
 
-| Preference | Type | Default | Description |
-|------------|------|---------|-------------|
-| Email Notifications | Boolean | true | Receive transactional emails |
-| SMS Notifications | Boolean | false | Receive SMS messages |
-| Push Notifications | Boolean | false | Receive push notifications |
-| Marketing Communications | Boolean | false | Receive promotional content |
-| Notification Frequency | Enum | IMMEDIATE | How often to batch notifications |
+| Preference               | Type    | Default   | Description                      |
+|--------------------------|---------|-----------|----------------------------------|
+| Email Notifications      | Boolean | true      | Receive transactional emails     |
+| SMS Notifications        | Boolean | false     | Receive SMS messages             |
+| Push Notifications       | Boolean | false     | Receive push notifications       |
+| Marketing Communications | Boolean | false     | Receive promotional content      |
+| Notification Frequency   | Enum    | IMMEDIATE | How often to batch notifications |
 
 ### Notification Frequency Options
 
@@ -40,19 +41,19 @@ This story implements preference management in the Customer Management Service. 
 
 ### Privacy Preferences
 
-| Preference | Type | Default | Description |
-|------------|------|---------|-------------|
-| Share Data With Partners | Boolean | false | Allow third-party data sharing |
-| Allow Analytics | Boolean | true | Allow usage analytics |
-| Allow Personalization | Boolean | true | Allow personalized recommendations |
+| Preference               | Type    | Default | Description                        |
+|--------------------------|---------|---------|------------------------------------|
+| Share Data With Partners | Boolean | false   | Allow third-party data sharing     |
+| Allow Analytics          | Boolean | true    | Allow usage analytics              |
+| Allow Personalization    | Boolean | true    | Allow personalized recommendations |
 
 ### Display Preferences
 
-| Preference | Type | Default | Description |
-|------------|------|---------|-------------|
-| Language | String | en-US | Preferred display language |
-| Currency | String | USD | Preferred currency for prices |
-| Timezone | String | UTC | Preferred timezone |
+| Preference | Type   | Default | Description                   |
+|------------|--------|---------|-------------------------------|
+| Language   | String | en-US   | Preferred display language    |
+| Currency   | String | USD     | Preferred currency for prices |
+| Timezone   | String | UTC     | Preferred timezone            |
 
 ## API Contract
 
@@ -133,9 +134,18 @@ Authorization: Bearer <jwt>
   "payload": {
     "customerId": "01941234-5678-7abc-def0-123456789020",
     "changedPreferences": {
-      "communication.sms": {"old": false, "new": true},
-      "communication.marketing": {"old": false, "new": true},
-      "communication.frequency": {"old": "IMMEDIATE", "new": "WEEKLY_DIGEST"}
+      "communication.sms": {
+        "old": false,
+        "new": true
+      },
+      "communication.marketing": {
+        "old": false,
+        "new": true
+      },
+      "communication.frequency": {
+        "old": "IMMEDIATE",
+        "new": "WEEKLY_DIGEST"
+      }
     }
   }
 }
@@ -288,62 +298,64 @@ CREATE INDEX idx_pref_log_time ON preference_change_log(changed_at);
 ```kotlin
 @Service
 class UpdatePreferencesUseCase(
-    private val preferencesRepository: PreferencesRepository,
-    private val changeLogger: PreferenceChangeLogger,
-    private val eventPublisher: CustomerEventPublisher
+  private val preferencesRepository: PreferencesRepository,
+  private val changeLogger: PreferenceChangeLogger,
+  private val eventPublisher: CustomerEventPublisher
 ) {
-    @Transactional
-    suspend fun execute(
-        customerId: CustomerId,
-        request: UpdatePreferencesRequest,
-        requestContext: RequestContext
-    ): Preferences {
-        val current = preferencesRepository.findByCustomerId(customerId)
-            ?: throw CustomerNotFoundException(customerId)
+  @Transactional
+  suspend fun execute(
+    customerId: CustomerId,
+    request: UpdatePreferencesRequest,
+    requestContext: RequestContext
+  ): Preferences {
+    val current = preferencesRepository.findByCustomerId(customerId)
+      ?: throw CustomerNotFoundException(customerId)
 
-        // Detect changes
-        val changes = mutableMapOf<String, PreferenceChange>()
+    // Detect changes
+    val changes = mutableMapOf<String, PreferenceChange>()
 
-        request.communication?.let { comm ->
-            comm.sms?.let {
-                if (it != current.communication.sms) {
-                    validateSmsEligibility(customerId, it)
-                    changes["communication.sms"] = PreferenceChange(current.communication.sms, it)
-                }
-            }
-            // ... other fields
+    request.communication?.let { comm ->
+      comm.sms?.let {
+        if (it != current.communication.sms) {
+          validateSmsEligibility(customerId, it)
+          changes["communication.sms"] = PreferenceChange(current.communication.sms, it)
         }
-
-        if (changes.isEmpty()) {
-            return current
-        }
-
-        // Apply changes
-        val updated = current.applyChanges(request)
-
-        // Log for compliance
-        changes.forEach { (name, change) ->
-            changeLogger.log(
-                customerId = customerId,
-                preferenceName = name,
-                oldValue = change.old.toString(),
-                newValue = change.new.toString(),
-                ipAddress = requestContext.ipAddress,
-                userAgent = requestContext.userAgent
-            )
-        }
-
-        // Persist
-        preferencesRepository.save(updated)
-
-        // Publish event
-        eventPublisher.publish(PreferencesUpdatedEvent(
-            customerId = customerId,
-            changedPreferences = changes
-        ))
-
-        return updated
+      }
+      // ... other fields
     }
+
+    if (changes.isEmpty()) {
+      return current
+    }
+
+    // Apply changes
+    val updated = current.applyChanges(request)
+
+    // Log for compliance
+    changes.forEach { (name, change) ->
+      changeLogger.log(
+        customerId = customerId,
+        preferenceName = name,
+        oldValue = change.old.toString(),
+        newValue = change.new.toString(),
+        ipAddress = requestContext.ipAddress,
+        userAgent = requestContext.userAgent
+      )
+    }
+
+    // Persist
+    preferencesRepository.save(updated)
+
+    // Publish event
+    eventPublisher.publish(
+      PreferencesUpdatedEvent(
+        customerId = customerId,
+        changedPreferences = changes
+      )
+    )
+
+    return updated
+  }
 }
 ```
 
@@ -382,11 +394,11 @@ flowchart TB
 
 ### Metrics
 
-| Metric | Type | Labels |
-|--------|------|--------|
-| `preferences_updated_total` | Counter | category |
-| `marketing_opt_out_total` | Counter | - |
-| `sms_enabled_total` | Counter | - |
+| Metric                          | Type    | Labels         |
+|---------------------------------|---------|----------------|
+| `preferences_updated_total`     | Counter | category       |
+| `marketing_opt_out_total`       | Counter | -              |
+| `sms_enabled_total`             | Counter | -              |
 | `privacy_setting_changed_total` | Counter | setting, value |
 
 ### Tracing Spans

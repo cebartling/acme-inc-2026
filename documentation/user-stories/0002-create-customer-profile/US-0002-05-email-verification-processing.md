@@ -8,17 +8,19 @@
 
 ## Story Details
 
-| Field | Value |
-|-------|-------|
-| Story ID | US-0002-05 |
-| Epic | [US-0002: Create Customer Profile](./README.md) |
-| Priority | Must Have |
-| Phase | Phase 1 (MVP) |
-| Story Points | 5 |
+| Field        | Value                                           |
+|--------------|-------------------------------------------------|
+| Story ID     | US-0002-05                                      |
+| Epic         | [US-0002: Create Customer Profile](./README.md) |
+| Priority     | Must Have                                       |
+| Phase        | Phase 1 (MVP)                                   |
+| Story Points | 5                                               |
 
 ## Description
 
-This story implements the email verification flow in the Identity Management Service. When a customer clicks the verification link, the service validates the token, activates the account, and publishes `EmailVerified` and `UserActivated` domain events.
+This story implements the email verification flow in the Identity Management Service. When a customer clicks the
+verification link, the service validates the token, activates the account, and publishes `EmailVerified` and
+`UserActivated` domain events.
 
 ## System Context
 
@@ -104,8 +106,8 @@ Content-Type: application/json
 
 ```json
 {
-  "message": "If an account exists with this email, a verification link has been sent.",
-  "timestamp": "2026-01-02T11:20:00Z"
+    "message": "If an account exists with this email, a verification link has been sent.",
+    "timestamp": "2026-01-02T11:20:00Z"
 }
 ```
 
@@ -115,18 +117,18 @@ Content-Type: application/json
 
 ```json
 {
-  "eventId": "01941234-5678-7abc-def0-123456789030",
-  "eventType": "EmailVerified",
-  "eventVersion": "1.0",
-  "timestamp": "2026-01-02T11:15:00Z",
-  "aggregateId": "01941234-5678-7abc-def0-123456789abc",
-  "aggregateType": "User",
-  "correlationId": "01941234-5678-7abc-def0-123456789002",
-  "payload": {
-    "userId": "01941234-5678-7abc-def0-123456789abc",
-    "email": "customer@example.com",
-    "verifiedAt": "2026-01-02T11:15:00Z"
-  }
+    "eventId": "01941234-5678-7abc-def0-123456789030",
+    "eventType": "EmailVerified",
+    "eventVersion": "1.0",
+    "timestamp": "2026-01-02T11:15:00Z",
+    "aggregateId": "01941234-5678-7abc-def0-123456789abc",
+    "aggregateType": "User",
+    "correlationId": "01941234-5678-7abc-def0-123456789002",
+    "payload": {
+        "userId": "01941234-5678-7abc-def0-123456789abc",
+        "email": "customer@example.com",
+        "verifiedAt": "2026-01-02T11:15:00Z"
+    }
 }
 ```
 
@@ -134,18 +136,18 @@ Content-Type: application/json
 
 ```json
 {
-  "eventId": "01941234-5678-7abc-def0-123456789031",
-  "eventType": "UserActivated",
-  "eventVersion": "1.0",
-  "timestamp": "2026-01-02T11:15:00Z",
-  "aggregateId": "01941234-5678-7abc-def0-123456789abc",
-  "aggregateType": "User",
-  "correlationId": "01941234-5678-7abc-def0-123456789002",
-  "payload": {
-    "userId": "01941234-5678-7abc-def0-123456789abc",
-    "activatedAt": "2026-01-02T11:15:00Z",
-    "activationMethod": "EMAIL_VERIFICATION"
-  }
+    "eventId": "01941234-5678-7abc-def0-123456789031",
+    "eventType": "UserActivated",
+    "eventVersion": "1.0",
+    "timestamp": "2026-01-02T11:15:00Z",
+    "aggregateId": "01941234-5678-7abc-def0-123456789abc",
+    "aggregateType": "User",
+    "correlationId": "01941234-5678-7abc-def0-123456789002",
+    "payload": {
+        "userId": "01941234-5678-7abc-def0-123456789abc",
+        "activatedAt": "2026-01-02T11:15:00Z",
+        "activationMethod": "EMAIL_VERIFICATION"
+    }
 }
 ```
 
@@ -323,24 +325,24 @@ class VerificationRateLimiter(
 
 ## Security Considerations
 
-| Concern | Mitigation |
-|---------|------------|
-| Token guessing | 256-bit cryptographically secure random tokens |
-| Timing attacks | Constant-time token comparison |
-| Email enumeration | Generic responses for resend requests |
-| Token replay | Single-use tokens, marked as used immediately |
-| Rate limiting bypass | Rate limit by email AND IP address |
+| Concern              | Mitigation                                     |
+|----------------------|------------------------------------------------|
+| Token guessing       | 256-bit cryptographically secure random tokens |
+| Timing attacks       | Constant-time token comparison                 |
+| Email enumeration    | Generic responses for resend requests          |
+| Token replay         | Single-use tokens, marked as used immediately  |
+| Rate limiting bypass | Rate limit by email AND IP address             |
 
 ## Observability
 
 ### Metrics
 
-| Metric | Type | Labels |
-|--------|------|--------|
-| `email_verification_total` | Counter | result (success, expired, invalid, already_verified) |
-| `email_verification_duration_seconds` | Histogram | - |
-| `resend_verification_total` | Counter | result (success, rate_limited) |
-| `rate_limit_exceeded_total` | Counter | type |
+| Metric                                | Type      | Labels                                               |
+|---------------------------------------|-----------|------------------------------------------------------|
+| `email_verification_total`            | Counter   | result (success, expired, invalid, already_verified) |
+| `email_verification_duration_seconds` | Histogram | -                                                    |
+| `resend_verification_total`           | Counter   | result (success, rate_limited)                       |
+| `rate_limit_exceeded_total`           | Counter   | type                                                 |
 
 ### Tracing Spans
 

@@ -8,32 +8,33 @@
 
 ## Story Details
 
-| Field | Value |
-|-------|-------|
-| Story ID | US-0002-01 |
-| Epic | [US-0002: Create Customer Profile](./README.md) |
-| Priority | Must Have |
-| Phase | Phase 1 (MVP) |
-| Story Points | 5 |
+| Field        | Value                                           |
+|--------------|-------------------------------------------------|
+| Story ID     | US-0002-01                                      |
+| Epic         | [US-0002: Create Customer Profile](./README.md) |
+| Priority     | Must Have                                       |
+| Phase        | Phase 1 (MVP)                                   |
+| Story Points | 5                                               |
 
 ## Description
 
-This story implements the customer-facing registration form in the web application. The form collects essential information for account creation and provides real-time validation feedback to ensure data quality before submission.
+This story implements the customer-facing registration form in the web application. The form collects essential
+information for account creation and provides real-time validation feedback to ensure data quality before submission.
 
 ## UI Requirements
 
 ### Form Fields
 
-| Field | Type | Required | Validation |
-|-------|------|----------|------------|
-| Email | Text Input | Yes | Valid email format |
-| Password | Password Input | Yes | Min 8 chars, 1 uppercase, 1 lowercase, 1 digit, 1 special |
-| Confirm Password | Password Input | Yes | Must match password |
-| First Name | Text Input | Yes | Max 50 characters |
-| Last Name | Text Input | Yes | Max 50 characters |
-| Terms of Service | Checkbox | Yes | Must be checked |
-| Privacy Policy | Checkbox | Yes | Must be checked |
-| Marketing Opt-in | Checkbox | No | Default unchecked |
+| Field            | Type           | Required | Validation                                                |
+|------------------|----------------|----------|-----------------------------------------------------------|
+| Email            | Text Input     | Yes      | Valid email format                                        |
+| Password         | Password Input | Yes      | Min 8 chars, 1 uppercase, 1 lowercase, 1 digit, 1 special |
+| Confirm Password | Password Input | Yes      | Must match password                                       |
+| First Name       | Text Input     | Yes      | Max 50 characters                                         |
+| Last Name        | Text Input     | Yes      | Max 50 characters                                         |
+| Terms of Service | Checkbox       | Yes      | Must be checked                                           |
+| Privacy Policy   | Checkbox       | Yes      | Must be checked                                           |
+| Marketing Opt-in | Checkbox       | No       | Default unchecked                                         |
 
 ### UI Components
 
@@ -65,12 +66,12 @@ flowchart TB
 
 The password strength indicator provides visual feedback:
 
-| Strength | Criteria | Color |
-|----------|----------|-------|
-| Weak | < 8 characters | Red |
-| Fair | 8+ chars, missing 2+ requirements | Orange |
-| Good | 8+ chars, missing 1 requirement | Yellow |
-| Strong | All requirements met | Green |
+| Strength | Criteria                          | Color  |
+|----------|-----------------------------------|--------|
+| Weak     | < 8 characters                    | Red    |
+| Fair     | 8+ chars, missing 2+ requirements | Orange |
+| Good     | 8+ chars, missing 1 requirement   | Yellow |
+| Strong   | All requirements met              | Green  |
 
 ## Acceptance Criteria
 
@@ -92,11 +93,12 @@ The password strength indicator provides visual feedback:
 **When** I enter a password that does not meet requirements
 **Then** the password strength indicator shows the current strength level
 **And** unfulfilled requirements are listed below the field:
-  - Minimum 8 characters
-  - At least one uppercase letter
-  - At least one lowercase letter
-  - At least one digit
-  - At least one special character (!@#$%^&*()_+-=[]{}|;:,.<>?)
+
+- Minimum 8 characters
+- At least one uppercase letter
+- At least one lowercase letter
+- At least one digit
+- At least one special character (!@#$%^&*()_+-=[]{}|;:,.<>?)
 
 **Given** I enter a password meeting all requirements
 **Then** the strength indicator shows "Strong" in green
@@ -166,7 +168,7 @@ The password strength indicator provides visual feedback:
 ### Form Schema (Zod)
 
 ```typescript
-import { z } from 'zod';
+import {z} from 'zod';
 
 const passwordSchema = z
   .string()
@@ -183,10 +185,10 @@ const registrationSchema = z.object({
   firstName: z.string().min(1, 'First name is required').max(50, 'First name cannot exceed 50 characters'),
   lastName: z.string().min(1, 'Last name is required').max(50, 'Last name cannot exceed 50 characters'),
   tosAccepted: z.literal(true, {
-    errorMap: () => ({ message: 'You must accept the Terms of Service to continue' }),
+    errorMap: () => ({message: 'You must accept the Terms of Service to continue'}),
   }),
   privacyPolicyAccepted: z.literal(true, {
-    errorMap: () => ({ message: 'You must accept the Privacy Policy to continue' }),
+    errorMap: () => ({message: 'You must accept the Privacy Policy to continue'}),
   }),
   marketingOptIn: z.boolean().default(false),
 }).refine((data) => data.password === data.confirmPassword, {

@@ -8,17 +8,19 @@
 
 ## Story Details
 
-| Field | Value |
-|-------|-------|
-| Story ID | US-0002-04 |
-| Epic | [US-0002: Create Customer Profile](./README.md) |
-| Priority | Must Have |
-| Phase | Phase 1 (MVP) |
-| Story Points | 5 |
+| Field        | Value                                           |
+|--------------|-------------------------------------------------|
+| Story ID     | US-0002-04                                      |
+| Epic         | [US-0002: Create Customer Profile](./README.md) |
+| Priority     | Must Have                                       |
+| Phase        | Phase 1 (MVP)                                   |
+| Story Points | 5                                               |
 
 ## Description
 
-This story implements the verification email notification in the Notification Service. When a `UserRegistered` event is consumed from Kafka, the service renders a personalized email template and sends the verification email through the email provider (SendGrid).
+This story implements the verification email notification in the Notification Service. When a `UserRegistered` event is
+consumed from Kafka, the service renders a personalized email template and sends the verification email through the
+email provider (SendGrid).
 
 ## System Context
 
@@ -48,26 +50,26 @@ sequenceDiagram
 
 ```json
 {
-  "recipientName": "Jane",
-  "recipientEmail": "customer@example.com",
-  "verificationUrl": "https://www.acme.com/verify?token=abc123xyz",
-  "expirationHours": 24,
-  "supportEmail": "support@acme.com",
-  "companyName": "ACME Inc.",
-  "currentYear": 2026
+    "recipientName": "Jane",
+    "recipientEmail": "customer@example.com",
+    "verificationUrl": "https://www.acme.com/verify?token=abc123xyz",
+    "expirationHours": 24,
+    "supportEmail": "support@acme.com",
+    "companyName": "ACME Inc.",
+    "currentYear": 2026
 }
 ```
 
 ### Email Content Structure
 
-| Section | Content |
-|---------|---------|
-| Subject | "Verify your ACME account" |
-| Preheader | "Click to verify your email and start shopping" |
-| Header | ACME logo + "Welcome to ACME!" |
-| Body | Personalized greeting, verification instructions |
+| Section    | Content                                           |
+|------------|---------------------------------------------------|
+| Subject    | "Verify your ACME account"                        |
+| Preheader  | "Click to verify your email and start shopping"   |
+| Header     | ACME logo + "Welcome to ACME!"                    |
+| Body       | Personalized greeting, verification instructions  |
 | CTA Button | "Verify Email Address" (links to verificationUrl) |
-| Footer | Support contact, expiration notice, company info |
+| Footer     | Support contact, expiration notice, company info  |
 
 ## Acceptance Criteria
 
@@ -111,10 +113,11 @@ sequenceDiagram
 **Given** a verification email is sent
 **When** the email provider responds
 **Then** the delivery status is recorded:
-  - `SENT`: Email accepted by provider
-  - `DELIVERED`: Email delivered to recipient
-  - `BOUNCED`: Email bounced (hard or soft)
-  - `FAILED`: Send attempt failed
+
+- `SENT`: Email accepted by provider
+- `DELIVERED`: Email delivered to recipient
+- `BOUNCED`: Email bounced (hard or soft)
+- `FAILED`: Send attempt failed
 
 ### AC-0002-04-07: Retry on Failure
 
@@ -214,32 +217,32 @@ CREATE INDEX idx_deliveries_correlation ON notification_deliveries(correlation_i
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
-  <title>Verify your ACME account</title>
+    <meta charset="UTF-8">
+    <title>Verify your ACME account</title>
 </head>
 <body>
-  <div class="container">
+<div class="container">
     <header>
-      <img src="https://acme.com/logo.png" alt="ACME" />
-      <h1>Welcome to ACME!</h1>
+        <img src="https://acme.com/logo.png" alt="ACME"/>
+        <h1>Welcome to ACME!</h1>
     </header>
 
     <main>
-      <p>Hi {{recipientName}},</p>
-      <p>Thanks for signing up! Please verify your email address to activate your account and start shopping.</p>
+        <p>Hi {{recipientName}},</p>
+        <p>Thanks for signing up! Please verify your email address to activate your account and start shopping.</p>
 
-      <a href="{{verificationUrl}}" class="button">Verify Email Address</a>
+        <a href="{{verificationUrl}}" class="button">Verify Email Address</a>
 
-      <p class="expiration">This link expires in {{expirationHours}} hours.</p>
+        <p class="expiration">This link expires in {{expirationHours}} hours.</p>
 
-      <p>If you didn't create an account, you can safely ignore this email.</p>
+        <p>If you didn't create an account, you can safely ignore this email.</p>
     </main>
 
     <footer>
-      <p>Need help? Contact us at <a href="mailto:{{supportEmail}}">{{supportEmail}}</a></p>
-      <p>&copy; {{currentYear}} {{companyName}}. All rights reserved.</p>
+        <p>Need help? Contact us at <a href="mailto:{{supportEmail}}">{{supportEmail}}</a></p>
+        <p>&copy; {{currentYear}} {{companyName}}. All rights reserved.</p>
     </footer>
-  </div>
+</div>
 </body>
 </html>
 ```
@@ -259,14 +262,16 @@ class SendGridEmailSender(
         correlationId: String
     ): SendResult {
         val template = templateStore.load("email_verification")
-        val content = template.render(mapOf(
-            "recipientName" to recipientName,
-            "verificationUrl" to verificationUrl,
-            "expirationHours" to 24,
-            "supportEmail" to "support@acme.com",
-            "companyName" to "ACME Inc.",
-            "currentYear" to Year.now().value
-        ))
+        val content = template.render(
+            mapOf(
+                "recipientName" to recipientName,
+                "verificationUrl" to verificationUrl,
+                "expirationHours" to 24,
+                "supportEmail" to "support@acme.com",
+                "companyName" to "ACME Inc.",
+                "currentYear" to Year.now().value
+            )
+        )
 
         val mail = Mail().apply {
             from = Email("noreply@acme.com", "ACME")
@@ -297,22 +302,22 @@ class SendGridEmailSender(
 
 ```json
 {
-  "eventId": "01941234-5678-7abc-def0-123456789100",
-  "eventType": "NotificationSent",
-  "eventVersion": "1.0",
-  "timestamp": "2026-01-02T10:30:05Z",
-  "aggregateId": "01941234-5678-7abc-def0-123456789101",
-  "aggregateType": "Notification",
-  "correlationId": "01941234-5678-7abc-def0-123456789002",
-  "payload": {
-    "notificationId": "01941234-5678-7abc-def0-123456789101",
-    "type": "EMAIL_VERIFICATION",
-    "recipientId": "01941234-5678-7abc-def0-123456789abc",
-    "recipientEmail": "customer@example.com",
-    "providerMessageId": "sg-msg-123456",
-    "status": "SENT",
-    "sentAt": "2026-01-02T10:30:05Z"
-  }
+    "eventId": "01941234-5678-7abc-def0-123456789100",
+    "eventType": "NotificationSent",
+    "eventVersion": "1.0",
+    "timestamp": "2026-01-02T10:30:05Z",
+    "aggregateId": "01941234-5678-7abc-def0-123456789101",
+    "aggregateType": "Notification",
+    "correlationId": "01941234-5678-7abc-def0-123456789002",
+    "payload": {
+        "notificationId": "01941234-5678-7abc-def0-123456789101",
+        "type": "EMAIL_VERIFICATION",
+        "recipientId": "01941234-5678-7abc-def0-123456789abc",
+        "recipientEmail": "customer@example.com",
+        "providerMessageId": "sg-msg-123456",
+        "status": "SENT",
+        "sentAt": "2026-01-02T10:30:05Z"
+    }
 }
 ```
 
@@ -320,12 +325,12 @@ class SendGridEmailSender(
 
 ### Metrics
 
-| Metric | Type | Labels |
-|--------|------|--------|
-| `verification_email_sent_total` | Counter | status |
-| `verification_email_duration_seconds` | Histogram | - |
-| `email_delivery_status_total` | Counter | status, type |
-| `email_retry_attempts_total` | Counter | attempt |
+| Metric                                | Type      | Labels       |
+|---------------------------------------|-----------|--------------|
+| `verification_email_sent_total`       | Counter   | status       |
+| `verification_email_duration_seconds` | Histogram | -            |
+| `email_delivery_status_total`         | Counter   | status, type |
+| `email_retry_attempts_total`          | Counter   | attempt      |
 
 ### Tracing Spans
 

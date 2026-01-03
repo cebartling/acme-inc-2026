@@ -8,17 +8,19 @@
 
 ## Story Details
 
-| Field | Value |
-|-------|-------|
-| Story ID | US-0002-02 |
-| Epic | [US-0002: Create Customer Profile](./README.md) |
-| Priority | Must Have |
-| Phase | Phase 1 (MVP) |
-| Story Points | 8 |
+| Field        | Value                                           |
+|--------------|-------------------------------------------------|
+| Story ID     | US-0002-02                                      |
+| Epic         | [US-0002: Create Customer Profile](./README.md) |
+| Priority     | Must Have                                       |
+| Phase        | Phase 1 (MVP)                                   |
+| Story Points | 8                                               |
 
 ## Description
 
-This story implements the backend registration processing in the Identity Management Service. It handles user creation, secure password hashing, verification token generation, and publishes the `UserRegistered` domain event to trigger downstream processes.
+This story implements the backend registration processing in the Identity Management Service. It handles user creation,
+secure password hashing, verification token generation, and publishes the `UserRegistered` domain event to trigger
+downstream processes.
 
 ## System Context
 
@@ -144,10 +146,11 @@ Content-Type: application/json
 **When** the user record is created
 **Then** the password is hashed using Argon2id algorithm
 **And** the hash parameters are:
-  - Memory cost: 64 MB (65536 KB)
-  - Time cost: 3 iterations
-  - Parallelism: 4 threads
-**And** the plain text password is never stored or logged
+
+- Memory cost: 64 MB (65536 KB)
+- Time cost: 3 iterations
+- Parallelism: 4 threads
+  **And** the plain text password is never stored or logged
 
 ### AC-0002-02-03: User ID Generation
 
@@ -198,9 +201,10 @@ Content-Type: application/json
 **Given** a registration request is submitted
 **When** the UserRegistered event is created
 **Then** the registrationSource field captures the origin:
-  - "WEB" for web application requests
-  - "MOBILE" for mobile app requests
-  - "API" for direct API integrations
+
+- "WEB" for web application requests
+- "MOBILE" for mobile app requests
+- "API" for direct API integrations
 
 ## Technical Implementation
 
@@ -307,23 +311,23 @@ CREATE INDEX idx_verification_tokens_user_id ON verification_tokens(user_id);
 
 ## Security Considerations
 
-| Concern | Mitigation |
-|---------|------------|
-| Password in logs | Password field excluded from all logging |
-| Timing attacks on email check | Constant-time comparison for email lookup |
-| Brute force registration | Rate limiting: 5 requests per IP per minute |
-| Email enumeration | Generic error message for duplicate emails |
-| SQL injection | Parameterized queries via JPA |
+| Concern                       | Mitigation                                  |
+|-------------------------------|---------------------------------------------|
+| Password in logs              | Password field excluded from all logging    |
+| Timing attacks on email check | Constant-time comparison for email lookup   |
+| Brute force registration      | Rate limiting: 5 requests per IP per minute |
+| Email enumeration             | Generic error message for duplicate emails  |
+| SQL injection                 | Parameterized queries via JPA               |
 
 ## Observability
 
 ### Metrics
 
-| Metric | Type | Labels |
-|--------|------|--------|
-| `registration_attempts_total` | Counter | status (success, duplicate, error) |
-| `registration_duration_seconds` | Histogram | - |
-| `password_hash_duration_seconds` | Histogram | - |
+| Metric                           | Type      | Labels                             |
+|----------------------------------|-----------|------------------------------------|
+| `registration_attempts_total`    | Counter   | status (success, duplicate, error) |
+| `registration_duration_seconds`  | Histogram | -                                  |
+| `password_hash_duration_seconds` | Histogram | -                                  |
 
 ### Tracing Spans
 
@@ -340,6 +344,7 @@ GET /actuator/health/readiness
 ```
 
 Checks:
+
 - PostgreSQL connectivity
 - Kafka broker connectivity
 - Schema Registry availability

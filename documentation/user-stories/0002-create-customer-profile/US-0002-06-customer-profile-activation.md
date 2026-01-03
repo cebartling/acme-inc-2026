@@ -8,17 +8,19 @@
 
 ## Story Details
 
-| Field | Value |
-|-------|-------|
-| Story ID | US-0002-06 |
-| Epic | [US-0002: Create Customer Profile](./README.md) |
-| Priority | Must Have |
-| Phase | Phase 1 (MVP) |
-| Story Points | 3 |
+| Field        | Value                                           |
+|--------------|-------------------------------------------------|
+| Story ID     | US-0002-06                                      |
+| Epic         | [US-0002: Create Customer Profile](./README.md) |
+| Priority     | Must Have                                       |
+| Phase        | Phase 1 (MVP)                                   |
+| Story Points | 3                                               |
 
 ## Description
 
-This story implements the customer profile activation in the Customer Management Service. When a `UserActivated` event is consumed from Kafka, the service updates the customer status from `PENDING_VERIFICATION` to `ACTIVE` and publishes a `CustomerActivated` event.
+This story implements the customer profile activation in the Customer Management Service. When a `UserActivated` event
+is consumed from Kafka, the service updates the customer status from `PENDING_VERIFICATION` to `ACTIVE` and publishes a
+`CustomerActivated` event.
 
 ## System Context
 
@@ -51,19 +53,19 @@ sequenceDiagram
 
 ```json
 {
-  "eventId": "01941234-5678-7abc-def0-123456789040",
-  "eventType": "CustomerActivated",
-  "eventVersion": "1.0",
-  "timestamp": "2026-01-02T11:15:01Z",
-  "aggregateId": "01941234-5678-7abc-def0-123456789020",
-  "aggregateType": "Customer",
-  "correlationId": "01941234-5678-7abc-def0-123456789002",
-  "causationId": "01941234-5678-7abc-def0-123456789031",
-  "payload": {
-    "customerId": "01941234-5678-7abc-def0-123456789020",
-    "activatedAt": "2026-01-02T11:15:01Z",
-    "emailVerified": true
-  }
+    "eventId": "01941234-5678-7abc-def0-123456789040",
+    "eventType": "CustomerActivated",
+    "eventVersion": "1.0",
+    "timestamp": "2026-01-02T11:15:01Z",
+    "aggregateId": "01941234-5678-7abc-def0-123456789020",
+    "aggregateType": "Customer",
+    "correlationId": "01941234-5678-7abc-def0-123456789002",
+    "causationId": "01941234-5678-7abc-def0-123456789031",
+    "payload": {
+        "customerId": "01941234-5678-7abc-def0-123456789020",
+        "activatedAt": "2026-01-02T11:15:01Z",
+        "emailVerified": true
+    }
 }
 ```
 
@@ -208,11 +210,11 @@ stateDiagram-v2
 
 ### Metrics
 
-| Metric | Type | Labels |
-|--------|------|--------|
-| `customer_activated_total` | Counter | - |
-| `customer_activation_duration_seconds` | Histogram | - |
-| `event_processing_lag_seconds` | Histogram | event_type |
+| Metric                                 | Type      | Labels     |
+|----------------------------------------|-----------|------------|
+| `customer_activated_total`             | Counter   | -          |
+| `customer_activation_duration_seconds` | Histogram | -          |
+| `event_processing_lag_seconds`         | Histogram | event_type |
 
 ### Tracing Spans
 
