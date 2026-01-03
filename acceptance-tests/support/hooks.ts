@@ -6,10 +6,14 @@ import {
   BeforeStep,
   AfterStep,
   Status,
+  setDefaultTimeout,
 } from '@cucumber/cucumber';
 import { chromium, Browser } from '@playwright/test';
 import { config, browserOptions } from '../playwright.config.js';
 import { CustomWorld } from './world.js';
+
+// Set default timeout to 30 seconds for all steps
+setDefaultTimeout(30000);
 
 let sharedBrowser: Browser | null = null;
 
@@ -32,8 +36,8 @@ Before(async function (this: CustomWorld) {
   await this.createContext();
 });
 
-Before({ tags: '@customer' }, async function (this: CustomWorld) {
-  // Navigate to customer app for customer-tagged scenarios
+Before({ tags: '@customer and not @registration' }, async function (this: CustomWorld) {
+  // Navigate to customer app for customer-tagged scenarios (except registration which navigates itself)
   await this.page.goto(this.getCustomerAppUrl());
 });
 
