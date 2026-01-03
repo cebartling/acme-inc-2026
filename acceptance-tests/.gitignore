@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Test results and reports
+allure-results/
+allure-report/
+reports/
+*.log
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Playwright
+playwright-report/
+test-results/
+
+# TypeScript
+*.tsbuildinfo
+
+# Screenshots and videos from test runs
+screenshots/
+videos/
+traces/
