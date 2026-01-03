@@ -341,6 +341,6 @@ stateDiagram-v2
 
 ## Related Documents
 
-- [Journey Step 8: Customer Completes Profile](../../journeys/0001-create-customer-profile.md#step-8-customer-completes-profile)
+- [Journey Step 8: Customer Completes Profile](../../journeys/0002-create-customer-profile.md#step-8-customer-completes-profile)
 - [US-0002-09: Address Management](./US-0002-09-address-management.md)
 - [US-0002-10: Preference Configuration](./US-0002-10-preference-configuration.md)

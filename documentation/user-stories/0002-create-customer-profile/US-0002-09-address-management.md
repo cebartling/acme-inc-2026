@@ -401,6 +401,6 @@ flowchart TB
 
 ## Related Documents
 
-- [Journey Step 9: Customer Adds Address](../../journeys/0001-create-customer-profile.md#step-9-customer-adds-address)
+- [Journey Step 9: Customer Adds Address](../../journeys/0002-create-customer-profile.md#step-9-customer-adds-address)
 - [US-0002-08: Profile Completion Wizard](./US-0002-08-profile-completion-wizard.md)
 - [US-0002-10: Preference Configuration](./US-0002-10-preference-configuration.md)

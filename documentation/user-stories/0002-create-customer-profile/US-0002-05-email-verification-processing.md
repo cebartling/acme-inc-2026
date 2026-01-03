@@ -374,6 +374,6 @@ class VerificationRateLimiter(
 
 ## Related Documents
 
-- [Journey Step 5: Customer Verifies Email](../../journeys/0001-create-customer-profile.md#step-5-customer-verifies-email)
+- [Journey Step 5: Customer Verifies Email](../../journeys/0002-create-customer-profile.md#step-5-customer-verifies-email)
 - [US-0002-04: Verification Email Notification](./US-0002-04-verification-email-notification.md)
 - [US-0002-06: Customer Profile Activation](./US-0002-06-customer-profile-activation.md)

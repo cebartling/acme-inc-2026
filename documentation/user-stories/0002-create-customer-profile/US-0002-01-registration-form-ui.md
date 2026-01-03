@@ -242,5 +242,5 @@ frontend-apps/customer/src/
 
 ## Related Documents
 
-- [Journey Step 1: Customer Initiates Registration](../../journeys/0001-create-customer-profile.md#step-1-customer-initiates-registration)
+- [Journey Step 1: Customer Initiates Registration](../../journeys/0002-create-customer-profile.md#step-1-customer-initiates-registration)
 - [US-0002-02: User Registration Processing](./US-0002-02-user-registration-processing.md)

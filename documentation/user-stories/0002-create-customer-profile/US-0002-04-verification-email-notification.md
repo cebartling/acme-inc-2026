@@ -361,6 +361,6 @@ class SendGridEmailSender(
 
 ## Related Documents
 
-- [Journey Step 4: Verification Email Sent](../../journeys/0001-create-customer-profile.md#step-4-verification-email-sent)
+- [Journey Step 4: Verification Email Sent](../../journeys/0002-create-customer-profile.md#step-4-verification-email-sent)
 - [US-0002-02: User Registration Processing](./US-0002-02-user-registration-processing.md)
 - [US-0002-05: Email Verification Processing](./US-0002-05-email-verification-processing.md)

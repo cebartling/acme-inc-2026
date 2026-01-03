@@ -1,7 +1,7 @@
 # User Story Epic: Create Customer Profile
 
 **Epic ID:** US-0002
-**Source Journey:** [UJ-0001: Create Customer Profile](../../journeys/0001-create-customer-profile.md)
+**Source Journey:** [UJ-0001: Create Customer Profile](../../journeys/0002-create-customer-profile.md)
 **Status:** Draft
 **Created:** 2026-01-03
 
@@ -122,7 +122,7 @@ graph TB
 
 ## Related Documents
 
-- [User Journey: Create Customer Profile](../../journeys/0001-create-customer-profile.md)
+- [User Journey: Create Customer Profile](../../journeys/0002-create-customer-profile.md)
 - [Implementation Guidelines](../../IMPLEMENTATION.md)
 - [Identity Management Epic](../../epics/000-identity-management.md)
 - [Customer Management Epic](../../epics/004-customer-management.md)

@@ -270,6 +270,6 @@ flowchart TB
 
 ## Related Documents
 
-- [Journey Step 7: Welcome Notification Sent](../../journeys/0001-create-customer-profile.md#step-7-welcome-notification-sent)
+- [Journey Step 7: Welcome Notification Sent](../../journeys/0002-create-customer-profile.md#step-7-welcome-notification-sent)
 - [US-0002-06: Customer Profile Activation](./US-0002-06-customer-profile-activation.md)
 - [US-0002-08: Profile Completion Wizard](./US-0002-08-profile-completion-wizard.md)

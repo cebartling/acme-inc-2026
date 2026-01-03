@@ -369,7 +369,7 @@ Checks:
 
 ## Related Documents
 
-- [Journey Step 2: Identity Service Processes Registration](../../journeys/0001-create-customer-profile.md#step-2-identity-service-processes-registration)
+- [Journey Step 2: Identity Service Processes Registration](../../journeys/0002-create-customer-profile.md#step-2-identity-service-processes-registration)
 - [US-0002-01: Registration Form UI](./US-0002-01-registration-form-ui.md)
 - [US-0002-03: Customer Profile Creation](./US-0002-03-customer-profile-creation.md)
 - [US-0002-04: Verification Email Notification](./US-0002-04-verification-email-notification.md)

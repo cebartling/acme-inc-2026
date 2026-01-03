@@ -455,6 +455,6 @@ flowchart TB
 
 ## Related Documents
 
-- [Journey: Profile Completeness Calculation](../../journeys/0001-create-customer-profile.md#profile-completeness-calculation)
+- [Journey: Profile Completeness Calculation](../../journeys/0002-create-customer-profile.md#profile-completeness-calculation)
 - [US-0002-08: Profile Completion Wizard](./US-0002-08-profile-completion-wizard.md)
 - [US-0002-11: Consent Management](./US-0002-11-consent-management.md)

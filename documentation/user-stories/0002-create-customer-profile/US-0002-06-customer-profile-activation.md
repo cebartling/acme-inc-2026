@@ -245,6 +245,6 @@ stateDiagram-v2
 
 ## Related Documents
 
-- [Journey Step 6: Customer Profile Activated](../../journeys/0001-create-customer-profile.md#step-6-customer-profile-activated)
+- [Journey Step 6: Customer Profile Activated](../../journeys/0002-create-customer-profile.md#step-6-customer-profile-activated)
 - [US-0002-05: Email Verification Processing](./US-0002-05-email-verification-processing.md)
 - [US-0002-07: Welcome Notification](./US-0002-07-welcome-notification.md)

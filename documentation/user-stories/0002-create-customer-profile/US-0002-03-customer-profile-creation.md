@@ -446,6 +446,6 @@ flowchart LR
 
 ## Related Documents
 
-- [Journey Step 3: Customer Profile Creation](../../journeys/0001-create-customer-profile.md#step-3-customer-profile-creation)
+- [Journey Step 3: Customer Profile Creation](../../journeys/0002-create-customer-profile.md#step-3-customer-profile-creation)
 - [US-0002-02: User Registration Processing](./US-0002-02-user-registration-processing.md)
 - [US-0002-06: Customer Profile Activation](./US-0002-06-customer-profile-activation.md)

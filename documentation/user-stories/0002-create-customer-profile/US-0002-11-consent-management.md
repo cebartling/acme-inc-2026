@@ -490,6 +490,6 @@ flowchart TB
 
 ## Related Documents
 
-- [Journey Step 11: Customer Grants Consent](../../journeys/0001-create-customer-profile.md#step-11-customer-grants-consent)
+- [Journey Step 11: Customer Grants Consent](../../journeys/0002-create-customer-profile.md#step-11-customer-grants-consent)
 - [US-0002-10: Preference Configuration](./US-0002-10-preference-configuration.md)
 - [US-0002-12: Profile Completeness Tracking](./US-0002-12-profile-completeness-tracking.md)
