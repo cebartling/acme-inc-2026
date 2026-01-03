@@ -8,11 +8,14 @@
     - Dependency for all backend services and frontend applications 
     - Initialization scripts should be managed under the `docker` directory 
 - PostgreSQL 16+ for read-write, command store
+    - Use a Debezium-sourced image that has logical replication enabled and replication slots configured 
+    - `quay.io/debezium/postgres:latest`
 - MongoDB 8.2+ for read-only, query store
 - Hashicorp Vault for secrets management
 - Confluent Kafka for events and messaging
 - Confluent Schema Registry for Avro schemas for Kafka messaging
 - Debezium Kafka Connect connector for change data capture on PostgreSQL tables
+    - `quay.io/debezium/connect:latest`
 - Grafana for observability dashboards
 - Tempo for OTel tracing backend
 - Loki for OTel logging via OTel Collector
