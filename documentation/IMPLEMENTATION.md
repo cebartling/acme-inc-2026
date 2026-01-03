@@ -91,6 +91,8 @@ Grafana Tempo (since v2.8.0) and Loki use Google's distroless base container ima
 - Tanstack Start
 - React 19.2
 - Vite
+- Set Node.js runtime with nvm
+- Node.js 24 (`lts/krypton`)
 - Tailwind CSS 4 for styling
 - shadcn/ui UI components
 - shadcn icons
