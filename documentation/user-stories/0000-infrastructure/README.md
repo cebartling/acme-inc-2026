@@ -21,18 +21,18 @@ This user story establishes the foundational infrastructure for the ACME Inc. e-
 
 ### Data Stores
 
-| Component | Version | Purpose |
-|-----------|---------|---------|
-| PostgreSQL | 16+ | Command store (read-write) for CQRS pattern |
-| MongoDB | 8.2+ | Query store (read-only) for optimized reads |
+| Component | Version | Docker Image | Purpose |
+|-----------|---------|--------------|---------|
+| PostgreSQL | 16+ | `quay.io/debezium/postgres:latest` | Command store (read-write) for CQRS pattern |
+| MongoDB | 8.2+ | `mongo:8.2` | Query store (read-only) for optimized reads |
 
 ### Messaging & Event Streaming
 
-| Component | Purpose |
-|-----------|---------|
-| Confluent Kafka | Event streaming and async messaging between services |
-| Confluent Schema Registry | Avro schema management for Kafka messages |
-| Debezium Kafka Connect | Change Data Capture from PostgreSQL to Kafka |
+| Component | Docker Image | Purpose |
+|-----------|--------------|---------|
+| Confluent Kafka | `confluentinc/cp-kafka:latest` | Event streaming and async messaging between services |
+| Confluent Schema Registry | `confluentinc/cp-schema-registry:latest` | Avro schema management for Kafka messages |
+| Debezium Kafka Connect | `quay.io/debezium/connect:latest` | Change Data Capture from PostgreSQL to Kafka |
 
 ### Security
 
@@ -197,8 +197,10 @@ The `docker-compose.yml` file should be placed in the repository root for easy a
 
 ### PostgreSQL Setup
 
+- **Use Debezium-sourced image**: `quay.io/debezium/postgres:latest`
+  - Pre-configured with logical replication enabled
+  - Replication slots already configured for CDC
 - Create separate databases for each backend service
-- Enable logical replication for Debezium CDC
 - Configure appropriate connection pooling settings
 - Include initialization scripts for schema setup
 
@@ -217,6 +219,8 @@ The `docker-compose.yml` file should be placed in the repository root for easy a
 
 ### Debezium Configuration
 
+- **Use Debezium Connect image**: `quay.io/debezium/connect:latest`
+  - Includes PostgreSQL connector plugin pre-installed
 - Configure connectors for each PostgreSQL database
 - Use Avro format with Schema Registry integration
 - Set up appropriate topic naming conventions

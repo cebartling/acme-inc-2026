@@ -36,6 +36,14 @@ docker compose ps
 **When** I connect to PostgreSQL
 **Then** the database is accessible and configured for CDC
 
+### Docker Image
+
+Use the Debezium-sourced PostgreSQL image: `quay.io/debezium/postgres:latest`
+
+This image comes pre-configured with:
+- Logical replication enabled (`wal_level = logical`)
+- Replication slots configured for CDC
+
 ### Verification
 
 ```bash
@@ -53,9 +61,9 @@ docker compose exec postgres psql -U postgres -c "SHOW max_replication_slots;"
 
 ### Sub-criteria
 
-- [ ] PostgreSQL 16+ is running
-- [ ] Logical replication is enabled (`wal_level = logical`)
-- [ ] Sufficient replication slots are configured
+- [ ] PostgreSQL 16+ is running using Debezium image (`quay.io/debezium/postgres:latest`)
+- [ ] Logical replication is enabled (`wal_level = logical`) - pre-configured in Debezium image
+- [ ] Sufficient replication slots are configured - pre-configured in Debezium image
 - [ ] Initialization scripts execute on first startup
 - [ ] Connection credentials are managed via environment variables
 
@@ -150,6 +158,12 @@ curl -s http://localhost:8081/subjects/test-value/versions/latest | jq .
 **When** data changes occur in PostgreSQL
 **Then** change events are published to Kafka topics
 
+### Docker Image
+
+Use the official Debezium Connect image: `quay.io/debezium/connect:latest`
+
+This image includes the PostgreSQL connector plugin pre-installed.
+
 ### Verification
 
 ```bash
@@ -166,8 +180,8 @@ curl -s http://localhost:8083/connector-plugins | jq '.[] | .class'
 
 ### Sub-criteria
 
-- [ ] Kafka Connect is running with Debezium plugins
-- [ ] PostgreSQL connector plugin is available
+- [ ] Kafka Connect is running using Debezium image (`quay.io/debezium/connect:latest`)
+- [ ] PostgreSQL connector plugin is available (pre-installed in Debezium image)
 - [ ] Connector configuration templates are provided
 - [ ] Connectors can be registered via REST API
 - [ ] CDC events use Avro format with Schema Registry
