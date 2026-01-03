@@ -54,8 +54,9 @@ Grafana Tempo (since v2.8.0) and Loki use Google's distroless base container ima
     - Blocking I/O
     - JPA
     - Actuator metrics
-- Gradle build infrastructure
+- Gradle 9.2 build infrastructure
 - SDKMAN Java runtime management
+    - Set both java and gradle in the .sdkmanrc file   
 - PostgreSQL for read-write, command store
 - MongoDB for read-only, query store
 - OpenTelemtery for distributed tracing, metrics and structured logging
