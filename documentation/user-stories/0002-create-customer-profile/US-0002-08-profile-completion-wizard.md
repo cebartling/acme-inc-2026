@@ -223,6 +223,7 @@ Authorization: Bearer <jwt>
 - **Validation**: Zod schemas
 - **UI Components**: shadcn/ui
 - **State Management**: Zustand (wizard state)
+- **API Mocking**: Mock Service Worker (msw) for development and testing
 
 ### Frontend Component Structure
 

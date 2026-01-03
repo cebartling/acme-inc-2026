@@ -164,6 +164,7 @@ The password strength indicator provides visual feedback:
 - **Validation**: Zod schemas
 - **UI Components**: shadcn/ui
 - **Styling**: Tailwind CSS 4
+- **API Mocking**: Mock Service Worker (msw) for development and testing
 
 ### Form Schema (Zod)
 
