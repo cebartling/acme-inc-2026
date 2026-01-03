@@ -48,8 +48,8 @@ export function RegistrationForm({ onSubmit }: RegistrationFormProps) {
       confirmPassword: '',
       firstName: '',
       lastName: '',
-      tosAccepted: false as unknown as true,
-      privacyPolicyAccepted: false as unknown as true,
+      tosAccepted: false,
+      privacyPolicyAccepted: false,
       marketingOptIn: false,
     },
   });
@@ -203,7 +203,7 @@ export function RegistrationForm({ onSubmit }: RegistrationFormProps) {
                 id="tosAccepted"
                 aria-invalid={!!errors.tosAccepted}
                 onCheckedChange={(checked) => {
-                  setValue('tosAccepted', checked as true, {
+                  setValue('tosAccepted', !!checked, {
                     shouldValidate: true,
                   });
                   trigger('tosAccepted');
@@ -233,7 +233,7 @@ export function RegistrationForm({ onSubmit }: RegistrationFormProps) {
                 id="privacyPolicyAccepted"
                 aria-invalid={!!errors.privacyPolicyAccepted}
                 onCheckedChange={(checked) => {
-                  setValue('privacyPolicyAccepted', checked as true, {
+                  setValue('privacyPolicyAccepted', !!checked, {
                     shouldValidate: true,
                   });
                   trigger('privacyPolicyAccepted');

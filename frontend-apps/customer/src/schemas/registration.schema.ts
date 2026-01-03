@@ -24,16 +24,16 @@ export const registrationSchema = z
       .string()
       .min(1, 'Last name is required')
       .max(50, 'Last name cannot exceed 50 characters'),
-    tosAccepted: z.literal(true, {
-      errorMap: () => ({
+    tosAccepted: z
+      .boolean()
+      .refine((val) => val === true, {
         message: 'You must accept the Terms of Service to continue',
       }),
-    }),
-    privacyPolicyAccepted: z.literal(true, {
-      errorMap: () => ({
+    privacyPolicyAccepted: z
+      .boolean()
+      .refine((val) => val === true, {
         message: 'You must accept the Privacy Policy to continue',
       }),
-    }),
     marketingOptIn: z.boolean().default(false),
   })
   .refine((data) => data.password === data.confirmPassword, {
