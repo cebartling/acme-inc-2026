@@ -10,7 +10,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.http.MediaType
 import org.springframework.test.context.ActiveProfiles
@@ -19,11 +19,10 @@ import org.springframework.test.context.DynamicPropertySource
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.*
-import org.testcontainers.containers.KafkaContainer
-import org.testcontainers.containers.PostgreSQLContainer
+import org.testcontainers.kafka.KafkaContainer
+import org.testcontainers.postgresql.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
-import org.testcontainers.utility.DockerImageName
 import java.time.Instant
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -49,14 +48,14 @@ class UserControllerIntegrationTest {
 
     companion object {
         @Container
-        val postgres = PostgreSQLContainer(DockerImageName.parse("postgres:16-alpine"))
+        val postgres = PostgreSQLContainer("postgres:16-alpine")
             .withDatabaseName("acme_identity_test")
             .withUsername("test")
             .withPassword("test")
             .withInitScript("db/migration/init-test.sql")
 
         @Container
-        val kafka = KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.7.1"))
+        val kafka = KafkaContainer("apache/kafka:3.8.0")
 
         @JvmStatic
         @DynamicPropertySource
@@ -230,7 +229,7 @@ class UserControllerIntegrationTest {
                 .content("{}")
         )
             .andExpect(status().isBadRequest)
-            .andExpect(jsonPath("$.error").value("VALIDATION_ERROR"))
+            .andExpect(jsonPath("$.error").value("INVALID_REQUEST"))
     }
 
     private fun createValidRequest(): RegisterUserRequest {

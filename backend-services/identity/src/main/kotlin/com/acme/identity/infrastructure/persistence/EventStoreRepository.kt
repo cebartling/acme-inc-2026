@@ -63,7 +63,7 @@ class EventStoreRepository(
      * @param aggregateId The ID of the aggregate to query.
      * @return List of event records as maps, ordered by timestamp.
      */
-    fun findByAggregateId(aggregateId: java.util.UUID): List<Map<String, Any>> {
+    fun findByAggregateId(aggregateId: java.util.UUID): List<Map<String, Any?>> {
         return jdbcTemplate.queryForList(
             """
             SELECT event_id, event_type, event_version, timestamp,

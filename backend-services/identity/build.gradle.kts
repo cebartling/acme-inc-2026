@@ -20,6 +20,7 @@ java {
 repositories {
     mavenCentral()
     maven { url = uri("https://repo.spring.io/milestone") }
+    maven { url = uri("https://packages.confluent.io/maven/") }
 }
 
 extra["springCloudVersion"] = "2024.0.0"
@@ -39,6 +40,7 @@ dependencies {
 
     // Kotlin
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
+    implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
 
     // Database
@@ -60,16 +62,23 @@ dependencies {
     implementation("io.opentelemetry:opentelemetry-exporter-otlp")
 
     // Rate limiting
-    implementation("io.github.bucket4j:bucket4j-core:8.14.0")
+    implementation("com.bucket4j:bucket4j_jdk17-core:8.16.0")
 
-    // Testing
-    testImplementation("org.springframework.boot:spring-boot-starter-test")
+    // Testing - JUnit 6
+    testImplementation(platform("org.junit:junit-bom:6.0.1"))
+    testImplementation("org.junit.jupiter:junit-jupiter")
+    testImplementation("org.springframework.boot:spring-boot-starter-test") {
+        exclude(group = "org.junit.jupiter")
+        exclude(group = "org.junit.vintage")
+    }
+    testImplementation("org.springframework.boot:spring-boot-test-autoconfigure")
+    testImplementation("org.springframework.boot:spring-boot-webmvc-test")
     testImplementation("org.springframework.kafka:spring-kafka-test")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
     testImplementation("io.mockk:mockk:1.13.13")
-    testImplementation("org.testcontainers:junit-jupiter")
-    testImplementation("org.testcontainers:postgresql")
-    testImplementation("org.testcontainers:kafka")
+    testImplementation("org.testcontainers:testcontainers-junit-jupiter:2.0.3")
+    testImplementation("org.testcontainers:testcontainers-postgresql:2.0.3")
+    testImplementation("org.testcontainers:testcontainers-kafka:2.0.3")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
