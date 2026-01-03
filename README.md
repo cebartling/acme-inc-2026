@@ -56,3 +56,54 @@ cp .env.example .env
 ```
 
 See [docker/README.md](docker/README.md) for detailed infrastructure documentation.
+
+## Acceptance Testing
+
+The platform includes a BDD acceptance testing framework using Cucumber.js and Playwright.
+
+### Quick Start
+
+```bash
+cd acceptance-tests
+
+# Install dependencies
+npm install
+
+# Install Playwright browsers
+npx playwright install
+
+# Run all tests
+npm run test
+
+# Run smoke tests only
+npm run test:smoke
+
+# Run tests with visible browser
+npm run test:headed
+
+# Generate and view Allure report
+npm run allure:serve
+```
+
+### Test Scripts
+
+| Script | Description |
+|--------|-------------|
+| `npm run test` | Run all acceptance tests |
+| `npm run test:smoke` | Run smoke test suite (@smoke tag) |
+| `npm run test:regression` | Run full regression suite |
+| `npm run test:customer` | Run customer app tests only |
+| `npm run test:admin` | Run admin app tests only |
+| `npm run test:headed` | Run tests with visible browser |
+| `npm run allure:serve` | Generate and open Allure report |
+
+### Configuration
+
+Copy `.env.example` to `.env` to customize test settings:
+
+```bash
+cd acceptance-tests
+cp .env.example .env
+```
+
+See [documentation/user-stories/0001-acceptance-testing/README.md](documentation/user-stories/0001-acceptance-testing/README.md) for detailed testing documentation.
