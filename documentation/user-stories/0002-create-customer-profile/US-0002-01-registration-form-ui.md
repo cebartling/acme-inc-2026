@@ -233,6 +233,7 @@ frontend-apps/customer/src/
 - [ ] Accessibility audit passes (WCAG 2.1 AA)
 - [ ] Unit tests cover validation logic (>90% coverage)
 - [ ] Integration tests verify form submission flow
+- [ ] Acceptance tests verify acceptance criteria are met
 - [ ] Responsive design works on mobile, tablet, desktop
 - [ ] Code reviewed and approved
 - [ ] Documentation updated
