@@ -1,12 +1,12 @@
 # Implementation Guidelines
 
-## Technologies
 
-### Core infrastructure
+## Core infrastructure
 
 - Use Docker Compose to manage infrastructure services
     - YAML file in repository root directory
     - Dependency for all backend services and frontend applications 
+    - Initialization scripts should be managed under the `docker` directory 
 - PostgreSQL 16+ for read-write, command store
 - MongoDB 8.2+ for read-only, query store
 - Hashicorp Vault for secrets management
@@ -19,7 +19,7 @@
 - Prometheus for OTel metrics via OTel SDK/Collector
 
 
-### Backend services
+## Backend services
 
 - Kotlin 2.2
 - Java 24
@@ -30,6 +30,7 @@
     - JPA
     - Actuator metrics
 - Gradle build infrastructure
+- SDKMAN Java runtime management
 - PostgreSQL for read-write, command store
 - MongoDB for read-only, query store
 - OpenTelemtery for distributed tracing, metrics and structured logging
@@ -38,13 +39,14 @@
 - Kafka for messaging
 - JUnit 6 and Mockito for unit testing
 
-#### CQRS implementation
+
+### CQRS implementation
 
 - Use saga pattern for reversible business transactions when implementing commands
 - The workflow orchestrator service will house the saga pattern-based workflows
 - Debezium Kafka Connect connector to implement change data capture between command store and query store
 
-#### Service projects
+### Service projects
 
 - Identity management: `/backend-services/identity`
 - Product catalog: `/backend-services/product`
@@ -59,7 +61,7 @@
 - Analytics: `/backend-services/analytics`
 
 
-### Frontend applications
+## Frontend applications
 
 - Tanstack Start
 - React 19.2
@@ -74,7 +76,7 @@
 - TanStack Router for routing
 - Vitest for unit testing
 
-#### Application projects
+### Application projects
 
 - Customer-facing: `/frontend-apps/customer`
 - Admin-facing: `/frontend-apps/admin`
