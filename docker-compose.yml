@@ -6,7 +6,7 @@ services:
   # =============================================================================
 
   postgres:
-    image: quay.io/debezium/postgres:latest
+    image: quay.io/debezium/postgres:16
     container_name: acme-postgres
     hostname: postgres
     ports:
