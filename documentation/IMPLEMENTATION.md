@@ -21,6 +21,28 @@
 - Loki for OTel logging via OTel Collector
 - Prometheus for OTel metrics via OTel SDK/Collector
 
+### Distroless container images (Tempo and Loki)
+
+Grafana Tempo (since v2.8.0) and Loki use Google's distroless base container images. These are minimal images that contain only the application and its runtime dependencies—no shells, package managers, or unnecessary system utilities.
+
+**Security benefits:**
+
+- **Reduced attack surface**: Without shells (`/bin/sh`, `/bin/bash`) or package managers, attackers who breach the container have fewer tools to exploit for lateral movement or privilege escalation
+- **Fewer CVEs**: Minimal components mean fewer vulnerabilities to track and patch
+- **Non-root execution**: Both run as UID `10001` (user `tempo`/`loki`) rather than root, following the principle of least privilege
+- **Read-only filesystem**: Containers enforce read-only root filesystems and drop all Linux capabilities
+
+**Operational considerations:**
+
+- **No shell access for debugging**: Use `kubectl debug` or ephemeral containers for troubleshooting
+- **Multi-stage builds**: Application artifacts are built in full-featured containers and copied to distroless runtime images
+- **File permissions**: When upgrading from older versions, existing data files may need ownership changes to UID `10001`
+
+**Image sizes:**
+
+- Distroless static images are ~2 MiB (vs ~124 MiB for Debian, ~5 MiB for Alpine)
+- Smaller images mean faster pull times and reduced storage costs
+
 
 ## Backend services
 
