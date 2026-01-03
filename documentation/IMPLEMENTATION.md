@@ -90,3 +90,5 @@
 - Cucumber.js should be used for automating acceptance tests
 - Playwright should be used for browser automation
 - Acceptance tests project will reside in the `acceptance-tests` directory.
+- Use Allure Report 3 for HTML Cucumber test run reporting
+    - https://allurereport.org/docs/v3/ 
