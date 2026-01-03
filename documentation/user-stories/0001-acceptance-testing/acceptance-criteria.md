@@ -2,7 +2,8 @@
 
 ## Overview
 
-This document defines the acceptance criteria for User Story 0001: Acceptance Testing Infrastructure. Each criterion includes verification steps and expected outcomes.
+This document defines the acceptance criteria for User Story 0001: Acceptance Testing Infrastructure. Each criterion
+includes verification steps and expected outcomes.
 
 ## AC-001: Project Structure and Dependencies
 
@@ -351,26 +352,26 @@ npm run
 ```gherkin
 @smoke @customer
 Feature: Customer Authentication
-  As a customer
-  I want to log in to my account
-  So that I can access my order history and personal information
+    As a customer
+    I want to log in to my account
+    So that I can access my order history and personal information
 
-  Background:
-    Given I am on the customer application
+    Background:
+        Given I am on the customer application
 
-  Scenario: Successful login with valid credentials
-    Given I am on the login page
-    When I enter valid credentials
-    And I click the login button
-    Then I should be redirected to my account dashboard
-    And I should see a welcome message
+    Scenario: Successful login with valid credentials
+        Given I am on the login page
+        When I enter valid credentials
+        And I click the login button
+        Then I should be redirected to my account dashboard
+        And I should see a welcome message
 
-  Scenario: Failed login with invalid credentials
-    Given I am on the login page
-    When I enter invalid credentials
-    And I click the login button
-    Then I should see an error message
-    And I should remain on the login page
+    Scenario: Failed login with invalid credentials
+        Given I am on the login page
+        When I enter invalid credentials
+        And I click the login button
+        Then I should see an error message
+        And I should remain on the login page
 ```
 
 ### Sub-criteria
@@ -427,20 +428,20 @@ cat reports/junit.xml
 
 ## Summary Checklist
 
-| AC     | Description                      | Status |
-|--------|----------------------------------|--------|
-| AC-001 | Project Structure and Dependencies | [ ]  |
-| AC-002 | Cucumber.js Configuration        | [ ]    |
-| AC-003 | Playwright Integration           | [ ]    |
-| AC-004 | Feature File Structure           | [ ]    |
-| AC-005 | Step Definitions                 | [ ]    |
-| AC-006 | Page Object Model                | [ ]    |
-| AC-007 | Test Hooks and Lifecycle         | [ ]    |
-| AC-008 | Custom World Class               | [ ]    |
-| AC-009 | API Testing Support              | [ ]    |
-| AC-010 | Test Reports                     | [ ]    |
-| AC-011 | Environment Configuration        | [ ]    |
-| AC-012 | NPM Scripts                      | [ ]    |
-| AC-013 | Sample Feature Implementation    | [ ]    |
-| AC-014 | Documentation                    | [ ]    |
-| AC-015 | CI/CD Integration Readiness      | [ ]    |
+| AC     | Description                        | Status |
+|--------|------------------------------------|--------|
+| AC-001 | Project Structure and Dependencies | [ ]    |
+| AC-002 | Cucumber.js Configuration          | [ ]    |
+| AC-003 | Playwright Integration             | [ ]    |
+| AC-004 | Feature File Structure             | [ ]    |
+| AC-005 | Step Definitions                   | [ ]    |
+| AC-006 | Page Object Model                  | [ ]    |
+| AC-007 | Test Hooks and Lifecycle           | [ ]    |
+| AC-008 | Custom World Class                 | [ ]    |
+| AC-009 | API Testing Support                | [ ]    |
+| AC-010 | Test Reports                       | [ ]    |
+| AC-011 | Environment Configuration          | [ ]    |
+| AC-012 | NPM Scripts                        | [ ]    |
+| AC-013 | Sample Feature Implementation      | [ ]    |
+| AC-014 | Documentation                      | [ ]    |
+| AC-015 | CI/CD Integration Readiness        | [ ]    |

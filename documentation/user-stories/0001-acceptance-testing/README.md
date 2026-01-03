@@ -4,11 +4,15 @@
 
 **As a** QA engineer or developer,
 **I want** an automated acceptance testing framework integrated into the project,
-**So that** I can validate user story acceptance criteria through executable specifications and ensure the platform meets business requirements.
+**So that** I can validate user story acceptance criteria through executable specifications and ensure the platform
+meets business requirements.
 
 ## Overview
 
-This user story establishes the acceptance testing infrastructure for the ACME Inc. e-commerce platform. The framework uses Cucumber.js for behavior-driven development (BDD) style tests and Playwright for browser automation, enabling teams to write executable specifications that verify both frontend applications and backend services meet their acceptance criteria.
+This user story establishes the acceptance testing infrastructure for the ACME Inc. e-commerce platform. The framework
+uses Cucumber.js for behavior-driven development (BDD) style tests and Playwright for browser automation, enabling teams
+to write executable specifications that verify both frontend applications and backend services meet their acceptance
+criteria.
 
 ## Business Value
 
@@ -20,13 +24,13 @@ This user story establishes the acceptance testing infrastructure for the ACME I
 
 ## Technology Stack
 
-| Component     | Technology         | Purpose                                    |
-|---------------|--------------------|--------------------------------------------|
-| Test Runner   | Cucumber.js        | BDD framework for executing Gherkin specs  |
-| Browser       | Playwright         | Cross-browser automation and E2E testing   |
-| Language      | TypeScript         | Type-safe test implementation              |
-| Assertions    | Playwright Expect  | Built-in assertion library                 |
-| Reporting     | Cucumber HTML      | Test execution reports                     |
+| Component   | Technology        | Purpose                                   |
+|-------------|-------------------|-------------------------------------------|
+| Test Runner | Cucumber.js       | BDD framework for executing Gherkin specs |
+| Browser     | Playwright        | Cross-browser automation and E2E testing  |
+| Language    | TypeScript        | Type-safe test implementation             |
+| Assertions  | Playwright Expect | Built-in assertion library                |
+| Reporting   | Cucumber HTML     | Test execution reports                    |
 
 ## Architecture Diagram
 
@@ -271,15 +275,15 @@ flowchart LR
 
 ## NPM Scripts
 
-| Script                    | Description                                   |
-|---------------------------|-----------------------------------------------|
-| `npm run test`            | Run all acceptance tests                      |
-| `npm run test:smoke`      | Run smoke test suite (@smoke tag)             |
-| `npm run test:regression` | Run full regression suite                     |
-| `npm run test:customer`   | Run customer app tests only                   |
-| `npm run test:admin`      | Run admin app tests only                      |
-| `npm run test:headed`     | Run tests with visible browser                |
-| `npm run report`          | Generate HTML report from last run            |
+| Script                    | Description                        |
+|---------------------------|------------------------------------|
+| `npm run test`            | Run all acceptance tests           |
+| `npm run test:smoke`      | Run smoke test suite (@smoke tag)  |
+| `npm run test:regression` | Run full regression suite          |
+| `npm run test:customer`   | Run customer app tests only        |
+| `npm run test:admin`      | Run admin app tests only           |
+| `npm run test:headed`     | Run tests with visible browser     |
+| `npm run report`          | Generate HTML report from last run |
 
 ## Related Documents
 
