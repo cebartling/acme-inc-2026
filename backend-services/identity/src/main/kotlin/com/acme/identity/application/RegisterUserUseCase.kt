@@ -21,12 +21,58 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
 
+/**
+ * Sealed class representing the possible outcomes of user registration.
+ *
+ * Using a sealed class allows exhaustive when-expressions and provides
+ * type-safe error handling without exceptions for expected failure cases.
+ */
 sealed class RegisterUserResult {
+    /**
+     * Registration completed successfully.
+     *
+     * @property response The registration response containing user details.
+     */
     data class Success(val response: RegisterUserResponse) : RegisterUserResult()
+
+    /**
+     * Registration failed because the email is already in use.
+     *
+     * @property message A human-readable error message.
+     */
     data class DuplicateEmail(val message: String) : RegisterUserResult()
+
+    /**
+     * Registration failed due to an unexpected error.
+     *
+     * @property message A human-readable error message.
+     */
     data class Error(val message: String) : RegisterUserResult()
 }
 
+/**
+ * Application service implementing the user registration use case.
+ *
+ * This service orchestrates the registration flow including:
+ * - Duplicate email detection
+ * - Password hashing with Argon2id
+ * - UUID v7 generation for user IDs
+ * - Event store persistence (before HTTP response)
+ * - User and verification token persistence
+ * - Kafka event publishing
+ * - Metrics collection
+ *
+ * The entire operation is transactional to ensure data consistency.
+ *
+ * @property userRepository Repository for user persistence.
+ * @property verificationTokenRepository Repository for verification tokens.
+ * @property eventStoreRepository Repository for event sourcing.
+ * @property userEventPublisher Kafka event publisher.
+ * @property passwordHasher Argon2id password hasher.
+ * @property userIdGenerator UUID v7 generator.
+ * @property verificationTokenGenerator Secure token generator.
+ * @property meterRegistry Micrometer metrics registry.
+ */
 @Service
 class RegisterUserUseCase(
     private val userRepository: UserRepository,
@@ -48,6 +94,18 @@ class RegisterUserUseCase(
         .description("Time taken to hash password")
         .register(meterRegistry)
 
+    /**
+     * Executes the user registration use case.
+     *
+     * This method performs the complete registration flow within a database
+     * transaction. The event is persisted to the event store before the
+     * HTTP response is sent, ensuring event consistency.
+     *
+     * @param request The registration request containing user data.
+     * @param registrationSource The channel through which registration occurred.
+     * @param correlationId Unique ID for distributed tracing.
+     * @return [RegisterUserResult] indicating success or the specific failure reason.
+     */
     @Transactional
     fun execute(
         request: RegisterUserRequest,
@@ -65,6 +123,14 @@ class RegisterUserUseCase(
         }!!
     }
 
+    /**
+     * Internal implementation of the registration logic.
+     *
+     * @param request The registration request.
+     * @param registrationSource The registration channel.
+     * @param correlationId The correlation ID for tracing.
+     * @return The registration result.
+     */
     private fun executeInternal(
         request: RegisterUserRequest,
         registrationSource: RegistrationSource,
@@ -141,6 +207,11 @@ class RegisterUserUseCase(
         )
     }
 
+    /**
+     * Increments the registration attempts counter with the given status.
+     *
+     * @param status The outcome status (success, duplicate, error).
+     */
     private fun incrementRegistrationCounter(status: String) {
         meterRegistry.counter("registration_attempts_total", "status", status).increment()
     }

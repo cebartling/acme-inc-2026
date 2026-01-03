@@ -8,9 +8,25 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Primary
 
+/**
+ * Jackson JSON serialization configuration.
+ *
+ * Configures the [ObjectMapper] with Kotlin support and proper
+ * date/time handling for the identity service.
+ */
 @Configuration
 class JacksonConfig {
 
+    /**
+     * Creates the primary ObjectMapper for JSON serialization.
+     *
+     * Configuration:
+     * - Kotlin module for data class support
+     * - Java Time module for java.time.* types
+     * - ISO-8601 date format instead of timestamps
+     *
+     * @return The configured [ObjectMapper].
+     */
     @Bean
     @Primary
     fun objectMapper(): ObjectMapper {

@@ -15,6 +15,15 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import java.util.UUID
 
+/**
+ * REST controller for user management endpoints.
+ *
+ * Provides the public API for user registration and related operations.
+ * All endpoints are versioned under `/api/v1/users`.
+ *
+ * @property registerUserUseCase The use case for user registration.
+ * @property rateLimiter The rate limiter for preventing abuse.
+ */
 @RestController
 @RequestMapping("/api/v1/users")
 class UserController(
@@ -23,6 +32,24 @@ class UserController(
 ) {
     private val logger = LoggerFactory.getLogger(UserController::class.java)
 
+    /**
+     * Registers a new user account.
+     *
+     * This endpoint creates a new user with the provided information.
+     * The user will be created in PENDING_VERIFICATION status and will
+     * need to verify their email before gaining full access.
+     *
+     * Rate limiting: 5 requests per minute per IP address.
+     *
+     * @param request The registration request containing user details.
+     * @param httpRequest The HTTP servlet request (for IP extraction).
+     * @param correlationId Optional correlation ID for distributed tracing.
+     * @param source Optional registration source (WEB, MOBILE, API).
+     * @return 201 Created with user details on success,
+     *         409 Conflict if email already exists,
+     *         429 Too Many Requests if rate limited,
+     *         400 Bad Request for validation errors.
+     */
     @PostMapping("/register")
     fun register(
         @Valid @RequestBody request: RegisterUserRequest,
@@ -72,6 +99,14 @@ class UserController(
         }
     }
 
+    /**
+     * Extracts the client IP address from the request.
+     *
+     * Handles X-Forwarded-For header for clients behind proxies/load balancers.
+     *
+     * @param request The HTTP servlet request.
+     * @return The client's IP address.
+     */
     private fun getClientIp(request: HttpServletRequest): String {
         val xForwardedFor = request.getHeader("X-Forwarded-For")
         return if (!xForwardedFor.isNullOrBlank()) {
@@ -81,6 +116,12 @@ class UserController(
         }
     }
 
+    /**
+     * Parses the registration source from the header value.
+     *
+     * @param source The source header value, or null.
+     * @return The parsed [RegistrationSource], defaulting to WEB.
+     */
     private fun parseRegistrationSource(source: String?): RegistrationSource {
         return when (source?.uppercase()) {
             "MOBILE" -> RegistrationSource.MOBILE

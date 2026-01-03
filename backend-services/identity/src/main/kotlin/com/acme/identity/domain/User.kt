@@ -4,6 +4,25 @@ import jakarta.persistence.*
 import java.time.Instant
 import java.util.UUID
 
+/**
+ * JPA entity representing a user in the identity system.
+ *
+ * This entity stores core user identity information including credentials,
+ * profile data, and consent records. The password is never stored in plain
+ * text; only the Argon2id hash is persisted.
+ *
+ * @property id Unique identifier for the user (UUID v7, time-ordered).
+ * @property email User's email address, used as the primary login credential.
+ * @property passwordHash Argon2id hash of the user's password.
+ * @property firstName User's first/given name.
+ * @property lastName User's last/family name.
+ * @property status Current lifecycle status of the user account.
+ * @property tosAcceptedAt Timestamp when the user accepted the Terms of Service.
+ * @property marketingOptIn Whether the user has opted in to marketing communications.
+ * @property registrationSource The channel through which the user registered.
+ * @property createdAt Timestamp when the user record was created.
+ * @property updatedAt Timestamp when the user record was last modified.
+ */
 @Entity
 @Table(name = "users")
 class User(
@@ -43,6 +62,11 @@ class User(
     @Column(name = "updated_at", nullable = false)
     var updatedAt: Instant = Instant.now()
 ) {
+    /**
+     * Returns the user's ID wrapped in a type-safe [UserId] value class.
+     *
+     * @return The user's identifier as a [UserId].
+     */
     fun getUserId(): UserId = UserId(id)
 
     override fun equals(other: Any?): Boolean {

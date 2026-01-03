@@ -3,6 +3,24 @@ package com.acme.identity.api.v1.dto
 import jakarta.validation.constraints.*
 import java.time.Instant
 
+/**
+ * Request DTO for user registration.
+ *
+ * Contains all the information required to create a new user account.
+ * All fields are validated using Jakarta Bean Validation annotations.
+ *
+ * @property email The user's email address. Must be a valid email format
+ *                 and not exceed 255 characters.
+ * @property password The user's chosen password. Must be 8-128 characters
+ *                    and contain at least one uppercase letter, one lowercase
+ *                    letter, one digit, and one special character.
+ * @property firstName The user's first name. Must be 1-50 characters.
+ * @property lastName The user's last name. Must be 1-50 characters.
+ * @property tosAccepted Must be `true` to indicate acceptance of Terms of Service.
+ * @property tosAcceptedAt Timestamp when the user accepted the Terms of Service.
+ * @property marketingOptIn Whether the user opts in to marketing communications.
+ *                          Defaults to `false`.
+ */
 data class RegisterUserRequest(
     @field:NotBlank(message = "Email is required")
     @field:Email(message = "Invalid email format")
