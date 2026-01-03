@@ -1,0 +1,61 @@
+# =============================================================================
+# Prometheus Alerting Rules
+# Basic infrastructure health alerts
+# =============================================================================
+
+groups:
+  - name: infrastructure
+    rules:
+      # Service down alerts
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: "{{ $labels.job }} has been down for more than 1 minute."
+
+      # High memory usage
+      - alert: HighMemoryUsage
+        expr: (process_resident_memory_bytes / 1024 / 1024) > 512
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage on {{ $labels.job }}"
+          description: "{{ $labels.job }} is using more than 512MB of memory."
+
+  - name: kafka
+    rules:
+      # Kafka consumer lag
+      - alert: KafkaConsumerLag
+        expr: kafka_consumer_group_lag > 1000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Kafka consumer lag detected"
+          description: "Consumer group {{ $labels.consumer_group }} has lag of {{ $value }} messages."
+
+  - name: observability
+    rules:
+      # Loki ingestion rate
+      - alert: LokiHighIngestionRate
+        expr: rate(loki_distributor_bytes_received_total[5m]) > 10485760
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High log ingestion rate"
+          description: "Loki is receiving more than 10MB/s of logs."
+
+      # Tempo trace ingestion
+      - alert: TempoHighTraceIngestion
+        expr: rate(tempo_distributor_spans_received_total[5m]) > 10000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High trace ingestion rate"
+          description: "Tempo is receiving more than 10000 spans/s."
