@@ -82,7 +82,7 @@ docker compose -f docker-compose.apps.yml down --remove-orphans
 | Service | Port | URL | Description |
 |---------|------|-----|-------------|
 | Identity Service | 8080 | http://localhost:8080 | Authentication & user management |
-| Customer Frontend | 3000 | http://localhost:3000 | Customer-facing web application |
+| Customer Frontend | 5173 | http://localhost:5173 | Customer-facing web application |
 
 ### Building Individual Services
 
