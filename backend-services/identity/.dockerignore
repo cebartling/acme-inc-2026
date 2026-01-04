@@ -1,0 +1,30 @@
+# Build output
+build/
+out/
+.gradle/
+.kotlin/
+
+# IDE files
+.idea/
+*.iml
+.vscode/
+
+# Test reports
+test-results/
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+*.md
+!README.md
+
+# Local configuration
+.env
+.env.local
+*.local
+
+# OS files
+.DS_Store
+Thumbs.db

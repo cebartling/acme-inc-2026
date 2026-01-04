@@ -1,0 +1,83 @@
+# =============================================================================
+# ACME Identity Service Container
+# =============================================================================
+# Multi-stage build for optimized container size
+# - Stage 1: Build the application with Gradle
+# - Stage 2: Create slim runtime image with JRE
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Stage 1: Build
+# -----------------------------------------------------------------------------
+FROM eclipse-temurin:24-jdk AS builder
+
+WORKDIR /app
+
+# Install Gradle
+ARG GRADLE_VERSION=9.2
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    unzip \
+    && rm -rf /var/lib/apt/lists/* \
+    && curl -fsSL "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" -o gradle.zip \
+    && unzip -q gradle.zip \
+    && rm gradle.zip \
+    && mv "gradle-${GRADLE_VERSION}" /opt/gradle
+
+ENV GRADLE_HOME=/opt/gradle
+ENV PATH="${GRADLE_HOME}/bin:${PATH}"
+
+# Copy build configuration first (for better layer caching)
+COPY build.gradle.kts settings.gradle.kts ./
+
+# Copy source code
+COPY src ./src
+
+# Build the application (skip tests as they require containers)
+RUN gradle build -x test --no-daemon --parallel
+
+# -----------------------------------------------------------------------------
+# Stage 2: Runtime
+# -----------------------------------------------------------------------------
+FROM eclipse-temurin:24-jre
+
+LABEL org.opencontainers.image.title="ACME Identity Service"
+LABEL org.opencontainers.image.description="Identity and authentication service for ACME Inc. e-commerce platform"
+LABEL org.opencontainers.image.vendor="ACME Inc."
+LABEL org.opencontainers.image.source="https://github.com/cebartling/acme-inc-2026"
+
+# Create non-root user for security
+RUN groupadd --gid 1000 acme \
+    && useradd --uid 1000 --gid acme --shell /bin/bash --create-home acme
+
+WORKDIR /app
+
+# Copy the built JAR from builder stage
+COPY --from=builder /app/build/libs/*.jar app.jar
+
+# Change ownership to non-root user
+RUN chown -R acme:acme /app
+
+# Switch to non-root user
+USER acme
+
+# Expose the application port
+EXPOSE 8080
+
+# Health check using Spring Boot Actuator
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8080/actuator/health || exit 1
+
+# JVM options for containerized environments
+ENV JAVA_OPTS="-XX:+UseContainerSupport \
+    -XX:MaxRAMPercentage=75.0 \
+    -XX:InitialRAMPercentage=50.0 \
+    -XX:+ExitOnOutOfMemoryError \
+    -Djava.security.egd=file:/dev/./urandom"
+
+# Spring Boot configuration via environment variables
+ENV SERVER_PORT=8080
+ENV SPRING_PROFILES_ACTIVE=docker
+
+# Run the application
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
