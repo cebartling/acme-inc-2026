@@ -34,6 +34,11 @@ class UserEventPublisher(
      * when Kafka acknowledges receipt of the message. Failures are logged
      * but not rethrown to avoid blocking the registration response.
      *
+     * Note: This design accepts eventual consistency. The event is already
+     * persisted to the event store before this method is called, so the
+     * registration is durable even if Kafka publishing fails. Failed events
+     * should be handled by monitoring alerts on the error logs.
+     *
      * @param event The user registration event to publish.
      * @return A [CompletableFuture] that completes when publishing succeeds.
      */
@@ -54,8 +59,14 @@ class UserEventPublisher(
                 )
             }
             .exceptionally { ex ->
-                logger.error("Failed to publish UserRegistered event for user {}", event.payload.userId, ex)
-                throw RuntimeException("Failed to publish event", ex)
+                logger.error(
+                    "Failed to publish UserRegistered event for user {}. " +
+                    "Event is persisted in event store but not published to Kafka. " +
+                    "Manual intervention may be required.",
+                    event.payload.userId,
+                    ex
+                )
+                null
             }
     }
 }

@@ -19,6 +19,8 @@ java {
 
 repositories {
     mavenCentral()
+    // Note: Spring milestone repository required for Spring Boot 4.x
+    // which is not yet GA. Remove this once Spring Boot 4 is released to Maven Central.
     maven { url = uri("https://repo.spring.io/milestone") }
     maven { url = uri("https://packages.confluent.io/maven/") }
 }
@@ -63,6 +65,7 @@ dependencies {
 
     // Rate limiting
     implementation("com.bucket4j:bucket4j_jdk17-core:8.16.0")
+    implementation("com.github.ben-manes.caffeine:caffeine:3.1.8")
 
     // Testing - JUnit 6
     testImplementation(platform("org.junit:junit-bom:6.0.1"))
