@@ -171,7 +171,50 @@ A unified shell script is provided for managing all Docker services.
 
 The platform includes a BDD acceptance testing framework using Cucumber.js and Playwright.
 
-### Quick Start
+### Acceptance Test Runner Script
+
+A unified shell script is provided for running acceptance tests with automatic report generation.
+
+```bash
+./scripts/run-acceptance-tests.sh [options]
+./scripts/run-acceptance-tests.sh --help    # Show all available options
+```
+
+### Test Runner Options
+
+| Option | Description |
+|--------|-------------|
+| `--smoke` | Run only smoke tests (@smoke tag) |
+| `--regression` | Run full regression suite (@regression tag) |
+| `--customer` | Run customer app tests only |
+| `--admin` | Run admin app tests only |
+| `--api` | Run API tests only (@api tag) |
+| `--headed` | Run with visible browser (not headless) |
+| `--skip-install` | Skip npm install step |
+| `--allure` | Use Allure reports (opens interactive server) |
+| `--no-open` | Don't automatically open browser with results |
+
+### Examples
+
+```bash
+./scripts/run-acceptance-tests.sh                    # Run all tests, open HTML report
+./scripts/run-acceptance-tests.sh --smoke            # Run smoke tests only
+./scripts/run-acceptance-tests.sh --headed           # Run with visible browser
+./scripts/run-acceptance-tests.sh --api --no-open    # Run API tests, don't open browser
+./scripts/run-acceptance-tests.sh --allure           # Run all, use Allure reports
+```
+
+### Reports
+
+| Report Type | Location |
+|-------------|----------|
+| HTML Report | `acceptance-tests/reports/cucumber-report.html` |
+| JSON Report | `acceptance-tests/reports/cucumber-report.json` |
+| Allure Results | `acceptance-tests/allure-results/` |
+
+### Manual Test Execution
+
+You can also run tests directly with npm:
 
 ```bash
 cd acceptance-tests
@@ -195,7 +238,7 @@ npm run test:headed
 npm run allure:serve
 ```
 
-### Test Scripts
+### npm Test Scripts
 
 | Script | Description |
 |--------|-------------|
@@ -215,5 +258,10 @@ Copy `.env.example` to `.env` to customize test settings:
 cd acceptance-tests
 cp .env.example .env
 ```
+
+### Prerequisites
+
+- Node.js 24+ (LTS/Krypton) - the script uses nvm/fnm if available
+- Application services should be running (`./scripts/docker-manage.sh start`)
 
 See [documentation/user-stories/0001-acceptance-testing/README.md](documentation/user-stories/0001-acceptance-testing/README.md) for detailed testing documentation.
