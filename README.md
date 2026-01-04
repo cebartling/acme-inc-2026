@@ -108,6 +108,64 @@ cd frontend-apps/customer
 podman build -f Containerfile -t acme-customer-frontend .
 ```
 
+## Docker Management Script
+
+A unified shell script is provided for managing all Docker services.
+
+### Usage
+
+```bash
+./scripts/docker-manage.sh <command> [options]
+./scripts/docker-manage.sh help    # Show all available commands
+```
+
+### Common Commands
+
+| Command | Description |
+|---------|-------------|
+| `start` | Start all services (infrastructure + applications) |
+| `stop` | Stop all services |
+| `restart` | Restart all services |
+| `status` | Show status of all services |
+| `health` | Check health of all services |
+
+### Infrastructure Commands
+
+| Command | Description |
+|---------|-------------|
+| `infra-up` | Start infrastructure services |
+| `infra-down` | Stop infrastructure services |
+| `infra-status` | Show infrastructure status |
+| `infra-logs` | View infrastructure logs |
+
+### Application Commands
+
+| Command | Description |
+|---------|-------------|
+| `apps-up` | Build and start application services |
+| `apps-down` | Stop application services |
+| `apps-status` | Show application status |
+| `apps-logs` | View application logs |
+| `rebuild <service>` | Rebuild and restart a specific service |
+
+### Cleanup Commands
+
+| Command | Description |
+|---------|-------------|
+| `cleanup` | Remove unused Docker images |
+| `cleanup-all` | Full system prune (with confirmation) |
+| `cleanup-volumes` | Remove all data volumes (with confirmation) |
+
+### Examples
+
+```bash
+./scripts/docker-manage.sh start                  # Start everything
+./scripts/docker-manage.sh apps-logs -f           # Follow application logs
+./scripts/docker-manage.sh shell postgres         # Open shell in postgres container
+./scripts/docker-manage.sh rebuild identity-service
+./scripts/docker-manage.sh health                 # Check all service health
+```
+
 ## Acceptance Testing
 
 The platform includes a BDD acceptance testing framework using Cucumber.js and Playwright.
