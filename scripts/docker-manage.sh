@@ -260,6 +260,39 @@ cleanup_volumes() {
     fi
 }
 
+teardown() {
+    print_header "Full Teardown - Stop All Services and Clean Up"
+
+    print_warning "This will:"
+    echo -e "  ${RED}•${NC} Stop all application services"
+    echo -e "  ${RED}•${NC} Stop all infrastructure services"
+    echo -e "  ${RED}•${NC} Remove all volumes (data will be lost!)"
+    echo -e "  ${RED}•${NC} Remove orphaned containers"
+    echo -e "  ${RED}•${NC} Remove project networks"
+    echo ""
+
+    read -p "Are you sure you want to proceed? (y/N): " confirm
+
+    if [[ "$confirm" =~ ^[Yy]$ ]]; then
+        print_info "Stopping application services..."
+        docker compose -f "$APPS_COMPOSE" down --remove-orphans -v 2>/dev/null || true
+
+        print_info "Stopping infrastructure services..."
+        docker compose -f "$INFRA_COMPOSE" down --remove-orphans -v
+
+        print_info "Removing project networks..."
+        docker network rm acme-network 2>/dev/null || true
+
+        print_info "Pruning unused images..."
+        docker image prune -f
+
+        print_success "Full teardown complete"
+        print_info "All services stopped, volumes removed, and networks cleaned up"
+    else
+        print_info "Teardown cancelled"
+    fi
+}
+
 # -----------------------------------------------------------------------------
 # Utility Commands
 # -----------------------------------------------------------------------------
@@ -383,6 +416,7 @@ ${YELLOW}Cleanup Commands:${NC}
   cleanup                    Remove unused Docker images
   cleanup-all                Remove all unused Docker resources (with confirmation)
   cleanup-volumes            Stop services and remove all data volumes (with confirmation)
+  teardown                   Full teardown: stop all, remove volumes/networks/orphans
 
 ${YELLOW}Utility Commands:${NC}
   shell <service> [cmd]      Open shell in a running container
@@ -468,6 +502,9 @@ main() {
             ;;
         cleanup-volumes)
             cleanup_volumes
+            ;;
+        teardown)
+            teardown
             ;;
 
         # Utility

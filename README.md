@@ -155,6 +155,7 @@ A unified shell script is provided for managing all Docker services.
 | `cleanup` | Remove unused Docker images |
 | `cleanup-all` | Full system prune (with confirmation) |
 | `cleanup-volumes` | Remove all data volumes (with confirmation) |
+| `teardown` | Full teardown: stop all services, remove volumes/networks/orphans |
 
 ### Examples
 
