@@ -1,0 +1,63 @@
+spring:
+  application:
+    name: identity-service
+
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:acme_identity}
+    username: ${POSTGRES_USER:acme_app}
+    password: ${POSTGRES_PASSWORD:acme_password}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: io.confluent.kafka.serializers.KafkaAvroSerializer
+      acks: all
+      retries: 3
+      properties:
+        max.in.flight.requests.per.connection: 1
+    properties:
+      schema.registry.url: ${SCHEMA_REGISTRY_URL:http://localhost:8081}
+
+server:
+  port: ${SERVER_PORT:8080}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      show-details: when_authorized
+      probes:
+        enabled: true
+
+# Application-specific configuration
+identity:
+  password:
+    argon2:
+      memory: 65536  # 64 MB in KB
+      iterations: 3
+      parallelism: 4
+      hash-length: 32
+      salt-length: 16
+  verification-token:
+    expiration-hours: 24
+  rate-limiting:
+    registration:
+      requests-per-minute: 5
+
+logging:
+  level:
+    com.acme.identity: DEBUG
+    org.springframework.kafka: INFO
