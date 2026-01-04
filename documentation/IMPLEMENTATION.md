@@ -64,7 +64,7 @@ Grafana Tempo (since v2.8.0) and Loki use Google's distroless base container ima
 - REST endpoints
 - Kafka for messaging
 - JUnit 6 and Mockito for unit testing
-- Use Javadoc comments throughout the code
+- Use KDoc comments throughout the code
 
 
 ### CQRS implementation

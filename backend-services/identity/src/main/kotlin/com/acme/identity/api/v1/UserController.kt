@@ -103,6 +103,7 @@ class UserController(
      * Extracts the client IP address from the request.
      *
      * Handles X-Forwarded-For header for clients behind proxies/load balancers.
+     * Properly parses comma-separated IPs with whitespace handling.
      *
      * @param request The HTTP servlet request.
      * @return The client's IP address.
@@ -110,7 +111,11 @@ class UserController(
     private fun getClientIp(request: HttpServletRequest): String {
         val xForwardedFor = request.getHeader("X-Forwarded-For")
         return if (!xForwardedFor.isNullOrBlank()) {
-            xForwardedFor.split(",").first().trim()
+            xForwardedFor
+                .split(",")
+                .map { it.trim() }
+                .firstOrNull { it.isNotEmpty() }
+                ?: request.remoteAddr
         } else {
             request.remoteAddr
         }

@@ -118,9 +118,9 @@ class RegisterUserUseCase(
             } catch (e: Exception) {
                 logger.error("Registration failed for email: {}", request.email, e)
                 incrementRegistrationCounter("error")
-                RegisterUserResult.Error("Registration failed: ${e.message}")
+                RegisterUserResult.Error("Registration failed due to an internal error.")
             }
-        }!!
+        } ?: RegisterUserResult.Error("Registration failed: unexpected null registration result")
     }
 
     /**
@@ -149,7 +149,7 @@ class RegisterUserUseCase(
         // Hash password with Argon2id
         val passwordHash = passwordHashTimer.record<String> {
             passwordHasher.hash(request.password)
-        }!!
+        } ?: throw IllegalStateException("Password hashing failed: Timer.record returned null")
 
         // Create user entity
         val user = User(
