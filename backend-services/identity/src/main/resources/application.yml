@@ -59,6 +59,7 @@ identity:
   verification-token:
     expiration-hours: 24
   rate-limiting:
+    enabled: ${RATE_LIMITING_ENABLED:true}
     registration:
       requests-per-minute: 5
 

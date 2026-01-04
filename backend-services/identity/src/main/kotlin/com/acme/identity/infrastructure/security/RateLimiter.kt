@@ -21,11 +21,16 @@ import java.util.concurrent.TimeUnit
  * Buckets are evicted after 10 minutes of inactivity, and the cache
  * is limited to 10,000 entries.
  *
+ * Rate limiting can be disabled via configuration for testing purposes.
+ *
+ * @property enabled Whether rate limiting is enabled. Defaults to true.
  * @property requestsPerMinute Maximum requests allowed per minute per key.
  *                             Defaults to 5 as specified in the user story.
  */
 @Component
 class RateLimiter(
+    @Value("\${identity.rate-limiting.enabled:true}")
+    private val enabled: Boolean,
     @Value("\${identity.rate-limiting.registration.requests-per-minute:5}")
     private val requestsPerMinute: Long
 ) {
@@ -37,6 +42,7 @@ class RateLimiter(
     /**
      * Attempts to acquire a permit for the given key.
      *
+     * If rate limiting is disabled, always returns `true`.
      * If the rate limit has not been exceeded, consumes one token
      * and returns `true`. Otherwise returns `false` without blocking.
      *
@@ -44,6 +50,9 @@ class RateLimiter(
      * @return `true` if the request is allowed, `false` if rate limited.
      */
     fun tryAcquire(key: String): Boolean {
+        if (!enabled) {
+            return true
+        }
         val bucket = buckets.get(key) { createBucket() }
         return bucket.tryConsume(1)
     }
