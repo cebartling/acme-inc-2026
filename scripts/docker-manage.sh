@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# ACME Inc. Docker Management Script
+# Docker Management Script
 # =============================================================================
 # A unified script for managing Docker infrastructure and application services.
 #
