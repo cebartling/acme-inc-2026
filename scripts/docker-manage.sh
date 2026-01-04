@@ -356,6 +356,71 @@ health_check() {
         all_healthy=false
     fi
 
+    # Check MongoDB
+    if docker compose -f "$INFRA_COMPOSE" exec -T mongodb mongosh --quiet --eval "db.adminCommand('ping')" &>/dev/null; then
+        print_success "MongoDB: healthy"
+    else
+        print_error "MongoDB: unhealthy or not running"
+        all_healthy=false
+    fi
+
+    # Check Debezium Connect
+    local debezium_port="${DEBEZIUM_PORT:-8083}"
+    if curl -sf "http://localhost:${debezium_port}/connectors" &>/dev/null; then
+        print_success "Debezium Connect: healthy"
+    else
+        print_error "Debezium Connect: unhealthy or not running"
+        all_healthy=false
+    fi
+
+    # Check Vault
+    local vault_port="${VAULT_PORT:-8200}"
+    if curl -sf "http://localhost:${vault_port}/v1/sys/health" &>/dev/null; then
+        print_success "Vault: healthy"
+    else
+        print_error "Vault: unhealthy or not running"
+        all_healthy=false
+    fi
+
+    echo ""
+    echo -e "${CYAN}Checking observability services...${NC}"
+
+    # Check Prometheus
+    local prometheus_port="${PROMETHEUS_PORT:-9090}"
+    if curl -sf "http://localhost:${prometheus_port}/-/healthy" &>/dev/null; then
+        print_success "Prometheus: healthy"
+    else
+        print_error "Prometheus: unhealthy or not running"
+        all_healthy=false
+    fi
+
+    # Check Loki
+    local loki_port="${LOKI_PORT:-3100}"
+    if curl -sf "http://localhost:${loki_port}/ready" &>/dev/null; then
+        print_success "Loki: healthy"
+    else
+        print_error "Loki: unhealthy or not running"
+        all_healthy=false
+    fi
+
+    # Check Tempo
+    local tempo_port="${TEMPO_PORT:-3200}"
+    if curl -sf "http://localhost:${tempo_port}/ready" &>/dev/null; then
+        print_success "Tempo: healthy"
+    else
+        print_error "Tempo: unhealthy or not running"
+        all_healthy=false
+    fi
+
+    # Check Grafana
+    local grafana_port="${GRAFANA_PORT:-3000}"
+    if curl -sf "http://localhost:${grafana_port}/api/health" &>/dev/null; then
+        print_success "Grafana: healthy"
+    else
+        print_error "Grafana: unhealthy or not running"
+        all_healthy=false
+    fi
+
     echo ""
     echo -e "${CYAN}Checking application services...${NC}"
 
