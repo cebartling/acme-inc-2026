@@ -57,6 +57,57 @@ cp .env.example .env
 
 See [docker/README.md](docker/README.md) for detailed infrastructure documentation.
 
+## Application Services
+
+Application containers are managed separately from infrastructure using `docker-compose.apps.yml`.
+
+### Quick Start
+
+```bash
+# 1. Ensure infrastructure is running
+docker compose up -d
+
+# 2. Build and start application services
+docker compose -f docker-compose.apps.yml up --build --force-recreate -d
+
+# 3. Cleanup old images
+docker image prune -f
+
+# Stop application services
+docker compose -f docker-compose.apps.yml down --remove-orphans
+```
+
+### Services
+
+| Service | Port | URL | Description |
+|---------|------|-----|-------------|
+| Identity Service | 8080 | http://localhost:8080 | Authentication & user management |
+| Customer Frontend | 3000 | http://localhost:3000 | Customer-facing web application |
+
+### Building Individual Services
+
+```bash
+# Rebuild only identity service
+docker compose -f docker-compose.apps.yml up --build --force-recreate -d identity-service
+
+# Rebuild only customer frontend
+docker compose -f docker-compose.apps.yml up --build --force-recreate -d customer-frontend
+```
+
+### Container Images
+
+Images can also be built directly using Podman or Docker:
+
+```bash
+# Identity Service
+cd backend-services/identity
+podman build -f Containerfile -t acme-identity-service .
+
+# Customer Frontend
+cd frontend-apps/customer
+podman build -f Containerfile -t acme-customer-frontend .
+```
+
 ## Acceptance Testing
 
 The platform includes a BDD acceptance testing framework using Cucumber.js and Playwright.
