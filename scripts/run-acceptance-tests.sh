@@ -218,7 +218,7 @@ run_tests() {
     cmd_array+=("--format" "json:reports/cucumber-report.json")
     cmd_array+=("--format" "html:reports/cucumber-report.html")
     if [[ "$USE_ALLURE" == true ]]; then
-        cmd_array+=("--format" "allure-cucumberjs/reporter:allure-results")
+        cmd_array+=("--format" "allure-cucumberjs/reporter")
     fi
 
     # Add profile-specific paths
