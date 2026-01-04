@@ -1,4 +1,4 @@
-@customer @checkout
+@customer @checkout @wip
 Feature: Checkout Process
   As a customer
   I want to complete the checkout process

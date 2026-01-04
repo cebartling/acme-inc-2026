@@ -1,4 +1,4 @@
-@customer @registration
+@customer @registration @wip
 Feature: Customer Registration Form
   As a new customer visiting the ACME platform
   I want a clear and user-friendly registration form

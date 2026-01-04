@@ -213,6 +213,11 @@ run_tests() {
     # Build the command as an array
     local cmd_array=("node" "--import" "tsx" "./node_modules/@cucumber/cucumber/bin/cucumber.js")
 
+    # Import support and step definition files
+    cmd_array+=("--import" "support/world.ts")
+    cmd_array+=("--import" "support/hooks.ts")
+    cmd_array+=("--import" "steps/**/*.ts")
+
     # Add report formats
     cmd_array+=("--format" "progress-bar")
     cmd_array+=("--format" "json:reports/cucumber-report.json")

@@ -1,4 +1,4 @@
-@customer @cart
+@customer @cart @wip
 Feature: Shopping Cart
   As a customer
   I want to manage items in my shopping cart

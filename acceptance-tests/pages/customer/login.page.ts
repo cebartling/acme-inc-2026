@@ -15,8 +15,8 @@ export class LoginPage extends BasePage {
 
   constructor(page: Page) {
     super(page);
-    this.emailInput = page.getByLabel('Email');
-    this.passwordInput = page.getByLabel('Password');
+    this.emailInput = page.getByTestId('data-testid Email input field');
+    this.passwordInput = page.getByTestId('data-testid Password input field');
     this.loginButton = page.getByRole('button', { name: 'Log in' });
     this.forgotPasswordLink = page.getByRole('link', { name: 'Forgot password?' });
     this.registerLink = page.getByRole('link', { name: 'Create an account' });

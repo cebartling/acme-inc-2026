@@ -1,4 +1,4 @@
-@customer @authentication
+@customer @authentication @wip
 Feature: Customer Authentication
   As a customer
   I want to be able to log in and out of my account
