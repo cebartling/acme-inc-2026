@@ -157,6 +157,34 @@ A unified shell script is provided for managing all Docker services.
 | `cleanup-volumes` | Remove all data volumes (with confirmation) |
 | `teardown` | Full teardown: stop all services, remove volumes/networks/orphans |
 
+### Health Checks
+
+The `health` command checks the following services:
+
+**Infrastructure Services:**
+| Service | Health Check Method |
+|---------|---------------------|
+| PostgreSQL | `pg_isready` command |
+| Kafka | `kafka-broker-api-versions` command |
+| Schema Registry | `GET /subjects` |
+| MongoDB | `mongosh db.adminCommand('ping')` |
+| Debezium Connect | `GET /connectors` |
+| Vault | `GET /v1/sys/health` |
+
+**Observability Services:**
+| Service | Health Check Endpoint |
+|---------|----------------------|
+| Prometheus | `GET /-/healthy` |
+| Loki | `GET /ready` |
+| Tempo | `GET /ready` |
+| Grafana | `GET /api/health` |
+
+**Application Services:**
+| Service | Health Check Endpoint |
+|---------|----------------------|
+| Identity Service | `GET /actuator/health` |
+| Customer Frontend | `GET /` |
+
 ### Examples
 
 ```bash
