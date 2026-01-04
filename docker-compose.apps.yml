@@ -88,11 +88,10 @@ services:
           echo 'Waiting for PostgreSQL...'
           sleep 2
         done
-        psql -h postgres -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-acme} -c \"
-          SELECT 'CREATE DATABASE ${POSTGRES_DB:-acme}_identity'
-          WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '${POSTGRES_DB:-acme}_identity')
-        \" | grep -q 'CREATE DATABASE' && \
-        psql -h postgres -U ${POSTGRES_USER:-postgres} -c 'CREATE DATABASE ${POSTGRES_DB:-acme}_identity' || true
+        psql -h postgres -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-acme} \
+          -c \"SELECT 'CREATE DATABASE ${POSTGRES_DB:-acme}_identity' \
+                WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '${POSTGRES_DB:-acme}_identity')\" \
+          -c \"\\gexec\" || true
         echo 'Database initialization complete'
       "
     networks:
