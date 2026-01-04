@@ -1,0 +1,94 @@
+{
+  "type": "record",
+  "name": "UserRegistered",
+  "namespace": "com.acme.identity.events",
+  "doc": "Domain event published when a new user successfully registers.",
+  "fields": [
+    {
+      "name": "eventId",
+      "type": "string",
+      "doc": "Unique identifier for this event (UUID format)."
+    },
+    {
+      "name": "eventType",
+      "type": "string",
+      "doc": "The type of event, always 'UserRegistered' for this schema."
+    },
+    {
+      "name": "eventVersion",
+      "type": "string",
+      "doc": "Schema version for this event type."
+    },
+    {
+      "name": "timestamp",
+      "type": "string",
+      "doc": "ISO-8601 formatted timestamp when the event occurred."
+    },
+    {
+      "name": "aggregateId",
+      "type": "string",
+      "doc": "The aggregate (user) ID this event belongs to (UUID format)."
+    },
+    {
+      "name": "aggregateType",
+      "type": "string",
+      "doc": "The type of aggregate, always 'User' for this event."
+    },
+    {
+      "name": "correlationId",
+      "type": "string",
+      "doc": "Correlation ID for distributed tracing (UUID format)."
+    },
+    {
+      "name": "payload",
+      "type": {
+        "type": "record",
+        "name": "UserRegisteredPayload",
+        "doc": "Payload containing user registration details.",
+        "fields": [
+          {
+            "name": "userId",
+            "type": "string",
+            "doc": "The unique identifier assigned to the new user (UUID v7 format)."
+          },
+          {
+            "name": "email",
+            "type": "string",
+            "doc": "The user's email address."
+          },
+          {
+            "name": "firstName",
+            "type": "string",
+            "doc": "The user's first name."
+          },
+          {
+            "name": "lastName",
+            "type": "string",
+            "doc": "The user's last name."
+          },
+          {
+            "name": "tosAcceptedAt",
+            "type": "string",
+            "doc": "ISO-8601 formatted timestamp when the user accepted the Terms of Service."
+          },
+          {
+            "name": "marketingOptIn",
+            "type": "boolean",
+            "doc": "Whether the user opted in to marketing communications."
+          },
+          {
+            "name": "registrationSource",
+            "type": {
+              "type": "enum",
+              "name": "RegistrationSource",
+              "doc": "The channel through which the user registered.",
+              "symbols": ["WEB", "MOBILE", "API"]
+            },
+            "doc": "The registration channel."
+          }
+        ]
+      },
+      "doc": "The event payload containing user registration details."
+    }
+  ]
+}
