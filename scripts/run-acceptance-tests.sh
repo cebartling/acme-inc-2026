@@ -213,6 +213,14 @@ run_tests() {
     # Build the command as an array
     local cmd_array=("node" "--import" "tsx" "./node_modules/@cucumber/cucumber/bin/cucumber.js")
 
+    # Add report formats
+    cmd_array+=("--format" "progress-bar")
+    cmd_array+=("--format" "json:reports/cucumber-report.json")
+    cmd_array+=("--format" "html:reports/cucumber-report.html")
+    if [[ "$USE_ALLURE" == true ]]; then
+        cmd_array+=("--format" "allure-cucumberjs/reporter:allure-results")
+    fi
+
     # Add profile-specific paths
     case "$TEST_PROFILE" in
         smoke)
