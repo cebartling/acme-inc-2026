@@ -112,7 +112,7 @@ ${YELLOW}Reports:${NC}
   Allure Results: acceptance-tests/allure-results/
 
 ${YELLOW}Prerequisites:${NC}
-  - Node.js 22+ (LTS/Krypton) - uses nvm if available
+  - Node.js 24+ (LTS/Krypton) - uses nvm if available
   - Application services should be running (./scripts/docker-manage.sh start)
 
 EOF
@@ -158,7 +158,7 @@ setup_node() {
     # Verify Node.js is available
     if ! command -v node &> /dev/null; then
         print_error "Node.js is not installed or not in PATH"
-        print_info "Please install Node.js 22+ or use nvm/fnm"
+        print_info "Please install Node.js 24+ or use nvm/fnm"
         exit 1
     fi
 
@@ -169,8 +169,8 @@ setup_node() {
     # Check minimum version
     local major_version
     major_version=$(echo "$node_version" | sed 's/v//' | cut -d. -f1)
-    if [[ "$major_version" -lt 20 ]]; then
-        print_error "Node.js 20+ is required, but found $node_version"
+    if [[ "$major_version" -lt 24 ]]; then
+        print_error "Node.js 24+ is required, but found $node_version"
         exit 1
     fi
 }

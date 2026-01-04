@@ -65,7 +65,7 @@ docker run -d \
 The Containerfile uses a multi-stage build:
 - **Stage 1 (deps)**: Install npm dependencies
 - **Stage 2 (builder)**: Build the application with Vite
-- **Stage 3 (runner)**: Node.js 22 Alpine runtime
+- **Stage 3 (runner)**: Node.js 24 Alpine runtime
 
 Features:
 - Non-root user (`acme:acme`) for security
