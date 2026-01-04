@@ -59,6 +59,7 @@ Grafana Tempo (since v2.8.0) and Loki use Google's distroless base container ima
     - Set both java and gradle in the .sdkmanrc file   
 - PostgreSQL for read-write, command store
 - MongoDB for read-only, query store
+- Caffeine for in-memory caching
 - OpenTelemtery for distributed tracing, metrics and structured logging
 - Spring Actuator health check endpoints
 - REST endpoints
@@ -72,6 +73,39 @@ Grafana Tempo (since v2.8.0) and Loki use Google's distroless base container ima
 - Use saga pattern for reversible business transactions when implementing commands
 - The workflow orchestrator service will house the saga pattern-based workflows
 - Debezium Kafka Connect connector to implement change data capture between command store and query store
+
+### Caffeine in-memory caching
+
+Caffeine is a high-performance, near-optimal caching library for Java/Kotlin applications.
+
+**Integration with Spring Boot:**
+
+- Use `spring-boot-starter-cache` with Caffeine as the cache provider
+- Configure via `application.yml` or programmatically with `CaffeineCacheManager`
+- Enable caching with `@EnableCaching` on a configuration class
+
+**Cache configuration options:**
+
+- `maximumSize`: Maximum number of entries in the cache
+- `expireAfterWrite`: Time-based expiration after entry creation
+- `expireAfterAccess`: Time-based expiration after last access
+- `refreshAfterWrite`: Asynchronous refresh of entries after write
+- `recordStats`: Enable cache statistics for monitoring
+
+**Usage patterns:**
+
+- `@Cacheable`: Cache method results based on parameters
+- `@CachePut`: Update cache without interfering with method execution
+- `@CacheEvict`: Remove entries from cache (single or all)
+- Use cache names to organize caches by domain (e.g., `users`, `products`, `sessions`)
+
+**Best practices:**
+
+- Define cache specifications per cache name for fine-grained control
+- Use async cache loading for expensive computations
+- Integrate cache metrics with Micrometer for observability
+- Consider write-behind patterns for cache-aside with database writes
+- Size caches based on memory constraints and access patterns
 
 ### Service projects
 
