@@ -48,9 +48,9 @@ LABEL org.opencontainers.image.description="Identity and authentication service 
 LABEL org.opencontainers.image.vendor="ACME Inc."
 LABEL org.opencontainers.image.source="https://github.com/cebartling/acme-inc-2026"
 
-# Create non-root user for security
-RUN groupadd --gid 1000 acme \
-    && useradd --uid 1000 --gid acme --shell /bin/bash --create-home acme
+# Create non-root user for security (using 1001 to avoid conflicts with existing users)
+RUN groupadd --gid 1001 acme \
+    && useradd --uid 1001 --gid acme --shell /bin/bash --create-home acme
 
 WORKDIR /app
 
