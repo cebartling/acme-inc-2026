@@ -82,18 +82,17 @@ services:
     container_name: acme-identity-db-init
     environment:
       PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
-    command: >
-      sh -c "
-        until pg_isready -h postgres -p 5432 -U ${POSTGRES_USER:-postgres}; do
+    command:
+      - sh
+      - -c
+      - |
+        until pg_isready -h postgres -p 5432 -U $${POSTGRES_USER:-postgres}; do
           echo 'Waiting for PostgreSQL...'
           sleep 2
         done
-        psql -h postgres -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-acme} \
-          -c \"SELECT 'CREATE DATABASE ${POSTGRES_DB:-acme}_identity' \
-                WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '${POSTGRES_DB:-acme}_identity')\" \
-          -c \"\\gexec\" || true
+        echo "Creating database acme_identity if it doesn't exist..."
+        psql -h postgres -U $${POSTGRES_USER:-postgres} -tc "SELECT 1 FROM pg_database WHERE datname = 'acme_identity'" | grep -q 1 || psql -h postgres -U $${POSTGRES_USER:-postgres} -c "CREATE DATABASE acme_identity"
         echo 'Database initialization complete'
-      "
     networks:
       - acme-network
 

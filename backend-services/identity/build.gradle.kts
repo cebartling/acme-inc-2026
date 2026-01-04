@@ -45,8 +45,10 @@ dependencies {
     implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
 
-    // Database
+    // Database & Migrations
     runtimeOnly("org.postgresql:postgresql")
+    implementation("org.flywaydb:flyway-core:11.5.0")
+    implementation("org.flywaydb:flyway-database-postgresql:11.5.0")
 
     // Password hashing - Argon2id via Password4j
     implementation("com.password4j:password4j:1.8.2")
