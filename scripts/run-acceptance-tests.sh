@@ -210,8 +210,8 @@ run_tests() {
 
     cd "$ACCEPTANCE_TESTS_DIR"
 
-    # Build the command
-    local cmd="node --import tsx ./node_modules/@cucumber/cucumber/bin/cucumber.js"
+    # Build the command as an array
+    local cmd_array=("node" "--import" "tsx" "./node_modules/@cucumber/cucumber/bin/cucumber.js")
 
     # Add profile-specific paths
     case "$TEST_PROFILE" in
@@ -222,10 +222,10 @@ run_tests() {
             TAGS="@regression"
             ;;
         customer)
-            cmd="$cmd --paths 'features/customer/**/*.feature'"
+            cmd_array+=("--paths" "features/customer/**/*.feature")
             ;;
         admin)
-            cmd="$cmd --paths 'features/admin/**/*.feature'"
+            cmd_array+=("--paths" "features/admin/**/*.feature")
             ;;
         api)
             TAGS="@api"
@@ -234,12 +234,12 @@ run_tests() {
 
     # Add tags if specified
     if [[ -n "$TAGS" ]]; then
-        cmd="$cmd --tags '$TAGS'"
+        cmd_array+=("--tags" "$TAGS")
     fi
 
     # Add extra arguments
     if [[ ${#EXTRA_ARGS[@]} -gt 0 ]]; then
-        cmd="$cmd ${EXTRA_ARGS[*]}"
+        cmd_array+=("${EXTRA_ARGS[@]}")
     fi
 
     # Set environment variables
@@ -261,7 +261,7 @@ run_tests() {
 
     # Run tests
     local exit_code=0
-    eval "$cmd" || exit_code=$?
+    "${cmd_array[@]}" || exit_code=$?
 
     return $exit_code
 }

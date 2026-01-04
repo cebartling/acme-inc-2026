@@ -368,7 +368,8 @@ health_check() {
     fi
 
     # Check Customer Frontend
-    if curl -sf http://localhost:3000/ &>/dev/null; then
+    local customer_frontend_port="${CUSTOMER_FRONTEND_PORT:-5173}"
+    if curl -sf "http://localhost:${customer_frontend_port}/" &>/dev/null; then
         print_success "Customer Frontend: healthy"
     else
         print_error "Customer Frontend: unhealthy or not running"

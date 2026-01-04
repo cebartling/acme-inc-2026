@@ -15,11 +15,13 @@ WORKDIR /app
 
 # Install Gradle
 ARG GRADLE_VERSION=9.2
+ARG GRADLE_SHA256=fe488a8ebb9d083e1ebd0c1b25204da0cd12df0af3c1c34d6f9c0a67aaf57246
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     unzip \
     && rm -rf /var/lib/apt/lists/* \
     && curl -fsSL "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" -o gradle.zip \
+    && echo "${GRADLE_SHA256}  gradle.zip" | sha256sum -c - \
     && unzip -q gradle.zip \
     && rm gradle.zip \
     && mv "gradle-${GRADLE_VERSION}" /opt/gradle
@@ -66,7 +68,7 @@ EXPOSE 8080
 
 # Health check using Spring Boot Actuator
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:8080/actuator/health || exit 1
+    CMD wget -qO- http://localhost:8080/actuator/health >/dev/null 2>&1 || exit 1
 
 # JVM options for containerized environments
 ENV JAVA_OPTS="-XX:+UseContainerSupport \
