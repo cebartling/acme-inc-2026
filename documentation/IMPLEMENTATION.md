@@ -107,6 +107,41 @@ Caffeine is a high-performance, near-optimal caching library for Java/Kotlin app
 - Consider write-behind patterns for cache-aside with database writes
 - Size caches based on memory constraints and access patterns
 
+### Spring Boot 4 Breaking Changes
+
+When creating new backend services, be aware of these Spring Boot 4 changes:
+
+**MongoDB Configuration:**
+- Property prefix changed from `spring.data.mongodb.*` to `spring.mongodb.*`
+- Example:
+  ```yaml
+  spring:
+    mongodb:
+      host: ${MONGODB_HOST:localhost}
+      port: ${MONGODB_PORT:27017}
+      database: ${MONGODB_DB:acme_query}
+  ```
+
+**Flyway Migrations:**
+- Flyway auto-configuration may not trigger automatically in Spring Boot 4
+- Workaround: Use `hibernate.ddl-auto: update` for development, or apply migrations manually
+- Ensure Flyway dependencies include both `flyway-core` and `flyway-database-postgresql`
+
+**Rate Limiting for Testing:**
+- The Identity Service implements rate limiting (5 requests/minute per IP by default)
+- Disable for acceptance tests: `RATE_LIMITING_ENABLED=false`
+- Configure in `identity.rate-limiting.enabled` property
+
+### Service Ports
+
+Backend services use ports starting at 10300 to avoid conflicts:
+
+| Service | Port |
+|---------|------|
+| Identity Service | 10300 |
+| Customer Service | 10301 |
+| (future services) | 10302+ |
+
 ### Service projects
 
 - Identity management: `/backend-services/identity`
@@ -154,5 +189,46 @@ Caffeine is a high-performance, near-optimal caching library for Java/Kotlin app
 - Playwright should be used for browser automation
 - Acceptance tests project will reside in the `acceptance-tests` directory.
 - Use Allure Report 3 for HTML Cucumber test run reporting
-    - https://allurereport.org/docs/v3/ 
+    - https://allurereport.org/docs/v3/
+
+### API Response Mapping
+
+When writing step definitions, ensure property paths match the actual API response structure:
+
+| API Response | Step Definition Access |
+|--------------|----------------------|
+| `customerId` | `customerProfile.customerId` (not `id`) |
+| `email.address` | `customerProfile.email?.address` |
+| `name.displayName` | `customerProfile.name?.displayName` |
+| `profile.preferredLocale` | `customerProfile.profile?.preferredLocale` |
+| `preferences.communication.marketing` | `customerProfile.preferences?.communication?.marketing` |
+
+### Async Event Testing
+
+For tests that depend on Kafka event processing:
+
+- Use a `waitFor` helper function with appropriate timeout (10+ seconds)
+- Poll the API endpoint until the expected data appears
+- Example pattern:
+  ```typescript
+  const found = await waitFor(async () => {
+    const response = await apiClient.get(`/api/v1/customers/by-email/${email}`);
+    return response.status === 200;
+  }, 10000);
+  expect(found).toBe(true);
+  ```
+
+### Running Acceptance Tests
+
+```bash
+# Start infrastructure
+docker compose up -d
+
+# Start services with rate limiting disabled
+RATE_LIMITING_ENABLED=false docker compose -f docker-compose.apps.yml up -d
+
+# Run API tests
+cd acceptance-tests
+CUSTOMER_API_URL=http://localhost:10301 API_URL=http://localhost:10300 npm test -- --tags @api
+``` 
 
