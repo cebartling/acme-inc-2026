@@ -473,7 +473,31 @@ Then(
   'the customer profile should be created in PostgreSQL',
   async function (this: CustomWorld) {
     // PostgreSQL is the primary store - if we can fetch the customer, it's in PostgreSQL
-    const customerProfile = this.getTestData<CustomerResponse>('customerProfile');
+    let customerProfile = this.getTestData<CustomerResponse>('customerProfile');
+
+    if (!customerProfile) {
+      const email = this.getTestData<string>('registeredEmail');
+      expect(email).toBeDefined();
+
+      const found = await waitFor(async () => {
+        try {
+          const response = await this.customerApiClient.get<CustomerResponse>(
+            `/api/v1/customers/by-email/${encodeURIComponent(email!)}`
+          );
+          if (response.status === 200) {
+            customerProfile = response.data;
+            return true;
+          }
+          return false;
+        } catch {
+          return false;
+        }
+      }, 10000);
+
+      expect(found).toBe(true);
+      this.setTestData('customerProfile', customerProfile);
+    }
+
     expect(customerProfile).toBeDefined();
   }
 );
@@ -508,7 +532,32 @@ Then(
   'a CustomerRegistered event should be published',
   async function (this: CustomWorld) {
     // Event publishing is verified by the customer profile existing
-    const customerProfile = this.getTestData<CustomerResponse>('customerProfile');
+    // First ensure we have the customer profile by waiting for it
+    let customerProfile = this.getTestData<CustomerResponse>('customerProfile');
+
+    if (!customerProfile) {
+      const email = this.getTestData<string>('registeredEmail');
+      expect(email).toBeDefined();
+
+      const found = await waitFor(async () => {
+        try {
+          const response = await this.customerApiClient.get<CustomerResponse>(
+            `/api/v1/customers/by-email/${encodeURIComponent(email!)}`
+          );
+          if (response.status === 200) {
+            customerProfile = response.data;
+            return true;
+          }
+          return false;
+        } catch {
+          return false;
+        }
+      }, 10000);
+
+      expect(found).toBe(true);
+      this.setTestData('customerProfile', customerProfile);
+    }
+
     expect(customerProfile).toBeDefined();
   }
 );
