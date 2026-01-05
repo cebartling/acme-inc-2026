@@ -229,6 +229,6 @@ RATE_LIMITING_ENABLED=false docker compose -f docker-compose.apps.yml up -d
 
 # Run API tests
 cd acceptance-tests
-CUSTOMER_API_URL=http://localhost:10301 API_URL=http://localhost:10300 npm test -- --tags @api
+CUSTOMER_API_URL=http://localhost:10301 IDENTITY_API_URL=http://localhost:10300 npm test -- --tags @api
 ``` 
 

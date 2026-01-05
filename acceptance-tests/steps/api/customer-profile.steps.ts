@@ -1,7 +1,6 @@
 import { Given, When, Then, DataTable } from '@cucumber/cucumber';
 import { expect } from '@playwright/test';
 import { CustomWorld } from '../../support/world.js';
-import { ApiResponse } from '../../support/api-client.js';
 
 interface RegistrationRequest {
   email: string;
@@ -21,24 +20,33 @@ interface RegistrationResponse {
 }
 
 interface CustomerResponse {
-  id: string;
+  customerId: string;
   userId: string;
   customerNumber: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-  displayName: string;
+  email: {
+    address: string;
+    verified: boolean;
+  };
+  name: {
+    firstName: string;
+    lastName: string;
+    displayName: string;
+  };
   status: string;
   type: string;
-  preferredLocale: string;
-  preferredCurrency: string;
-  timezone: string;
+  profile: {
+    preferredLocale: string;
+    preferredCurrency: string;
+    timezone: string;
+  };
   profileCompleteness: number;
   preferences: {
-    marketingCommunications: boolean;
-    emailNotifications: boolean;
-    smsNotifications: boolean;
-    pushNotifications: boolean;
+    communication: {
+      marketing: boolean;
+      email: boolean;
+      sms: boolean;
+      push: boolean;
+    };
   };
   registeredAt: string;
 }
@@ -82,7 +90,7 @@ Given('the Customer Service is available', async function (this: CustomWorld) {
 Given('Kafka is available', async function (this: CustomWorld) {
   // Kafka availability is implicit when services are healthy
   // The services won't start properly without Kafka
-  const identityHealthy = await this.apiClient.healthCheck();
+  const identityHealthy = await this.identityApiClient.healthCheck();
   expect(identityHealthy).toBe(true);
 });
 
@@ -101,7 +109,7 @@ Given(
       marketingOptIn: false,
     };
 
-    const response = await this.apiClient.post<RegistrationResponse>(
+    const response = await this.identityApiClient.post<RegistrationResponse>(
       '/api/v1/users/register',
       request
     );
@@ -147,7 +155,7 @@ When(
       marketingOptIn: false,
     };
 
-    const response = await this.apiClient.post<RegistrationResponse>(
+    const response = await this.identityApiClient.post<RegistrationResponse>(
       '/api/v1/users/register',
       request
     );
@@ -172,7 +180,7 @@ When(
       marketingOptIn: optIn === 'true',
     };
 
-    const response = await this.apiClient.post<RegistrationResponse>(
+    const response = await this.identityApiClient.post<RegistrationResponse>(
       '/api/v1/users/register',
       request
     );
@@ -199,7 +207,7 @@ When(
       marketingOptIn: data.marketingOptIn === 'true',
     };
 
-    const response = await this.apiClient.post<RegistrationResponse>(
+    const response = await this.identityApiClient.post<RegistrationResponse>(
       '/api/v1/users/register',
       request
     );
@@ -228,7 +236,7 @@ When(
         marketingOptIn: false,
       };
 
-      const response = await this.apiClient.post<RegistrationResponse>(
+      const response = await this.identityApiClient.post<RegistrationResponse>(
         '/api/v1/users/register',
         request
       );
@@ -267,7 +275,7 @@ When('a user registers in a new month', async function (this: CustomWorld) {
     marketingOptIn: false,
   };
 
-  const response = await this.apiClient.post<RegistrationResponse>(
+  const response = await this.identityApiClient.post<RegistrationResponse>(
     '/api/v1/users/register',
     request
   );
