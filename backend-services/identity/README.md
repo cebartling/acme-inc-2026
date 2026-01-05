@@ -49,7 +49,7 @@ docker compose up -d postgres kafka schema-registry
 gradle bootRun
 ```
 
-The service will be available at `http://localhost:8080`.
+The service will be available at `http://localhost:10300`.
 
 ### API Endpoints
 
@@ -92,7 +92,7 @@ docker build -f Containerfile -t acme-identity-service .
 # Using Podman
 podman run -d \
   --name identity-service \
-  -p 8080:8080 \
+  -p 10300:10300 \
   -e POSTGRES_HOST=postgres \
   -e POSTGRES_PORT=5432 \
   -e POSTGRES_DB=acme_identity \
@@ -106,7 +106,7 @@ podman run -d \
 # Using Docker
 docker run -d \
   --name identity-service \
-  -p 8080:8080 \
+  -p 10300:10300 \
   -e POSTGRES_HOST=postgres \
   -e POSTGRES_PORT=5432 \
   -e POSTGRES_DB=acme_identity \
@@ -136,7 +136,7 @@ Features:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `SERVER_PORT` | Application port | `8080` |
+| `SERVER_PORT` | Application port | `10300` |
 | `POSTGRES_HOST` | PostgreSQL hostname | `localhost` |
 | `POSTGRES_PORT` | PostgreSQL port | `5432` |
 | `POSTGRES_DB` | Database name | `acme_identity` |

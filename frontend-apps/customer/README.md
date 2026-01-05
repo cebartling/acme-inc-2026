@@ -47,7 +47,7 @@ docker build -f Containerfile -t acme-customer-frontend .
 podman run -d \
   --name customer-frontend \
   -p 5173:3000 \
-  -e API_URL=http://identity-service:8080 \
+  -e API_URL=http://identity-service:10300 \
   --network acme-network \
   acme-customer-frontend
 
@@ -55,7 +55,7 @@ podman run -d \
 docker run -d \
   --name customer-frontend \
   -p 5173:3000 \
-  -e API_URL=http://identity-service:8080 \
+  -e API_URL=http://identity-service:10300 \
   --network acme-network \
   acme-customer-frontend
 ```

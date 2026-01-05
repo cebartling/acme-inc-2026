@@ -42,10 +42,10 @@ services:
     container_name: acme-identity-service
     hostname: identity-service
     ports:
-      - "${IDENTITY_SERVICE_PORT:-8080}:8080"
+      - "${IDENTITY_SERVICE_PORT:-10300}:10300"
     environment:
       # Server configuration
-      SERVER_PORT: 8080
+      SERVER_PORT: 10300
       SPRING_PROFILES_ACTIVE: docker
 
       # Database configuration
@@ -68,7 +68,7 @@ services:
     networks:
       - acme-network
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health >/dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:10300/actuator/health >/dev/null 2>&1 || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -107,10 +107,10 @@ services:
     container_name: acme-customer-service
     hostname: customer-service
     ports:
-      - "${CUSTOMER_SERVICE_PORT:-8082}:8081"
+      - "${CUSTOMER_SERVICE_PORT:-10301}:10301"
     environment:
       # Server configuration
-      SERVER_PORT: 8081
+      SERVER_PORT: 10301
       SPRING_PROFILES_ACTIVE: docker
 
       # PostgreSQL configuration
@@ -135,7 +135,7 @@ services:
     networks:
       - acme-network
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/actuator/health >/dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:10301/actuator/health >/dev/null 2>&1 || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -188,8 +188,8 @@ services:
       NITRO_HOST: 0.0.0.0
 
       # API configuration
-      API_URL: http://identity-service:8080
-      PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:8080}
+      API_URL: http://identity-service:10300
+      PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:10300}
     networks:
       - acme-network
     healthcheck:

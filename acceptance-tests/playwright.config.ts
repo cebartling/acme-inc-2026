@@ -14,7 +14,7 @@ export const config = {
     customer: process.env.CUSTOMER_APP_URL || 'http://localhost:3000',
     admin: process.env.ADMIN_APP_URL || 'http://localhost:3001',
   },
-  apiUrl: process.env.API_URL || 'http://localhost:8080',
+  apiUrl: process.env.API_URL || 'http://localhost:10300',
   timeout: {
     default: 30000,
     navigation: 60000,

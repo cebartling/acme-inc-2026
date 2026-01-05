@@ -64,11 +64,11 @@ RUN chown -R acme:acme /app
 USER acme
 
 # Expose the application port
-EXPOSE 8081
+EXPOSE 10301
 
 # Health check using Spring Boot Actuator
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD wget -qO- http://localhost:8081/actuator/health >/dev/null 2>&1 || exit 1
+    CMD wget -qO- http://localhost:10301/actuator/health >/dev/null 2>&1 || exit 1
 
 # JVM options for containerized environments
 ENV JAVA_OPTS="-XX:+UseContainerSupport \
@@ -78,7 +78,7 @@ ENV JAVA_OPTS="-XX:+UseContainerSupport \
     -Djava.security.egd=file:/dev/./urandom"
 
 # Spring Boot configuration via environment variables
-ENV SERVER_PORT=8081
+ENV SERVER_PORT=10301
 ENV SPRING_PROFILES_ACTIVE=docker
 
 # Run the application
