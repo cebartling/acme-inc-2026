@@ -21,9 +21,10 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
-  data:
-    mongodb:
-      uri: mongodb://${MONGODB_HOST:localhost}:${MONGODB_PORT:27017}/${MONGODB_DB:acme_query}?replicaSet=rs0
+  mongodb:
+    host: ${MONGODB_HOST:localhost}
+    port: ${MONGODB_PORT:27017}
+    database: ${MONGODB_DB:acme_query}
 
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
