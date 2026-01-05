@@ -99,6 +99,74 @@ services:
     networks:
       - acme-network
 
+  customer-service:
+    build:
+      context: ./backend-services/customer
+      dockerfile: Containerfile
+    image: acme-customer-service:latest
+    container_name: acme-customer-service
+    hostname: customer-service
+    ports:
+      - "${CUSTOMER_SERVICE_PORT:-8082}:8081"
+    environment:
+      # Server configuration
+      SERVER_PORT: 8081
+      SPRING_PROFILES_ACTIVE: docker
+
+      # PostgreSQL configuration
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-acme}_customers
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+
+      # MongoDB configuration
+      MONGODB_HOST: mongodb
+      MONGODB_PORT: 27017
+      MONGODB_DB: acme_query
+
+      # Kafka configuration
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SCHEMA_REGISTRY_URL: http://schema-registry:8081
+
+      # Observability
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4317
+      OTEL_SERVICE_NAME: customer-service
+    networks:
+      - acme-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/actuator/health >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    depends_on:
+      - customer-db-init
+      - identity-service
+    labels:
+      - "com.acme.service=customer"
+      - "com.acme.type=backend"
+
+  # Database initialization for Customer Service
+  customer-db-init:
+    image: postgres:16-alpine
+    container_name: acme-customer-db-init
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    command:
+      - sh
+      - -c
+      - |
+        until pg_isready -h postgres -p 5432 -U $${POSTGRES_USER:-postgres}; do
+          echo 'Waiting for PostgreSQL...'
+          sleep 2
+        done
+        echo "Creating database acme_customers if it doesn't exist..."
+        psql -h postgres -U $${POSTGRES_USER:-postgres} -tc "SELECT 1 FROM pg_database WHERE datname = 'acme_customers'" | grep -q 1 || psql -h postgres -U $${POSTGRES_USER:-postgres} -c "CREATE DATABASE acme_customers"
+        echo 'Database initialization complete'
+    networks:
+      - acme-network
+
   # =============================================================================
   # FRONTEND APPLICATIONS
   # =============================================================================
