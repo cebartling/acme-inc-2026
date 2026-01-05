@@ -48,6 +48,9 @@ Given(
     };
 
     await this.apiClient.post('/api/v1/users/register', request);
+
+    // Flag that the next request should use the exact email (for duplicate testing)
+    this.setTestData('expectDuplicateEmail', true);
   }
 );
 
@@ -70,13 +73,30 @@ Given(
   }
 );
 
+/**
+ * Generates a unique email by appending a timestamp to the local part.
+ * For example: newuser@example.com -> newuser-1704410400000@example.com
+ * Invalid emails (without @) are returned as-is for validation testing.
+ */
+function makeUniqueEmail(email: string): string {
+  if (!email.includes('@')) {
+    return email; // Return invalid emails as-is for validation testing
+  }
+  const [local, domain] = email.split('@');
+  return `${local}-${Date.now()}@${domain}`;
+}
+
 When(
   'I submit a registration request with:',
   async function (this: CustomWorld, dataTable: DataTable) {
     const data = dataTable.rowsHash();
 
+    // Make email unique unless it's for duplicate testing
+    const isDuplicateTest = this.getTestData<boolean>('expectDuplicateEmail');
+    const email = isDuplicateTest ? data.email : makeUniqueEmail(data.email);
+
     const request: RegistrationRequest = {
-      email: data.email,
+      email,
       password: data.password,
       firstName: data.firstName,
       lastName: data.lastName,
@@ -233,7 +253,14 @@ Then(
     expect(response).toBeDefined();
 
     const fieldValue = response!.data[field as keyof RegistrationResponse];
-    expect(fieldValue).toBe(expectedValue);
+
+    // For email field, compare against the actual request email since we generate unique emails
+    if (field === 'email') {
+      const request = this.getTestData<RegistrationRequest>('lastRequest');
+      expect(fieldValue).toBe(request?.email);
+    } else {
+      expect(fieldValue).toBe(expectedValue);
+    }
   }
 );
 

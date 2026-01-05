@@ -1,6 +1,17 @@
-Welcome to your new TanStack app! 
+# ACME Customer Frontend
 
-# Getting Started
+Customer-facing web application for the ACME Inc. e-commerce platform.
+
+## Tech Stack
+
+- **Framework**: React 19 with TanStack Start (SSR)
+- **Routing**: TanStack Router (file-based)
+- **Styling**: Tailwind CSS 4
+- **Server**: Nitro
+- **Build Tool**: Vite 7
+- **Testing**: Vitest
+
+## Getting Started
 
 To run this application:
 
@@ -16,6 +27,60 @@ To build this application for production:
 ```bash
 npm run build
 ```
+
+## Container Build
+
+Build the container image using Podman or Docker:
+
+```bash
+# Using Podman
+podman build -f Containerfile -t acme-customer-frontend .
+
+# Using Docker
+docker build -f Containerfile -t acme-customer-frontend .
+```
+
+### Running the Container
+
+```bash
+# Using Podman
+podman run -d \
+  --name customer-frontend \
+  -p 5173:3000 \
+  -e API_URL=http://identity-service:8080 \
+  --network acme-network \
+  acme-customer-frontend
+
+# Using Docker
+docker run -d \
+  --name customer-frontend \
+  -p 5173:3000 \
+  -e API_URL=http://identity-service:8080 \
+  --network acme-network \
+  acme-customer-frontend
+```
+
+### Container Details
+
+The Containerfile uses a multi-stage build:
+- **Stage 1 (deps)**: Install npm dependencies
+- **Stage 2 (builder)**: Build the application with Vite
+- **Stage 3 (runner)**: Node.js 24 Alpine runtime
+
+Features:
+- Non-root user (`acme:acme`) for security
+- Health check via HTTP request
+- Runs Nitro server for SSR
+- Minimal Alpine-based image
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `PORT` | Application port | `3000` |
+| `HOST` | Bind address | `0.0.0.0` |
+| `NODE_ENV` | Node environment | `production` |
+| `API_URL` | Backend API URL | - |
 
 ## Testing
 

@@ -8,9 +8,14 @@ spring:
     password: ${POSTGRES_PASSWORD:acme_password}
     driver-class-name: org.postgresql.Driver
 
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: update
     open-in-view: false
     properties:
       hibernate:
@@ -54,6 +59,7 @@ identity:
   verification-token:
     expiration-hours: 24
   rate-limiting:
+    enabled: ${RATE_LIMITING_ENABLED:true}
     registration:
       requests-per-minute: 5
 

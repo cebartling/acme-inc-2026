@@ -1,4 +1,4 @@
-@customer @catalog
+@customer @catalog @wip
 Feature: Product Catalog
   As a customer
   I want to browse and search products

@@ -1,0 +1,174 @@
+# =============================================================================
+# ACME Inc. Application Services
+# =============================================================================
+# This Docker Compose file manages application containers that connect to the
+# infrastructure services defined in docker-compose.yml.
+#
+# Prerequisites:
+#   - Infrastructure services must be running (docker compose up -d)
+#   - The 'acme-network' must exist
+#
+# Usage:
+#   # Build and start all application services (always rebuilds images)
+#   docker compose -f docker-compose.apps.yml up --build --force-recreate -d
+#
+#   # Build and start with old image cleanup
+#   docker compose -f docker-compose.apps.yml up --build --force-recreate -d && \
+#     docker image prune -f
+#
+#   # Stop all application services
+#   docker compose -f docker-compose.apps.yml down
+#
+#   # Stop and remove orphaned containers
+#   docker compose -f docker-compose.apps.yml down --remove-orphans
+#
+#   # View logs
+#   docker compose -f docker-compose.apps.yml logs -f
+#
+#   # Rebuild a specific service
+#   docker compose -f docker-compose.apps.yml up --build --force-recreate -d identity-service
+# =============================================================================
+
+services:
+  # =============================================================================
+  # BACKEND SERVICES
+  # =============================================================================
+
+  identity-service:
+    build:
+      context: ./backend-services/identity
+      dockerfile: Containerfile
+    image: acme-identity-service:latest
+    container_name: acme-identity-service
+    hostname: identity-service
+    ports:
+      - "${IDENTITY_SERVICE_PORT:-8080}:8080"
+    environment:
+      # Server configuration
+      SERVER_PORT: 8080
+      SPRING_PROFILES_ACTIVE: docker
+
+      # Database configuration
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-acme}_identity
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+
+      # Kafka configuration
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SCHEMA_REGISTRY_URL: http://schema-registry:8081
+
+      # Rate limiting (disable for acceptance testing)
+      RATE_LIMITING_ENABLED: ${RATE_LIMITING_ENABLED:-true}
+
+      # Observability
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4317
+      OTEL_SERVICE_NAME: identity-service
+    networks:
+      - acme-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    depends_on:
+      - identity-db-init
+    labels:
+      - "com.acme.service=identity"
+      - "com.acme.type=backend"
+
+  # Database initialization for Identity Service
+  identity-db-init:
+    image: postgres:16-alpine
+    container_name: acme-identity-db-init
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    command:
+      - sh
+      - -c
+      - |
+        until pg_isready -h postgres -p 5432 -U $${POSTGRES_USER:-postgres}; do
+          echo 'Waiting for PostgreSQL...'
+          sleep 2
+        done
+        echo "Creating database acme_identity if it doesn't exist..."
+        psql -h postgres -U $${POSTGRES_USER:-postgres} -tc "SELECT 1 FROM pg_database WHERE datname = 'acme_identity'" | grep -q 1 || psql -h postgres -U $${POSTGRES_USER:-postgres} -c "CREATE DATABASE acme_identity"
+        echo 'Database initialization complete'
+    networks:
+      - acme-network
+
+  # =============================================================================
+  # FRONTEND APPLICATIONS
+  # =============================================================================
+
+  customer-frontend:
+    build:
+      context: ./frontend-apps/customer
+      dockerfile: Containerfile
+    image: acme-customer-frontend:latest
+    container_name: acme-customer-frontend
+    hostname: customer-frontend
+    ports:
+      - "${CUSTOMER_FRONTEND_PORT:-5173}:3000"
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3000
+      NITRO_PORT: 3000
+      NITRO_HOST: 0.0.0.0
+
+      # API configuration
+      API_URL: http://identity-service:8080
+      PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:8080}
+    networks:
+      - acme-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      identity-service:
+        condition: service_healthy
+    labels:
+      - "com.acme.service=customer-frontend"
+      - "com.acme.type=frontend"
+
+  # =============================================================================
+  # ADMIN FRONTEND (placeholder for future)
+  # =============================================================================
+
+  # admin-frontend:
+  #   build:
+  #     context: ./frontend-apps/admin
+  #     dockerfile: Containerfile
+  #   image: acme-admin-frontend:latest
+  #   container_name: acme-admin-frontend
+  #   hostname: admin-frontend
+  #   ports:
+  #     - "${ADMIN_FRONTEND_PORT:-3001}:3000"
+  #   environment:
+  #     NODE_ENV: production
+  #     API_URL: http://identity-service:8080
+  #   networks:
+  #     - acme-network
+  #   depends_on:
+  #     identity-service:
+  #       condition: service_healthy
+  #   labels:
+  #     - "com.acme.service=admin-frontend"
+  #     - "com.acme.type=frontend"
+
+# =============================================================================
+# NETWORKS
+# =============================================================================
+# Connect to the external network created by docker-compose.yml
+# The infrastructure services (postgres, kafka, etc.) must be running first
+
+networks:
+  acme-network:
+    external: true
+    name: acme-network
