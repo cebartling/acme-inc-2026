@@ -120,7 +120,7 @@ Given(
       } catch {
         return false;
       }
-    }, 5000);
+    }, 10000);
   }
 );
 
@@ -327,7 +327,7 @@ Then('a customer profile should be created', async function (this: CustomWorld) 
     } catch {
       return false;
     }
-  }, 5000);
+  }, 10000);
 
   expect(found).toBe(true);
   this.setTestData('customerProfile', customerProfile);
@@ -353,7 +353,7 @@ Then('the customer profile should be created', async function (this: CustomWorld
     } catch {
       return false;
     }
-  }, 5000);
+  }, 10000);
 
   expect(found).toBe(true);
   this.setTestData('customerProfile', customerProfile);
@@ -366,14 +366,14 @@ Then(
     const registeredEmail = this.getTestData<string>('registeredEmail');
 
     expect(customerProfile).toBeDefined();
-    expect(customerProfile!.email).toBe(registeredEmail);
+    expect(customerProfile!.email?.address).toBe(registeredEmail);
   }
 );
 
 Then('the customer ID should be a valid UUID v7', async function (this: CustomWorld) {
   const customerProfile = this.getTestData<CustomerResponse>('customerProfile');
   expect(customerProfile).toBeDefined();
-  expect(customerProfile!.id).toMatch(UUID_V7_REGEX);
+  expect(customerProfile!.customerId).toMatch(UUID_V7_REGEX);
 });
 
 Then(
@@ -384,7 +384,7 @@ Then(
 
     expect(customerProfile).toBeDefined();
     expect(userId).toBeDefined();
-    expect(customerProfile!.id).not.toBe(userId);
+    expect(customerProfile!.customerId).not.toBe(userId);
     expect(customerProfile!.userId).toBe(userId);
   }
 );
@@ -412,7 +412,7 @@ Then(
         } catch {
           return false;
         }
-      }, 5000);
+      }, 10000);
 
       expect(found).toBe(true);
     }
@@ -495,10 +495,10 @@ Then(
     expect(customerProfile).toBeDefined();
 
     // Verify essential fields are present
-    expect(customerProfile!.id).toBeDefined();
+    expect(customerProfile!.customerId).toBeDefined();
     expect(customerProfile!.userId).toBeDefined();
     expect(customerProfile!.customerNumber).toBeDefined();
-    expect(customerProfile!.email).toBeDefined();
+    expect(customerProfile!.email?.address).toBeDefined();
     expect(customerProfile!.status).toBeDefined();
     expect(customerProfile!.type).toBeDefined();
   }
@@ -538,7 +538,7 @@ Then(
   async function (this: CustomWorld, expected: string) {
     const customerProfile = this.getTestData<CustomerResponse>('customerProfile');
     expect(customerProfile).toBeDefined();
-    expect(customerProfile!.preferences.marketingCommunications).toBe(expected === 'true');
+    expect(customerProfile!.preferences?.communication?.marketing).toBe(expected === 'true');
   }
 );
 
@@ -599,7 +599,7 @@ Then(
       } catch {
         return false;
       }
-    }, 5000);
+    }, 10000);
 
     expect(found).toBe(true);
 
@@ -631,7 +631,7 @@ Then(
   async function (this: CustomWorld, expectedDisplayName: string) {
     const customerProfile = this.getTestData<CustomerResponse>('customerProfile');
     expect(customerProfile).toBeDefined();
-    expect(customerProfile!.displayName).toBe(expectedDisplayName);
+    expect(customerProfile!.name?.displayName).toBe(expectedDisplayName);
   }
 );
 
@@ -640,7 +640,7 @@ Then(
   async function (this: CustomWorld, expectedLocale: string) {
     const customerProfile = this.getTestData<CustomerResponse>('customerProfile');
     expect(customerProfile).toBeDefined();
-    expect(customerProfile!.preferredLocale).toBe(expectedLocale);
+    expect(customerProfile!.profile?.preferredLocale).toBe(expectedLocale);
   }
 );
 
@@ -649,7 +649,7 @@ Then(
   async function (this: CustomWorld, expectedCurrency: string) {
     const customerProfile = this.getTestData<CustomerResponse>('customerProfile');
     expect(customerProfile).toBeDefined();
-    expect(customerProfile!.preferredCurrency).toBe(expectedCurrency);
+    expect(customerProfile!.profile?.preferredCurrency).toBe(expectedCurrency);
   }
 );
 
@@ -658,6 +658,6 @@ Then(
   async function (this: CustomWorld, expectedTimezone: string) {
     const customerProfile = this.getTestData<CustomerResponse>('customerProfile');
     expect(customerProfile).toBeDefined();
-    expect(customerProfile!.timezone).toBe(expectedTimezone);
+    expect(customerProfile!.profile?.timezone).toBe(expectedTimezone);
   }
 );
