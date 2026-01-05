@@ -16,6 +16,7 @@
 #   --skip-install  Skip npm install step
 #   --allure        Use Allure reports instead of HTML
 #   --no-open       Don't open browser with results
+#   --quiet, -q     Minimal output (progress bar only)
 #   --help          Show this help message
 #
 # Examples:
@@ -47,6 +48,7 @@ SKIP_INSTALL=false
 USE_ALLURE=false
 OPEN_BROWSER=true
 HEADED=false
+QUIET=false
 TEST_PROFILE="default"
 EXTRA_ARGS=()
 TAGS=""
@@ -95,9 +97,14 @@ ${YELLOW}Execution Options:${NC}
   --skip-install    Skip npm install step
   --allure          Use Allure reports (opens interactive server)
   --no-open         Don't automatically open browser with results
+  --quiet, -q       Minimal output (progress bar only, no step details)
 
 ${YELLOW}Other:${NC}
   --help            Show this help message
+
+${YELLOW}Output:${NC}
+  By default, shows step-by-step progress with pass/fail indicators.
+  Use --quiet for minimal output (progress bar only).
 
 ${YELLOW}Examples:${NC}
   ./scripts/run-acceptance-tests.sh                    # Run all tests
@@ -219,7 +226,16 @@ run_tests() {
     cmd_array+=("--import" "steps/**/*.ts")
 
     # Add report formats
-    cmd_array+=("--format" "progress-bar")
+    # Default: show step-by-step progress with scenario names
+    # Use --quiet for minimal output (progress-bar only)
+    if [[ "$QUIET" == true ]]; then
+        cmd_array+=("--format" "progress-bar")
+    else
+        # Use 'progress' format which shows each step result inline
+        # Combined with summary format for final statistics
+        cmd_array+=("--format" "progress")
+        cmd_array+=("--format" "summary")
+    fi
     cmd_array+=("--format" "json:reports/cucumber-report.json")
     cmd_array+=("--format" "html:reports/cucumber-report.html")
     if [[ "$USE_ALLURE" == true ]]; then
@@ -379,6 +395,10 @@ parse_args() {
                 ;;
             --no-open)
                 OPEN_BROWSER=false
+                shift
+                ;;
+            --quiet|-q)
+                QUIET=true
                 shift
                 ;;
             --help|-h)
