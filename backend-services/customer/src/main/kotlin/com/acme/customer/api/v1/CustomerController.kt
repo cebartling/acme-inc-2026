@@ -113,4 +113,29 @@ class CustomerController(
 
         return ResponseEntity.ok(CustomerResponse.fromDomain(customer, preferences))
     }
+
+    /**
+     * Gets a customer profile by email address.
+     *
+     * @param email The email address to search for.
+     * @return The customer profile or 404 if not found.
+     */
+    @GetMapping("/by-email/{email}")
+    fun getCustomerByEmail(@PathVariable email: String): ResponseEntity<CustomerResponse> {
+        logger.debug("Getting customer by email: {}", email)
+
+        val customer = customerRepository.findByEmail(email)
+            ?: run {
+                logger.debug("Customer not found with email: {}", email)
+                return ResponseEntity.notFound().build()
+            }
+
+        val preferences = customerPreferencesRepository.findById(customer.id).orElse(null)
+            ?: run {
+                logger.error("Preferences not found for customer: {}", customer.id)
+                return ResponseEntity.internalServerError().build()
+            }
+
+        return ResponseEntity.ok(CustomerResponse.fromDomain(customer, preferences))
+    }
 }

@@ -12,6 +12,7 @@ export class CustomWorld extends World<CustomWorldParameters> {
   context!: BrowserContext;
   page!: Page;
   apiClient!: ApiClient;
+  customerApiClient!: ApiClient;
 
   private testData: Map<string, unknown> = new Map();
 
@@ -52,6 +53,7 @@ export class CustomWorld extends World<CustomWorldParameters> {
     this.page.setDefaultNavigationTimeout(config.timeout.navigation);
 
     this.apiClient = new ApiClient(config.apiUrl);
+    this.customerApiClient = new ApiClient(config.customerApiUrl);
   }
 
   async closeContext(): Promise<void> {
