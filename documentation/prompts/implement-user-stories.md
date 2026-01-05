@@ -46,3 +46,17 @@ When completed, create a PR for merging this feature branch back into
 the `main` branch on GitHub.
 ```
 
+## User registration processing
+
+```
+Implement user story located at @documentation/user-stories/0002-create-customer-profile/US-0002-03-customer-profile-creation.md
+Think hard on implementation
+Use context7 mcp for researching library APIs
+Use playwright mcp for interacting with a web browser
+Make sure unit, integration and acceptance tests are created/updated for this functionality.
+Create a feature branch from the `main` branch for this work.
+Commit all changes to this feature branch.
+When completed, create a PR for merging this feature branch back into
+the `main` branch on GitHub.
+```
+
