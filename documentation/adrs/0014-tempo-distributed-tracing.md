@@ -25,26 +25,23 @@ Candidates considered:
 We will use **Grafana Tempo** for distributed tracing.
 
 Architecture:
-```
-┌────────────────────────────────────────────────────────────────┐
-│                           Tempo                                 │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌────────┐ │
-│  │ Distributor │  │   Ingester  │  │   Querier   │  │ Store  │ │
-│  └─────────────┘  └─────────────┘  └─────────────┘  └────────┘ │
-└────────────────────────────────────────────────────────────────┘
-          ▲                                      │
-          │ OTLP                                 │ query
-     ┌────┴────┐                                 ▼
-     │  OTel   │                           ┌──────────┐
-     │Collector│                           │ Grafana  │
-     └─────────┘                           └──────────┘
-          ▲
-     ┌────┴────────────────────────────────────┐
-     │                                          │
-┌────┴────┐    ┌─────────┐    ┌─────────┐    ┌─┴───────┐
-│ Service │    │ Service │    │ Service │    │ Service │
-│ (OTel)  │───▶│ (OTel)  │───▶│ (OTel)  │───▶│ (OTel)  │
-└─────────┘    └─────────┘    └─────────┘    └─────────┘
+
+```mermaid
+flowchart TB
+    subgraph Tempo
+        Dist[Distributor]
+        Ing[Ingester]
+        Quer[Querier]
+        Store[(Store)]
+    end
+
+    S1[Service<br/>OTel] --> S2[Service<br/>OTel]
+    S2 --> S3[Service<br/>OTel]
+    S3 --> S4[Service<br/>OTel]
+
+    S1 & S2 & S3 & S4 --> Collector[OTel<br/>Collector]
+    Collector -->|OTLP| Tempo
+    Tempo -->|query| Grafana[Grafana]
 ```
 
 Instrumentation strategy:

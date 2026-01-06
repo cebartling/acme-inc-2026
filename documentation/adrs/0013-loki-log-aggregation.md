@@ -25,26 +25,20 @@ Candidates considered:
 We will use **Grafana Loki** for centralized log aggregation.
 
 Architecture:
-```
-┌──────────────────────────────────────────────────────────────┐
-│                          Loki                                 │
-│  ┌────────────┐  ┌────────────┐  ┌────────────┐  ┌────────┐ │
-│  │ Distributor │  │  Ingester  │  │   Querier  │  │ Store  │ │
-│  └────────────┘  └────────────┘  └────────────┘  └────────┘ │
-└──────────────────────────────────────────────────────────────┘
-         ▲                                      │
-         │ push                                 │ query
-    ┌────┴─────────────────┐                    ▼
-    │     Log Shipper      │              ┌──────────┐
-    │  (Promtail/Fluent)   │              │ Grafana  │
-    └──────────────────────┘              └──────────┘
-         ▲         ▲
-    ┌────┘         └────┐
-    │                   │
-┌───┴───┐           ┌───┴───┐
-│Service│           │Service│
-│ logs  │           │ logs  │
-└───────┘           └───────┘
+
+```mermaid
+flowchart TB
+    subgraph Loki
+        Dist[Distributor]
+        Ing[Ingester]
+        Quer[Querier]
+        Store[(Store)]
+    end
+
+    S1[Service<br/>logs] --> Shipper
+    S2[Service<br/>logs] --> Shipper
+    Shipper[Log Shipper<br/>Promtail/Fluent] -->|push| Loki
+    Loki -->|query| Grafana[Grafana]
 ```
 
 Log format (structured JSON):

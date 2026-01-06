@@ -26,24 +26,19 @@ Candidates considered:
 We will use **Cucumber.js** with **Playwright** for acceptance testing.
 
 Architecture:
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Acceptance Test Suite                     │
-│  ┌─────────────────────────────────────────────────────────┐│
-│  │                    Cucumber.js                           ││
-│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────┐  ││
-│  │  │   Feature   │  │    Step     │  │     World       │  ││
-│  │  │   Files     │  │ Definitions │  │    Context      │  ││
-│  │  │  (.feature) │  │   (.ts)     │  │   (Playwright)  │  ││
-│  │  └─────────────┘  └─────────────┘  └─────────────────┘  ││
-│  └─────────────────────────────────────────────────────────┘│
-└─────────────────────────────────────────────────────────────┘
-              │                           │
-              ▼                           ▼
-      ┌───────────────┐           ┌───────────────┐
-      │   Frontend    │           │   Backend     │
-      │   (Browser)   │           │   (API)       │
-      └───────────────┘           └───────────────┘
+
+```mermaid
+flowchart TB
+    subgraph TestSuite[Acceptance Test Suite]
+        subgraph Cucumber[Cucumber.js]
+            FF[Feature Files<br/>.feature]
+            SD[Step Definitions<br/>.ts]
+            WC[World Context<br/>Playwright]
+        end
+    end
+
+    TestSuite --> Frontend[Frontend<br/>Browser]
+    TestSuite --> Backend[Backend<br/>API]
 ```
 
 Feature file example:

@@ -25,20 +25,18 @@ Candidates considered:
 We will use **Grafana** as the unified observability dashboard platform.
 
 Architecture:
-```
-                    ┌─────────────────────────────────────┐
-                    │             Grafana                  │
-                    │  ┌─────────────────────────────────┐ │
-                    │  │  Dashboards │ Alerts │ Explore  │ │
-                    │  └─────────────────────────────────┘ │
-                    └──────────────────────────────────────┘
-                           │           │           │
-              ┌────────────┘           │           └────────────┐
-              ▼                        ▼                        ▼
-      ┌───────────────┐        ┌───────────────┐        ┌───────────────┐
-      │  Prometheus   │        │     Loki      │        │    Tempo      │
-      │   (Metrics)   │        │    (Logs)     │        │   (Traces)    │
-      └───────────────┘        └───────────────┘        └───────────────┘
+
+```mermaid
+flowchart TB
+    subgraph Grafana
+        Dash[Dashboards]
+        Alerts[Alerts]
+        Explore[Explore]
+    end
+
+    Grafana --> Prometheus[(Prometheus<br/>Metrics)]
+    Grafana --> Loki[(Loki<br/>Logs)]
+    Grafana --> Tempo[(Tempo<br/>Traces)]
 ```
 
 Dashboard organization:

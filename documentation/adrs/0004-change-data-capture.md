@@ -28,14 +28,14 @@ We need a reliable mechanism to capture database changes and stream them to Kafk
 We will use **Change Data Capture (CDC)** via **Debezium** to stream database changes from PostgreSQL to Kafka.
 
 Architecture:
-```
-┌─────────────┐     ┌────────────┐     ┌───────────────┐     ┌─────────┐
-│   Service   │────▶│ PostgreSQL │────▶│   Debezium    │────▶│  Kafka  │
-│             │     │   (WAL)    │     │   Connect     │     │         │
-└─────────────┘     └────────────┘     └───────────────┘     └─────────┘
-                           │
-                    Transaction Log
-                    (Write-Ahead Log)
+
+```mermaid
+flowchart LR
+    Service[Service] --> PG[(PostgreSQL<br/>WAL)]
+    PG --> DC[Debezium<br/>Connect]
+    DC --> Kafka[(Kafka)]
+
+    PG -.-> WAL[Transaction Log<br/>Write-Ahead Log]
 ```
 
 How it works:

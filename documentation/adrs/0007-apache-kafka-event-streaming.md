@@ -41,19 +41,21 @@ Consumer patterns:
 - **Exactly-Once Semantics**: Enable idempotent producers and transactional consumers
 - **Schema Evolution**: All messages use Avro with Schema Registry
 
-```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│  Producer   │────▶│    Kafka    │────▶│  Consumer   │
-│  Service    │     │   Cluster   │     │  Group A    │
-└─────────────┘     │             │     └─────────────┘
-                    │  ┌───────┐  │     ┌─────────────┐
-                    │  │ Topic │  │────▶│  Consumer   │
-                    │  │  P0   │  │     │  Group B    │
-                    │  │  P1   │  │     └─────────────┘
-                    │  │  P2   │  │     ┌─────────────┐
-                    │  └───────┘  │────▶│  Consumer   │
-                    │             │     │  Group C    │
-                    └─────────────┘     └─────────────┘
+```mermaid
+flowchart LR
+    Producer[Producer<br/>Service] --> Kafka
+
+    subgraph Kafka[Kafka Cluster]
+        subgraph Topic[Topic]
+            P0[Partition 0]
+            P1[Partition 1]
+            P2[Partition 2]
+        end
+    end
+
+    Kafka --> CGA[Consumer<br/>Group A]
+    Kafka --> CGB[Consumer<br/>Group B]
+    Kafka --> CGC[Consumer<br/>Group C]
 ```
 
 ## Consequences

@@ -32,21 +32,18 @@ We need a secrets management solution that:
 We will use **HashiCorp Vault** as the centralized secrets management platform.
 
 Architecture:
-```
-┌─────────────────────────────────────────────────────────────┐
-│                         Vault                                │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
-│  │   Secret    │  │  Database   │  │    PKI Engine       │  │
-│  │   Engine    │  │  Engine     │  │   (Certificates)    │  │
-│  │  (KV v2)    │  │ (Dynamic)   │  │                     │  │
-│  └─────────────┘  └─────────────┘  └─────────────────────┘  │
-└────────────────────────────────────────────────────────────-┘
-         ▲                 ▲                    ▲
-         │                 │                    │
-    ┌────┴────┐       ┌────┴────┐          ┌────┴────┐
-    │ Service │       │ Service │          │ Service │
-    │    A    │       │    B    │          │    C    │
-    └─────────┘       └─────────┘          └─────────┘
+
+```mermaid
+flowchart TB
+    subgraph Vault
+        SE[Secret Engine<br/>KV v2]
+        DE[Database Engine<br/>Dynamic]
+        PKI[PKI Engine<br/>Certificates]
+    end
+
+    SA[Service A] --> SE
+    SB[Service B] --> DE
+    SC[Service C] --> PKI
 ```
 
 Secret engines in use:

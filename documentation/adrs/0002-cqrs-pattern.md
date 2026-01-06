@@ -41,24 +41,27 @@ Data flow:
 4. Queries are served directly from MongoDB
 
 Service structure:
-```
-┌─────────────────────────────────────────────────────┐
-│                     Service                          │
-│  ┌─────────────────┐    ┌─────────────────────────┐ │
-│  │  Command Side   │    │      Query Side          │ │
-│  │  - Validation   │    │  - Projectors            │ │
-│  │  - Business     │    │  - Query Handlers        │ │
-│  │    Logic        │    │  - Search Optimization   │ │
-│  │  - PostgreSQL   │    │  - MongoDB               │ │
-│  └────────┬────────┘    └──────────┬──────────────┘ │
-│           │                        │                 │
-│           └──────────┬─────────────┘                 │
-│                      │                               │
-└──────────────────────┼───────────────────────────────┘
-                       │
-                   ┌───▼───┐
-                   │ Kafka │
-                   └───────┘
+
+```mermaid
+flowchart TB
+    subgraph Service
+        subgraph CommandSide["Command Side"]
+            CV[Validation]
+            BL[Business Logic]
+            PG[(PostgreSQL)]
+        end
+        subgraph QuerySide["Query Side"]
+            PR[Projectors]
+            QH[Query Handlers]
+            SO[Search Optimization]
+            MG[(MongoDB)]
+        end
+    end
+
+    CommandSide --> Kafka
+    Kafka --> QuerySide
+
+    Kafka[(Kafka)]
 ```
 
 ## Consequences

@@ -25,19 +25,19 @@ Candidates considered:
 We will use **Prometheus** as the metrics collection and storage system for all services.
 
 Architecture:
-```
-┌──────────────────────────────────────────────────────────────┐
-│                       Prometheus                              │
-│  ┌─────────────────────────────────────────────────────────┐ │
-│  │  Service Discovery │ Scrape Engine │ TSDB │ PromQL API  │ │
-│  └─────────────────────────────────────────────────────────┘ │
-└──────────────────────────────────────────────────────────────┘
-         ▲                ▲                ▲
-         │ scrape         │ scrape         │ scrape
-    ┌────┴────┐      ┌────┴────┐      ┌────┴────┐
-    │ Service │      │ Service │      │  Infra  │
-    │/metrics │      │/metrics │      │/metrics │
-    └─────────┘      └─────────┘      └─────────┘
+
+```mermaid
+flowchart TB
+    subgraph Prometheus
+        SD[Service Discovery]
+        SE[Scrape Engine]
+        TSDB[(TSDB)]
+        API[PromQL API]
+    end
+
+    S1[Service<br/>/metrics] -->|scrape| Prometheus
+    S2[Service<br/>/metrics] -->|scrape| Prometheus
+    Infra[Infrastructure<br/>/metrics] -->|scrape| Prometheus
 ```
 
 Metrics categories:

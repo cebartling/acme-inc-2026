@@ -25,25 +25,30 @@ Candidates considered:
 We will use **Docker Compose** for local development environment orchestration.
 
 Architecture:
-```
-┌───────────────────────────────────────────────────────────────────┐
-│                    Local Development Environment                   │
-│                                                                    │
-│  docker-compose.yml (Infrastructure)                               │
-│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐     │
-│  │Postgres │ │ MongoDB │ │  Kafka  │ │ Debezium│ │  Vault  │     │
-│  └─────────┘ └─────────┘ └─────────┘ └─────────┘ └─────────┘     │
-│  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐                  │
-│  │Prometheus│ │  Loki  │ │  Tempo  │ │ Grafana │                  │
-│  └─────────┘ └─────────┘ └─────────┘ └─────────┘                  │
-│                                                                    │
-│  docker-compose.apps.yml (Applications)                            │
-│  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐                  │
-│  │  Identity   │ │  Customer   │ │  Customer   │                  │
-│  │  Service    │ │  Service    │ │  Frontend   │                  │
-│  └─────────────┘ └─────────────┘ └─────────────┘                  │
-│                                                                    │
-└───────────────────────────────────────────────────────────────────┘
+
+```mermaid
+flowchart TB
+    subgraph LocalDev[Local Development Environment]
+        subgraph Infra[docker-compose.yml - Infrastructure]
+            PG[(Postgres)]
+            MG[(MongoDB)]
+            KF[Kafka]
+            DZ[Debezium]
+            VT[Vault]
+            PM[Prometheus]
+            LK[Loki]
+            TM[Tempo]
+            GF[Grafana]
+        end
+
+        subgraph Apps[docker-compose.apps.yml - Applications]
+            IS[Identity<br/>Service]
+            CS[Customer<br/>Service]
+            CF[Customer<br/>Frontend]
+        end
+    end
+
+    Apps --> Infra
 ```
 
 File organization:

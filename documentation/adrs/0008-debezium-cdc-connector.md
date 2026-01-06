@@ -25,19 +25,17 @@ Candidates considered:
 We will use **Debezium** running on Kafka Connect for all Change Data Capture requirements.
 
 Architecture:
-```
-┌────────────┐     ┌────────────────────────────────────┐     ┌───────┐
-│ PostgreSQL │     │       Kafka Connect Cluster        │     │ Kafka │
-│            │────▶│  ┌──────────────────────────────┐  │────▶│       │
-│   (WAL)    │     │  │   Debezium PostgreSQL        │  │     │       │
-│            │     │  │   Source Connector           │  │     │       │
-└────────────┘     │  └──────────────────────────────┘  │     └───────┘
-                   └────────────────────────────────────┘
-                                    │
-                              ┌─────▼─────┐
-                              │  Schema   │
-                              │ Registry  │
-                              └───────────┘
+
+```mermaid
+flowchart LR
+    PG[(PostgreSQL<br/>WAL)] --> KC
+
+    subgraph KC[Kafka Connect Cluster]
+        DZ[Debezium PostgreSQL<br/>Source Connector]
+    end
+
+    KC --> Kafka[(Kafka)]
+    KC --> SR[(Schema<br/>Registry)]
 ```
 
 Connector configuration principles:
