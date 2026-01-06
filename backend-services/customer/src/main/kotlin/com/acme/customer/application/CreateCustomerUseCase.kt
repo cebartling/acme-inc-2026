@@ -36,11 +36,11 @@ import java.util.concurrent.CompletableFuture
  * 5. Persist event to event store (within transaction)
  * 6. Persist customer and preferences (within transaction)
  * 7. Project to MongoDB (waits for completion before transaction commit)
- * 8. Publish CustomerRegistered event to Kafka (waits for completion before transaction commit)
+ * 8. Publish CustomerRegistered event to Kafka synchronously (within transaction)
  *
- * The projection and event publishing operations run asynchronously but are awaited
- * before the transaction commits to ensure consistency between the write model
- * (PostgreSQL) and read model (MongoDB).
+ * The projection operation runs asynchronously but is awaited before the transaction
+ * commits. The Kafka publishing is synchronous to ensure it participates in the
+ * transaction - if publishing fails, the transaction will be rolled back.
  */
 @Service
 class CreateCustomerUseCase(
@@ -170,13 +170,16 @@ class CreateCustomerUseCase(
                 )
 
                 // Project to MongoDB and publish to Kafka
-                // Wait for both operations to complete before committing transaction
+                // Wait for projection to complete, then publish synchronously
                 // This ensures consistency between write model (PostgreSQL) and read model (MongoDB)
                 val projectionFuture = customerReadModelProjector.projectCustomer(customer, preferences)
-                val publishFuture = customerEventPublisher.publish(event)
-
-                // Wait for both futures to complete - exceptions will propagate and roll back transaction
-                CompletableFuture.allOf(projectionFuture, publishFuture).join()
+                
+                // Wait for projection to complete before publishing to Kafka
+                projectionFuture.join()
+                
+                // Publish synchronously within the transaction
+                // Any exception will cause transaction rollback
+                customerEventPublisher.publish(event)
 
                 customerCreatedCounter.increment()
 
