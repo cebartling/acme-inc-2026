@@ -17,6 +17,7 @@ import io.micrometer.core.instrument.Counter
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.Timer
 import org.slf4j.LoggerFactory
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
@@ -175,6 +176,38 @@ class CreateCustomerUseCase(
                     customer = customer,
                     preferences = preferences
                 )
+            } catch (e: DataIntegrityViolationException) {
+                // Handle race condition: another instance created the customer between our check and save
+                logger.warn(
+                    "Constraint violation when creating customer for user {}, checking if customer exists",
+                    userId,
+                    e
+                )
+                
+                // Re-check if customer exists after constraint violation
+                customerRepository.findByUserId(userId)?.let { existingCustomer ->
+                    logger.info(
+                        "Customer {} was created by another instance for user {}, returning existing customer",
+                        existingCustomer.id,
+                        userId
+                    )
+                    customerExistsCounter.increment()
+                    return@record CreateCustomerResult.AlreadyExists(
+                        userId = userId,
+                        existingCustomerId = existingCustomer.id
+                    )
+                } ?: run {
+                    // Constraint violation but customer still doesn't exist - unexpected
+                    logger.error(
+                        "Constraint violation for user {} but customer not found",
+                        userId,
+                        e
+                    )
+                    return@record CreateCustomerResult.Failure(
+                        message = "Database constraint violation: ${e.message}",
+                        cause = e
+                    )
+                }
             } catch (e: Exception) {
                 logger.error(
                     "Failed to create customer for user {}: {}",

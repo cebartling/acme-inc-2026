@@ -75,8 +75,8 @@ class UserRegisteredConsumer(
             logger.info(
                 "Received {} event {} for user {} from partition {} offset {}",
                 event.eventType,
-                event.eventId,
                 event.payload.userId,
+                event.eventId,
                 record.partition(),
                 record.offset()
             )
@@ -84,18 +84,6 @@ class UserRegisteredConsumer(
             // Track event processing lag
             val eventAge = Duration.between(event.timestamp, startTime)
             eventLagTimer.record(eventAge)
-
-            // Idempotency check
-            if (processedEventRepository.existsByEventId(event.eventId)) {
-                logger.info(
-                    "Event {} already processed, skipping (user: {})",
-                    event.eventId,
-                    event.payload.userId
-                )
-                eventsSkippedCounter.increment()
-                acknowledgment.acknowledge()
-                return
-            }
 
             // Validate event type
             if (event.eventType != UserRegisteredEvent.EVENT_TYPE) {
@@ -109,18 +97,10 @@ class UserRegisteredConsumer(
                 return
             }
 
-            // Process the event
+            // Process the event (idempotency check now happens inside the handler within transaction)
             processingTimer.record(Runnable {
                 userRegisteredHandler.handle(event)
             })
-
-            // Mark event as processed
-            processedEventRepository.save(
-                ProcessedEvent(
-                    eventId = event.eventId,
-                    eventType = event.eventType
-                )
-            )
 
             eventsProcessedCounter.increment()
             acknowledgment.acknowledge()

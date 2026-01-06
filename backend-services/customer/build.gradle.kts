@@ -13,7 +13,7 @@ version = "0.0.1-SNAPSHOT"
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(24)
+        languageVersion = JavaLanguageVersion.of(21)
     }
 }
 
@@ -22,7 +22,6 @@ repositories {
     // Note: Spring milestone repository required for Spring Boot 4.x
     // which is not yet GA. Remove this once Spring Boot 4 is released to Maven Central.
     maven { url = uri("https://repo.spring.io/milestone") }
-    maven { url = uri("https://packages.confluent.io/maven/") }
 }
 
 extra["springCloudVersion"] = "2024.0.0"
@@ -56,8 +55,6 @@ dependencies {
 
     // Kafka
     implementation("org.springframework.kafka:spring-kafka")
-    implementation("io.confluent:kafka-avro-serializer:7.7.1")
-    implementation("org.apache.avro:avro:1.12.0")
 
     // Observability
     implementation("io.micrometer:micrometer-tracing-bridge-otel")
