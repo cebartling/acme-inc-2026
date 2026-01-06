@@ -14,8 +14,6 @@ const common = {
     'steps/api/customer-profile.steps.ts',
   ],
   format: [
-    // IMPORTANT: Allure must be BEFORE progress formatter or it swallows stdout
-    ['allure-cucumberjs/reporter', 'allure-results'],
     'json:reports/cucumber-report.json',
     'html:reports/cucumber-report.html',
     './support/progress-formatter.ts',
