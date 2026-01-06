@@ -51,7 +51,8 @@ class CustomerReadModelProjector(
         preferences: CustomerPreferences
     ): CompletableFuture<Void> {
         return CompletableFuture.runAsync {
-            projectionTimer.record(Runnable {
+            val startTime = System.nanoTime()
+            try {
                 val document = buildDocument(customer, preferences)
                 mongoTemplate.save(document, collectionName)
 
@@ -59,7 +60,17 @@ class CustomerReadModelProjector(
                     "Projected customer {} to MongoDB read model",
                     customer.id
                 )
-            })
+                projectionTimer.record(System.nanoTime() - startTime, java.util.concurrent.TimeUnit.NANOSECONDS)
+            } catch (e: Exception) {
+                projectionTimer.record(System.nanoTime() - startTime, java.util.concurrent.TimeUnit.NANOSECONDS)
+                logger.error(
+                    "Failed to project customer {} to MongoDB: {}",
+                    customer.id,
+                    e.message,
+                    e
+                )
+                throw e
+            }
         }
     }
 

@@ -68,14 +68,6 @@ class UserRegisteredHandler(
                     result.customer.customerNumber,
                     event.payload.userId
                 )
-                
-                // Mark event as processed within same transaction
-                processedEventRepository.save(
-                    ProcessedEvent(
-                        eventId = event.eventId,
-                        eventType = event.eventType
-                    )
-                )
             }
 
             is CreateCustomerResult.AlreadyExists -> {
@@ -83,14 +75,6 @@ class UserRegisteredHandler(
                     "Customer {} already exists for user {}, event processed idempotently",
                     result.existingCustomerId,
                     result.userId
-                )
-                
-                // Mark event as processed even if customer already exists
-                processedEventRepository.save(
-                    ProcessedEvent(
-                        eventId = event.eventId,
-                        eventType = event.eventType
-                    )
                 )
             }
 
@@ -104,5 +88,13 @@ class UserRegisteredHandler(
                 throw RuntimeException(result.message, result.cause)
             }
         }
+
+        // Mark event as processed within same transaction (after successful processing)
+        processedEventRepository.save(
+            ProcessedEvent(
+                eventId = event.eventId,
+                eventType = event.eventType
+            )
+        )
     }
 }

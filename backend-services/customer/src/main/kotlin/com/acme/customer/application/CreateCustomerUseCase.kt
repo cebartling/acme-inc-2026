@@ -178,6 +178,7 @@ class CreateCustomerUseCase(
                 )
             } catch (e: DataIntegrityViolationException) {
                 // Handle race condition: another instance created the customer between our check and save
+                // The transaction has already rolled back at this point, so we're outside the transaction scope
                 logger.warn(
                     "Constraint violation when creating customer for user {}, checking if customer exists",
                     userId,
@@ -185,6 +186,8 @@ class CreateCustomerUseCase(
                 )
                 
                 // Re-check if customer exists after constraint violation
+                // Note: This is a best-effort check outside the transaction scope.
+                // If another instance created the customer, we should find it here.
                 customerRepository.findByUserId(userId)?.let { existingCustomer ->
                     logger.info(
                         "Customer {} was created by another instance for user {}, returning existing customer",
