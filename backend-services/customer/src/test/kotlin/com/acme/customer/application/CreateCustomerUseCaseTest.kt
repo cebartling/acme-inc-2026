@@ -73,7 +73,7 @@ class CreateCustomerUseCaseTest {
         every { customerRepository.save(any()) } answers { firstArg() }
         every { customerPreferencesRepository.save(any()) } answers { firstArg() }
         every { customerReadModelProjector.projectCustomer(any(), any()) } returns CompletableFuture.completedFuture(null)
-        every { customerEventPublisher.publish(any()) } returns CompletableFuture.completedFuture(null)
+        every { customerEventPublisher.publish(any()) } just Runs
 
         // When
         val result = useCase.execute(
@@ -155,7 +155,7 @@ class CreateCustomerUseCaseTest {
         every { customerRepository.save(any()) } answers { firstArg() }
         every { customerPreferencesRepository.save(capture(preferencesSlot)) } answers { firstArg() }
         every { customerReadModelProjector.projectCustomer(any(), any()) } returns CompletableFuture.completedFuture(null)
-        every { customerEventPublisher.publish(any()) } returns CompletableFuture.completedFuture(null)
+        every { customerEventPublisher.publish(any()) } just Runs
 
         // When - with marketingOptIn = false
         useCase.execute(
@@ -189,7 +189,7 @@ class CreateCustomerUseCaseTest {
         every { customerRepository.save(capture(customerSlot)) } answers { firstArg() }
         every { customerPreferencesRepository.save(any()) } answers { firstArg() }
         every { customerReadModelProjector.projectCustomer(any(), any()) } returns CompletableFuture.completedFuture(null)
-        every { customerEventPublisher.publish(any()) } returns CompletableFuture.completedFuture(null)
+        every { customerEventPublisher.publish(any()) } just Runs
 
         // When
         useCase.execute(
@@ -231,5 +231,40 @@ class CreateCustomerUseCaseTest {
         assertTrue(result is CreateCustomerResult.Failure)
         val failure = result as CreateCustomerResult.Failure
         assertTrue(failure.message.contains("Database error"))
+    }
+
+    @Test
+    fun `execute should return Failure when Kafka publishing fails`() {
+        // Given
+        val userId = UUID.randomUUID()
+        val customerId = UUID.randomUUID()
+
+        every { customerRepository.findByUserId(userId) } returns null
+        every { customerIdGenerator.generate() } returns customerId
+        every { customerNumberSequenceRepository.nextSequence(any()) } returns 1
+        every { eventStoreRepository.append(any()) } just Runs
+        every { customerRepository.save(any()) } answers { firstArg() }
+        every { customerPreferencesRepository.save(any()) } answers { firstArg() }
+        every { customerEventPublisher.publish(any()) } throws RuntimeException("Kafka is unavailable")
+
+        // When
+        val result = useCase.execute(
+            userId = userId,
+            email = "test@example.com",
+            firstName = "Jane",
+            lastName = "Doe",
+            marketingOptIn = true,
+            registeredAt = Instant.now(),
+            correlationId = UUID.randomUUID(),
+            causationId = UUID.randomUUID()
+        )
+
+        // Then
+        assertTrue(result is CreateCustomerResult.Failure)
+        val failure = result as CreateCustomerResult.Failure
+        assertTrue(failure.message.contains("Kafka is unavailable"))
+
+        // Verify that MongoDB projection was not called since transaction should have rolled back
+        verify(exactly = 0) { customerReadModelProjector.projectCustomer(any(), any()) }
     }
 }

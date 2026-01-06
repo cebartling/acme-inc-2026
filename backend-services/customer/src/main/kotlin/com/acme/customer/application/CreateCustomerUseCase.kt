@@ -34,8 +34,8 @@ import java.util.UUID
  * 4. Create customer and preferences entities
  * 5. Persist event to event store (within transaction)
  * 6. Persist customer and preferences (within transaction)
- * 7. Project to MongoDB (async)
- * 8. Publish CustomerRegistered event to Kafka
+ * 7. Publish CustomerRegistered event to Kafka (synchronous, within transaction)
+ * 8. Project to MongoDB (async, after transaction commits)
  */
 @Service
 class CreateCustomerUseCase(
@@ -157,6 +157,10 @@ class CreateCustomerUseCase(
                 customerRepository.save(customer)
                 customerPreferencesRepository.save(preferences)
 
+                // Publish event to Kafka (synchronous, within transaction)
+                // This ensures that if Kafka publishing fails, the transaction will be rolled back
+                customerEventPublisher.publish(event)
+
                 logger.info(
                     "Created customer {} with number {} for user {}",
                     customerId,
@@ -164,11 +168,8 @@ class CreateCustomerUseCase(
                     userId
                 )
 
-                // Project to MongoDB (async, outside transaction)
+                // Project to MongoDB (async, outside transaction after commit)
                 customerReadModelProjector.projectCustomer(customer, preferences)
-
-                // Publish event to Kafka (async, outside transaction)
-                customerEventPublisher.publish(event)
 
                 customerCreatedCounter.increment()
 

@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
 import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.stereotype.Component
-import java.util.concurrent.CompletableFuture
 
 /**
  * Kafka publisher for customer domain events.
@@ -21,9 +20,10 @@ class CustomerEventPublisher(
     private val logger = LoggerFactory.getLogger(CustomerEventPublisher::class.java)
 
     /**
-     * Publishes a CustomerRegistered event to Kafka.
+     * Publishes a CustomerRegistered event to Kafka synchronously.
      *
-     * The event is serialized to JSON and published asynchronously.
+     * The event is serialized to JSON and published to Kafka. This method
+     * blocks until the Kafka broker acknowledges receipt of the message.
      * The aggregate ID (customer ID) is used as the message key to
      * ensure ordering of events for the same customer.
      *
@@ -31,9 +31,9 @@ class CustomerEventPublisher(
      * main transaction can be rolled back if publishing fails.
      *
      * @param event The CustomerRegistered event to publish.
-     * @return A CompletableFuture that completes when the send is acknowledged.
+     * @throws RuntimeException if publishing fails.
      */
-    fun publish(event: CustomerRegistered): CompletableFuture<Void> {
+    fun publish(event: CustomerRegistered) {
         val key = event.aggregateId.toString()
         val value = objectMapper.writeValueAsString(event)
 
@@ -45,28 +45,27 @@ class CustomerEventPublisher(
             CustomerRegistered.TOPIC
         )
 
-        return kafkaTemplate.send(CustomerRegistered.TOPIC, key, value)
-            .thenAccept { result ->
-                logger.info(
-                    "Published {} event {} for customer {} to topic {} partition {} offset {}",
-                    event.eventType,
-                    event.eventId,
-                    event.payload.customerId,
-                    result.recordMetadata.topic(),
-                    result.recordMetadata.partition(),
-                    result.recordMetadata.offset()
-                )
-            }
-            .exceptionally { ex ->
-                logger.error(
-                    "Failed to publish {} event {} for customer {}: {}",
-                    event.eventType,
-                    event.eventId,
-                    event.payload.customerId,
-                    ex.message,
-                    ex
-                )
-                throw RuntimeException("Failed to publish event to Kafka", ex)
-            }
+        try {
+            val sendResult = kafkaTemplate.send(CustomerRegistered.TOPIC, key, value).get()
+            logger.info(
+                "Published {} event {} for customer {} to topic {} partition {} offset {}",
+                event.eventType,
+                event.eventId,
+                event.payload.customerId,
+                sendResult.recordMetadata.topic(),
+                sendResult.recordMetadata.partition(),
+                sendResult.recordMetadata.offset()
+            )
+        } catch (ex: Exception) {
+            logger.error(
+                "Failed to publish {} event {} for customer {}: {}",
+                event.eventType,
+                event.eventId,
+                event.payload.customerId,
+                ex.message,
+                ex
+            )
+            throw RuntimeException("Failed to publish event to Kafka", ex)
+        }
     }
 }
