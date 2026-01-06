@@ -23,7 +23,6 @@ import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 import java.time.YearMonth
 import java.util.UUID
-import java.util.concurrent.CompletableFuture
 
 /**
  * Use case for creating a new customer profile.

@@ -3,6 +3,7 @@ package com.acme.customer.infrastructure.messaging
 import com.acme.customer.domain.events.CustomerRegistered
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.stereotype.Component
 import java.util.concurrent.TimeUnit
@@ -16,7 +17,9 @@ import java.util.concurrent.TimeUnit
 @Component
 class CustomerEventPublisher(
     private val kafkaTemplate: KafkaTemplate<String, String>,
-    private val objectMapper: ObjectMapper
+    private val objectMapper: ObjectMapper,
+    @Value("\${customer.events.publish.timeout-seconds:10}")
+    private val publishTimeoutSeconds: Long
 ) {
     private val logger = LoggerFactory.getLogger(CustomerEventPublisher::class.java)
 
@@ -44,7 +47,8 @@ class CustomerEventPublisher(
         )
 
         try {
-            val sendResult = kafkaTemplate.send(CustomerRegistered.TOPIC, key, value).get(10, TimeUnit.SECONDS)
+            val sendResult = kafkaTemplate.send(CustomerRegistered.TOPIC, key, value)
+                .get(publishTimeoutSeconds, TimeUnit.SECONDS)
             logger.info(
                 "Published {} event {} for customer {} to topic {} partition {} offset {}",
                 event.eventType,
