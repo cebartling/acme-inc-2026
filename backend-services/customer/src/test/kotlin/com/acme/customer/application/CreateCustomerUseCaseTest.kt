@@ -73,7 +73,7 @@ class CreateCustomerUseCaseTest {
         every { customerRepository.save(any()) } answers { firstArg() }
         every { customerPreferencesRepository.save(any()) } answers { firstArg() }
         every { customerReadModelProjector.projectCustomer(any(), any()) } returns CompletableFuture.completedFuture(null)
-        every { customerEventPublisher.publish(any()) } returns CompletableFuture.completedFuture(null)
+        every { customerEventPublisher.publish(any()) } just Runs
 
         // When
         val result = useCase.execute(
@@ -155,7 +155,7 @@ class CreateCustomerUseCaseTest {
         every { customerRepository.save(any()) } answers { firstArg() }
         every { customerPreferencesRepository.save(capture(preferencesSlot)) } answers { firstArg() }
         every { customerReadModelProjector.projectCustomer(any(), any()) } returns CompletableFuture.completedFuture(null)
-        every { customerEventPublisher.publish(any()) } returns CompletableFuture.completedFuture(null)
+        every { customerEventPublisher.publish(any()) } just Runs
 
         // When - with marketingOptIn = false
         useCase.execute(
@@ -189,7 +189,7 @@ class CreateCustomerUseCaseTest {
         every { customerRepository.save(capture(customerSlot)) } answers { firstArg() }
         every { customerPreferencesRepository.save(any()) } answers { firstArg() }
         every { customerReadModelProjector.projectCustomer(any(), any()) } returns CompletableFuture.completedFuture(null)
-        every { customerEventPublisher.publish(any()) } returns CompletableFuture.completedFuture(null)
+        every { customerEventPublisher.publish(any()) } just Runs
 
         // When
         useCase.execute(
@@ -256,8 +256,6 @@ class CreateCustomerUseCaseTest {
         // MongoDB projection fails
         every { customerReadModelProjector.projectCustomer(any(), any()) } returns 
             CompletableFuture.failedFuture(RuntimeException("MongoDB connection failed"))
-        
-        every { customerEventPublisher.publish(any()) } returns CompletableFuture.completedFuture(null)
 
         // When
         val result = useCase.execute(
@@ -299,8 +297,7 @@ class CreateCustomerUseCaseTest {
         every { customerReadModelProjector.projectCustomer(any(), any()) } returns CompletableFuture.completedFuture(null)
         
         // Kafka publishing fails
-        every { customerEventPublisher.publish(any()) } returns 
-            CompletableFuture.failedFuture(RuntimeException("Kafka broker unavailable"))
+        every { customerEventPublisher.publish(any()) } throws RuntimeException("Kafka broker unavailable")
 
         // When
         val result = useCase.execute(
