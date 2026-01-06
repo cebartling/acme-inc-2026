@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
 import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.stereotype.Component
+import java.util.concurrent.TimeUnit
 
 /**
  * Kafka publisher for customer domain events.
@@ -46,7 +47,7 @@ class CustomerEventPublisher(
         )
 
         try {
-            val sendResult = kafkaTemplate.send(CustomerRegistered.TOPIC, key, value).get()
+            val sendResult = kafkaTemplate.send(CustomerRegistered.TOPIC, key, value).get(30, TimeUnit.SECONDS)
             logger.info(
                 "Published {} event {} for customer {} to topic {} partition {} offset {}",
                 event.eventType,
