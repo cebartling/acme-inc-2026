@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 import java.time.YearMonth
 import java.util.UUID
+import java.util.concurrent.CompletableFuture
 
 /**
  * Use case for creating a new customer profile.
@@ -34,8 +35,12 @@ import java.util.UUID
  * 4. Create customer and preferences entities
  * 5. Persist event to event store (within transaction)
  * 6. Persist customer and preferences (within transaction)
- * 7. Project to MongoDB (async)
- * 8. Publish CustomerRegistered event to Kafka
+ * 7. Project to MongoDB (waits for completion before transaction commit)
+ * 8. Publish CustomerRegistered event to Kafka (waits for completion before transaction commit)
+ *
+ * The projection and event publishing operations run asynchronously but are awaited
+ * before the transaction commits to ensure consistency between the write model
+ * (PostgreSQL) and read model (MongoDB).
  */
 @Service
 class CreateCustomerUseCase(
@@ -164,11 +169,14 @@ class CreateCustomerUseCase(
                     userId
                 )
 
-                // Project to MongoDB (async, outside transaction)
-                customerReadModelProjector.projectCustomer(customer, preferences)
+                // Project to MongoDB and publish to Kafka
+                // Wait for both operations to complete before committing transaction
+                // This ensures consistency between write model (PostgreSQL) and read model (MongoDB)
+                val projectionFuture = customerReadModelProjector.projectCustomer(customer, preferences)
+                val publishFuture = customerEventPublisher.publish(event)
 
-                // Publish event to Kafka (async, outside transaction)
-                customerEventPublisher.publish(event)
+                // Wait for both futures to complete - exceptions will propagate and roll back transaction
+                CompletableFuture.allOf(projectionFuture, publishFuture).join()
 
                 customerCreatedCounter.increment()
 
