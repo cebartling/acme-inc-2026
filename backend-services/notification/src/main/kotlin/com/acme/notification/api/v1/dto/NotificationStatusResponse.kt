@@ -15,6 +15,7 @@ data class NotificationStatusResponse(
     val recipientEmail: String,
     val status: NotificationStatus,
     val attemptCount: Int,
+    val providerMessageId: String?,
     val sentAt: Instant?,
     val deliveredAt: Instant?,
     val bouncedAt: Instant?,

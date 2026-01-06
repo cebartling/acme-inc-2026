@@ -82,6 +82,18 @@ class SendGridEmailSender(
                 companyName = companyName
             )
 
+            // In sandbox mode, simulate successful send without calling SendGrid API
+            if (this.sandboxMode) {
+                val simulatedMessageId = "sandbox-${java.util.UUID.randomUUID()}"
+                emailSentCounter.increment()
+                logger.info(
+                    "Verification email simulated (sandbox mode) to {} with message ID {}",
+                    recipientEmail,
+                    simulatedMessageId
+                )
+                return EmailSendResult.Success(simulatedMessageId, 202)
+            }
+
             // Build email
             val mail = Mail().apply {
                 from = Email(fromAddress, fromName)

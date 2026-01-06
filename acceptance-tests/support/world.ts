@@ -13,6 +13,7 @@ export class CustomWorld extends World<CustomWorldParameters> {
   page!: Page;
   identityApiClient!: ApiClient;
   customerApiClient!: ApiClient;
+  notificationApiClient!: ApiClient;
 
   private testData: Map<string, unknown> = new Map();
 
@@ -54,6 +55,7 @@ export class CustomWorld extends World<CustomWorldParameters> {
 
     this.identityApiClient = new ApiClient(config.identityApiUrl);
     this.customerApiClient = new ApiClient(config.customerApiUrl);
+    this.notificationApiClient = new ApiClient(config.notificationApiUrl);
   }
 
   async closeContext(): Promise<void> {

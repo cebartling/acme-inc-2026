@@ -69,4 +69,12 @@ interface NotificationDeliveryRepository : JpaRepository<NotificationDelivery, U
         recipientId: UUID,
         notificationType: NotificationType
     ): Boolean
+
+    /**
+     * Finds all deliveries for a specific recipient by email address.
+     *
+     * @param recipientEmail The email address of the recipient.
+     * @return List of delivery records for the recipient.
+     */
+    fun findByRecipientEmail(recipientEmail: String): List<NotificationDelivery>
 }

@@ -47,6 +47,18 @@ class NotificationController(
         return ResponseEntity.ok(deliveries.map { it.toStatusResponse() })
     }
 
+    /**
+     * Gets all notifications for a recipient by email address.
+     *
+     * @param email The recipient's email address.
+     * @return List of notification statuses.
+     */
+    @GetMapping("/by-email/{email}")
+    fun getNotificationsByEmail(@PathVariable email: String): ResponseEntity<List<NotificationStatusResponse>> {
+        val deliveries = deliveryRepository.findByRecipientEmail(email)
+        return ResponseEntity.ok(deliveries.map { it.toStatusResponse() })
+    }
+
     private fun NotificationDelivery.toStatusResponse() = NotificationStatusResponse(
         notificationId = id,
         notificationType = notificationType,
@@ -54,6 +66,7 @@ class NotificationController(
         recipientEmail = recipientEmail,
         status = status,
         attemptCount = attemptCount,
+        providerMessageId = providerMessageId,
         sentAt = sentAt,
         deliveredAt = deliveredAt,
         bouncedAt = bouncedAt,
