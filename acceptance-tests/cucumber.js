@@ -28,16 +28,18 @@ export default {
   default: {
     ...common,
     paths: ['features/**/*.feature'],
+    // Exclude @rate-limiting tests by default since rate limiting is disabled in local dev
+    tags: 'not @rate-limiting',
   },
   smoke: {
     ...common,
     paths: ['features/**/*.feature'],
-    tags: '@smoke',
+    tags: '@smoke and not @rate-limiting',
   },
   regression: {
     ...common,
     paths: ['features/**/*.feature'],
-    tags: '@regression',
+    tags: '@regression and not @rate-limiting',
   },
   customer: {
     ...common,

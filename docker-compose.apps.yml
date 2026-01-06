@@ -59,8 +59,8 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       SCHEMA_REGISTRY_URL: http://schema-registry:8081
 
-      # Rate limiting (disable for acceptance testing)
-      RATE_LIMITING_ENABLED: ${RATE_LIMITING_ENABLED:-true}
+      # Rate limiting (disabled by default for local development and testing)
+      RATE_LIMITING_ENABLED: ${RATE_LIMITING_ENABLED:-false}
 
       # Observability
       OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4317

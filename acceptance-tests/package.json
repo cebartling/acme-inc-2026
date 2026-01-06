@@ -5,7 +5,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --import tsx ./node_modules/@cucumber/cucumber/bin/cucumber.js --import 'support/world.ts' --import 'support/hooks.ts' --import 'steps/**/*.ts'",
+    "test": "node --import tsx ./node_modules/@cucumber/cucumber/bin/cucumber.js --import 'support/world.ts' --import 'support/hooks.ts' --import 'steps/**/*.ts' --tags 'not @rate-limiting'",
     "test:smoke": "node --import tsx ./node_modules/@cucumber/cucumber/bin/cucumber.js --tags @smoke",
     "test:regression": "node --import tsx ./node_modules/@cucumber/cucumber/bin/cucumber.js --tags @regression",
     "test:customer": "node --import tsx ./node_modules/@cucumber/cucumber/bin/cucumber.js --tags @customer",
