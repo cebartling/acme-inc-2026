@@ -10,6 +10,7 @@ import org.springframework.data.mongodb.core.MongoTemplate
 import org.springframework.scheduling.annotation.Async
 import org.springframework.stereotype.Component
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.TimeUnit
 
 /**
  * Projects customer data to MongoDB read model.
@@ -60,9 +61,9 @@ class CustomerReadModelProjector(
                     "Projected customer {} to MongoDB read model",
                     customer.id
                 )
-                projectionTimer.record(System.nanoTime() - startTime, java.util.concurrent.TimeUnit.NANOSECONDS)
+                projectionTimer.record(System.nanoTime() - startTime, TimeUnit.NANOSECONDS)
             } catch (e: Exception) {
-                projectionTimer.record(System.nanoTime() - startTime, java.util.concurrent.TimeUnit.NANOSECONDS)
+                projectionTimer.record(System.nanoTime() - startTime, TimeUnit.NANOSECONDS)
                 logger.error(
                     "Failed to project customer {} to MongoDB: {}",
                     customer.id,
@@ -153,13 +154,26 @@ class CustomerReadModelProjector(
     @Async
     fun deleteCustomer(customerId: String): CompletableFuture<Void> {
         return CompletableFuture.runAsync {
-            mongoTemplate.remove(
-                org.springframework.data.mongodb.core.query.Query.query(
-                    org.springframework.data.mongodb.core.query.Criteria.where("_id").`is`(customerId)
-                ),
-                collectionName
-            )
-            logger.info("Deleted customer {} from MongoDB read model", customerId)
+            val startTime = System.nanoTime()
+            try {
+                mongoTemplate.remove(
+                    org.springframework.data.mongodb.core.query.Query.query(
+                        org.springframework.data.mongodb.core.query.Criteria.where("_id").`is`(customerId)
+                    ),
+                    collectionName
+                )
+                logger.info("Deleted customer {} from MongoDB read model", customerId)
+                projectionTimer.record(System.nanoTime() - startTime, TimeUnit.NANOSECONDS)
+            } catch (e: Exception) {
+                projectionTimer.record(System.nanoTime() - startTime, TimeUnit.NANOSECONDS)
+                logger.error(
+                    "Failed to delete customer {} from MongoDB: {}",
+                    customerId,
+                    e.message,
+                    e
+                )
+                throw e
+            }
         }
     }
 }
