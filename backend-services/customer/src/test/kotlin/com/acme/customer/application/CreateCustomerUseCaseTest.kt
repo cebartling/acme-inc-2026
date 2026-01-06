@@ -254,9 +254,8 @@ class CreateCustomerUseCaseTest {
         every { customerPreferencesRepository.save(any()) } answers { firstArg() }
         
         // MongoDB projection fails
-        val failedFuture = CompletableFuture<Void>()
-        failedFuture.completeExceptionally(RuntimeException("MongoDB connection failed"))
-        every { customerReadModelProjector.projectCustomer(any(), any()) } returns failedFuture
+        every { customerReadModelProjector.projectCustomer(any(), any()) } returns 
+            CompletableFuture.failedFuture(RuntimeException("MongoDB connection failed"))
         
         every { customerEventPublisher.publish(any()) } returns CompletableFuture.completedFuture(null)
 
@@ -300,9 +299,8 @@ class CreateCustomerUseCaseTest {
         every { customerReadModelProjector.projectCustomer(any(), any()) } returns CompletableFuture.completedFuture(null)
         
         // Kafka publishing fails
-        val failedFuture = CompletableFuture<Void>()
-        failedFuture.completeExceptionally(RuntimeException("Kafka broker unavailable"))
-        every { customerEventPublisher.publish(any()) } returns failedFuture
+        every { customerEventPublisher.publish(any()) } returns 
+            CompletableFuture.failedFuture(RuntimeException("Kafka broker unavailable"))
 
         // When
         val result = useCase.execute(
