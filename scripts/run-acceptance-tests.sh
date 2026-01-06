@@ -237,18 +237,19 @@ run_tests() {
     cmd_array+=("--import" "steps/**/*.ts")
 
     # Add report formats
-    # Default: custom progress formatter showing scenario names and running totals
-    # Use --quiet for minimal output (progress-bar only)
-    if [[ "$QUIET" == true ]]; then
-        cmd_array+=("--format" "progress-bar")
-    else
-        # Use custom progress formatter for detailed scenario-level output
-        cmd_array+=("--format" "./support/progress-formatter.ts")
+    # IMPORTANT: Allure must be added BEFORE progress formatter or it swallows stdout
+    if [[ "$USE_ALLURE" == true ]]; then
+        cmd_array+=("--format" "allure-cucumberjs/reporter")
     fi
     cmd_array+=("--format" "json:reports/cucumber-report.json")
     cmd_array+=("--format" "html:reports/cucumber-report.html")
-    if [[ "$USE_ALLURE" == true ]]; then
-        cmd_array+=("--format" "allure-cucumberjs/reporter")
+
+    # Add progress output (must be LAST - after allure if used)
+    if [[ "$QUIET" == true ]]; then
+        cmd_array+=("--format" "progress-bar")
+    else
+        # Custom progress formatter for detailed scenario-level output
+        cmd_array+=("--format" "./support/progress-formatter.ts")
     fi
 
     # Add profile-specific paths
@@ -271,8 +272,12 @@ run_tests() {
     esac
 
     # Add tags if specified
+    # Note: @rate-limiting tests require RATE_LIMITING_ENABLED=true on Identity Service
+    # They are excluded by default since acceptance tests typically run with rate limiting disabled
     if [[ -n "$TAGS" ]]; then
-        cmd_array+=("--tags" "$TAGS")
+        cmd_array+=("--tags" "$TAGS and not @rate-limiting")
+    else
+        cmd_array+=("--tags" "not @rate-limiting")
     fi
 
     # Add extra arguments

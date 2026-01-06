@@ -144,7 +144,8 @@ Feature: User Registration API (US-0002-02)
     And the response should contain a validation error for field "tosAccepted"
 
   # Rate Limiting
-  @slow
+  # Note: This test requires RATE_LIMITING_ENABLED=true on the Identity Service
+  @slow @rate-limiting
   Scenario: Rate limit registration requests
     Given I have made 5 registration requests from the same IP
     When I submit another registration request
