@@ -232,4 +232,93 @@ class CreateCustomerUseCaseTest {
         val failure = result as CreateCustomerResult.Failure
         assertTrue(failure.message.contains("Database error"))
     }
+
+    @Test
+    fun `execute should return Failure when MongoDB projection fails`() {
+        // Given
+        val userId = UUID.randomUUID()
+        val customerId = UUID.randomUUID()
+        val email = "test@example.com"
+        val firstName = "Jane"
+        val lastName = "Doe"
+        val marketingOptIn = true
+        val registeredAt = Instant.now()
+        val correlationId = UUID.randomUUID()
+        val causationId = UUID.randomUUID()
+
+        every { customerRepository.findByUserId(userId) } returns null
+        every { customerIdGenerator.generate() } returns customerId
+        every { customerNumberSequenceRepository.nextSequence(any()) } returns 1
+        every { eventStoreRepository.append(any()) } just Runs
+        every { customerRepository.save(any()) } answers { firstArg() }
+        every { customerPreferencesRepository.save(any()) } answers { firstArg() }
+        
+        // MongoDB projection fails
+        val failedFuture = CompletableFuture<Void>()
+        failedFuture.completeExceptionally(RuntimeException("MongoDB connection failed"))
+        every { customerReadModelProjector.projectCustomer(any(), any()) } returns failedFuture
+        
+        every { customerEventPublisher.publish(any()) } returns CompletableFuture.completedFuture(null)
+
+        // When
+        val result = useCase.execute(
+            userId = userId,
+            email = email,
+            firstName = firstName,
+            lastName = lastName,
+            marketingOptIn = marketingOptIn,
+            registeredAt = registeredAt,
+            correlationId = correlationId,
+            causationId = causationId
+        )
+
+        // Then - transaction should fail and return Failure result
+        assertTrue(result is CreateCustomerResult.Failure)
+        val failure = result as CreateCustomerResult.Failure
+        assertTrue(failure.message.contains("MongoDB connection failed"))
+    }
+
+    @Test
+    fun `execute should return Failure when Kafka publishing fails`() {
+        // Given
+        val userId = UUID.randomUUID()
+        val customerId = UUID.randomUUID()
+        val email = "test@example.com"
+        val firstName = "Jane"
+        val lastName = "Doe"
+        val marketingOptIn = true
+        val registeredAt = Instant.now()
+        val correlationId = UUID.randomUUID()
+        val causationId = UUID.randomUUID()
+
+        every { customerRepository.findByUserId(userId) } returns null
+        every { customerIdGenerator.generate() } returns customerId
+        every { customerNumberSequenceRepository.nextSequence(any()) } returns 1
+        every { eventStoreRepository.append(any()) } just Runs
+        every { customerRepository.save(any()) } answers { firstArg() }
+        every { customerPreferencesRepository.save(any()) } answers { firstArg() }
+        every { customerReadModelProjector.projectCustomer(any(), any()) } returns CompletableFuture.completedFuture(null)
+        
+        // Kafka publishing fails
+        val failedFuture = CompletableFuture<Void>()
+        failedFuture.completeExceptionally(RuntimeException("Kafka broker unavailable"))
+        every { customerEventPublisher.publish(any()) } returns failedFuture
+
+        // When
+        val result = useCase.execute(
+            userId = userId,
+            email = email,
+            firstName = firstName,
+            lastName = lastName,
+            marketingOptIn = marketingOptIn,
+            registeredAt = registeredAt,
+            correlationId = correlationId,
+            causationId = causationId
+        )
+
+        // Then - transaction should fail and return Failure result
+        assertTrue(result is CreateCustomerResult.Failure)
+        val failure = result as CreateCustomerResult.Failure
+        assertTrue(failure.message.contains("Kafka broker unavailable"))
+    }
 }
