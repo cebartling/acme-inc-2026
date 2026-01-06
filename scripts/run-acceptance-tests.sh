@@ -14,7 +14,6 @@
 #   --api           Run API tests only
 #   --headed        Run with visible browser
 #   --skip-install  Skip npm install step
-#   --allure        Use Allure reports instead of HTML
 #   --no-open       Don't open browser with results
 #   --quiet, -q     Minimal output (progress bar only, no scenario names)
 #   --help          Show this help message
@@ -45,7 +44,6 @@ NC='\033[0m' # No Color
 
 # Default options
 SKIP_INSTALL=false
-USE_ALLURE=false
 OPEN_BROWSER=true
 HEADED=false
 QUIET=false
@@ -95,7 +93,6 @@ ${YELLOW}Test Selection:${NC}
 ${YELLOW}Execution Options:${NC}
   --headed          Run with visible browser (not headless)
   --skip-install    Skip npm install step
-  --allure          Use Allure reports (opens interactive server)
   --no-open         Don't automatically open browser with results
   --quiet, -q       Minimal output (progress bar only, no scenario names)
 
@@ -111,12 +108,10 @@ ${YELLOW}Examples:${NC}
   ./scripts/run-acceptance-tests.sh --smoke            # Run smoke tests only
   ./scripts/run-acceptance-tests.sh --headed           # Run with visible browser
   ./scripts/run-acceptance-tests.sh --api --no-open    # Run API tests, don't open browser
-  ./scripts/run-acceptance-tests.sh --allure           # Run all, use Allure reports
 
 ${YELLOW}Reports:${NC}
   HTML Report:    acceptance-tests/reports/cucumber-report.html
   JSON Report:    acceptance-tests/reports/cucumber-report.json
-  Allure Results: acceptance-tests/allure-results/
 
 ${YELLOW}Prerequisites:${NC}
   - Node.js 24+ (LTS/Krypton) - uses nvm if available
@@ -237,14 +232,10 @@ run_tests() {
     cmd_array+=("--import" "steps/**/*.ts")
 
     # Add report formats
-    # IMPORTANT: Allure must be added BEFORE progress formatter or it swallows stdout
-    if [[ "$USE_ALLURE" == true ]]; then
-        cmd_array+=("--format" "allure-cucumberjs/reporter")
-    fi
     cmd_array+=("--format" "json:reports/cucumber-report.json")
     cmd_array+=("--format" "html:reports/cucumber-report.html")
 
-    # Add progress output (must be LAST - after allure if used)
+    # Add progress output (must be last)
     if [[ "$QUIET" == true ]]; then
         cmd_array+=("--format" "progress-bar")
     else
@@ -296,8 +287,8 @@ run_tests() {
     fi
 
     # Clean previous reports
-    rm -rf reports/*.html reports/*.json allure-results/* 2>/dev/null || true
-    mkdir -p reports allure-results
+    rm -rf reports/*.html reports/*.json 2>/dev/null || true
+    mkdir -p reports
 
     print_info "Test profile: $TEST_PROFILE"
     if [[ -n "$TAGS" ]]; then
@@ -324,50 +315,32 @@ open_reports() {
 
     cd "$ACCEPTANCE_TESTS_DIR"
 
-    if [[ "$USE_ALLURE" == true ]]; then
-        print_header "Opening Allure Report"
+    print_header "Opening HTML Report"
 
-        # Check if allure is installed
-        if ! command -v allure &> /dev/null; then
-            print_warning "Allure CLI not found. Installing via npm..."
-            npm install -g allure-commandline || {
-                print_error "Could not install Allure CLI"
-                print_info "Install manually: npm install -g allure-commandline"
-                print_info "Or view HTML report at: reports/cucumber-report.html"
-                return
-            }
-        fi
+    local report_file="${ACCEPTANCE_TESTS_DIR}/reports/cucumber-report.html"
 
-        print_info "Starting Allure server..."
-        allure serve allure-results
-    else
-        print_header "Opening HTML Report"
+    if [[ ! -f "$report_file" ]]; then
+        print_warning "HTML report not found at: $report_file"
+        return
+    fi
 
-        local report_file="${ACCEPTANCE_TESTS_DIR}/reports/cucumber-report.html"
+    print_success "Report generated: $report_file"
 
-        if [[ ! -f "$report_file" ]]; then
-            print_warning "HTML report not found at: $report_file"
-            return
-        fi
-
-        print_success "Report generated: $report_file"
-
-        # Open in browser based on OS
-        if [[ "$OSTYPE" == "darwin"* ]]; then
-            open "$report_file"
-        elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
-            if command -v xdg-open &> /dev/null; then
-                xdg-open "$report_file"
-            elif command -v gnome-open &> /dev/null; then
-                gnome-open "$report_file"
-            else
-                print_info "Open manually: $report_file"
-            fi
-        elif [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]]; then
-            start "$report_file"
+    # Open in browser based on OS
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        open "$report_file"
+    elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        if command -v xdg-open &> /dev/null; then
+            xdg-open "$report_file"
+        elif command -v gnome-open &> /dev/null; then
+            gnome-open "$report_file"
         else
             print_info "Open manually: $report_file"
         fi
+    elif [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]]; then
+        start "$report_file"
+    else
+        print_info "Open manually: $report_file"
     fi
 }
 
@@ -404,10 +377,6 @@ parse_args() {
                 ;;
             --skip-install)
                 SKIP_INSTALL=true
-                shift
-                ;;
-            --allure)
-                USE_ALLURE=true
                 shift
                 ;;
             --no-open)
