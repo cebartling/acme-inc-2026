@@ -425,7 +425,8 @@ health_check() {
     echo -e "${CYAN}Checking application services...${NC}"
 
     # Check Identity Service
-    if curl -sf http://localhost:8080/actuator/health &>/dev/null; then
+    local identity_port="${IDENTITY_SERVICE_PORT:-10300}"
+    if curl -sf "http://localhost:${identity_port}/actuator/health" &>/dev/null; then
         print_success "Identity Service: healthy"
     else
         print_error "Identity Service: unhealthy or not running"

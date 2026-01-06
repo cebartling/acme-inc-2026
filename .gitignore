@@ -24,6 +24,7 @@ dist/
 build/
 target/
 out/
+.gradle/
 
 # Test coverage
 coverage/

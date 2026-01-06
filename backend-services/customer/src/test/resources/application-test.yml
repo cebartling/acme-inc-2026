@@ -1,0 +1,58 @@
+spring:
+  application:
+    name: customer-service-test
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/acme_customers_test
+    username: test
+    password: test
+    driver-class-name: org.postgresql.Driver
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    clean-on-validation-error: true
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/acme_query_test
+
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: customer-service-test
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+
+server:
+  port: 0
+
+customer:
+  events:
+    input-topic: identity.user.events
+    output-topic: customer.events
+  retry:
+    max-attempts: 3
+    initial-interval-ms: 100
+    multiplier: 2.0
+    max-interval-ms: 1000
+
+logging:
+  level:
+    com.acme.customer: DEBUG
+    org.springframework.kafka: WARN
+    org.testcontainers: INFO

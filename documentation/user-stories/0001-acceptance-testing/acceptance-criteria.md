@@ -326,7 +326,8 @@ BASE_URL=http://localhost:5173 npm run test
 - [ ] `.env.example` documents all environment variables
 - [ ] `BASE_URL` configures the customer app URL
 - [ ] `ADMIN_URL` configures the admin app URL
-- [ ] `API_URL` configures the backend API URL
+- [ ] `IDENTITY_API_URL` configures the Identity Service API URL
+- [ ] `CUSTOMER_API_URL` configures the Customer Service API URL
 - [ ] `HEADLESS` controls browser visibility (true/false)
 - [ ] `BROWSER` selects browser (chromium, firefox, webkit)
 - [ ] `SLOWMO` adds delay for debugging

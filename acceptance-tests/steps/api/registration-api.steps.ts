@@ -29,7 +29,7 @@ interface ErrorResponse {
 
 Given('the Identity Service is available', async function (this: CustomWorld) {
   // Health check for the identity service
-  const isHealthy = await this.apiClient.healthCheck();
+  const isHealthy = await this.identityApiClient.healthCheck();
   expect(isHealthy).toBe(true);
 });
 
@@ -47,7 +47,7 @@ Given(
       marketingOptIn: false,
     };
 
-    await this.apiClient.post('/api/v1/users/register', request);
+    await this.identityApiClient.post('/api/v1/users/register', request);
 
     // Flag that the next request should use the exact email (for duplicate testing)
     this.setTestData('expectDuplicateEmail', true);
@@ -68,7 +68,7 @@ Given(
         marketingOptIn: false,
       };
 
-      await this.apiClient.post('/api/v1/users/register', request);
+      await this.identityApiClient.post('/api/v1/users/register', request);
     }
   }
 );
@@ -105,7 +105,7 @@ When(
       marketingOptIn: data.marketingOptIn === 'true',
     };
 
-    const response = await this.apiClient.post<RegistrationResponse | ErrorResponse>(
+    const response = await this.identityApiClient.post<RegistrationResponse | ErrorResponse>(
       '/api/v1/users/register',
       request
     );
@@ -126,7 +126,7 @@ When('I submit another registration request', async function (this: CustomWorld)
     marketingOptIn: false,
   };
 
-  const response = await this.apiClient.post<RegistrationResponse | ErrorResponse>(
+  const response = await this.identityApiClient.post<RegistrationResponse | ErrorResponse>(
     '/api/v1/users/register',
     request
   );
@@ -147,7 +147,7 @@ When(
       marketingOptIn: false,
     };
 
-    const response = await this.apiClient.post<RegistrationResponse | ErrorResponse>(
+    const response = await this.identityApiClient.post<RegistrationResponse | ErrorResponse>(
       '/api/v1/users/register',
       request
     );
@@ -170,7 +170,7 @@ When(
       marketingOptIn: false,
     };
 
-    const response = await this.apiClient.post<RegistrationResponse | ErrorResponse>(
+    const response = await this.identityApiClient.post<RegistrationResponse | ErrorResponse>(
       '/api/v1/users/register',
       request,
       { headers: { 'X-Registration-Source': source } }
@@ -194,7 +194,7 @@ When(
       marketingOptIn: false,
     };
 
-    const response = await this.apiClient.post<RegistrationResponse | ErrorResponse>(
+    const response = await this.identityApiClient.post<RegistrationResponse | ErrorResponse>(
       '/api/v1/users/register',
       request,
       { headers: { 'X-Correlation-ID': correlationId } }
