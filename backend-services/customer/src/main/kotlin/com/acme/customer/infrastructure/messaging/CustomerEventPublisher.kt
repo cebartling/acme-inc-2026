@@ -69,15 +69,17 @@ class CustomerEventPublisher(
             )
             throw RuntimeException("Kafka publishing timeout after 30 seconds", ex)
         } catch (ex: ExecutionException) {
+            val errorMessage = ex.cause?.message ?: ex.message
+            val errorCause = ex.cause ?: ex
             logger.error(
                 "Failed to publish {} event {} for customer {}: {}",
                 event.eventType,
                 event.eventId,
                 event.payload.customerId,
-                ex.cause?.message ?: ex.message,
-                ex.cause ?: ex
+                errorMessage,
+                errorCause
             )
-            throw RuntimeException("Failed to publish event to Kafka: ${ex.cause?.message ?: ex.message}", ex.cause ?: ex)
+            throw RuntimeException("Failed to publish event to Kafka: $errorMessage", errorCause)
         } catch (ex: InterruptedException) {
             Thread.currentThread().interrupt()
             logger.error(
@@ -88,16 +90,6 @@ class CustomerEventPublisher(
                 ex
             )
             throw RuntimeException("Kafka publishing interrupted", ex)
-        } catch (ex: Exception) {
-            logger.error(
-                "Unexpected error publishing {} event {} for customer {}: {}",
-                event.eventType,
-                event.eventId,
-                event.payload.customerId,
-                ex.message,
-                ex
-            )
-            throw RuntimeException("Unexpected error publishing event to Kafka", ex)
         }
     }
 }
