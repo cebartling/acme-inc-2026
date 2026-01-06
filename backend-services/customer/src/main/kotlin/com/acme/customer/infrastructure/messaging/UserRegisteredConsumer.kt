@@ -75,8 +75,8 @@ class UserRegisteredConsumer(
             logger.info(
                 "Received {} event {} for user {} from partition {} offset {}",
                 event.eventType,
-                event.payload.userId,
                 event.eventId,
+                event.payload.userId,
                 record.partition(),
                 record.offset()
             )

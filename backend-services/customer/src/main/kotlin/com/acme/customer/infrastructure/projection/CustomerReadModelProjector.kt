@@ -50,30 +50,17 @@ class CustomerReadModelProjector(
         customer: Customer,
         preferences: CustomerPreferences
     ): CompletableFuture<Void> {
-        val future = CompletableFuture<Void>()
-        CompletableFuture.runAsync {
+        return CompletableFuture.runAsync {
             projectionTimer.record(Runnable {
-                try {
-                    val document = buildDocument(customer, preferences)
-                    mongoTemplate.save(document, collectionName)
+                val document = buildDocument(customer, preferences)
+                mongoTemplate.save(document, collectionName)
 
-                    logger.info(
-                        "Projected customer {} to MongoDB read model",
-                        customer.id
-                    )
-                    future.complete(null)
-                } catch (e: Exception) {
-                    logger.error(
-                        "Failed to project customer {} to MongoDB: {}",
-                        customer.id,
-                        e.message,
-                        e
-                    )
-                    future.completeExceptionally(e)
-                }
+                logger.info(
+                    "Projected customer {} to MongoDB read model",
+                    customer.id
+                )
             })
         }
-        return future
     }
 
     /**
@@ -154,27 +141,14 @@ class CustomerReadModelProjector(
      */
     @Async
     fun deleteCustomer(customerId: String): CompletableFuture<Void> {
-        val future = CompletableFuture<Void>()
-        CompletableFuture.runAsync {
-            try {
-                mongoTemplate.remove(
-                    org.springframework.data.mongodb.core.query.Query.query(
-                        org.springframework.data.mongodb.core.query.Criteria.where("_id").`is`(customerId)
-                    ),
-                    collectionName
-                )
-                logger.info("Deleted customer {} from MongoDB read model", customerId)
-                future.complete(null)
-            } catch (e: Exception) {
-                logger.error(
-                    "Failed to delete customer {} from MongoDB: {}",
-                    customerId,
-                    e.message,
-                    e
-                )
-                future.completeExceptionally(e)
-            }
+        return CompletableFuture.runAsync {
+            mongoTemplate.remove(
+                org.springframework.data.mongodb.core.query.Query.query(
+                    org.springframework.data.mongodb.core.query.Criteria.where("_id").`is`(customerId)
+                ),
+                collectionName
+            )
+            logger.info("Deleted customer {} from MongoDB read model", customerId)
         }
-        return future
     }
 }
