@@ -79,3 +79,7 @@ Then('I should not see the text {string}', async function (this: CustomWorld, te
 Then('the URL should contain {string}', async function (this: CustomWorld, urlPart: string) {
   await expect(this.page).toHaveURL(new RegExp(urlPart));
 });
+
+Then('I should be redirected to the home page', async function (this: CustomWorld) {
+  await expect(this.page).toHaveURL(new RegExp(`${this.getCustomerAppUrl()}/?$`), { timeout: 10000 });
+});

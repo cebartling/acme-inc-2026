@@ -252,7 +252,8 @@ run_tests() {
         cmd_array+=("--format" "./support/progress-formatter.ts")
     fi
 
-    # Add profile-specific paths
+    # Add profile-specific tags or paths
+    local FEATURE_PATHS=""
     case "$TEST_PROFILE" in
         smoke)
             TAGS="@smoke"
@@ -261,10 +262,7 @@ run_tests() {
             TAGS="@regression"
             ;;
         customer)
-            cmd_array+=("--paths" "features/customer/**/*.feature")
-            ;;
-        admin)
-            cmd_array+=("--paths" "features/admin/**/*.feature")
+            FEATURE_PATHS="features/customer/**/*.feature"
             ;;
         api)
             TAGS="@api"
@@ -283,6 +281,11 @@ run_tests() {
     # Add extra arguments
     if [[ ${#EXTRA_ARGS[@]} -gt 0 ]]; then
         cmd_array+=("${EXTRA_ARGS[@]}")
+    fi
+
+    # Add feature paths (must be last)
+    if [[ -n "$FEATURE_PATHS" ]]; then
+        cmd_array+=("$FEATURE_PATHS")
     fi
 
     # Set environment variables
