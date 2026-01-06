@@ -19,7 +19,7 @@ const common = {
     'steps/admin/user-management.steps.ts',
   ],
   format: [
-    'progress-bar',
+    './support/progress-formatter.ts',
     'json:reports/cucumber-report.json',
     'html:reports/cucumber-report.html',
     ['allure-cucumberjs/reporter', 'allure-results'],

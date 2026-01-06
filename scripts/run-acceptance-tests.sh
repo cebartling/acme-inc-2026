@@ -16,7 +16,7 @@
 #   --skip-install  Skip npm install step
 #   --allure        Use Allure reports instead of HTML
 #   --no-open       Don't open browser with results
-#   --quiet, -q     Minimal output (progress bar only)
+#   --quiet, -q     Minimal output (progress bar only, no scenario names)
 #   --help          Show this help message
 #
 # Examples:
@@ -97,13 +97,13 @@ ${YELLOW}Execution Options:${NC}
   --skip-install    Skip npm install step
   --allure          Use Allure reports (opens interactive server)
   --no-open         Don't automatically open browser with results
-  --quiet, -q       Minimal output (progress bar only, no step details)
+  --quiet, -q       Minimal output (progress bar only, no scenario names)
 
 ${YELLOW}Other:${NC}
   --help            Show this help message
 
 ${YELLOW}Output:${NC}
-  By default, shows step-by-step progress with pass/fail indicators.
+  By default, shows scenario names with progress counts (e.g., [1/10] Running: Login test).
   Use --quiet for minimal output (progress bar only).
 
 ${YELLOW}Examples:${NC}
@@ -132,7 +132,20 @@ EOF
 setup_node() {
     print_info "Setting up Node.js environment..."
 
-    # Check for .nvmrc
+    # First check if node is already available and meets requirements
+    if command -v node &> /dev/null; then
+        local node_version
+        node_version=$(node --version)
+        local major_version
+        major_version=$(echo "$node_version" | sed 's/v//' | cut -d. -f1)
+
+        if [[ "$major_version" -ge 24 ]]; then
+            print_success "Using Node.js $node_version"
+            return 0
+        fi
+    fi
+
+    # Node not found or version too old - try version managers
     local nvmrc_file="${ACCEPTANCE_TESTS_DIR}/.nvmrc"
     local required_version=""
 
@@ -141,28 +154,27 @@ setup_node() {
         print_info "Required Node.js version: $required_version"
     fi
 
-    # Try to use nvm if available
+    # Try nvm if available
     if [[ -s "$HOME/.nvm/nvm.sh" ]]; then
         # shellcheck source=/dev/null
-        source "$HOME/.nvm/nvm.sh"
+        source "$HOME/.nvm/nvm.sh" 2>/dev/null
 
         if [[ -n "$required_version" ]]; then
             print_info "Using nvm to set Node.js version..."
-            if nvm use "$required_version" 2>/dev/null || nvm install "$required_version"; then
+            if nvm use "$required_version" 2>/dev/null; then
                 print_success "Node.js version set via nvm"
             else
-                print_warning "Could not set Node.js version via nvm, using current version"
+                print_warning "Could not set Node.js version via nvm"
             fi
         fi
     elif command -v fnm &> /dev/null; then
-        # Try fnm as alternative
         print_info "Using fnm to set Node.js version..."
         if [[ -n "$required_version" ]]; then
-            fnm use "$required_version" 2>/dev/null || fnm install "$required_version" || true
+            fnm use "$required_version" 2>/dev/null || true
         fi
     fi
 
-    # Verify Node.js is available
+    # Final verification
     if ! command -v node &> /dev/null; then
         print_error "Node.js is not installed or not in PATH"
         print_info "Please install Node.js 24+ or use nvm/fnm"
@@ -173,7 +185,6 @@ setup_node() {
     node_version=$(node --version)
     print_success "Using Node.js $node_version"
 
-    # Check minimum version
     local major_version
     major_version=$(echo "$node_version" | sed 's/v//' | cut -d. -f1)
     if [[ "$major_version" -lt 24 ]]; then
@@ -226,15 +237,13 @@ run_tests() {
     cmd_array+=("--import" "steps/**/*.ts")
 
     # Add report formats
-    # Default: show step-by-step progress with scenario names
+    # Default: custom progress formatter showing scenario names and running totals
     # Use --quiet for minimal output (progress-bar only)
     if [[ "$QUIET" == true ]]; then
         cmd_array+=("--format" "progress-bar")
     else
-        # Use 'progress' format which shows each step result inline
-        # Combined with summary format for final statistics
-        cmd_array+=("--format" "progress")
-        cmd_array+=("--format" "summary")
+        # Use custom progress formatter for detailed scenario-level output
+        cmd_array+=("--format" "./support/progress-formatter.ts")
     fi
     cmd_array+=("--format" "json:reports/cucumber-report.json")
     cmd_array+=("--format" "html:reports/cucumber-report.html")
