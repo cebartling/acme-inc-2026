@@ -3,8 +3,11 @@ package com.acme.customer.application.eventhandlers
 import com.acme.customer.application.CreateCustomerResult
 import com.acme.customer.application.CreateCustomerUseCase
 import com.acme.customer.infrastructure.messaging.dto.UserRegisteredEvent
+import com.acme.customer.infrastructure.persistence.ProcessedEvent
+import com.acme.customer.infrastructure.persistence.ProcessedEventRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
+import org.springframework.transaction.annotation.Transactional
 
 /**
  * Handler for UserRegistered events from the Identity Service.
@@ -14,22 +17,37 @@ import org.springframework.stereotype.Component
  */
 @Component
 class UserRegisteredHandler(
-    private val createCustomerUseCase: CreateCustomerUseCase
+    private val createCustomerUseCase: CreateCustomerUseCase,
+    private val processedEventRepository: ProcessedEventRepository
 ) {
     private val logger = LoggerFactory.getLogger(UserRegisteredHandler::class.java)
 
     /**
      * Handles a UserRegistered event by creating a customer profile.
      *
+     * This method performs the idempotency check and marks the event as processed
+     * within the same transaction as customer creation to prevent race conditions.
+     *
      * @param event The UserRegistered event from Kafka.
      * @throws RuntimeException If customer creation fails.
      */
+    @Transactional
     fun handle(event: UserRegisteredEvent) {
         logger.info(
             "Handling UserRegistered event {} for user {}",
             event.eventId,
             event.payload.userId
         )
+
+        // Idempotency check within transaction
+        if (processedEventRepository.existsByEventId(event.eventId)) {
+            logger.info(
+                "Event {} already processed, skipping (user: {})",
+                event.eventId,
+                event.payload.userId
+            )
+            return
+        }
 
         val result = createCustomerUseCase.execute(
             userId = event.payload.userId,
@@ -70,5 +88,13 @@ class UserRegisteredHandler(
                 throw RuntimeException(result.message, result.cause)
             }
         }
+
+        // Mark event as processed within same transaction (after successful processing)
+        processedEventRepository.save(
+            ProcessedEvent(
+                eventId = event.eventId,
+                eventType = event.eventType
+            )
+        )
     }
 }

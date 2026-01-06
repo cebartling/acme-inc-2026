@@ -10,6 +10,7 @@ import org.springframework.data.mongodb.core.MongoTemplate
 import org.springframework.scheduling.annotation.Async
 import org.springframework.stereotype.Component
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.TimeUnit
 
 /**
  * Projects customer data to MongoDB read model.
@@ -38,6 +39,9 @@ class CustomerReadModelProjector(
      * customer document in MongoDB. The document structure is
      * denormalized for efficient querying.
      *
+     * Exceptions are propagated back to the caller so that the
+     * main transaction can be rolled back if projection fails.
+     *
      * @param customer The customer entity to project.
      * @param preferences The customer's preferences.
      * @return A CompletableFuture that completes when projection is done.
@@ -48,25 +52,26 @@ class CustomerReadModelProjector(
         preferences: CustomerPreferences
     ): CompletableFuture<Void> {
         return CompletableFuture.runAsync {
-            projectionTimer.record(Runnable {
-                try {
-                    val document = buildDocument(customer, preferences)
-                    mongoTemplate.save(document, collectionName)
+            val startTime = System.nanoTime()
+            try {
+                val document = buildDocument(customer, preferences)
+                mongoTemplate.save(document, collectionName)
 
-                    logger.info(
-                        "Projected customer {} to MongoDB read model",
-                        customer.id
-                    )
-                } catch (e: Exception) {
-                    logger.error(
-                        "Failed to project customer {} to MongoDB: {}",
-                        customer.id,
-                        e.message,
-                        e
-                    )
-                    throw e
-                }
-            })
+                logger.info(
+                    "Projected customer {} to MongoDB read model",
+                    customer.id
+                )
+                projectionTimer.record(System.nanoTime() - startTime, TimeUnit.NANOSECONDS)
+            } catch (e: Exception) {
+                projectionTimer.record(System.nanoTime() - startTime, TimeUnit.NANOSECONDS)
+                logger.error(
+                    "Failed to project customer {} to MongoDB: {}",
+                    customer.id,
+                    e.message,
+                    e
+                )
+                throw e
+            }
         }
     }
 
@@ -141,11 +146,15 @@ class CustomerReadModelProjector(
     /**
      * Deletes a customer from the read model.
      *
+     * Exceptions are propagated back to the caller so that the
+     * main transaction can be rolled back if deletion fails.
+     *
      * @param customerId The customer ID to delete.
      */
     @Async
     fun deleteCustomer(customerId: String): CompletableFuture<Void> {
         return CompletableFuture.runAsync {
+            val startTime = System.nanoTime()
             try {
                 mongoTemplate.remove(
                     org.springframework.data.mongodb.core.query.Query.query(
@@ -154,7 +163,9 @@ class CustomerReadModelProjector(
                     collectionName
                 )
                 logger.info("Deleted customer {} from MongoDB read model", customerId)
+                projectionTimer.record(System.nanoTime() - startTime, TimeUnit.NANOSECONDS)
             } catch (e: Exception) {
+                projectionTimer.record(System.nanoTime() - startTime, TimeUnit.NANOSECONDS)
                 logger.error(
                     "Failed to delete customer {} from MongoDB: {}",
                     customerId,

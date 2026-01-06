@@ -27,6 +27,9 @@ class CustomerEventPublisher(
      * The aggregate ID (customer ID) is used as the message key to
      * ensure ordering of events for the same customer.
      *
+     * Exceptions are propagated back to the caller so that the
+     * main transaction can be rolled back if publishing fails.
+     *
      * @param event The CustomerRegistered event to publish.
      * @return A CompletableFuture that completes when the send is acknowledged.
      */
@@ -63,7 +66,7 @@ class CustomerEventPublisher(
                     ex.message,
                     ex
                 )
-                null
+                throw RuntimeException("Failed to publish event to Kafka", ex)
             }
     }
 }
