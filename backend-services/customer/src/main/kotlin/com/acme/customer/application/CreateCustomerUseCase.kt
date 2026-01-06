@@ -168,8 +168,8 @@ class CreateCustomerUseCase(
                     userId
                 )
 
-                // Project to MongoDB (async, runs in separate thread after transaction commits)
-                // The @Async annotation on projectCustomer ensures it runs outside this transaction
+                // Project to MongoDB (runs asynchronously in separate thread via @Async)
+                // This executes concurrently and does not block the transaction commit
                 customerReadModelProjector.projectCustomer(customer, preferences)
 
                 customerCreatedCounter.increment()

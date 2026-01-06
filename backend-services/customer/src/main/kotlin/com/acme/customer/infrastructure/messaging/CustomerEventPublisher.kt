@@ -5,7 +5,9 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
 import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.stereotype.Component
+import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 
 /**
  * Kafka publisher for customer domain events.
@@ -57,16 +59,45 @@ class CustomerEventPublisher(
                 sendResult.recordMetadata.partition(),
                 sendResult.recordMetadata.offset()
             )
-        } catch (ex: Exception) {
+        } catch (ex: TimeoutException) {
+            logger.error(
+                "Timeout publishing {} event {} for customer {} to Kafka after 30 seconds",
+                event.eventType,
+                event.eventId,
+                event.payload.customerId,
+                ex
+            )
+            throw RuntimeException("Kafka publishing timeout after 30 seconds", ex)
+        } catch (ex: ExecutionException) {
             logger.error(
                 "Failed to publish {} event {} for customer {}: {}",
+                event.eventType,
+                event.eventId,
+                event.payload.customerId,
+                ex.cause?.message ?: ex.message,
+                ex.cause ?: ex
+            )
+            throw RuntimeException("Failed to publish event to Kafka: ${ex.cause?.message ?: ex.message}", ex.cause ?: ex)
+        } catch (ex: InterruptedException) {
+            Thread.currentThread().interrupt()
+            logger.error(
+                "Interrupted while publishing {} event {} for customer {}",
+                event.eventType,
+                event.eventId,
+                event.payload.customerId,
+                ex
+            )
+            throw RuntimeException("Kafka publishing interrupted", ex)
+        } catch (ex: Exception) {
+            logger.error(
+                "Unexpected error publishing {} event {} for customer {}: {}",
                 event.eventType,
                 event.eventId,
                 event.payload.customerId,
                 ex.message,
                 ex
             )
-            throw RuntimeException("Failed to publish event to Kafka", ex)
+            throw RuntimeException("Unexpected error publishing event to Kafka", ex)
         }
     }
 }
