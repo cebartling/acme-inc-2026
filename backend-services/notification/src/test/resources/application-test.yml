@@ -1,0 +1,59 @@
+spring:
+  application:
+    name: notification-service-test
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/test_notifications
+    username: test
+    password: test
+    driver-class-name: org.postgresql.Driver
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: notification-service-test
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+
+  thymeleaf:
+    cache: false
+
+server:
+  port: 0
+
+notification:
+  events:
+    input-topic: identity.user.events
+    output-topic: notification.events
+  retry:
+    max-attempts: 3
+    initial-interval-ms: 1000
+  email:
+    from-address: test@acme.com
+    from-name: ACME Test
+    verification:
+      subject: Test Verification
+      expiration-hours: 24
+      base-url: http://localhost:5173/verify
+    support-email: support@acme.com
+    company-name: ACME Inc.
+
+sendgrid:
+  api-key: SG.test-key
+  sandbox-mode: true
+
+logging:
+  level:
+    com.acme.notification: DEBUG

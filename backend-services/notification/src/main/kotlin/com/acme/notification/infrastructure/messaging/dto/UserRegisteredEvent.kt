@@ -1,4 +1,4 @@
-package com.acme.customer.infrastructure.messaging.dto
+package com.acme.notification.infrastructure.messaging.dto
 
 import java.time.Instant
 import java.util.UUID
@@ -13,7 +13,7 @@ import java.util.UUID
  * @property tosAcceptedAt When the user accepted the Terms of Service.
  * @property marketingOptIn Whether the user opted in to marketing communications.
  * @property registrationSource The channel through which the user registered.
- * @property verificationToken The email verification token (optional for Customer Service).
+ * @property verificationToken The email verification token.
  */
 data class UserRegisteredPayload(
     val userId: UUID,
@@ -30,8 +30,8 @@ data class UserRegisteredPayload(
  * DTO for deserializing UserRegistered events from Kafka.
  *
  * This represents the event structure published by the Identity Service
- * when a new user registers. The Customer Service consumes these events
- * to create customer profiles.
+ * when a new user registers. The Notification Service consumes these events
+ * to send verification emails.
  *
  * @property eventId Unique identifier for this event.
  * @property eventType The type of event (should be "UserRegistered").

@@ -181,6 +181,7 @@ class RegisterUserUseCase(
             tosAcceptedAt = user.tosAcceptedAt,
             marketingOptIn = user.marketingOptIn,
             registrationSource = registrationSource,
+            verificationToken = verificationToken.token,
             correlationId = correlationId
         )
 

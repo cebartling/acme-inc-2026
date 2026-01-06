@@ -17,6 +17,7 @@ import java.util.UUID
  * @property tosAcceptedAt When the user accepted the Terms of Service.
  * @property marketingOptIn Whether the user opted in to marketing communications.
  * @property registrationSource The channel through which the user registered.
+ * @property verificationToken The email verification token for the user.
  */
 data class UserRegisteredPayload(
     val userId: UUID,
@@ -25,7 +26,8 @@ data class UserRegisteredPayload(
     val lastName: String,
     val tosAcceptedAt: Instant,
     val marketingOptIn: Boolean,
-    val registrationSource: RegistrationSource
+    val registrationSource: RegistrationSource,
+    val verificationToken: String
 )
 
 /**
@@ -81,6 +83,7 @@ class UserRegistered(
          * @param tosAcceptedAt When the user accepted the Terms of Service.
          * @param marketingOptIn Whether the user opted in to marketing.
          * @param registrationSource The registration channel.
+         * @param verificationToken The email verification token.
          * @param correlationId Optional correlation ID for distributed tracing.
          * @return A new [UserRegistered] event instance.
          */
@@ -92,6 +95,7 @@ class UserRegistered(
             tosAcceptedAt: Instant,
             marketingOptIn: Boolean,
             registrationSource: RegistrationSource,
+            verificationToken: String,
             correlationId: UUID = UUID.randomUUID()
         ): UserRegistered {
             val eventId = UUID.randomUUID()
@@ -109,7 +113,8 @@ class UserRegistered(
                     lastName = lastName,
                     tosAcceptedAt = tosAcceptedAt,
                     marketingOptIn = marketingOptIn,
-                    registrationSource = registrationSource
+                    registrationSource = registrationSource,
+                    verificationToken = verificationToken
                 )
             )
         }
