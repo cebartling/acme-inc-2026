@@ -167,6 +167,79 @@ services:
     networks:
       - acme-network
 
+  notification-service:
+    build:
+      context: ./backend-services/notification
+      dockerfile: Containerfile
+    image: acme-notification-service:latest
+    container_name: acme-notification-service
+    hostname: notification-service
+    ports:
+      - "${NOTIFICATION_SERVICE_PORT:-10302}:10302"
+    environment:
+      # Server configuration
+      SERVER_PORT: 10302
+      SPRING_PROFILES_ACTIVE: docker
+
+      # PostgreSQL configuration
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: acme_notifications
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+
+      # Kafka configuration
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+
+      # SendGrid configuration
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-SG.test-key}
+      SENDGRID_SANDBOX_MODE: ${SENDGRID_SANDBOX_MODE:-true}
+
+      # Email configuration
+      EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-noreply@acme.com}
+      EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-ACME}
+      VERIFICATION_BASE_URL: ${VERIFICATION_BASE_URL:-http://localhost:5173/verify}
+      SUPPORT_EMAIL: ${SUPPORT_EMAIL:-support@acme.com}
+      COMPANY_NAME: ${COMPANY_NAME:-ACME Inc.}
+
+      # Observability
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4317
+      OTEL_SERVICE_NAME: notification-service
+    networks:
+      - acme-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:10302/actuator/health >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    depends_on:
+      - notification-db-init
+      - identity-service
+    labels:
+      - "com.acme.service=notification"
+      - "com.acme.type=backend"
+
+  # Database initialization for Notification Service
+  notification-db-init:
+    image: postgres:16-alpine
+    container_name: acme-notification-db-init
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    command:
+      - sh
+      - -c
+      - |
+        until pg_isready -h postgres -p 5432 -U $${POSTGRES_USER:-postgres}; do
+          echo 'Waiting for PostgreSQL...'
+          sleep 2
+        done
+        echo "Creating database acme_notifications if it doesn't exist..."
+        psql -h postgres -U $${POSTGRES_USER:-postgres} -tc "SELECT 1 FROM pg_database WHERE datname = 'acme_notifications'" | grep -q 1 || psql -h postgres -U $${POSTGRES_USER:-postgres} -c "CREATE DATABASE acme_notifications"
+        echo 'Database initialization complete'
+    networks:
+      - acme-network
+
   # =============================================================================
   # FRONTEND APPLICATIONS
   # =============================================================================

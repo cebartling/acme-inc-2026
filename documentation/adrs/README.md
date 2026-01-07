@@ -19,6 +19,7 @@ An Architecture Decision Record documents a significant architectural decision, 
 | [ADR-0002](0002-cqrs-pattern.md) | Command Query Responsibility Segregation (CQRS) | Accepted |
 | [ADR-0003](0003-event-sourcing.md) | Event Sourcing | Accepted |
 | [ADR-0004](0004-change-data-capture.md) | Change Data Capture (CDC) | Accepted |
+| [ADR-0018](0018-idempotent-event-processing.md) | Idempotent Event Processing Pattern | Accepted |
 
 ### Technology Stack
 
@@ -30,6 +31,7 @@ An Architecture Decision Record documents a significant architectural decision, 
 | [ADR-0008](0008-debezium-cdc-connector.md) | Debezium for Change Data Capture | Accepted |
 | [ADR-0009](0009-hashicorp-vault-secrets.md) | HashiCorp Vault for Secrets Management | Accepted |
 | [ADR-0010](0010-kotlin-spring-boot-backend.md) | Kotlin with Spring Boot for Backend Services | Accepted |
+| [ADR-0017](0017-sendgrid-transactional-email.md) | SendGrid for Transactional Email | Accepted |
 
 ### Observability
 

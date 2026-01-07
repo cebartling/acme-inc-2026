@@ -4,19 +4,23 @@
 -- =============================================================================
 
 -- Create application databases for each service
+CREATE DATABASE acme_identity;
 CREATE DATABASE acme_orders;
 CREATE DATABASE acme_inventory;
 CREATE DATABASE acme_customers;
 CREATE DATABASE acme_payments;
+CREATE DATABASE acme_notifications;
 
 -- Create application user with appropriate permissions
 CREATE USER acme_app WITH PASSWORD 'acme_app_password';
 
 -- Grant privileges on all databases
+GRANT ALL PRIVILEGES ON DATABASE acme_identity TO acme_app;
 GRANT ALL PRIVILEGES ON DATABASE acme_orders TO acme_app;
 GRANT ALL PRIVILEGES ON DATABASE acme_inventory TO acme_app;
 GRANT ALL PRIVILEGES ON DATABASE acme_customers TO acme_app;
 GRANT ALL PRIVILEGES ON DATABASE acme_payments TO acme_app;
+GRANT ALL PRIVILEGES ON DATABASE acme_notifications TO acme_app;
 
 -- Configure logical replication for Debezium CDC
 -- Note: The Debezium PostgreSQL image already has wal_level=logical configured
@@ -38,6 +42,16 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO acme_app;
 CREATE PUBLICATION dbz_publication FOR ALL TABLES;
 
 \c acme_payments
+GRANT ALL ON SCHEMA public TO acme_app;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO acme_app;
+CREATE PUBLICATION dbz_publication FOR ALL TABLES;
+
+\c acme_identity
+GRANT ALL ON SCHEMA public TO acme_app;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO acme_app;
+CREATE PUBLICATION dbz_publication FOR ALL TABLES;
+
+\c acme_notifications
 GRANT ALL ON SCHEMA public TO acme_app;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO acme_app;
 CREATE PUBLICATION dbz_publication FOR ALL TABLES;
