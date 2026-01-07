@@ -161,8 +161,10 @@ When(
     }
 
     // Note: This endpoint returns redirects, not JSON
-    // We need to handle redirect responses differently
-    const response = await this.identityApiClient.get(`/api/v1/users/verify?token=${token}`);
+    // We need to handle redirect responses differently - use manual redirect to capture Location header
+    const response = await this.identityApiClient.get(`/api/v1/users/verify?token=${token}`, {
+      redirect: 'manual',
+    });
     this.setTestData('lastResponse', response);
     this.setTestData('redirectLocation', response.headers.get('location'));
   }
@@ -171,7 +173,9 @@ When(
 When(
   'I click the verification link with token {string}',
   async function (this: CustomWorld, token: string) {
-    const response = await this.identityApiClient.get(`/api/v1/users/verify?token=${token}`);
+    const response = await this.identityApiClient.get(`/api/v1/users/verify?token=${token}`, {
+      redirect: 'manual',
+    });
     this.setTestData('lastResponse', response);
     this.setTestData('redirectLocation', response.headers.get('location'));
   }
@@ -181,7 +185,9 @@ When(
   'I click the verification link with an already used token',
   async function (this: CustomWorld) {
     const token = 'already-used-token-simulation';
-    const response = await this.identityApiClient.get(`/api/v1/users/verify?token=${token}`);
+    const response = await this.identityApiClient.get(`/api/v1/users/verify?token=${token}`, {
+      redirect: 'manual',
+    });
     this.setTestData('lastResponse', response);
     this.setTestData('redirectLocation', response.headers.get('location'));
   }
