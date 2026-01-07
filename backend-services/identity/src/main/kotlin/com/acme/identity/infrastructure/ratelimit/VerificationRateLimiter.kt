@@ -34,13 +34,17 @@ sealed class RateLimitResult {
  * restarts and multiple instances.
  *
  * Rate limit: 3 requests per hour per email address.
+ * Rate limiting can be disabled via configuration for testing purposes.
  *
  * @property resendRepository Repository for persisting rate limit data.
+ * @property enabled Whether rate limiting is enabled. Defaults to true.
  * @property maxRequestsPerHour Maximum requests allowed per hour.
  */
 @Service
 class VerificationRateLimiter(
     private val resendRepository: ResendRequestRepository,
+    @Value("\${identity.rate-limiting.enabled:true}")
+    private val enabled: Boolean = true,
     @Value("\${identity.rate-limiting.resend.requests-per-hour:3}")
     private val maxRequestsPerHour: Int = 3
 ) {
@@ -52,12 +56,17 @@ class VerificationRateLimiter(
     /**
      * Checks the rate limit for a given email address.
      *
+     * If rate limiting is disabled, always returns [RateLimitResult.Allowed].
      * Does not consume a request slot; use [recordRequest] to track actual requests.
      *
      * @param email The email address to check.
      * @return [RateLimitResult] indicating whether the request is allowed.
      */
     fun checkRateLimit(email: String): RateLimitResult {
+        if (!enabled) {
+            return RateLimitResult.Allowed(remaining = maxRequestsPerHour)
+        }
+
         val oneHourAgo = Instant.now().minus(1, ChronoUnit.HOURS)
         val recentRequests = resendRepository.countByEmailSince(email.lowercase(), oneHourAgo)
 
