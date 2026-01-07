@@ -91,7 +91,7 @@ Implementation across services:
 |---------|----------|------------|-------------------|
 | Customer Service | UserRegisteredConsumer | UserRegistered | processed_events |
 | Notification Service | UserRegisteredConsumer | UserRegistered | processed_events |
-| Order Service | PaymentCompletedConsumer | PaymentCompleted | processed_events |
+| Order Service (Planned) | PaymentCompletedConsumer | PaymentCompleted | processed_events |
 
 ## Consequences
 

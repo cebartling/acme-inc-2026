@@ -52,19 +52,14 @@ class UserRegisteredHandler(
         // Validate that verification token is present
         val verificationToken = event.payload.verificationToken
         if (verificationToken.isNullOrBlank()) {
-            logger.warn(
-                "UserRegistered event {} for user {} missing verification token, skipping email",
+            logger.error(
+                "UserRegistered event {} for user {} missing verification token; failing handler to investigate configuration",
                 event.eventId,
                 event.payload.userId
             )
-            // Mark as processed to avoid retrying legacy events without tokens
-            processedEventRepository.save(
-                ProcessedEvent(
-                    eventId = event.eventId,
-                    eventType = event.eventType
-                )
+            throw IllegalStateException(
+                "Missing verification token for UserRegistered event ${event.eventId} and user ${event.payload.userId}"
             )
-            return
         }
 
         val result = sendVerificationEmailUseCase.execute(

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Verify your ACME account</title>
+    <title th:text="'Verify your ' + ${companyName} + ' account'">Verify your account</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
@@ -65,7 +65,7 @@
         .button:hover {
             background-color: #45a049;
         }
-        .expiration {
+        .expiration-notice {
             background-color: #fff3cd;
             border: 1px solid #ffc107;
             border-radius: 5px;
@@ -103,8 +103,8 @@
 <body>
 <div class="container">
     <div class="header">
-        <div class="logo">ACME</div>
-        <h1>Welcome to ACME!</h1>
+        <div class="logo" th:text="${companyName}">Company</div>
+        <h1>Welcome to <span th:text="${companyName}">Company</span>!</h1>
     </div>
 
     <div class="content">
@@ -118,12 +118,12 @@
             <a th:href="${verificationUrl}" href="#" class="button">Verify Email Address</a>
         </div>
 
-        <div class="expiration">
+        <div class="expiration-notice">
             This link expires in <strong th:text="${expirationHours}">24</strong> hours.
         </div>
 
         <p class="note">
-            If you didn't create an account with ACME, you can safely ignore this email.
+            If you didn't create an account with <span th:text="${companyName}">Company</span>, you can safely ignore this email.
         </p>
 
         <p class="note">
@@ -135,7 +135,7 @@
 
     <div class="footer">
         <p>Need help? Contact us at <a th:href="'mailto:' + ${supportEmail}" th:text="${supportEmail}">support@acme.com</a></p>
-        <p class="expiration-footer">Remember: This verification link expires in <span th:text="${expirationHours}">24</span> hours.</p>
+        <p class="expiration-reminder">Remember: This verification link expires in <span th:text="${expirationHours}">24</span> hours.</p>
         <p class="copyright">&copy; <span th:text="${currentYear}">2026</span> <span th:text="${companyName}">ACME Inc.</span> All rights reserved.</p>
     </div>
 </div>

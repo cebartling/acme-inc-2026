@@ -75,7 +75,6 @@ class SendGridEmailSender(
             // Render email template
             val htmlContent = templateService.renderVerificationEmail(
                 recipientName = recipientName,
-                recipientEmail = recipientEmail,
                 verificationUrl = verificationUrl,
                 expirationHours = expirationHours,
                 supportEmail = supportEmail,
@@ -103,16 +102,6 @@ class SendGridEmailSender(
                 })
                 addContent(Content("text/html", htmlContent))
                 addHeader("X-Correlation-ID", correlationId)
-
-                // Enable sandbox mode for testing
-                if (this@SendGridEmailSender.sandboxMode) {
-                    val sandboxSetting = com.sendgrid.helpers.mail.objects.Setting().apply {
-                        enable = true
-                    }
-                    mailSettings = com.sendgrid.helpers.mail.objects.MailSettings().apply {
-                        setSandboxMode(sandboxSetting)
-                    }
-                }
             }
 
             // Send email

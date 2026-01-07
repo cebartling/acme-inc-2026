@@ -79,7 +79,10 @@ class KafkaConsumerConfig(
      */
     @Bean
     fun defaultErrorHandler(): DefaultErrorHandler {
-        // Fixed backoff: 5 minutes (300000ms) between retries, max 2 retries = 3 total attempts
+        // Configure retry backoff
+        // Note: maxRetryAttempts includes the initial attempt, so we subtract 1 for FixedBackOff
+        // which expects the number of retry attempts (excluding the initial attempt).
+        // With maxRetryAttempts = 3: 1 initial attempt + 2 retries = 3 total attempts
         val backOff = FixedBackOff(retryIntervalMs, (maxRetryAttempts - 1).toLong())
 
         return DefaultErrorHandler(

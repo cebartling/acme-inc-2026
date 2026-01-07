@@ -18,7 +18,6 @@ class EmailTemplateService(
      * Renders the verification email template.
      *
      * @param recipientName The recipient's first name.
-     * @param recipientEmail The recipient's email address.
      * @param verificationUrl The full verification URL.
      * @param expirationHours Number of hours until the link expires.
      * @param supportEmail Support email address.
@@ -27,7 +26,6 @@ class EmailTemplateService(
      */
     fun renderVerificationEmail(
         recipientName: String,
-        recipientEmail: String,
         verificationUrl: String,
         expirationHours: Int,
         supportEmail: String,
@@ -35,7 +33,6 @@ class EmailTemplateService(
     ): String {
         val context = Context(Locale.US).apply {
             setVariable("recipientName", recipientName)
-            setVariable("recipientEmail", recipientEmail)
             setVariable("verificationUrl", verificationUrl)
             setVariable("expirationHours", expirationHours)
             setVariable("supportEmail", supportEmail)
