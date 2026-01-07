@@ -62,6 +62,10 @@ identity:
     enabled: ${RATE_LIMITING_ENABLED:true}
     registration:
       requests-per-minute: 5
+    resend:
+      requests-per-hour: 3
+  frontend:
+    base-url: ${FRONTEND_BASE_URL:https://www.acme.com}
 
 logging:
   level:

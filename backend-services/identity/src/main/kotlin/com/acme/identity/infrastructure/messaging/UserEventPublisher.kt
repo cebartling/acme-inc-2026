@@ -1,5 +1,7 @@
 package com.acme.identity.infrastructure.messaging
 
+import com.acme.identity.domain.events.EmailVerified
+import com.acme.identity.domain.events.UserActivated
 import com.acme.identity.domain.events.UserRegistered
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
@@ -61,6 +63,82 @@ class UserEventPublisher(
             .exceptionally { ex ->
                 logger.error(
                     "Failed to publish UserRegistered event for user {}. " +
+                    "Event is persisted in event store but not published to Kafka. " +
+                    "Manual intervention may be required.",
+                    event.payload.userId,
+                    ex
+                )
+                null
+            }
+    }
+
+    /**
+     * Publishes an [EmailVerified] event to Kafka.
+     *
+     * The publish operation is asynchronous. The returned future completes
+     * when Kafka acknowledges receipt of the message. Failures are logged
+     * but not rethrown to avoid blocking the verification response.
+     *
+     * @param event The email verified event to publish.
+     * @return A [CompletableFuture] that completes when publishing succeeds.
+     */
+    fun publishEmailVerified(event: EmailVerified): CompletableFuture<Void> {
+        val key = event.aggregateId.toString()
+        val value = objectMapper.writeValueAsString(event)
+
+        logger.debug("Publishing EmailVerified event for user: {}", event.payload.userId)
+
+        return kafkaTemplate.send(EmailVerified.TOPIC, key, value)
+            .thenAccept { result ->
+                logger.info(
+                    "Published EmailVerified event for user {} to topic {} partition {} offset {}",
+                    event.payload.userId,
+                    result.recordMetadata.topic(),
+                    result.recordMetadata.partition(),
+                    result.recordMetadata.offset()
+                )
+            }
+            .exceptionally { ex ->
+                logger.error(
+                    "Failed to publish EmailVerified event for user {}. " +
+                    "Event is persisted in event store but not published to Kafka. " +
+                    "Manual intervention may be required.",
+                    event.payload.userId,
+                    ex
+                )
+                null
+            }
+    }
+
+    /**
+     * Publishes a [UserActivated] event to Kafka.
+     *
+     * The publish operation is asynchronous. The returned future completes
+     * when Kafka acknowledges receipt of the message. Failures are logged
+     * but not rethrown to avoid blocking the activation response.
+     *
+     * @param event The user activated event to publish.
+     * @return A [CompletableFuture] that completes when publishing succeeds.
+     */
+    fun publishUserActivated(event: UserActivated): CompletableFuture<Void> {
+        val key = event.aggregateId.toString()
+        val value = objectMapper.writeValueAsString(event)
+
+        logger.debug("Publishing UserActivated event for user: {}", event.payload.userId)
+
+        return kafkaTemplate.send(UserActivated.TOPIC, key, value)
+            .thenAccept { result ->
+                logger.info(
+                    "Published UserActivated event for user {} to topic {} partition {} offset {}",
+                    event.payload.userId,
+                    result.recordMetadata.topic(),
+                    result.recordMetadata.partition(),
+                    result.recordMetadata.offset()
+                )
+            }
+            .exceptionally { ex ->
+                logger.error(
+                    "Failed to publish UserActivated event for user {}. " +
                     "Event is persisted in event store but not published to Kafka. " +
                     "Manual intervention may be required.",
                     event.payload.userId,

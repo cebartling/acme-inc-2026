@@ -18,6 +18,7 @@ class UserRegisteredTest {
         val tosAcceptedAt = Instant.now()
         val marketingOptIn = true
         val registrationSource = RegistrationSource.WEB
+        val verificationToken = "test-token-abc123"
 
         val event = UserRegistered.create(
             userId = userId,
@@ -26,7 +27,8 @@ class UserRegisteredTest {
             lastName = lastName,
             tosAcceptedAt = tosAcceptedAt,
             marketingOptIn = marketingOptIn,
-            registrationSource = registrationSource
+            registrationSource = registrationSource,
+            verificationToken = verificationToken
         )
 
         assertEquals(UserRegistered.EVENT_TYPE, event.eventType)
@@ -47,6 +49,7 @@ class UserRegisteredTest {
         val tosAcceptedAt = Instant.now()
         val marketingOptIn = true
         val registrationSource = RegistrationSource.MOBILE
+        val verificationToken = "test-token-xyz789"
 
         val event = UserRegistered.create(
             userId = userId,
@@ -55,7 +58,8 @@ class UserRegisteredTest {
             lastName = lastName,
             tosAcceptedAt = tosAcceptedAt,
             marketingOptIn = marketingOptIn,
-            registrationSource = registrationSource
+            registrationSource = registrationSource,
+            verificationToken = verificationToken
         )
 
         assertEquals(userId, event.payload.userId)
@@ -79,6 +83,7 @@ class UserRegisteredTest {
             tosAcceptedAt = Instant.now(),
             marketingOptIn = false,
             registrationSource = RegistrationSource.API,
+            verificationToken = "test-token-123",
             correlationId = correlationId
         )
 
