@@ -30,7 +30,6 @@ class EmailTemplateServiceTest {
     fun `should render verification email template with all variables`() {
         val html = templateService.renderVerificationEmail(
             recipientName = "John",
-            recipientEmail = "john@example.com",
             verificationUrl = "https://acme.com/verify?token=abc123",
             expirationHours = 24,
             supportEmail = "support@acme.com",
@@ -52,7 +51,6 @@ class EmailTemplateServiceTest {
 
         val html = templateService.renderVerificationEmail(
             recipientName = "Jane",
-            recipientEmail = "jane@example.com",
             verificationUrl = verificationUrl,
             expirationHours = 24,
             supportEmail = "support@acme.com",
@@ -67,7 +65,6 @@ class EmailTemplateServiceTest {
     fun `should include expiration notice`() {
         val html = templateService.renderVerificationEmail(
             recipientName = "Test",
-            recipientEmail = "test@example.com",
             verificationUrl = "https://acme.com/verify",
             expirationHours = 48,
             supportEmail = "support@acme.com",
@@ -84,7 +81,6 @@ class EmailTemplateServiceTest {
 
         val html = templateService.renderVerificationEmail(
             recipientName = "User",
-            recipientEmail = "user@example.com",
             verificationUrl = "https://acme.com/verify",
             expirationHours = 24,
             supportEmail = supportEmail,
@@ -101,7 +97,6 @@ class EmailTemplateServiceTest {
 
         val html = templateService.renderVerificationEmail(
             recipientName = "User",
-            recipientEmail = "user@example.com",
             verificationUrl = "https://acme.com/verify",
             expirationHours = 24,
             supportEmail = "support@test.com",

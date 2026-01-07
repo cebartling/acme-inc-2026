@@ -50,9 +50,6 @@ dependencies {
     implementation("org.flywaydb:flyway-core:11.5.0")
     implementation("org.flywaydb:flyway-database-postgresql:11.5.0")
 
-    // UUID v7 support
-    implementation("com.fasterxml.uuid:java-uuid-generator:5.1.0")
-
     // Kafka
     implementation("org.springframework.kafka:spring-kafka")
 

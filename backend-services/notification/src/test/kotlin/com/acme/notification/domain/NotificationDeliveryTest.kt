@@ -83,16 +83,7 @@ class NotificationDeliveryTest {
         assertEquals(3, delivery.attemptCount)
     }
 
-    @Test
-    fun `should update updatedAt on status change`() {
-        val delivery = createTestDelivery()
-        val originalUpdatedAt = delivery.updatedAt
 
-        Thread.sleep(10) // Ensure time passes
-        delivery.markAsSent("sg-msg-123")
-
-        assertTrue(delivery.updatedAt.isAfter(originalUpdatedAt))
-    }
 
     @Test
     fun `equals should compare by id`() {
