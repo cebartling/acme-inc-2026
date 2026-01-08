@@ -3,7 +3,7 @@ package com.acme.customer.application
 import com.acme.customer.domain.Customer
 import com.acme.customer.domain.CustomerPreferences
 import com.acme.customer.domain.CustomerStatus
-import com.acme.customer.infrastructure.messaging.CustomerEventPublisher
+import com.acme.customer.infrastructure.messaging.OutboxWriter
 import com.acme.customer.infrastructure.persistence.CustomerPreferencesRepository
 import com.acme.customer.infrastructure.persistence.CustomerRepository
 import com.acme.customer.infrastructure.persistence.EventStoreRepository
@@ -25,7 +25,7 @@ class ActivateCustomerUseCaseTest {
     private lateinit var customerPreferencesRepository: CustomerPreferencesRepository
     private lateinit var eventStoreRepository: EventStoreRepository
     private lateinit var customerReadModelProjector: CustomerReadModelProjector
-    private lateinit var customerEventPublisher: CustomerEventPublisher
+    private lateinit var outboxWriter: OutboxWriter
     private lateinit var useCase: ActivateCustomerUseCase
 
     @BeforeEach
@@ -34,14 +34,14 @@ class ActivateCustomerUseCaseTest {
         customerPreferencesRepository = mockk()
         eventStoreRepository = mockk()
         customerReadModelProjector = mockk()
-        customerEventPublisher = mockk()
+        outboxWriter = mockk()
 
         useCase = ActivateCustomerUseCase(
             customerRepository = customerRepository,
             customerPreferencesRepository = customerPreferencesRepository,
             eventStoreRepository = eventStoreRepository,
             customerReadModelProjector = customerReadModelProjector,
-            customerEventPublisher = customerEventPublisher,
+            outboxWriter = outboxWriter,
             meterRegistry = SimpleMeterRegistry()
         )
     }
@@ -75,7 +75,7 @@ class ActivateCustomerUseCaseTest {
         every { customerRepository.save(any()) } answers { firstArg() }
         every { customerPreferencesRepository.findById(customerId) } returns Optional.of(preferences)
         every { customerReadModelProjector.projectCustomer(any(), any()) } returns CompletableFuture.completedFuture(null)
-        every { customerEventPublisher.publish(any<com.acme.customer.domain.events.CustomerActivated>()) } just Runs
+        every { outboxWriter.write(any(), any()) } just Runs
 
         // When
         val result = useCase.execute(
@@ -96,7 +96,7 @@ class ActivateCustomerUseCaseTest {
         verify { eventStoreRepository.append(any()) }
         verify { customerRepository.save(any()) }
         verify { customerReadModelProjector.projectCustomer(any(), any()) }
-        verify { customerEventPublisher.publish(any<com.acme.customer.domain.events.CustomerActivated>()) }
+        verify { outboxWriter.write(any(), any()) }
     }
 
     @Test
@@ -209,7 +209,7 @@ class ActivateCustomerUseCaseTest {
     }
 
     @Test
-    fun `execute should return Failure when Kafka publishing fails`() {
+    fun `execute should return Failure when outbox write fails`() {
         // Given
         val userId = UUID.randomUUID()
         val customerId = UUID.randomUUID()
@@ -235,8 +235,8 @@ class ActivateCustomerUseCaseTest {
         every { customerRepository.save(any()) } answers { firstArg() }
         every { customerPreferencesRepository.findById(customerId) } returns Optional.of(preferences)
         every { customerReadModelProjector.projectCustomer(any(), any()) } returns CompletableFuture.completedFuture(null)
-        every { customerEventPublisher.publish(any<com.acme.customer.domain.events.CustomerActivated>()) } throws
-            RuntimeException("Kafka broker unavailable")
+        every { outboxWriter.write(any(), any()) } throws
+            RuntimeException("Database constraint violation")
 
         // When
         val result = useCase.execute(
@@ -249,7 +249,7 @@ class ActivateCustomerUseCaseTest {
         // Then
         assertTrue(result is ActivateCustomerResult.Failure)
         val failure = result as ActivateCustomerResult.Failure
-        assertTrue(failure.message.contains("Kafka broker unavailable"))
+        assertTrue(failure.message.contains("Database constraint violation"))
     }
 
     @Test
@@ -280,7 +280,7 @@ class ActivateCustomerUseCaseTest {
         every { customerRepository.save(capture(customerSlot)) } answers { firstArg() }
         every { customerPreferencesRepository.findById(customerId) } returns Optional.of(preferences)
         every { customerReadModelProjector.projectCustomer(any(), any()) } returns CompletableFuture.completedFuture(null)
-        every { customerEventPublisher.publish(any<com.acme.customer.domain.events.CustomerActivated>()) } just Runs
+        every { outboxWriter.write(any(), any()) } just Runs
 
         // When
         useCase.execute(

@@ -65,11 +65,18 @@ customer:
   events:
     input-topic: identity.user.events
     output-topic: customer.events
+    publish:
+      timeout-seconds: 10
   retry:
     max-attempts: 5
     initial-interval-ms: 1000
     multiplier: 2.0
     max-interval-ms: 16000
+  outbox:
+    poll-delay-ms: 1000
+    publish:
+      timeout-seconds: 10
+    max-retry-count: 5
 
 logging:
   level:
