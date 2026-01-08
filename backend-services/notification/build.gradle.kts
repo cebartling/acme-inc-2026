@@ -56,6 +56,9 @@ dependencies {
     // SendGrid for email
     implementation("com.sendgrid:sendgrid-java:4.10.2")
 
+    // OGNL for Thymeleaf expression evaluation (version must match Thymeleaf 3.1.x expectations)
+    implementation("ognl:ognl:3.3.4")
+
     // Observability
     implementation("io.micrometer:micrometer-tracing-bridge-otel")
     implementation("io.opentelemetry:opentelemetry-exporter-otlp")

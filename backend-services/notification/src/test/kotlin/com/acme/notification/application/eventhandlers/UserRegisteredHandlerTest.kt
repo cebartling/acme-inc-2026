@@ -71,11 +71,11 @@ class UserRegisteredHandlerTest {
 
         every { processedEventRepository.existsByEventId(event.eventId) } returns false
 
-        val exception = assertThrows<IllegalArgumentException> {
+        val exception = assertThrows<IllegalStateException> {
             handler.handle(event)
         }
 
-        assertTrue(exception.message?.contains("Verification token is required") == true)
+        assertTrue(exception.message?.contains("Missing verification token") == true)
         verify(exactly = 0) { sendVerificationEmailUseCase.execute(any(), any(), any(), any(), any()) }
     }
 
