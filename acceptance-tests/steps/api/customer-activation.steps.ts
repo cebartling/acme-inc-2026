@@ -52,15 +52,6 @@ interface CustomerResponse {
   lastActivityAt: string;
 }
 
-// Helper function to generate unique emails
-function makeUniqueEmail(email: string): string {
-  if (!email.includes('@')) {
-    return email;
-  }
-  const [local, domain] = email.split('@');
-  return `${local}-${Date.now()}@${domain}`;
-}
-
 // Helper function to wait for condition with timeout
 async function waitFor(
   condition: () => Promise<boolean>,
