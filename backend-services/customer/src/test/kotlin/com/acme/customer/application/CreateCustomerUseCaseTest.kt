@@ -73,7 +73,7 @@ class CreateCustomerUseCaseTest {
         every { customerRepository.save(any()) } answers { firstArg() }
         every { customerPreferencesRepository.save(any()) } answers { firstArg() }
         every { customerReadModelProjector.projectCustomer(any(), any()) } returns CompletableFuture.completedFuture(null)
-        every { customerEventPublisher.publish(any()) } just Runs
+        every { customerEventPublisher.publish(any<com.acme.customer.domain.events.CustomerRegistered>()) } just Runs
 
         // When
         val result = useCase.execute(
@@ -104,7 +104,7 @@ class CreateCustomerUseCaseTest {
         verify { customerRepository.save(any()) }
         verify { customerPreferencesRepository.save(any()) }
         verify { customerReadModelProjector.projectCustomer(any(), any()) }
-        verify { customerEventPublisher.publish(any()) }
+        verify { customerEventPublisher.publish(any<com.acme.customer.domain.events.CustomerRegistered>()) }
     }
 
     @Test
@@ -155,7 +155,7 @@ class CreateCustomerUseCaseTest {
         every { customerRepository.save(any()) } answers { firstArg() }
         every { customerPreferencesRepository.save(capture(preferencesSlot)) } answers { firstArg() }
         every { customerReadModelProjector.projectCustomer(any(), any()) } returns CompletableFuture.completedFuture(null)
-        every { customerEventPublisher.publish(any()) } just Runs
+        every { customerEventPublisher.publish(any<com.acme.customer.domain.events.CustomerRegistered>()) } just Runs
 
         // When - with marketingOptIn = false
         useCase.execute(
@@ -189,7 +189,7 @@ class CreateCustomerUseCaseTest {
         every { customerRepository.save(capture(customerSlot)) } answers { firstArg() }
         every { customerPreferencesRepository.save(any()) } answers { firstArg() }
         every { customerReadModelProjector.projectCustomer(any(), any()) } returns CompletableFuture.completedFuture(null)
-        every { customerEventPublisher.publish(any()) } just Runs
+        every { customerEventPublisher.publish(any<com.acme.customer.domain.events.CustomerRegistered>()) } just Runs
 
         // When
         useCase.execute(
@@ -297,7 +297,7 @@ class CreateCustomerUseCaseTest {
         every { customerReadModelProjector.projectCustomer(any(), any()) } returns CompletableFuture.completedFuture(null)
         
         // Kafka publishing fails
-        every { customerEventPublisher.publish(any()) } throws RuntimeException("Kafka broker unavailable")
+        every { customerEventPublisher.publish(any<com.acme.customer.domain.events.CustomerRegistered>()) } throws RuntimeException("Kafka broker unavailable")
 
         // When
         val result = useCase.execute(

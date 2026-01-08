@@ -62,7 +62,7 @@ class Customer(
     val email: String,
 
     @Column(name = "email_verified", nullable = false)
-    val emailVerified: Boolean = false,
+    var emailVerified: Boolean = false,
 
     @Column(name = "phone_country_code", length = 5)
     val phoneCountryCode: String? = null,
@@ -75,7 +75,7 @@ class Customer(
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 50)
-    val status: CustomerStatus = CustomerStatus.PENDING_VERIFICATION,
+    var status: CustomerStatus = CustomerStatus.PENDING_VERIFICATION,
 
     @Enumerated(EnumType.STRING)
     @Column(name = "type", nullable = false, length = 50)
@@ -117,6 +117,44 @@ class Customer(
      * @return The customer's identifier as a [CustomerId].
      */
     fun getCustomerId(): CustomerId = CustomerId(id)
+
+    /**
+     * Activates the customer profile.
+     *
+     * Updates the status to ACTIVE, sets emailVerified to true,
+     * and updates the lastActivityAt and updatedAt timestamps.
+     *
+     * @param activatedAt The timestamp when the activation occurred.
+     * @throws IllegalStateException If the customer is not in PENDING_VERIFICATION status.
+     */
+    fun activate(activatedAt: Instant) {
+        if (status != CustomerStatus.PENDING_VERIFICATION) {
+            if (status == CustomerStatus.ACTIVE) {
+                return // Already active, idempotent operation
+            }
+            throw IllegalStateException(
+                "Cannot activate customer $id: current status is $status, expected PENDING_VERIFICATION"
+            )
+        }
+        status = CustomerStatus.ACTIVE
+        emailVerified = true
+        lastActivityAt = activatedAt
+        updatedAt = Instant.now()
+    }
+
+    /**
+     * Checks if the customer is in an activatable state.
+     *
+     * @return True if the customer can be activated.
+     */
+    fun canBeActivated(): Boolean = status == CustomerStatus.PENDING_VERIFICATION
+
+    /**
+     * Checks if the customer is already active.
+     *
+     * @return True if the customer is active.
+     */
+    fun isActive(): Boolean = status == CustomerStatus.ACTIVE
 
     /**
      * Returns the customer number as a type-safe [CustomerNumber] value class.
