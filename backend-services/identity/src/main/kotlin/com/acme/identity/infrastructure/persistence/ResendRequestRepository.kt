@@ -2,6 +2,7 @@ package com.acme.identity.infrastructure.persistence
 
 import com.acme.identity.domain.VerificationResendRequest
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.stereotype.Repository
 import java.time.Instant
@@ -48,6 +49,7 @@ interface ResendRequestRepository : JpaRepository<VerificationResendRequest, UUI
      *
      * @param before The timestamp before which to delete requests.
      */
+    @Modifying
     @Query("DELETE FROM VerificationResendRequest r WHERE r.requestedAt < :before")
     fun deleteOlderThan(before: Instant)
 }

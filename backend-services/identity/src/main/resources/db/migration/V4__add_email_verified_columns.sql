@@ -10,6 +10,13 @@ ALTER TABLE users
 ALTER TABLE users
     ADD COLUMN IF NOT EXISTS verified_at TIMESTAMP WITH TIME ZONE;
 
+-- Update existing active users to be marked as verified
+-- (assuming they were activated through a previous verification mechanism)
+UPDATE users
+SET email_verified = TRUE,
+    verified_at = updated_at
+WHERE status = 'ACTIVE' AND email_verified = FALSE;
+
 -- Index for filtering verified/unverified users
 CREATE INDEX IF NOT EXISTS idx_users_email_verified ON users(email_verified);
 

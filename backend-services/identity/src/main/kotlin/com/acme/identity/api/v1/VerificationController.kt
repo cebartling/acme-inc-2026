@@ -133,12 +133,14 @@ class VerificationController(
 
             is ResendVerificationResult.RateLimited -> {
                 val retryAfterSeconds = Duration.between(Instant.now(), result.retryAfter).seconds
+                val minutes = formatDuration(retryAfterSeconds)
+                val minuteLabel = if (minutes == 1L) "minute" else "minutes"
                 ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                     .header(HttpHeaders.RETRY_AFTER, retryAfterSeconds.toString())
                     .body(
                         ErrorResponse(
                             error = "RATE_LIMIT_EXCEEDED",
-                            message = "Too many requests. Please try again in ${formatDuration(retryAfterSeconds)} minutes."
+                            message = "Too many requests. Please try again in $minutes $minuteLabel."
                         )
                     )
             }

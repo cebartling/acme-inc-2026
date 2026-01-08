@@ -1,4 +1,4 @@
-import { Given, When, Then, DataTable } from '@cucumber/cucumber';
+import { Given, When, Then } from '@cucumber/cucumber';
 import { expect } from '@playwright/test';
 import { CustomWorld } from '../../support/world.js';
 import { ApiResponse } from '../../support/api-client.js';
