@@ -263,10 +263,11 @@ run_tests() {
     # Add tags if specified
     # Note: @rate-limiting tests require RATE_LIMITING_ENABLED=true on Identity Service
     # They are excluded by default since acceptance tests typically run with rate limiting disabled
+    # Note: @wip tests require additional infrastructure (database access) and are excluded by default
     if [[ -n "$TAGS" ]]; then
-        cmd_array+=("--tags" "$TAGS and not @rate-limiting")
+        cmd_array+=("--tags" "$TAGS and not @rate-limiting and not @wip")
     else
-        cmd_array+=("--tags" "not @rate-limiting")
+        cmd_array+=("--tags" "not @rate-limiting and not @wip")
     fi
 
     # Add extra arguments

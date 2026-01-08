@@ -7,6 +7,7 @@ export interface ApiResponse<T = unknown> {
 export interface RequestOptions {
   headers?: Record<string, string>;
   timeout?: number;
+  redirect?: 'follow' | 'manual' | 'error';
 }
 
 export class ApiClient {
@@ -90,6 +91,7 @@ export class ApiClient {
         headers,
         body: body ? JSON.stringify(body) : undefined,
         signal: controller.signal,
+        redirect: options.redirect || 'follow',
       });
 
       clearTimeout(timeoutId);
