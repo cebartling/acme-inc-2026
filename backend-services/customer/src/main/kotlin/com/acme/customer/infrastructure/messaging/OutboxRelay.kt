@@ -58,10 +58,13 @@ class OutboxRelay(
 
         unpublished.forEach { message ->
             if (message.retryCount >= maxRetryCount) {
-                logger.warn(
-                    "Skipping outbox message {} - exceeded max retry count {} (last error: {})",
+                logger.error(
+                    "Outbox message {} permanently failed after {} retry attempts. " +
+                    "Manual intervention required. Event: {} ({}), Last error: {}",
                     message.id,
                     maxRetryCount,
+                    message.eventType,
+                    message.eventId,
                     message.lastError
                 )
                 return@forEach
@@ -85,6 +88,13 @@ class OutboxRelay(
      *
      * Runs in a separate transaction to ensure each message
      * is processed independently.
+     *
+     * Note: Uses blocking get() with timeout to ensure transactional consistency.
+     * The blocking behavior is acceptable here because:
+     * 1. Runs in dedicated scheduler thread pool
+     * 2. Timeout is short and configurable
+     * 3. Sequential processing maintains event ordering
+     * 4. Transaction must wait for Kafka confirmation
      */
     @Transactional
     fun publishMessage(message: OutboxMessage) {
@@ -96,6 +106,7 @@ class OutboxRelay(
         )
 
         try {
+            // Blocking send with timeout - ensures Kafka confirmation before transaction commit
             val sendResult = kafkaTemplate.send(message.topic, message.messageKey, message.payload)
                 .get(publishTimeoutSeconds, TimeUnit.SECONDS)
 

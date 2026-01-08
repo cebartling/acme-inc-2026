@@ -25,6 +25,10 @@ CREATE TABLE IF NOT EXISTS outbox (
 CREATE INDEX IF NOT EXISTS idx_outbox_published_at ON outbox(published_at)
     WHERE published_at IS NULL;
 
+-- Composite index for efficient polling with ORDER BY
+CREATE INDEX IF NOT EXISTS idx_outbox_created_published ON outbox(created_at, published_at)
+    WHERE published_at IS NULL;
+
 -- Index for monitoring and debugging
 CREATE INDEX IF NOT EXISTS idx_outbox_created_at ON outbox(created_at);
 CREATE INDEX IF NOT EXISTS idx_outbox_aggregate_id ON outbox(aggregate_id);
