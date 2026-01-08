@@ -31,9 +31,8 @@ class TestController(
      * Response DTO for verification token lookup.
      */
     data class VerificationTokenResponse(
-        val token: String?,
-        val userId: String,
-        val found: Boolean
+        val token: String,
+        val userId: String
     )
 
     /**
@@ -57,19 +56,12 @@ class TestController(
             ResponseEntity.ok(
                 VerificationTokenResponse(
                     token = activeToken.token,
-                    userId = userId.toString(),
-                    found = true
+                    userId = userId.toString()
                 )
             )
         } else {
             logger.debug("No active verification token found for user {}", userId)
-            ResponseEntity.ok(
-                VerificationTokenResponse(
-                    token = null,
-                    userId = userId.toString(),
-                    found = false
-                )
-            )
+            ResponseEntity.notFound().build()
         }
     }
 }
