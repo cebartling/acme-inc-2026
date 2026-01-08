@@ -67,7 +67,19 @@ class UserRegisteredConsumer(
         val startTime = Instant.now()
 
         try {
-            val event = objectMapper.readValue(record.value(), UserRegisteredEvent::class.java)
+            // First check event type before full deserialization to avoid parsing
+            // non-UserRegistered events (like EmailVerified, UserActivated) which
+            // have different payload structures
+            val eventNode = objectMapper.readTree(record.value())
+            val eventType = eventNode.get("eventType")?.asText()
+
+            // Skip non-UserRegistered events silently (other consumers will handle them)
+            if (eventType != UserRegisteredEvent.EVENT_TYPE) {
+                acknowledgment.acknowledge()
+                return
+            }
+
+            val event = objectMapper.treeToValue(eventNode, UserRegisteredEvent::class.java)
 
             logger.info(
                 "Received {} event {} for user {} from partition {} offset {}",
@@ -81,18 +93,6 @@ class UserRegisteredConsumer(
             // Track event processing lag
             val eventAge = Duration.between(event.timestamp, startTime)
             eventLagTimer.record(eventAge)
-
-            // Validate event type
-            if (event.eventType != UserRegisteredEvent.EVENT_TYPE) {
-                logger.warn(
-                    "Unexpected event type: {} (expected: {}), skipping",
-                    event.eventType,
-                    UserRegisteredEvent.EVENT_TYPE
-                )
-                eventsSkippedCounter.increment()
-                acknowledgment.acknowledge()
-                return
-            }
 
             // Process the event
             processingTimer.record(Runnable {

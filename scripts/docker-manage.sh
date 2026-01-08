@@ -192,12 +192,41 @@ start_all() {
 }
 
 stop_all() {
-    print_header "Stopping All Services"
+    local remove_volumes=false
 
-    apps_down 2>/dev/null || true
-    infra_down
+    # Parse arguments
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -v|--volumes)
+                remove_volumes=true
+                shift
+                ;;
+            *)
+                shift
+                ;;
+        esac
+    done
 
-    print_success "All services stopped"
+    if $remove_volumes; then
+        print_header "Stopping All Services and Removing Volumes"
+        print_warning "Volumes will be removed - all data will be lost!"
+    else
+        print_header "Stopping All Services"
+    fi
+
+    if $remove_volumes; then
+        docker compose -f "$APPS_COMPOSE" down --remove-orphans -v 2>/dev/null || true
+        docker compose -f "$INFRA_COMPOSE" down --remove-orphans -v
+    else
+        apps_down 2>/dev/null || true
+        infra_down
+    fi
+
+    if $remove_volumes; then
+        print_success "All services stopped and volumes removed"
+    else
+        print_success "All services stopped"
+    fi
 }
 
 restart_all() {
@@ -475,7 +504,7 @@ ${YELLOW}Application Commands:${NC}
 
 ${YELLOW}Combined Commands:${NC}
   start                      Start all services (infra + apps)
-  stop                       Stop all services
+  stop [-v|--volumes]        Stop all services (use -v to remove volumes)
   restart                    Restart all services
   status                     Show status of all services
 
@@ -492,6 +521,8 @@ ${YELLOW}Utility Commands:${NC}
 
 ${YELLOW}Examples:${NC}
   ./scripts/docker-manage.sh start              # Start everything
+  ./scripts/docker-manage.sh stop               # Stop all services (keep data)
+  ./scripts/docker-manage.sh stop -v            # Stop all and remove volumes
   ./scripts/docker-manage.sh apps-up            # Start apps only
   ./scripts/docker-manage.sh apps-logs -f       # Follow app logs
   ./scripts/docker-manage.sh shell postgres     # Open psql shell
@@ -551,7 +582,7 @@ main() {
             start_all
             ;;
         stop)
-            stop_all
+            stop_all "$@"
             ;;
         restart)
             restart_all

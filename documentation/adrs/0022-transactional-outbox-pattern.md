@@ -79,6 +79,33 @@ CREATE INDEX idx_outbox_created_published ON outbox(created_at, published_at)
     WHERE published_at IS NULL;
 ```
 
+**JPA Entity Configuration**
+
+When using Hibernate with PostgreSQL JSONB columns, you must explicitly declare the JSON type mapping. The `@Column(columnDefinition = "jsonb")` annotation alone is insufficient - Hibernate will still attempt to bind the value as a `VARCHAR`, causing PostgreSQL to reject the insert with:
+
+```
+ERROR: column "payload" is of type jsonb but expression is of type character varying
+```
+
+The solution is to add the `@JdbcTypeCode(SqlTypes.JSON)` annotation from Hibernate:
+
+```kotlin
+import org.hibernate.annotations.JdbcTypeCode
+import org.hibernate.type.SqlTypes
+
+@Entity
+@Table(name = "outbox")
+class OutboxMessage(
+    // ... other fields ...
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "payload", nullable = false, columnDefinition = "jsonb")
+    val payload: String,
+)
+```
+
+The `@JdbcTypeCode(SqlTypes.JSON)` annotation tells Hibernate to properly serialize the String value as JSON when communicating with PostgreSQL, enabling seamless storage and retrieval of JSON data in JSONB columns.
+
 **2. Outbox Writer**
 
 Writes events to the outbox within the domain transaction:

@@ -1,6 +1,8 @@
 package com.acme.customer.infrastructure.persistence
 
 import jakarta.persistence.*
+import org.hibernate.annotations.JdbcTypeCode
+import org.hibernate.type.SqlTypes
 import java.time.Instant
 import java.util.UUID
 
@@ -38,6 +40,7 @@ class OutboxMessage(
     @Column(name = "message_key", nullable = false, length = 255)
     val messageKey: String,
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "payload", nullable = false, columnDefinition = "jsonb")
     val payload: String,
 
