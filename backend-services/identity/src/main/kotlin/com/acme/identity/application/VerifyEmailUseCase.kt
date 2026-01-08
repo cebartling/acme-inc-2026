@@ -182,9 +182,9 @@ class VerifyEmailUseCase(
         verificationToken.markAsUsed()
         verificationTokenRepository.save(verificationToken)
 
-        // Mark email as verified and activate user
-        user.markEmailAsVerified()
+        // Activate user and mark email as verified
         val activatedUser = user.activate()
+        activatedUser.markEmailAsVerified()
         userRepository.save(activatedUser)
 
         // Create domain events

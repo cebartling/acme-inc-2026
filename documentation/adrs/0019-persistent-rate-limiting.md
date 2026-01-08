@@ -74,10 +74,10 @@ CREATE INDEX idx_resend_requests_ip_time ON verification_resend_requests(ip_addr
 ```mermaid
 flowchart TD
     Request[Resend Request] --> Query{Count requests<br/>in last hour?}
-    Query -->|< 3| Record[Record request<br/>in database]
+    Query -->|< MAX_REQUESTS_PER_HOUR| Record[Record request<br/>in database]
     Record --> Allow[Allow resend<br/>Return remaining count]
 
-    Query -->|>= 3| Find[Find oldest request<br/>in window]
+    Query -->|>= MAX_REQUESTS_PER_HOUR| Find[Find oldest request<br/>in window]
     Find --> Calculate[Calculate retry-after]
     Calculate --> Deny[Deny with 429<br/>Return retry-after]
 ```
@@ -92,8 +92,8 @@ Key design decisions:
 
 Comparison with existing rate limiter:
 
-| Aspect | Registration (Existing) | Resend (New) |
-|--------|------------------------|--------------|
+| Aspect | Registration (Existing) | Resend Verification (New) |
+|--------|------------------------|---------------------------|
 | Key | IP address | Email address |
 | Window | 1 minute | 1 hour |
 | Limit | 5 requests | 3 requests |

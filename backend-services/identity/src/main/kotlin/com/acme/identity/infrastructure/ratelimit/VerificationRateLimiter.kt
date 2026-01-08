@@ -57,7 +57,7 @@ class VerificationRateLimiter(
      * Checks the rate limit for a given email address.
      *
      * If rate limiting is disabled, always returns [RateLimitResult.Allowed].
-     * Does not consume a request slot; use [recordRequest] to track actual requests.
+     * Does not consume a request slot; recording of actual requests is handled elsewhere.
      *
      * @param email The email address to check.
      * @return [RateLimitResult] indicating whether the request is allowed.
