@@ -372,7 +372,6 @@ Then(
   'the lastActivityAt timestamp should be updated to the activation time',
   async function (this: CustomWorld) {
     const customerProfile = this.getTestData<CustomerResponse>('customerProfile');
-    const initialProfile = this.getTestData<CustomerResponse>('initialCustomerProfile');
 
     expect(customerProfile).toBeDefined();
 
