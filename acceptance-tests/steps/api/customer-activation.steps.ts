@@ -167,7 +167,34 @@ Given(
   'the customer has been activated',
   async function (this: CustomWorld) {
     const email = this.getTestData<string>('registeredEmail');
+    const userId = this.getTestData<string>('registeredUserId');
     expect(email).toBeDefined();
+    expect(userId).toBeDefined();
+
+    // First, wait for the customer profile to be created
+    const profileCreated = await waitFor(async () => {
+      try {
+        const response = await this.customerApiClient.get<CustomerResponse>(
+          `/api/v1/customers/by-email/${encodeURIComponent(email!)}`
+        );
+        return response.status === 200;
+      } catch {
+        return false;
+      }
+    }, 10000);
+    expect(profileCreated).toBe(true);
+
+    // Then verify the email to trigger activation
+    const tokenResponse = await this.identityApiClient.get<{ token: string; found: boolean }>(
+      `/api/v1/test/users/${userId}/verification-token`
+    );
+
+    if (tokenResponse.status === 200 && tokenResponse.data.token) {
+      await this.identityApiClient.get(
+        `/api/v1/users/verify?token=${tokenResponse.data.token}`,
+        { redirect: 'manual' }
+      );
+    }
 
     // Wait for customer to be activated
     let customerProfile: CustomerResponse | undefined;
@@ -323,9 +350,30 @@ Then(
 Then('a CustomerActivated event should be published', async function (this: CustomWorld) {
   // Verify via the customer status being ACTIVE
   // In a full implementation, we'd consume from Kafka to verify
-  const customerProfile = this.getTestData<CustomerResponse>('customerProfile');
+  const email = this.getTestData<string>('registeredEmail');
+  expect(email).toBeDefined();
+
+  // Wait for and fetch updated customer profile
+  let customerProfile: CustomerResponse | undefined;
+  const activated = await waitFor(async () => {
+    try {
+      const response = await this.customerApiClient.get<CustomerResponse>(
+        `/api/v1/customers/by-email/${encodeURIComponent(email!)}`
+      );
+      if (response.status === 200 && response.data.status === 'ACTIVE') {
+        customerProfile = response.data;
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  }, 10000);
+
+  expect(activated).toBe(true);
   expect(customerProfile).toBeDefined();
   expect(customerProfile!.status).toBe('ACTIVE');
+  this.setTestData('customerProfile', customerProfile);
 });
 
 Then(
@@ -412,8 +460,29 @@ Then(
   async function (this: CustomWorld) {
     // Correlation ID verification would require reading the event store
     // For acceptance testing, we verify the relationship exists via activation
-    const customerProfile = this.getTestData<CustomerResponse>('customerProfile');
+    const email = this.getTestData<string>('registeredEmail');
+    expect(email).toBeDefined();
+
+    // Wait for and fetch updated customer profile
+    let customerProfile: CustomerResponse | undefined;
+    const activated = await waitFor(async () => {
+      try {
+        const response = await this.customerApiClient.get<CustomerResponse>(
+          `/api/v1/customers/by-email/${encodeURIComponent(email!)}`
+        );
+        if (response.status === 200 && response.data.status === 'ACTIVE') {
+          customerProfile = response.data;
+          return true;
+        }
+        return false;
+      } catch {
+        return false;
+      }
+    }, 10000);
+
+    expect(activated).toBe(true);
     expect(customerProfile).toBeDefined();
     expect(customerProfile!.status).toBe('ACTIVE');
+    this.setTestData('customerProfile', customerProfile);
   }
 );

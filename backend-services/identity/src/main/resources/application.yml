@@ -25,13 +25,12 @@ spring:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: io.confluent.kafka.serializers.KafkaAvroSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
       acks: all
       retries: 3
       properties:
         max.in.flight.requests.per.connection: 1
-    properties:
-      schema.registry.url: ${SCHEMA_REGISTRY_URL:http://localhost:8081}
+        enable.idempotence: true
 
 server:
   port: ${SERVER_PORT:10300}

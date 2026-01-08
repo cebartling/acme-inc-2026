@@ -16,7 +16,14 @@ import org.springframework.util.backoff.ExponentialBackOff
 /**
  * Kafka consumer configuration for the Customer Service.
  *
- * Configures the consumer with:
+ * Configures separate consumer groups for different event types:
+ * - userRegisteredConsumerGroup: Processes UserRegistered events for customer creation
+ * - userActivatedConsumerGroup: Processes UserActivated events for customer activation
+ *
+ * Each consumer group independently consumes from the same topic, allowing
+ * both consumers to receive all messages and filter for their specific event types.
+ *
+ * Common configuration:
  * - Manual acknowledgment for reliable processing
  * - Exponential backoff retry (1s, 2s, 4s, 8s, 16s)
  * - Read committed isolation for transactional producers
@@ -28,7 +35,7 @@ class KafkaConsumerConfig(
     private val bootstrapServers: String,
 
     @Value("\${spring.kafka.consumer.group-id}")
-    private val groupId: String,
+    private val baseGroupId: String,
 
     @Value("\${customer.retry.max-attempts:5}")
     private val maxRetryAttempts: Int,
@@ -44,10 +51,9 @@ class KafkaConsumerConfig(
 ) {
 
     /**
-     * Creates the Kafka consumer factory with appropriate configuration.
+     * Creates a Kafka consumer factory with the specified group ID.
      */
-    @Bean
-    fun consumerFactory(): ConsumerFactory<String, String> {
+    private fun createConsumerFactory(groupId: String): ConsumerFactory<String, String> {
         val configProps = mapOf(
             ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG to bootstrapServers,
             ConsumerConfig.GROUP_ID_CONFIG to groupId,
@@ -63,13 +69,43 @@ class KafkaConsumerConfig(
     }
 
     /**
-     * Creates the Kafka listener container factory with manual acknowledgment
-     * and error handling with exponential backoff.
+     * Consumer factory for UserRegistered events.
+     */
+    @Bean
+    fun consumerFactory(): ConsumerFactory<String, String> {
+        return createConsumerFactory("$baseGroupId-user-registered")
+    }
+
+    /**
+     * Consumer factory for UserActivated events.
+     */
+    @Bean
+    fun userActivatedConsumerFactory(): ConsumerFactory<String, String> {
+        return createConsumerFactory("$baseGroupId-user-activated")
+    }
+
+    /**
+     * Kafka listener container factory for UserRegistered events.
+     * Uses a dedicated consumer group for processing registration events.
      */
     @Bean
     fun kafkaListenerContainerFactory(): ConcurrentKafkaListenerContainerFactory<String, String> {
         val factory = ConcurrentKafkaListenerContainerFactory<String, String>()
         factory.setConsumerFactory(consumerFactory())
+        factory.containerProperties.ackMode = ContainerProperties.AckMode.MANUAL
+        factory.setConcurrency(3)
+        factory.setCommonErrorHandler(defaultErrorHandler())
+        return factory
+    }
+
+    /**
+     * Kafka listener container factory for UserActivated events.
+     * Uses a dedicated consumer group for processing activation events.
+     */
+    @Bean
+    fun userActivatedKafkaListenerContainerFactory(): ConcurrentKafkaListenerContainerFactory<String, String> {
+        val factory = ConcurrentKafkaListenerContainerFactory<String, String>()
+        factory.setConsumerFactory(userActivatedConsumerFactory())
         factory.containerProperties.ackMode = ContainerProperties.AckMode.MANUAL
         factory.setConcurrency(3)
         factory.setCommonErrorHandler(defaultErrorHandler())

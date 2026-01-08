@@ -2,8 +2,6 @@ package com.acme.customer.infrastructure.messaging
 
 import com.acme.customer.application.eventhandlers.UserRegisteredHandler
 import com.acme.customer.infrastructure.messaging.dto.UserRegisteredEvent
-import com.acme.customer.infrastructure.persistence.ProcessedEvent
-import com.acme.customer.infrastructure.persistence.ProcessedEventRepository
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.micrometer.core.instrument.Counter
 import io.micrometer.core.instrument.MeterRegistry
@@ -27,7 +25,6 @@ import java.time.Instant
 @Component
 class UserRegisteredConsumer(
     private val userRegisteredHandler: UserRegisteredHandler,
-    private val processedEventRepository: ProcessedEventRepository,
     private val objectMapper: ObjectMapper,
     meterRegistry: MeterRegistry
 ) {
@@ -36,11 +33,6 @@ class UserRegisteredConsumer(
     private val eventsProcessedCounter: Counter = Counter.builder("customer.events.processed")
         .tag("event_type", "UserRegistered")
         .tag("status", "success")
-        .register(meterRegistry)
-
-    private val eventsSkippedCounter: Counter = Counter.builder("customer.events.processed")
-        .tag("event_type", "UserRegistered")
-        .tag("status", "skipped")
         .register(meterRegistry)
 
     private val eventsFailedCounter: Counter = Counter.builder("customer.events.processed")
@@ -70,7 +62,17 @@ class UserRegisteredConsumer(
         val startTime = Instant.now()
 
         try {
-            val event = objectMapper.readValue(record.value(), UserRegisteredEvent::class.java)
+            // First check event type before full deserialization
+            val eventNode = objectMapper.readTree(record.value())
+            val eventType = eventNode.get("eventType")?.asText()
+
+            // Skip non-UserRegistered events silently (other consumers will handle them)
+            if (eventType != UserRegisteredEvent.EVENT_TYPE) {
+                acknowledgment.acknowledge()
+                return
+            }
+
+            val event = objectMapper.treeToValue(eventNode, UserRegisteredEvent::class.java)
 
             logger.info(
                 "Received {} event {} for user {} from partition {} offset {}",
@@ -84,18 +86,6 @@ class UserRegisteredConsumer(
             // Track event processing lag
             val eventAge = Duration.between(event.timestamp, startTime)
             eventLagTimer.record(eventAge)
-
-            // Validate event type
-            if (event.eventType != UserRegisteredEvent.EVENT_TYPE) {
-                logger.warn(
-                    "Unexpected event type: {} (expected: {}), skipping",
-                    event.eventType,
-                    UserRegisteredEvent.EVENT_TYPE
-                )
-                eventsSkippedCounter.increment()
-                acknowledgment.acknowledge()
-                return
-            }
 
             // Process the event (idempotency check now happens inside the handler within transaction)
             processingTimer.record(Runnable {
