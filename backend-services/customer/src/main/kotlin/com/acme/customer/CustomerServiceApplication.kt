@@ -3,6 +3,7 @@ package com.acme.customer
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.runApplication
 import org.springframework.scheduling.annotation.EnableAsync
+import org.springframework.scheduling.annotation.EnableScheduling
 
 /**
  * Main application class for the Customer Service.
@@ -13,11 +14,13 @@ import org.springframework.scheduling.annotation.EnableAsync
  * - Managing customer information and preferences
  * - Publishing CustomerRegistered events for downstream services
  * - Projecting read models to MongoDB for queries
+ * - Relaying outbox messages to Kafka (Transactional Outbox pattern)
  *
  * @see <a href="../../documentation/user-stories/0002-create-customer-profile">User Story US-0002</a>
  */
 @SpringBootApplication
 @EnableAsync
+@EnableScheduling
 class CustomerServiceApplication
 
 /**
