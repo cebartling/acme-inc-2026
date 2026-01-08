@@ -61,7 +61,7 @@ class UserActivatedConsumer(
      */
     @KafkaListener(
         topics = ["\${customer.events.input-topic}"],
-        containerFactory = "userActivatedKafkaListenerContainerFactory"
+        containerFactory = "kafkaListenerContainerFactory"
     )
     fun consume(record: ConsumerRecord<String, String>, acknowledgment: Acknowledgment) {
         val startTime = Instant.now()
