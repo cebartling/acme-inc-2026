@@ -125,7 +125,7 @@ Given(
       `/api/v1/test/users/${userId}/verification-token`
     );
 
-    if (tokenResponse.status === 200 && tokenResponse.data.token) {
+    if (tokenResponse.status === 200) {
       // Verify using the token
       await this.identityApiClient.get(
         `/api/v1/users/verify?token=${tokenResponse.data.token}`,
@@ -159,11 +159,11 @@ Given(
     expect(profileCreated).toBe(true);
 
     // Then verify the email to trigger activation
-    const tokenResponse = await this.identityApiClient.get<{ token: string; found: boolean }>(
+    const tokenResponse = await this.identityApiClient.get<{ token: string }>(
       `/api/v1/test/users/${userId}/verification-token`
     );
 
-    if (tokenResponse.status === 200 && tokenResponse.data.token) {
+    if (tokenResponse.status === 200) {
       await this.identityApiClient.get(
         `/api/v1/users/verify?token=${tokenResponse.data.token}`,
         { redirect: 'manual' }
@@ -203,7 +203,7 @@ When('the user verifies their email', async function (this: CustomWorld) {
     `/api/v1/test/users/${userId}/verification-token`
   );
 
-  if (tokenResponse.status === 200 && tokenResponse.data.token) {
+  if (tokenResponse.status === 200) {
     // Verify using the token - this triggers UserActivated event
     const verifyResponse = await this.identityApiClient.get(
       `/api/v1/users/verify?token=${tokenResponse.data.token}`,
