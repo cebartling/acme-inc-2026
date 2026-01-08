@@ -335,6 +335,6 @@ class ActivateCustomerUseCaseTest {
         verify { customerRepository.save(any()) }
         // Verify projection and publish were not called due to exception
         verify(exactly = 0) { customerReadModelProjector.projectCustomer(any(), any()) }
-        verify(exactly = 0) { customerEventPublisher.publish(any<com.acme.customer.domain.events.CustomerActivated>()) }
+        verify(exactly = 0) { outboxWriter.write(any(), any()) }
     }
 }
