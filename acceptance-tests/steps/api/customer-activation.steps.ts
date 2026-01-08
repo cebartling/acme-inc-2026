@@ -2,23 +2,6 @@ import { Given, When, Then } from '@cucumber/cucumber';
 import { expect } from '@playwright/test';
 import { CustomWorld } from '../../support/world.js';
 
-interface RegistrationRequest {
-  email: string;
-  password: string;
-  firstName: string;
-  lastName: string;
-  tosAccepted: boolean;
-  tosAcceptedAt: string;
-  marketingOptIn: boolean;
-}
-
-interface RegistrationResponse {
-  userId: string;
-  email: string;
-  status: string;
-  createdAt: string;
-}
-
 interface CustomerResponse {
   customerId: string;
   userId: string;
