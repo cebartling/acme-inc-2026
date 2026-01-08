@@ -293,4 +293,48 @@ class ActivateCustomerUseCaseTest {
         // Then
         assertEquals(activatedAt, customerSlot.captured.lastActivityAt)
     }
+
+    @Test
+    fun `execute should return Failure when customer preferences are not found`() {
+        // Given
+        val userId = UUID.randomUUID()
+        val customerId = UUID.randomUUID()
+        val activatedAt = Instant.now()
+
+        val customer = Customer.createFromRegistration(
+            id = customerId,
+            userId = userId,
+            customerNumber = "ACME-202601-000006",
+            email = "test@example.com",
+            firstName = "Jane",
+            lastName = "Doe",
+            registeredAt = Instant.now().minusSeconds(3600)
+        )
+
+        every { customerRepository.findByUserId(userId) } returns customer
+        every { eventStoreRepository.append(any()) } just Runs
+        every { customerRepository.save(any()) } answers { firstArg() }
+        every { customerPreferencesRepository.findById(customerId) } returns Optional.empty()
+
+        // When
+        val result = useCase.execute(
+            userId = userId,
+            activatedAt = activatedAt,
+            correlationId = UUID.randomUUID(),
+            causationId = UUID.randomUUID()
+        )
+
+        // Then
+        assertTrue(result is ActivateCustomerResult.Failure)
+        val failure = result as ActivateCustomerResult.Failure
+        assertTrue(failure.message.contains("Cannot activate customer"))
+        assertTrue(failure.message.contains("Customer preferences not found for $customerId"))
+
+        // Verify that event and customer were saved before preferences check
+        verify { eventStoreRepository.append(any()) }
+        verify { customerRepository.save(any()) }
+        // Verify projection and publish were not called due to exception
+        verify(exactly = 0) { customerReadModelProjector.projectCustomer(any(), any()) }
+        verify(exactly = 0) { customerEventPublisher.publish(any<com.acme.customer.domain.events.CustomerActivated>()) }
+    }
 }
