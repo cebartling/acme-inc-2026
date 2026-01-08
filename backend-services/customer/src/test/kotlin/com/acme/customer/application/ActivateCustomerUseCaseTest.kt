@@ -116,7 +116,7 @@ class ActivateCustomerUseCaseTest {
             registeredAt = Instant.now().minusSeconds(3600)
         )
         // Manually set the customer to ACTIVE status
-        customer.status = CustomerStatus.ACTIVE
+        customer.setActiveForTesting()
         customer.emailVerified = true
 
         every { customerRepository.findByUserId(userId) } returns customer

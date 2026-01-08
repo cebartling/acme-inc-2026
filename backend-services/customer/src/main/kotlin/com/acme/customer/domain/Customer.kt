@@ -163,6 +163,39 @@ class Customer(
      */
     fun getCustomerNumber(): CustomerNumber = CustomerNumber(customerNumber)
 
+    /**
+     * Sets the customer status to SUSPENDED for testing purposes.
+     * This is an internal method used only in tests to set up specific test scenarios.
+     * Production code should use proper domain methods for state transitions.
+     *
+     * @internal This method is for testing only and should not be used in production code.
+     */
+    internal fun suspendForTesting() {
+        status = CustomerStatus.SUSPENDED
+    }
+
+    /**
+     * Sets the customer status to DELETED for testing purposes.
+     * This is an internal method used only in tests to set up specific test scenarios.
+     * Production code should use proper domain methods for state transitions.
+     *
+     * @internal This method is for testing only and should not be used in production code.
+     */
+    internal fun deleteForTesting() {
+        status = CustomerStatus.DELETED
+    }
+
+    /**
+     * Sets the customer status to ACTIVE for testing purposes.
+     * This is an internal method used only in tests to set up specific test scenarios.
+     * Production code should use the activate() method instead.
+     *
+     * @internal This method is for testing only and should not be used in production code.
+     */
+    internal fun setActiveForTesting() {
+        status = CustomerStatus.ACTIVE
+    }
+
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is Customer) return false
