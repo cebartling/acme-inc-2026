@@ -146,7 +146,7 @@ class CustomerTest {
     fun `activate should throw when customer is suspended`() {
         // Given
         val customer = createTestCustomer()
-        customer.status = CustomerStatus.SUSPENDED
+        customer.suspendForTesting()
         val activatedAt = Instant.now()
 
         // When/Then
@@ -161,7 +161,7 @@ class CustomerTest {
     fun `activate should throw when customer is deleted`() {
         // Given
         val customer = createTestCustomer()
-        customer.status = CustomerStatus.DELETED
+        customer.deleteForTesting()
         val activatedAt = Instant.now()
 
         // When/Then
@@ -185,7 +185,7 @@ class CustomerTest {
     fun `canBeActivated should return false for ACTIVE status`() {
         // Given
         val customer = createTestCustomer()
-        customer.status = CustomerStatus.ACTIVE
+        customer.setActiveForTesting()
 
         // When/Then
         assertFalse(customer.canBeActivated())
@@ -195,7 +195,7 @@ class CustomerTest {
     fun `isActive should return true when status is ACTIVE`() {
         // Given
         val customer = createTestCustomer()
-        customer.status = CustomerStatus.ACTIVE
+        customer.setActiveForTesting()
 
         // When/Then
         assertTrue(customer.isActive())
