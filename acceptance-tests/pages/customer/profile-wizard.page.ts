@@ -69,18 +69,18 @@ export class ProfileWizardPage extends BasePage {
 
     // Progress indicator
     this.progressIndicator = page.locator('nav[aria-label="Progress"]');
-    this.personalDetailsStepIndicator = page.getByRole('button', { name: /1|Personal Details/i });
-    this.addressStepIndicator = page.getByRole('button', { name: /2|Address/i });
-    this.preferencesStepIndicator = page.getByRole('button', { name: /3|Preferences/i });
-    this.reviewStepIndicator = page.getByRole('button', { name: /4|Review/i });
+    this.personalDetailsStepIndicator = page.getByRole('button', { name: /Step 1: Personal Details/i });
+    this.addressStepIndicator = page.getByRole('button', { name: /Step 2: Address/i });
+    this.preferencesStepIndicator = page.getByRole('button', { name: /Step 3: Preferences/i });
+    this.reviewStepIndicator = page.getByRole('button', { name: /Step 4: Review/i });
 
     // Personal Details Step Fields
     this.phoneCountryCodeSelect = page.locator('button').filter({ hasText: /\+\d/ }).first();
     this.phoneNumberInput = page.getByPlaceholder('555-123-4567');
     this.dateOfBirthInput = page.locator('input[type="date"]');
-    this.genderSelect = page.locator('button').filter({ hasText: 'Select gender' });
-    this.languageSelect = page.locator('button').filter({ hasText: /Select language|English/ });
-    this.timezoneSelect = page.locator('button').filter({ hasText: /Select timezone|UTC/ });
+    this.genderSelect = page.getByRole('combobox').filter({ hasText: /Select gender|Male|Female|Non-binary|Prefer not to say/i }).first();
+    this.languageSelect = page.getByRole('combobox').filter({ hasText: /Select language|English|Spanish|French|German/i }).first();
+    this.timezoneSelect = page.getByRole('combobox').filter({ hasText: /Select timezone|UTC|Eastern|Central|Mountain|Pacific/i }).first();
 
     // Address Step Fields
     this.addressTypeSelect = page.locator('button').filter({ hasText: /Shipping|Billing|Both/ });
@@ -136,7 +136,7 @@ export class ProfileWizardPage extends BasePage {
   // Personal Details Step Methods
   async fillPhoneNumber(countryCode: string, number: string): Promise<void> {
     await this.phoneCountryCodeSelect.click();
-    await this.page.getByRole('option', { name: new RegExp(countryCode.replace('+', '\\+')) }).click();
+    await this.page.getByRole('option', { name: new RegExp(countryCode.replace('+', '\\+')) }).first().click();
     await this.fill(this.phoneNumberInput, number);
   }
 
@@ -146,17 +146,20 @@ export class ProfileWizardPage extends BasePage {
 
   async selectGender(gender: string): Promise<void> {
     await this.genderSelect.click();
-    await this.page.getByRole('option', { name: gender }).click();
+    await this.page.waitForTimeout(100); // Wait for dropdown animation
+    await this.page.getByRole('option', { name: gender, exact: true }).first().click();
   }
 
   async selectLanguage(language: string): Promise<void> {
     await this.languageSelect.click();
-    await this.page.getByRole('option', { name: language }).click();
+    await this.page.waitForTimeout(100); // Wait for dropdown animation
+    await this.page.getByRole('option', { name: language }).first().click();
   }
 
   async selectTimezone(timezone: string): Promise<void> {
     await this.timezoneSelect.click();
-    await this.page.getByRole('option', { name: timezone }).click();
+    await this.page.waitForTimeout(100); // Wait for dropdown animation
+    await this.page.getByRole('option', { name: timezone }).first().click();
   }
 
   // Address Step Methods
@@ -288,27 +291,45 @@ export class ProfileWizardPage extends BasePage {
 
   // Step Detection
   async getCurrentStepName(): Promise<string> {
+    // Wait for the step heading to be stable
+    await this.page.waitForLoadState('domcontentloaded');
     const heading = await this.page.locator('h2').first().textContent();
     return heading || '';
   }
 
   async isOnPersonalDetailsStep(): Promise<boolean> {
-    const stepName = await this.getCurrentStepName();
-    return stepName.includes('Personal Details');
+    try {
+      await this.page.locator('h2', { hasText: 'Personal Details' }).waitFor({ state: 'visible', timeout: 3000 });
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   async isOnAddressStep(): Promise<boolean> {
-    const stepName = await this.getCurrentStepName();
-    return stepName.includes('Address');
+    try {
+      await this.page.locator('h2', { hasText: 'Address' }).waitFor({ state: 'visible', timeout: 3000 });
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   async isOnPreferencesStep(): Promise<boolean> {
-    const stepName = await this.getCurrentStepName();
-    return stepName.includes('Preferences');
+    try {
+      await this.page.locator('h2', { hasText: 'Preferences' }).waitFor({ state: 'visible', timeout: 3000 });
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   async isOnReviewStep(): Promise<boolean> {
-    const stepName = await this.getCurrentStepName();
-    return stepName.includes('Review');
+    try {
+      await this.page.locator('h2', { hasText: 'Review' }).waitFor({ state: 'visible', timeout: 3000 });
+      return true;
+    } catch {
+      return false;
+    }
   }
 }

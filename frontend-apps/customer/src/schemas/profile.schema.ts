@@ -21,7 +21,10 @@ export const personalDetailsSchema = z.object({
   (data) => {
     // If phone number is provided, validate it
     if (data.phoneNumber && data.phoneCountryCode) {
-      const fullNumber = `${data.phoneCountryCode}${data.phoneNumber}`;
+      // Strip non-digit characters from phone number before validation
+      const cleanNumber = data.phoneNumber.replace(/\D/g, '');
+      if (!cleanNumber) return true; // Empty after stripping is valid (optional field)
+      const fullNumber = `${data.phoneCountryCode}${cleanNumber}`;
       return isValidPhoneNumber(fullNumber);
     }
     return true;

@@ -32,7 +32,7 @@ export function AddressStep() {
     handleSubmit,
     control,
     watch,
-    formState: { errors, touchedFields, dirtyFields },
+    formState: { errors, touchedFields, dirtyFields, isSubmitted },
   } = useForm<AddressFormData>({
     resolver: zodResolver(addressSchema),
     mode: 'onBlur',
@@ -91,7 +91,7 @@ export function AddressStep() {
             </Select>
           )}
         />
-        {errors.addressType && (
+        {(touchedFields.addressType || isSubmitted) && errors.addressType && (
           <p className="text-sm text-red-500" role="alert">
             {errors.addressType.message}
           </p>
@@ -121,7 +121,7 @@ export function AddressStep() {
         htmlFor="streetLine1"
         required
         error={errors.streetLine1?.message}
-        touched={touchedFields.streetLine1}
+        touched={touchedFields.streetLine1 || isSubmitted}
         valid={dirtyFields.streetLine1 && !errors.streetLine1}
       >
         <Input
@@ -157,7 +157,7 @@ export function AddressStep() {
           htmlFor="city"
           required
           error={errors.city?.message}
-          touched={touchedFields.city}
+          touched={touchedFields.city || isSubmitted}
           valid={dirtyFields.city && !errors.city}
         >
           <Input
@@ -205,7 +205,7 @@ export function AddressStep() {
               {...register('stateProvince')}
             />
           )}
-          {errors.stateProvince && (
+          {(touchedFields.stateProvince || isSubmitted) && errors.stateProvince && (
             <p className="text-sm text-red-500" role="alert">
               {errors.stateProvince.message}
             </p>
@@ -220,7 +220,7 @@ export function AddressStep() {
           htmlFor="postalCode"
           required
           error={errors.postalCode?.message}
-          touched={touchedFields.postalCode}
+          touched={touchedFields.postalCode || isSubmitted}
           valid={dirtyFields.postalCode && !errors.postalCode}
         >
           <Input
@@ -258,7 +258,7 @@ export function AddressStep() {
               </Select>
             )}
           />
-          {errors.country && (
+          {(touchedFields.country || isSubmitted) && errors.country && (
             <p className="text-sm text-red-500" role="alert">
               {errors.country.message}
             </p>

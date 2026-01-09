@@ -65,6 +65,7 @@ export function WizardProgress() {
                   type="button"
                   onClick={() => canNavigate && setCurrentStep(step.id)}
                   disabled={!canNavigate}
+                  aria-label={`Step ${index + 1}: ${step.label}`}
                   className={cn(
                     'group flex flex-col items-center w-full',
                     canNavigate && 'cursor-pointer',
