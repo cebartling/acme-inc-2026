@@ -333,9 +333,9 @@
         <p>Need help? Contact us at <a th:href="'mailto:' + ${supportEmail}" th:text="${supportEmail}">support@acme.com</a></p>
 
         <div class="social-links">
-            <a href="#">Facebook</a> |
-            <a href="#">Twitter</a> |
-            <a href="#">Instagram</a>
+            <a th:href="${facebookUrl}">Facebook</a> |
+            <a th:href="${twitterUrl}">Twitter</a> |
+            <a th:href="${instagramUrl}">Instagram</a>
         </div>
 
         <p class="copyright">
@@ -344,7 +344,7 @@
 
         <div class="unsubscribe">
             <p>You're receiving this email because you opted in to marketing communications.</p>
-            <p><a href="#">Unsubscribe</a> | <a href="#">Manage Preferences</a></p>
+            <p><a th:href="${unsubscribeUrl}">Unsubscribe</a> | <a th:href="${managePreferencesUrl}">Manage Preferences</a></p>
         </div>
     </div>
 </div>
