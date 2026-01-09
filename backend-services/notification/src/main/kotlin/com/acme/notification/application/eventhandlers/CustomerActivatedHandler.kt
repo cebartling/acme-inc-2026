@@ -63,7 +63,6 @@ class CustomerActivatedHandler(
         when (customerResult) {
             is CustomerQueryResult.Success -> {
                 val customer = customerResult.customer
-                
                 // Process event within transaction (with idempotency re-check)
                 processEventTransactionally(event, customer)
             }
