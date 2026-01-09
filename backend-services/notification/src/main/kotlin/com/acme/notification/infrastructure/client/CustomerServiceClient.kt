@@ -95,19 +95,31 @@ class CustomerServiceClient(
 
                 // Execute the REST call within the circuit breaker
                 val result = circuitBreaker.executeSupplier {
-                    val response = client.get()
-                        .uri("/api/v1/customers/{id}", customerId.toString())
-                        .retrieve()
-                        .toEntity(CustomerDto::class.java)
+                    try {
+                        val response = client.get()
+                            .uri("/api/v1/customers/{id}", customerId.toString())
+                            .retrieve()
+                            .toEntity(CustomerDto::class.java)
 
-                    if (response.statusCode == HttpStatus.OK && response.body != null) {
-                        successCounter.increment()
-                        logger.debug("Successfully fetched customer: {}", customerId)
-                        CustomerQueryResult.Success(response.body!!)
-                    } else {
-                        notFoundCounter.increment()
-                        logger.warn("Customer not found: {}", customerId)
-                        CustomerQueryResult.NotFound
+                        if (response.statusCode == HttpStatus.OK && response.body != null) {
+                            successCounter.increment()
+                            logger.debug("Successfully fetched customer: {}", customerId)
+                            CustomerQueryResult.Success(response.body!!)
+                        } else {
+                            notFoundCounter.increment()
+                            logger.warn("Customer not found: {}", customerId)
+                            CustomerQueryResult.NotFound
+                        }
+                    } catch (e: RestClientException) {
+                        // Handle 404s outside circuit breaker scope - these are not service failures
+                        if (e.message?.contains("404") == true) {
+                            notFoundCounter.increment()
+                            logger.warn("Customer not found: {}", customerId)
+                            CustomerQueryResult.NotFound
+                        } else {
+                            // Other RestClientExceptions are service failures - let circuit breaker record them
+                            throw e
+                        }
                     }
                 }
                 result
@@ -117,15 +129,11 @@ class CustomerServiceClient(
                 logger.error("Circuit breaker is OPEN for customer service, failing fast for customer {}", customerId)
                 CustomerQueryResult.Error("Customer service is currently unavailable (circuit breaker open)", e)
             } catch (e: RestClientException) {
-                if (e.message?.contains("404") == true) {
-                    notFoundCounter.increment()
-                    logger.warn("Customer not found: {}", customerId)
-                    CustomerQueryResult.NotFound
-                } else {
-                    errorCounter.increment()
-                    logger.error("Error fetching customer {}: {}", customerId, e.message, e)
-                    CustomerQueryResult.Error("Failed to fetch customer: ${e.message}", e)
-                }
+                // This should not happen as we handle RestClientException inside circuit breaker,
+                // but kept for safety in case of unexpected behavior
+                errorCounter.increment()
+                logger.error("Error fetching customer {}: {}", customerId, e.message, e)
+                CustomerQueryResult.Error("Failed to fetch customer: ${e.message}", e)
             } catch (e: Exception) {
                 errorCounter.increment()
                 logger.error("Unexpected error fetching customer {}: {}", customerId, e.message, e)

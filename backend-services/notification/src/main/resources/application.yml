@@ -96,18 +96,22 @@ resilience4j:
         # Slow call threshold (calls taking longer than this are considered failures)
         slow-call-duration-threshold: 5s
         slow-call-rate-threshold: 50
-        # Record these exceptions as failures
+        # Record these exceptions as failures (excluding client errors like 404)
         record-exceptions:
-          - org.springframework.web.client.RestClientException
+          - org.springframework.web.client.ResourceAccessException
+          - org.springframework.web.client.HttpServerErrorException
           - java.util.concurrent.TimeoutException
           - java.io.IOException
+        # Ignore client errors (4xx) - these are not service failures
+        ignore-exceptions:
+          - org.springframework.web.client.HttpClientErrorException
     metrics:
       enabled: true
   timelimiter:
     instances:
       customerService:
         # Timeout aligned with customer-service.timeout-ms
-        timeout-duration: 5s
+        timeout-duration: ${CUSTOMER_SERVICE_TIMEOUT_MS:5000}ms
   email:
     from-address: ${EMAIL_FROM_ADDRESS:noreply@acme.com}
     from-name: ${EMAIL_FROM_NAME:ACME}
