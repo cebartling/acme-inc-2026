@@ -76,6 +76,44 @@ notification:
   customer-service:
     base-url: ${CUSTOMER_SERVICE_URL:http://localhost:10301}
     timeout-ms: ${CUSTOMER_SERVICE_TIMEOUT_MS:5000}
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      customerService:
+        # Circuit Breaker opens after 50% failures in a sliding window
+        failure-rate-threshold: 50
+        # Sliding window size (number of calls to track)
+        sliding-window-size: 10
+        # Minimum number of calls before circuit breaker can open
+        minimum-number-of-calls: 5
+        # Time the circuit breaker stays open before transitioning to half-open
+        wait-duration-in-open-state: 30s
+        # Number of calls allowed in half-open state to test service recovery
+        permitted-number-of-calls-in-half-open-state: 3
+        # Automatically transition from open to half-open
+        automatic-transition-from-open-to-half-open-enabled: true
+        # Slow call threshold (calls taking longer than this are considered failures)
+        slow-call-duration-threshold: 5s
+        slow-call-rate-threshold: 50
+        # Record these exceptions as failures (excluding client errors like 404)
+        record-exceptions:
+          - org.springframework.web.client.ResourceAccessException
+          - org.springframework.web.client.HttpServerErrorException
+          - java.util.concurrent.TimeoutException
+          - java.io.IOException
+        # Ignore client errors (4xx) - these are not service failures
+        ignore-exceptions:
+          - org.springframework.web.client.HttpClientErrorException
+    metrics:
+      enabled: true
+  timelimiter:
+    instances:
+      customerService:
+        # TimeLimiter is automatically integrated with the circuit breaker by Spring Cloud CircuitBreaker
+        # Timeout configuration: CUSTOMER_SERVICE_TIMEOUT_MS should be numeric milliseconds (e.g., 5000)
+        # The 'ms' suffix is appended here to create a proper duration value for TimeLimiter
+        timeout-duration: ${CUSTOMER_SERVICE_TIMEOUT_MS:5000}ms
   email:
     from-address: ${EMAIL_FROM_ADDRESS:noreply@acme.com}
     from-name: ${EMAIL_FROM_NAME:ACME}

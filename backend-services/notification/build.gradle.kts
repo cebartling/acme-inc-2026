@@ -53,6 +53,10 @@ dependencies {
     // Kafka
     implementation("org.springframework.kafka:spring-kafka")
 
+    // Resilience4j for Circuit Breaker
+    implementation("org.springframework.cloud:spring-cloud-starter-circuitbreaker-resilience4j")
+    implementation("io.github.resilience4j:resilience4j-micrometer")
+
     // SendGrid for email
     implementation("com.sendgrid:sendgrid-java:4.10.2")
 
