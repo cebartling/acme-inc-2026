@@ -87,7 +87,7 @@ class CustomerServiceClient(
      * @return The customer query result.
      */
     fun getCustomerById(customerId: UUID): CustomerQueryResult {
-        return requestTimer.record {
+        return requestTimer.record<CustomerQueryResult> {
             try {
                 logger.debug("Fetching customer details for ID: {}", customerId)
 
@@ -146,6 +146,6 @@ class CustomerServiceClient(
                 logger.error("Unexpected error fetching customer {}: {}", customerId, e.message, e)
                 CustomerQueryResult.Error("Unexpected error: ${e.message}", e)
             }
-        }
+        } ?: CustomerQueryResult.Error("Timer returned null result")
     }
 }
