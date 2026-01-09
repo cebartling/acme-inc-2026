@@ -120,6 +120,11 @@ class CustomerServiceClient(
                             logger.error("Client error fetching customer {}: {}", customerId, e.statusCode, e)
                             CustomerQueryResult.Error("Client error: ${e.statusCode}", e)
                         }
+                    } catch (e: Exception) {
+                        // Server errors (5xx), timeouts, and other failures - counted as circuit breaker failures
+                        errorCounter.increment()
+                        logger.error("Error fetching customer {}: {}", customerId, e.message, e)
+                        CustomerQueryResult.Error("Failed to fetch customer: ${e.message}", e)
                     }
                 }
             } catch (e: CallNotPermittedException) {
@@ -128,10 +133,10 @@ class CustomerServiceClient(
                 logger.error("Circuit breaker is OPEN for customer service, failing fast for customer {}", customerId)
                 CustomerQueryResult.Error("Customer service is currently unavailable (circuit breaker open)", e)
             } catch (e: Exception) {
-                // Server errors, timeouts, and other failures - counted as circuit breaker failures
+                // Fallback for any unexpected exceptions not handled within the circuit breaker
                 errorCounter.increment()
-                logger.error("Error fetching customer {}: {}", customerId, e.message, e)
-                CustomerQueryResult.Error("Failed to fetch customer: ${e.message}", e)
+                logger.error("Unexpected error fetching customer {}: {}", customerId, e.message, e)
+                CustomerQueryResult.Error("Unexpected error: ${e.message}", e)
             }
         } ?: CustomerQueryResult.Error("Timer returned null result")
     }
