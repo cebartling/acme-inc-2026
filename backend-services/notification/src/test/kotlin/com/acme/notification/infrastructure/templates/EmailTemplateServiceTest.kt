@@ -28,7 +28,12 @@ class EmailTemplateServiceTest {
             supportEmail = "support@acme.com",
             companyName = "ACME Inc.",
             shopUrl = "https://www.acme.com/shop",
-            profileUrl = "https://www.acme.com/profile"
+            profileUrl = "https://www.acme.com/profile",
+            facebookUrl = "https://www.facebook.com/acme",
+            twitterUrl = "https://twitter.com/acme",
+            instagramUrl = "https://www.instagram.com/acme",
+            unsubscribeUrl = "https://www.acme.com/unsubscribe",
+            managePreferencesUrl = "https://www.acme.com/preferences"
         )
     }
 
@@ -188,5 +193,36 @@ class EmailTemplateServiceTest {
         )
 
         assertTrue(html.contains(Year.now().value.toString()))
+    }
+
+    @Test
+    fun `should include social media links in marketing welcome email`() {
+        val html = templateService.renderWelcomeEmail(
+            recipientName = "User",
+            displayName = "Test User",
+            customerNumber = "ACME-202601-000001",
+            marketingOptIn = true,
+            showProfileCta = false
+        )
+
+        assertTrue(html.contains("https://www.facebook.com/acme"))
+        assertTrue(html.contains("https://twitter.com/acme"))
+        assertTrue(html.contains("https://www.instagram.com/acme"))
+    }
+
+    @Test
+    fun `should include unsubscribe and manage preferences links in marketing welcome email`() {
+        val html = templateService.renderWelcomeEmail(
+            recipientName = "User",
+            displayName = "Test User",
+            customerNumber = "ACME-202601-000001",
+            marketingOptIn = true,
+            showProfileCta = false
+        )
+
+        assertTrue(html.contains("https://www.acme.com/unsubscribe"))
+        assertTrue(html.contains("https://www.acme.com/preferences"))
+        assertTrue(html.contains("Unsubscribe"))
+        assertTrue(html.contains("Manage Preferences"))
     }
 }

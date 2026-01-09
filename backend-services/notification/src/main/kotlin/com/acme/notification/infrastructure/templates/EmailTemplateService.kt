@@ -20,7 +20,17 @@ class EmailTemplateService(
     @Value("\${notification.email.welcome.shop-url}")
     private val shopUrl: String,
     @Value("\${notification.email.welcome.profile-url}")
-    private val profileUrl: String
+    private val profileUrl: String,
+    @Value("\${notification.email.social-media.facebook-url}")
+    private val facebookUrl: String,
+    @Value("\${notification.email.social-media.twitter-url}")
+    private val twitterUrl: String,
+    @Value("\${notification.email.social-media.instagram-url}")
+    private val instagramUrl: String,
+    @Value("\${notification.email.preferences.unsubscribe-url}")
+    private val unsubscribeUrl: String,
+    @Value("\${notification.email.preferences.manage-preferences-url}")
+    private val managePreferencesUrl: String
 ) {
 
     /**
@@ -83,6 +93,11 @@ class EmailTemplateService(
             setVariable("currentYear", Year.now().value)
             setVariable("marketingOptIn", marketingOptIn)
             setVariable("showProfileCta", showProfileCta)
+            setVariable("facebookUrl", facebookUrl)
+            setVariable("twitterUrl", twitterUrl)
+            setVariable("instagramUrl", instagramUrl)
+            setVariable("unsubscribeUrl", unsubscribeUrl)
+            setVariable("managePreferencesUrl", managePreferencesUrl)
         }
 
         // Select template based on marketing preference
