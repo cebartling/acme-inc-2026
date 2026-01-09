@@ -7,6 +7,7 @@ import io.micrometer.core.instrument.Timer
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.HttpStatus
+import org.springframework.http.client.ClientHttpRequestFactories
 import org.springframework.http.client.ClientHttpRequestFactorySettings
 import org.springframework.stereotype.Component
 import org.springframework.web.client.RestClient
@@ -55,7 +56,7 @@ class CustomerServiceClient(
 
     private val client: RestClient = RestClient.builder()
         .baseUrl(baseUrl)
-        .requestFactory(requestFactorySettings)
+        .requestFactory(ClientHttpRequestFactories.get(requestFactorySettings))
         .build()
 
     private val requestTimer: Timer = Timer.builder("customer_service_request_duration_seconds")
