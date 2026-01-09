@@ -6,7 +6,7 @@ import com.acme.customer.domain.CustomerPreferences
 import com.acme.customer.domain.CustomerStatus
 import com.acme.customer.domain.CustomerType
 import com.acme.customer.domain.events.CustomerRegistered
-import com.acme.customer.infrastructure.messaging.CustomerEventPublisher
+import com.acme.customer.infrastructure.messaging.OutboxWriter
 import com.acme.customer.infrastructure.persistence.CustomerNumberSequenceRepository
 import com.acme.customer.infrastructure.persistence.CustomerPreferencesRepository
 import com.acme.customer.infrastructure.persistence.CustomerRepository
@@ -35,11 +35,12 @@ import java.util.UUID
  * 5. Persist event to event store (within transaction)
  * 6. Persist customer and preferences (within transaction)
  * 7. Project to MongoDB (waits for completion before transaction commit)
- * 8. Publish CustomerRegistered event to Kafka synchronously (within transaction)
+ * 8. Write event to outbox (within transaction)
  *
  * The projection operation runs asynchronously but is awaited before the transaction
- * commits. The Kafka publishing is synchronous to ensure it participates in the
- * transaction - if publishing fails, the transaction will be rolled back.
+ * commits. The event is written to the outbox table within the same transaction,
+ * and will be published to Kafka asynchronously by the OutboxRelay. This implements
+ * the Transactional Outbox pattern to decouple Kafka availability from transaction success.
  */
 @Service
 class CreateCustomerUseCase(
@@ -49,7 +50,7 @@ class CreateCustomerUseCase(
     private val eventStoreRepository: EventStoreRepository,
     private val customerIdGenerator: CustomerIdGenerator,
     private val customerReadModelProjector: CustomerReadModelProjector,
-    private val customerEventPublisher: CustomerEventPublisher,
+    private val outboxWriter: OutboxWriter,
     meterRegistry: MeterRegistry
 ) {
     private val logger = LoggerFactory.getLogger(CreateCustomerUseCase::class.java)
@@ -168,17 +169,17 @@ class CreateCustomerUseCase(
                     userId
                 )
 
-                // Project to MongoDB and publish to Kafka
-                // Wait for projection to complete, then publish synchronously
+                // Project to MongoDB and write to outbox
+                // Wait for projection to complete, then write to outbox
                 // This ensures consistency between write model (PostgreSQL) and read model (MongoDB)
                 val projectionFuture = customerReadModelProjector.projectCustomer(customer, preferences)
                 
-                // Wait for projection to complete before publishing to Kafka
+                // Wait for projection to complete before writing to outbox
                 projectionFuture.join()
                 
-                // Publish synchronously within the transaction
-                // Any exception will cause transaction rollback
-                customerEventPublisher.publish(event)
+                // Write to outbox within the transaction
+                // The OutboxRelay will publish asynchronously, decoupled from this transaction
+                outboxWriter.write(event, CustomerRegistered.TOPIC)
 
                 customerCreatedCounter.increment()
 

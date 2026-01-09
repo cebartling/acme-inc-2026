@@ -1,11 +1,13 @@
 package com.acme.customer.domain
 
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
+import kotlin.test.assertTrue
 
 class CustomerTest {
 
@@ -105,6 +107,107 @@ class CustomerTest {
 
         // When/Then
         assertEquals(customer1.hashCode(), customer2.hashCode())
+    }
+
+    @Test
+    fun `activate should change status to ACTIVE and set emailVerified`() {
+        // Given
+        val customer = createTestCustomer()
+        val activatedAt = Instant.now()
+
+        // When
+        customer.activate(activatedAt)
+
+        // Then
+        assertEquals(CustomerStatus.ACTIVE, customer.status)
+        assertTrue(customer.emailVerified)
+        assertEquals(activatedAt, customer.lastActivityAt)
+    }
+
+    @Test
+    fun `activate should be idempotent when already active`() {
+        // Given
+        val customer = createTestCustomer()
+        val firstActivation = Instant.now()
+        customer.activate(firstActivation)
+
+        val secondActivation = Instant.now().plusSeconds(3600)
+
+        // When
+        customer.activate(secondActivation) // Should not throw
+
+        // Then
+        assertEquals(CustomerStatus.ACTIVE, customer.status)
+        assertTrue(customer.emailVerified)
+        assertEquals(firstActivation, customer.lastActivityAt) // Should remain unchanged
+    }
+
+    @Test
+    fun `activate should throw when customer is suspended`() {
+        // Given
+        val customer = createTestCustomer()
+        customer.suspendForTesting()
+        val activatedAt = Instant.now()
+
+        // When/Then
+        val exception = assertThrows<IllegalStateException> {
+            customer.activate(activatedAt)
+        }
+
+        assertTrue(exception.message!!.contains("current status is SUSPENDED"))
+    }
+
+    @Test
+    fun `activate should throw when customer is deleted`() {
+        // Given
+        val customer = createTestCustomer()
+        customer.deleteForTesting()
+        val activatedAt = Instant.now()
+
+        // When/Then
+        val exception = assertThrows<IllegalStateException> {
+            customer.activate(activatedAt)
+        }
+
+        assertTrue(exception.message!!.contains("current status is DELETED"))
+    }
+
+    @Test
+    fun `canBeActivated should return true for PENDING_VERIFICATION status`() {
+        // Given
+        val customer = createTestCustomer()
+
+        // When/Then
+        assertTrue(customer.canBeActivated())
+    }
+
+    @Test
+    fun `canBeActivated should return false for ACTIVE status`() {
+        // Given
+        val customer = createTestCustomer()
+        customer.setActiveForTesting()
+
+        // When/Then
+        assertFalse(customer.canBeActivated())
+    }
+
+    @Test
+    fun `isActive should return true when status is ACTIVE`() {
+        // Given
+        val customer = createTestCustomer()
+        customer.setActiveForTesting()
+
+        // When/Then
+        assertTrue(customer.isActive())
+    }
+
+    @Test
+    fun `isActive should return false when status is not ACTIVE`() {
+        // Given
+        val customer = createTestCustomer()
+
+        // When/Then
+        assertFalse(customer.isActive())
     }
 
     private fun createTestCustomer(id: UUID = UUID.randomUUID()): Customer {

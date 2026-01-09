@@ -12,6 +12,8 @@ const common = {
     // API step definitions
     'steps/api/registration-api.steps.ts',
     'steps/api/customer-profile.steps.ts',
+    'steps/api/email-verification.steps.ts',
+    'steps/api/customer-activation.steps.ts',
   ],
   format: [
     'json:reports/cucumber-report.json',

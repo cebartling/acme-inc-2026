@@ -16,7 +16,16 @@ import org.springframework.util.backoff.ExponentialBackOff
 /**
  * Kafka consumer configuration for the Customer Service.
  *
- * Configures the consumer with:
+ * Configures a single consumer group with multiple listeners for efficient event processing:
+ * - UserRegisteredConsumer: Processes UserRegistered events for customer creation
+ * - UserActivatedConsumer: Processes UserActivated events for customer activation
+ *
+ * Both listeners share the same consumer group, ensuring each event is consumed only once
+ * by the group. The listeners filter for their specific event types, but since they're in
+ * the same group, each message is delivered to only one consumer instance, avoiding
+ * redundant processing.
+ *
+ * Common configuration:
  * - Manual acknowledgment for reliable processing
  * - Exponential backoff retry (1s, 2s, 4s, 8s, 16s)
  * - Read committed isolation for transactional producers
@@ -28,7 +37,7 @@ class KafkaConsumerConfig(
     private val bootstrapServers: String,
 
     @Value("\${spring.kafka.consumer.group-id}")
-    private val groupId: String,
+    private val baseGroupId: String,
 
     @Value("\${customer.retry.max-attempts:5}")
     private val maxRetryAttempts: Int,
@@ -44,13 +53,14 @@ class KafkaConsumerConfig(
 ) {
 
     /**
-     * Creates the Kafka consumer factory with appropriate configuration.
+     * Consumer factory shared by all event listeners.
+     * Uses a single consumer group to ensure each event is consumed only once.
      */
     @Bean
     fun consumerFactory(): ConsumerFactory<String, String> {
         val configProps = mapOf(
             ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG to bootstrapServers,
-            ConsumerConfig.GROUP_ID_CONFIG to groupId,
+            ConsumerConfig.GROUP_ID_CONFIG to baseGroupId,
             ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG to StringDeserializer::class.java,
             ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG to StringDeserializer::class.java,
             ConsumerConfig.AUTO_OFFSET_RESET_CONFIG to "earliest",
@@ -63,8 +73,9 @@ class KafkaConsumerConfig(
     }
 
     /**
-     * Creates the Kafka listener container factory with manual acknowledgment
-     * and error handling with exponential backoff.
+     * Kafka listener container factory shared by all event listeners.
+     * All listeners in this consumer group will process messages from the same topic
+     * but can filter for different event types in their listener methods.
      */
     @Bean
     fun kafkaListenerContainerFactory(): ConcurrentKafkaListenerContainerFactory<String, String> {

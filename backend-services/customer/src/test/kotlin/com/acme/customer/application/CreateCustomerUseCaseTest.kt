@@ -2,7 +2,7 @@ package com.acme.customer.application
 
 import com.acme.customer.domain.Customer
 import com.acme.customer.domain.CustomerPreferences
-import com.acme.customer.infrastructure.messaging.CustomerEventPublisher
+import com.acme.customer.infrastructure.messaging.OutboxWriter
 import com.acme.customer.infrastructure.persistence.CustomerNumberSequenceRepository
 import com.acme.customer.infrastructure.persistence.CustomerPreferencesRepository
 import com.acme.customer.infrastructure.persistence.CustomerRepository
@@ -28,7 +28,7 @@ class CreateCustomerUseCaseTest {
     private lateinit var eventStoreRepository: EventStoreRepository
     private lateinit var customerIdGenerator: CustomerIdGenerator
     private lateinit var customerReadModelProjector: CustomerReadModelProjector
-    private lateinit var customerEventPublisher: CustomerEventPublisher
+    private lateinit var outboxWriter: OutboxWriter
     private lateinit var useCase: CreateCustomerUseCase
 
     @BeforeEach
@@ -39,7 +39,7 @@ class CreateCustomerUseCaseTest {
         eventStoreRepository = mockk()
         customerIdGenerator = mockk()
         customerReadModelProjector = mockk()
-        customerEventPublisher = mockk()
+        outboxWriter = mockk()
 
         useCase = CreateCustomerUseCase(
             customerRepository = customerRepository,
@@ -48,7 +48,7 @@ class CreateCustomerUseCaseTest {
             eventStoreRepository = eventStoreRepository,
             customerIdGenerator = customerIdGenerator,
             customerReadModelProjector = customerReadModelProjector,
-            customerEventPublisher = customerEventPublisher,
+            outboxWriter = outboxWriter,
             meterRegistry = SimpleMeterRegistry()
         )
     }
@@ -73,7 +73,7 @@ class CreateCustomerUseCaseTest {
         every { customerRepository.save(any()) } answers { firstArg() }
         every { customerPreferencesRepository.save(any()) } answers { firstArg() }
         every { customerReadModelProjector.projectCustomer(any(), any()) } returns CompletableFuture.completedFuture(null)
-        every { customerEventPublisher.publish(any()) } just Runs
+        every { outboxWriter.write(any(), any()) } just Runs
 
         // When
         val result = useCase.execute(
@@ -104,7 +104,7 @@ class CreateCustomerUseCaseTest {
         verify { customerRepository.save(any()) }
         verify { customerPreferencesRepository.save(any()) }
         verify { customerReadModelProjector.projectCustomer(any(), any()) }
-        verify { customerEventPublisher.publish(any()) }
+        verify { outboxWriter.write(any(), any()) }
     }
 
     @Test
@@ -155,7 +155,7 @@ class CreateCustomerUseCaseTest {
         every { customerRepository.save(any()) } answers { firstArg() }
         every { customerPreferencesRepository.save(capture(preferencesSlot)) } answers { firstArg() }
         every { customerReadModelProjector.projectCustomer(any(), any()) } returns CompletableFuture.completedFuture(null)
-        every { customerEventPublisher.publish(any()) } just Runs
+        every { outboxWriter.write(any(), any()) } just Runs
 
         // When - with marketingOptIn = false
         useCase.execute(
@@ -189,7 +189,7 @@ class CreateCustomerUseCaseTest {
         every { customerRepository.save(capture(customerSlot)) } answers { firstArg() }
         every { customerPreferencesRepository.save(any()) } answers { firstArg() }
         every { customerReadModelProjector.projectCustomer(any(), any()) } returns CompletableFuture.completedFuture(null)
-        every { customerEventPublisher.publish(any()) } just Runs
+        every { outboxWriter.write(any(), any()) } just Runs
 
         // When
         useCase.execute(
@@ -276,7 +276,7 @@ class CreateCustomerUseCaseTest {
     }
 
     @Test
-    fun `execute should return Failure when Kafka publishing fails`() {
+    fun `execute should return Failure when outbox write fails`() {
         // Given
         val userId = UUID.randomUUID()
         val customerId = UUID.randomUUID()
@@ -296,8 +296,8 @@ class CreateCustomerUseCaseTest {
         every { customerPreferencesRepository.save(any()) } answers { firstArg() }
         every { customerReadModelProjector.projectCustomer(any(), any()) } returns CompletableFuture.completedFuture(null)
         
-        // Kafka publishing fails
-        every { customerEventPublisher.publish(any()) } throws RuntimeException("Kafka broker unavailable")
+        // Outbox write fails
+        every { outboxWriter.write(any(), any()) } throws RuntimeException("Database constraint violation")
 
         // When
         val result = useCase.execute(
@@ -314,6 +314,6 @@ class CreateCustomerUseCaseTest {
         // Then - transaction should fail and return Failure result
         assertTrue(result is CreateCustomerResult.Failure)
         val failure = result as CreateCustomerResult.Failure
-        assertTrue(failure.message.contains("Kafka broker unavailable"))
+        assertTrue(failure.message.contains("Database constraint violation"))
     }
 }
