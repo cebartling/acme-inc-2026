@@ -66,12 +66,17 @@ management:
 notification:
   events:
     input-topic: identity.user.events
+    customer-input-topic: ${CUSTOMER_EVENTS_TOPIC:customer.events}
     output-topic: notification.events
   retry:
     max-attempts: 3
     initial-interval-ms: 300000
     multiplier: 1.0
     max-interval-ms: 300000
+  customer-service:
+    base-url: ${CUSTOMER_SERVICE_URL:http://localhost:10301}
+    timeout-ms: ${CUSTOMER_SERVICE_TIMEOUT_MS:5000}
+
   email:
     from-address: ${EMAIL_FROM_ADDRESS:noreply@acme.com}
     from-name: ${EMAIL_FROM_NAME:ACME}
@@ -79,8 +84,18 @@ notification:
       subject: "Verify your ACME account"
       expiration-hours: 24
       base-url: ${VERIFICATION_BASE_URL:https://www.acme.com/verify}
+    welcome:
+      shop-url: ${SHOP_URL:https://www.acme.com/shop}
+      profile-url: ${PROFILE_URL:https://www.acme.com/profile}
     support-email: ${SUPPORT_EMAIL:support@acme.com}
     company-name: ${COMPANY_NAME:ACME Inc.}
+    social-media:
+      facebook-url: ${SOCIAL_FACEBOOK_URL:https://www.facebook.com/acme}
+      twitter-url: ${SOCIAL_TWITTER_URL:https://twitter.com/acme}
+      instagram-url: ${SOCIAL_INSTAGRAM_URL:https://www.instagram.com/acme}
+    preferences:
+      unsubscribe-url: ${UNSUBSCRIBE_URL:https://www.acme.com/unsubscribe}
+      manage-preferences-url: ${MANAGE_PREFERENCES_URL:https://www.acme.com/preferences}
 
 sendgrid:
   api-key: ${SENDGRID_API_KEY:SG.test-key}

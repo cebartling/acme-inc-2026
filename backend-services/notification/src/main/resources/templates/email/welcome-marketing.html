@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="'Welcome to ' + ${companyName} + '!'">Welcome to ACME!</title>
+    <!--[if mso]>
+    <noscript>
+        <xml>
+            <o:OfficeDocumentSettings>
+                <o:PixelsPerInch>96</o:PixelsPerInch>
+            </o:OfficeDocumentSettings>
+        </xml>
+    </noscript>
+    <![endif]-->
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #333333;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+        }
+        .header {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #ffffff;
+            padding: 40px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 600;
+        }
+        .logo {
+            font-size: 36px;
+            font-weight: bold;
+            letter-spacing: 3px;
+            margin-bottom: 15px;
+        }
+        .success-badge {
+            display: inline-block;
+            background-color: rgba(76, 175, 80, 0.2);
+            color: #4CAF50;
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-size: 14px;
+            margin-top: 15px;
+        }
+        .content {
+            padding: 40px;
+        }
+        .greeting {
+            font-size: 20px;
+            margin-bottom: 20px;
+            color: #1a1a2e;
+        }
+        .message {
+            margin-bottom: 25px;
+            color: #555555;
+            font-size: 16px;
+        }
+        .account-info {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            padding: 25px;
+            margin: 25px 0;
+            border-left: 4px solid #4CAF50;
+        }
+        .account-info h3 {
+            margin: 0 0 15px 0;
+            color: #1a1a2e;
+            font-size: 16px;
+        }
+        .customer-number {
+            font-family: 'Courier New', monospace;
+            font-size: 18px;
+            font-weight: 600;
+            color: #4CAF50;
+            background-color: #e8f5e9;
+            padding: 10px 15px;
+            border-radius: 5px;
+            display: inline-block;
+        }
+        .button-container {
+            text-align: center;
+            margin: 35px 0;
+        }
+        .button {
+            display: inline-block;
+            background-color: #4CAF50;
+            color: #ffffff !important;
+            text-decoration: none;
+            padding: 16px 45px;
+            border-radius: 5px;
+            font-size: 16px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .button:hover {
+            background-color: #45a049;
+        }
+        .secondary-cta {
+            text-align: center;
+            margin: 25px 0;
+            padding: 20px;
+            background-color: #fff3cd;
+            border-radius: 8px;
+            border: 1px solid #ffc107;
+        }
+        .secondary-cta p {
+            margin: 0 0 15px 0;
+            color: #856404;
+        }
+        .secondary-button {
+            display: inline-block;
+            background-color: #ffc107;
+            color: #856404 !important;
+            text-decoration: none;
+            padding: 12px 30px;
+            border-radius: 5px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        .quick-start {
+            margin: 30px 0;
+        }
+        .quick-start h3 {
+            color: #1a1a2e;
+            margin-bottom: 15px;
+        }
+        .quick-start ul {
+            padding-left: 20px;
+            color: #555555;
+        }
+        .quick-start li {
+            margin-bottom: 10px;
+        }
+        /* Marketing Section Styles */
+        .promo-section {
+            background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+            padding: 30px;
+            margin: 30px 0;
+            border-radius: 10px;
+            text-align: center;
+        }
+        .promo-section h2 {
+            color: #2e7d32;
+            margin: 0 0 10px 0;
+            font-size: 24px;
+        }
+        .promo-code {
+            display: inline-block;
+            background-color: #ffffff;
+            color: #2e7d32;
+            font-family: 'Courier New', monospace;
+            font-size: 24px;
+            font-weight: bold;
+            padding: 15px 30px;
+            border-radius: 8px;
+            border: 2px dashed #4CAF50;
+            margin: 15px 0;
+        }
+        .promo-details {
+            color: #555555;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        .featured-products {
+            margin: 30px 0;
+        }
+        .featured-products h3 {
+            color: #1a1a2e;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .product-grid {
+            display: table;
+            width: 100%;
+        }
+        .product-item {
+            display: table-cell;
+            width: 33.33%;
+            text-align: center;
+            padding: 10px;
+            vertical-align: top;
+        }
+        .product-placeholder {
+            background-color: #f0f0f0;
+            width: 100%;
+            height: 100px;
+            border-radius: 8px;
+            display: table-cell;
+            vertical-align: middle;
+            text-align: center;
+            color: #999999;
+            font-size: 12px;
+        }
+        .product-name {
+            font-size: 14px;
+            color: #333333;
+            margin-top: 8px;
+        }
+        .footer {
+            background-color: #f8f9fa;
+            padding: 30px 40px;
+            text-align: center;
+            font-size: 13px;
+            color: #666666;
+            border-top: 1px solid #eeeeee;
+        }
+        .footer a {
+            color: #4CAF50;
+            text-decoration: none;
+        }
+        .footer p {
+            margin: 5px 0;
+        }
+        .copyright {
+            margin-top: 15px;
+            color: #999999;
+        }
+        .unsubscribe {
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid #dddddd;
+            font-size: 12px;
+            color: #999999;
+        }
+        .unsubscribe a {
+            color: #999999;
+            text-decoration: underline;
+        }
+        .social-links {
+            margin: 20px 0;
+        }
+        .social-links a {
+            display: inline-block;
+            margin: 0 10px;
+            color: #666666;
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <div class="logo" th:text="${companyName}">ACME</div>
+        <h1>You're All Set!</h1>
+        <div class="success-badge">Account Activated</div>
+    </div>
+
+    <div class="content">
+        <p class="greeting">Hi <span th:text="${recipientName}">Customer</span>,</p>
+
+        <p class="message">
+            Welcome to <span th:text="${companyName}">ACME</span>! Your account is now fully activated
+            and ready to use. We're thrilled to have you as part of our community.
+        </p>
+
+        <div class="account-info">
+            <h3>Your Account Details</h3>
+            <p style="margin: 0; color: #555555;">Customer Number:</p>
+            <span class="customer-number" th:text="${customerNumber}">ACME-202601-000001</span>
+            <p style="margin: 10px 0 0 0; font-size: 13px; color: #777777;">
+                Keep this number handy for quick reference when contacting support.
+            </p>
+        </div>
+
+        <div class="button-container">
+            <a th:href="${shopUrl}" href="#" class="button">Start Shopping</a>
+        </div>
+
+        <div th:if="${showProfileCta}" class="secondary-cta">
+            <p>Complete your profile to unlock personalized recommendations!</p>
+            <a th:href="${profileUrl}" href="#" class="secondary-button">Complete Your Profile</a>
+        </div>
+
+        <!-- Marketing: New Customer Discount -->
+        <div class="promo-section">
+            <h2>New Customer Special!</h2>
+            <p style="margin: 5px 0; color: #555555;">Use this code at checkout for your first order:</p>
+            <div class="promo-code">WELCOME15</div>
+            <p class="promo-details">Get 15% off your first purchase. Valid for 30 days.</p>
+        </div>
+
+        <!-- Marketing: Featured Products -->
+        <div class="featured-products">
+            <h3>Trending Now</h3>
+            <table class="product-grid" style="width: 100%; border-collapse: collapse;">
+                <tr>
+                    <td class="product-item" style="width: 33.33%; text-align: center; padding: 10px; vertical-align: top;">
+                        <div class="product-placeholder" style="background-color: #f0f0f0; height: 100px; border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+                            <span style="color: #999999; font-size: 12px;">Product 1</span>
+                        </div>
+                        <p class="product-name" style="font-size: 14px; color: #333333; margin-top: 8px;">Best Seller</p>
+                    </td>
+                    <td class="product-item" style="width: 33.33%; text-align: center; padding: 10px; vertical-align: top;">
+                        <div class="product-placeholder" style="background-color: #f0f0f0; height: 100px; border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+                            <span style="color: #999999; font-size: 12px;">Product 2</span>
+                        </div>
+                        <p class="product-name" style="font-size: 14px; color: #333333; margin-top: 8px;">New Arrival</p>
+                    </td>
+                    <td class="product-item" style="width: 33.33%; text-align: center; padding: 10px; vertical-align: top;">
+                        <div class="product-placeholder" style="background-color: #f0f0f0; height: 100px; border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+                            <span style="color: #999999; font-size: 12px;">Product 3</span>
+                        </div>
+                        <p class="product-name" style="font-size: 14px; color: #333333; margin-top: 8px;">Top Rated</p>
+                    </td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="quick-start">
+            <h3>Quick Start Guide</h3>
+            <ul>
+                <li>Browse our latest products and collections</li>
+                <li>Add items to your wishlist for later</li>
+                <li>Enjoy fast, secure checkout</li>
+                <li>Track your orders in real-time</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>Need help? Contact us at <a th:href="'mailto:' + ${supportEmail}" th:text="${supportEmail}">support@acme.com</a></p>
+
+        <div class="social-links">
+            <a th:href="${facebookUrl}">Facebook</a> |
+            <a th:href="${twitterUrl}">Twitter</a> |
+            <a th:href="${instagramUrl}">Instagram</a>
+        </div>
+
+        <p class="copyright">
+            &copy; <span th:text="${currentYear}">2026</span> <span th:text="${companyName}">ACME Inc.</span> All rights reserved.
+        </p>
+
+        <div class="unsubscribe">
+            <p>You're receiving this email because you opted in to marketing communications.</p>
+            <p><a th:href="${unsubscribeUrl}">Unsubscribe</a> | <a th:href="${managePreferencesUrl}">Manage Preferences</a></p>
+        </div>
+    </div>
+</div>
+</body>
+</html>
