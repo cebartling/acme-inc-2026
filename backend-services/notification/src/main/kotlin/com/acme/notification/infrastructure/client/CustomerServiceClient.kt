@@ -1,6 +1,9 @@
 package com.acme.notification.infrastructure.client
 
 import com.acme.notification.infrastructure.client.dto.CustomerDto
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException
+import io.github.resilience4j.circuitbreaker.CircuitBreaker
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry
 import io.micrometer.core.instrument.Counter
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.Timer
@@ -36,6 +39,7 @@ sealed class CustomerQueryResult {
  * REST client for communicating with the Customer Service.
  *
  * Fetches customer details needed for sending welcome emails.
+ * Uses Circuit Breaker pattern for resilience against Customer Service failures.
  */
 @Component
 class CustomerServiceClient(
@@ -43,13 +47,16 @@ class CustomerServiceClient(
     private val baseUrl: String,
     @Value("\${notification.customer-service.timeout-ms:5000}")
     private val timeoutMs: Long,
-    meterRegistry: MeterRegistry
+    meterRegistry: MeterRegistry,
+    circuitBreakerRegistry: CircuitBreakerRegistry
 ) {
     private val logger = LoggerFactory.getLogger(CustomerServiceClient::class.java)
 
     private val client: RestClient = RestClient.builder()
         .baseUrl(baseUrl)
         .build()
+
+    private val circuitBreaker: CircuitBreaker = circuitBreakerRegistry.circuitBreaker("customerService")
 
     private val requestTimer: Timer = Timer.builder("customer_service_request_duration_seconds")
         .tag("operation", "get_customer")
@@ -70,6 +77,11 @@ class CustomerServiceClient(
         .tag("status", "error")
         .register(meterRegistry)
 
+    private val circuitBreakerOpenCounter: Counter = Counter.builder("customer_service_requests_total")
+        .tag("operation", "get_customer")
+        .tag("status", "circuit_breaker_open")
+        .register(meterRegistry)
+
     /**
      * Fetches customer details by customer ID.
      *
@@ -81,20 +93,29 @@ class CustomerServiceClient(
             try {
                 logger.debug("Fetching customer details for ID: {}", customerId)
 
-                val response = client.get()
-                    .uri("/api/v1/customers/{id}", customerId.toString())
-                    .retrieve()
-                    .toEntity(CustomerDto::class.java)
+                // Execute the REST call within the circuit breaker
+                val result = circuitBreaker.executeSupplier {
+                    val response = client.get()
+                        .uri("/api/v1/customers/{id}", customerId.toString())
+                        .retrieve()
+                        .toEntity(CustomerDto::class.java)
 
-                if (response.statusCode == HttpStatus.OK && response.body != null) {
-                    successCounter.increment()
-                    logger.debug("Successfully fetched customer: {}", customerId)
-                    CustomerQueryResult.Success(response.body!!)
-                } else {
-                    notFoundCounter.increment()
-                    logger.warn("Customer not found: {}", customerId)
-                    CustomerQueryResult.NotFound
+                    if (response.statusCode == HttpStatus.OK && response.body != null) {
+                        successCounter.increment()
+                        logger.debug("Successfully fetched customer: {}", customerId)
+                        CustomerQueryResult.Success(response.body!!)
+                    } else {
+                        notFoundCounter.increment()
+                        logger.warn("Customer not found: {}", customerId)
+                        CustomerQueryResult.NotFound
+                    }
                 }
+                result
+            } catch (e: CallNotPermittedException) {
+                // Circuit breaker is open - fail fast
+                circuitBreakerOpenCounter.increment()
+                logger.error("Circuit breaker is OPEN for customer service, failing fast for customer {}", customerId)
+                CustomerQueryResult.Error("Customer service is currently unavailable (circuit breaker open)", e)
             } catch (e: RestClientException) {
                 if (e.message?.contains("404") == true) {
                     notFoundCounter.increment()
