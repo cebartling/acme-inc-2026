@@ -110,7 +110,8 @@ resilience4j:
   timelimiter:
     instances:
       customerService:
-        # Timeout aligned with customer-service.timeout-ms (converted from milliseconds to duration format)
+        # Timeout configuration: CUSTOMER_SERVICE_TIMEOUT_MS should be numeric milliseconds (e.g., 5000)
+        # The 'ms' suffix is appended here to create a proper duration value for TimeLimiter
         timeout-duration: ${CUSTOMER_SERVICE_TIMEOUT_MS:5000}ms
   email:
     from-address: ${EMAIL_FROM_ADDRESS:noreply@acme.com}
