@@ -39,7 +39,6 @@ sealed class CustomerQueryResult {
  */
 @Component
 class CustomerServiceClient(
-    private val restClient: RestClient.Builder,
     @Value("\${notification.customer-service.base-url}")
     private val baseUrl: String,
     @Value("\${notification.customer-service.timeout-ms:5000}")
@@ -48,7 +47,7 @@ class CustomerServiceClient(
 ) {
     private val logger = LoggerFactory.getLogger(CustomerServiceClient::class.java)
 
-    private val client: RestClient = restClient
+    private val client: RestClient = RestClient.builder()
         .baseUrl(baseUrl)
         .build()
 
