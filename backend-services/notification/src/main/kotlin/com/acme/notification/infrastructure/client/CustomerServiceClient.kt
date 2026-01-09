@@ -46,8 +46,6 @@ sealed class CustomerQueryResult {
 class CustomerServiceClient(
     @Value("\${notification.customer-service.base-url}")
     private val baseUrl: String,
-    @Value("\${notification.customer-service.timeout-ms:5000}")
-    private val timeoutMs: Long,
     meterRegistry: MeterRegistry,
     circuitBreakerRegistry: CircuitBreakerRegistry
 ) {
@@ -96,19 +94,32 @@ class CustomerServiceClient(
 
                 // Execute the REST call within the circuit breaker
                 circuitBreaker.executeSupplier {
-                    val response = client.get()
-                        .uri("/api/v1/customers/{id}", customerId.toString())
-                        .retrieve()
-                        .toEntity(CustomerDto::class.java)
+                    try {
+                        val response = client.get()
+                            .uri("/api/v1/customers/{id}", customerId.toString())
+                            .retrieve()
+                            .toEntity(CustomerDto::class.java)
 
-                    if (response.statusCode == HttpStatus.OK && response.body != null) {
-                        successCounter.increment()
-                        logger.debug("Successfully fetched customer: {}", customerId)
-                        CustomerQueryResult.Success(response.body!!)
-                    } else {
-                        notFoundCounter.increment()
-                        logger.warn("Customer not found: {}", customerId)
-                        CustomerQueryResult.NotFound
+                        if (response.statusCode == HttpStatus.OK && response.body != null) {
+                            successCounter.increment()
+                            logger.debug("Successfully fetched customer: {}", customerId)
+                            CustomerQueryResult.Success(response.body!!)
+                        } else {
+                            notFoundCounter.increment()
+                            logger.warn("Customer not found: {}", customerId)
+                            CustomerQueryResult.NotFound
+                        }
+                    } catch (e: HttpClientErrorException) {
+                        // Client errors (4xx) - these are not counted as circuit breaker failures
+                        if (e.statusCode == HttpStatus.NOT_FOUND) {
+                            notFoundCounter.increment()
+                            logger.warn("Customer not found: {}", customerId)
+                            CustomerQueryResult.NotFound
+                        } else {
+                            errorCounter.increment()
+                            logger.error("Client error fetching customer {}: {}", customerId, e.statusCode, e)
+                            CustomerQueryResult.Error("Client error: ${e.statusCode}", e)
+                        }
                     }
                 }
             } catch (e: CallNotPermittedException) {
@@ -116,17 +127,6 @@ class CustomerServiceClient(
                 circuitBreakerOpenCounter.increment()
                 logger.error("Circuit breaker is OPEN for customer service, failing fast for customer {}", customerId)
                 CustomerQueryResult.Error("Customer service is currently unavailable (circuit breaker open)", e)
-            } catch (e: HttpClientErrorException) {
-                // Client errors (4xx) - these are not counted as circuit breaker failures
-                if (e.statusCode == HttpStatus.NOT_FOUND) {
-                    notFoundCounter.increment()
-                    logger.warn("Customer not found: {}", customerId)
-                    CustomerQueryResult.NotFound
-                } else {
-                    errorCounter.increment()
-                    logger.error("Client error fetching customer {}: {}", customerId, e.statusCode, e)
-                    CustomerQueryResult.Error("Client error: ${e.statusCode}", e)
-                }
             } catch (e: Exception) {
                 // Server errors, timeouts, and other failures - counted as circuit breaker failures
                 errorCounter.increment()
