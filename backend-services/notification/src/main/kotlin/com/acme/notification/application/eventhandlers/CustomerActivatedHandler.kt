@@ -96,7 +96,9 @@ class CustomerActivatedHandler(
      * Checks if an event has already been processed.
      * 
      * This is a quick check to avoid unnecessary HTTP calls to Customer Service.
-     * The check is performed again within the transaction to handle race conditions.
+     * The check is performed again within the `processEventTransactionally` method
+     * to handle race conditions where another thread might process the same event
+     * between this check and the actual transaction.
      *
      * @param eventId The event ID to check.
      * @return true if the event was already processed, false otherwise.
@@ -109,8 +111,11 @@ class CustomerActivatedHandler(
     /**
      * Processes the event transactionally after customer data has been fetched.
      * 
-     * This method performs the idempotency check again (within the transaction)
-     * and marks the event as processed within the same transaction to prevent race conditions.
+     * This method performs the idempotency check again (within the transaction) to handle
+     * the race condition where another thread might have processed the same event between
+     * the initial check in `isEventAlreadyProcessed` and this transaction. All database
+     * operations (idempotency check, sending email, marking event as processed) are
+     * performed within the same transaction to ensure consistency.
      *
      * @param event The CustomerActivated event from Kafka.
      * @param customer The customer data fetched from Customer Service.
