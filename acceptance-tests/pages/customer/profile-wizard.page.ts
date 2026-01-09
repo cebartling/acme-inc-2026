@@ -83,15 +83,15 @@ export class ProfileWizardPage extends BasePage {
     this.timezoneSelect = page.getByRole('combobox').filter({ hasText: /Select timezone|UTC|Eastern|Central|Mountain|Pacific/i }).first();
 
     // Address Step Fields
-    this.addressTypeSelect = page.locator('button').filter({ hasText: /Shipping|Billing|Both/ });
+    this.addressTypeSelect = page.getByRole('combobox').filter({ hasText: /Shipping|Billing|Both/ }).first();
     this.addressLabelInput = page.getByPlaceholder('e.g., Home, Office');
     this.streetLine1Input = page.getByPlaceholder('123 Main St');
     this.streetLine2Input = page.getByPlaceholder('Apt 4B');
     this.cityInput = page.getByPlaceholder('City');
-    this.stateSelect = page.locator('button').filter({ hasText: 'Select state' });
+    this.stateSelect = page.getByRole('combobox').filter({ hasText: /Select state|Alabama|Alaska|Arizona|California|Colorado|Florida|Georgia|Illinois|New York|Texas|Washington/i }).first();
     this.stateInput = page.getByPlaceholder('State/Province');
     this.postalCodeInput = page.getByPlaceholder('12345');
-    this.countrySelect = page.locator('button').filter({ hasText: /Select country|United States/ });
+    this.countrySelect = page.getByRole('combobox').filter({ hasText: /Select country|United States|Canada|United Kingdom/i }).first();
     this.defaultAddressCheckbox = page.getByLabel('Set as default address');
 
     // Preferences Step Fields
@@ -99,14 +99,14 @@ export class ProfileWizardPage extends BasePage {
     this.smsNotificationsSwitch = page.getByRole('switch', { name: 'SMS notifications' });
     this.pushNotificationsSwitch = page.getByRole('switch', { name: 'Push notifications' });
     this.marketingSwitch = page.getByRole('switch', { name: 'Marketing communications' });
-    this.notificationFrequencySelect = page.locator('button').filter({ hasText: /Select frequency|Immediate/ });
+    this.notificationFrequencySelect = page.getByRole('combobox').filter({ hasText: /Select frequency|Immediate|Daily|Weekly/i }).first();
 
     // Navigation Buttons
     this.continueButton = page.getByRole('button', { name: 'Continue' });
     this.backButton = page.getByRole('button', { name: 'Back' });
     this.skipButton = page.getByRole('button', { name: 'Skip' });
     this.skipThisStepButton = page.getByRole('button', { name: 'Skip This Step' });
-    this.reviewButton = page.getByRole('button', { name: 'Review' });
+    this.reviewButton = page.getByRole('button', { name: 'Review', exact: true });
     this.completeProfileButton = page.getByRole('button', { name: 'Complete Profile' });
     this.skipProfileCompletionLink = page.getByRole('button', { name: /Skip profile completion/i });
 
@@ -176,7 +176,8 @@ export class ProfileWizardPage extends BasePage {
   }): Promise<void> {
     if (data.addressType) {
       await this.addressTypeSelect.click();
-      await this.page.getByRole('option', { name: data.addressType }).click();
+      await this.page.waitForTimeout(100);
+      await this.page.getByRole('option', { name: data.addressType }).first().click();
     }
     if (data.label) {
       await this.fill(this.addressLabelInput, data.label);
@@ -188,10 +189,12 @@ export class ProfileWizardPage extends BasePage {
     await this.fill(this.cityInput, data.city);
 
     // Handle state - use select for US, input for others
-    const isUS = data.country === 'United States' || data.country === 'US';
+    // Default country is US, so check against both possible values
+    const isUS = !data.country || data.country === 'United States' || data.country === 'US';
     if (isUS) {
       await this.stateSelect.click();
-      await this.page.getByRole('option', { name: data.state }).click();
+      await this.page.waitForTimeout(100);
+      await this.page.getByRole('option', { name: data.state }).first().click();
     } else {
       await this.fill(this.stateInput, data.state);
     }
@@ -200,7 +203,8 @@ export class ProfileWizardPage extends BasePage {
 
     if (data.country) {
       await this.countrySelect.click();
-      await this.page.getByRole('option', { name: data.country }).click();
+      await this.page.waitForTimeout(100);
+      await this.page.getByRole('option', { name: data.country }).first().click();
     }
 
     if (data.isDefault === false) {

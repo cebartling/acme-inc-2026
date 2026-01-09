@@ -25,7 +25,14 @@ export const personalDetailsSchema = z.object({
       const cleanNumber = data.phoneNumber.replace(/\D/g, '');
       if (!cleanNumber) return true; // Empty after stripping is valid (optional field)
       const fullNumber = `${data.phoneCountryCode}${cleanNumber}`;
-      return isValidPhoneNumber(fullNumber);
+      try {
+        // Use parsePhoneNumber with isPossible() for less strict validation
+        // This checks format/length but not if the number is actually assigned
+        const parsed = parsePhoneNumber(fullNumber);
+        return parsed?.isPossible() ?? false;
+      } catch {
+        return false;
+      }
     }
     return true;
   },
