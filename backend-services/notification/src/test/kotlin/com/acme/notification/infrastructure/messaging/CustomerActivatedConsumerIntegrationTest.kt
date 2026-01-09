@@ -10,6 +10,7 @@ import io.mockk.*
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import org.springframework.kafka.support.Acknowledgment
 import java.time.Instant
 import java.util.UUID
@@ -137,10 +138,8 @@ class CustomerActivatedConsumerIntegrationTest {
 
         every { customerActivatedHandler.handle(any()) } throws RuntimeException("Processing failed")
 
-        try {
+        assertThrows<RuntimeException> {
             consumer.consume(record, acknowledgment)
-        } catch (e: RuntimeException) {
-            // Expected
         }
 
         verify(exactly = 0) { acknowledgment.acknowledge() }
