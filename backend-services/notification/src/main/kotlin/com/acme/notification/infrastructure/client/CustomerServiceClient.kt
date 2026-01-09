@@ -49,11 +49,13 @@ class CustomerServiceClient(
 ) {
     private val logger = LoggerFactory.getLogger(CustomerServiceClient::class.java)
 
+    private val requestFactorySettings = ClientHttpRequestFactorySettings.DEFAULTS
+        .withConnectTimeout(Duration.ofMillis(timeoutMs))
+        .withReadTimeout(Duration.ofMillis(timeoutMs))
+
     private val client: RestClient = RestClient.builder()
         .baseUrl(baseUrl)
-        .requestFactory(ClientHttpRequestFactorySettings.DEFAULTS
-            .withConnectTimeout(Duration.ofMillis(timeoutMs))
-            .withReadTimeout(Duration.ofMillis(timeoutMs)))
+        .requestFactory(requestFactorySettings)
         .build()
 
     private val requestTimer: Timer = Timer.builder("customer_service_request_duration_seconds")
