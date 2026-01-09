@@ -65,25 +65,25 @@ class SendWelcomeEmailUseCase(
 ) {
     private val logger = LoggerFactory.getLogger(SendWelcomeEmailUseCase::class.java)
 
-    private val emailSentCounter: Counter = Counter.builder("welcome_email_sent_total")
+    private val emailSentCounter: Counter = Counter.builder("notification.welcome_email.sent")
         .tag("status", "success")
         .register(meterRegistry)
 
-    private val emailSentWithMarketingCounter: Counter = Counter.builder("welcome_email_sent_total")
+    private val emailSentWithMarketingCounter: Counter = Counter.builder("notification.welcome_email.sent")
         .tag("status", "success")
         .tag("marketing_included", "true")
         .register(meterRegistry)
 
-    private val emailSentWithoutMarketingCounter: Counter = Counter.builder("welcome_email_sent_total")
+    private val emailSentWithoutMarketingCounter: Counter = Counter.builder("notification.welcome_email.sent")
         .tag("status", "success")
         .tag("marketing_included", "false")
         .register(meterRegistry)
 
-    private val emailFailedCounter: Counter = Counter.builder("welcome_email_sent_total")
+    private val emailFailedCounter: Counter = Counter.builder("notification.welcome_email.sent")
         .tag("status", "failed")
         .register(meterRegistry)
 
-    private val emailDurationTimer: Timer = Timer.builder("welcome_email_duration_seconds")
+    private val emailDurationTimer: Timer = Timer.builder("notification.welcome_email.duration")
         .register(meterRegistry)
 
     /**
