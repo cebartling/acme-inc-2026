@@ -87,7 +87,7 @@ class CustomerServiceClient(
      * @return The customer query result.
      */
     fun getCustomerById(customerId: UUID): CustomerQueryResult {
-        return requestTimer.record<CustomerQueryResult> {
+        return requestTimer.record {
             try {
                 logger.debug("Fetching customer details for ID: {}", customerId)
 
@@ -99,14 +99,23 @@ class CustomerServiceClient(
                             .retrieve()
                             .toEntity(CustomerDto::class.java)
 
-                        if (response.statusCode == HttpStatus.OK && response.body != null) {
-                            successCounter.increment()
-                            logger.debug("Successfully fetched customer: {}", customerId)
-                            CustomerQueryResult.Success(response.body!!)
-                        } else {
-                            notFoundCounter.increment()
-                            logger.warn("Customer not found: {}", customerId)
-                            CustomerQueryResult.NotFound
+                        when {
+                            response.statusCode == HttpStatus.OK && response.body != null -> {
+                                successCounter.increment()
+                                logger.debug("Successfully fetched customer: {}", customerId)
+                                CustomerQueryResult.Success(response.body!!)
+                            }
+                            response.statusCode.is2xxSuccessful -> {
+                                // Other 2xx responses without a body (e.g., 204 No Content) are treated as not found
+                                notFoundCounter.increment()
+                                logger.warn("Customer not found (2xx response without body): {}", customerId)
+                                CustomerQueryResult.NotFound
+                            }
+                            else -> {
+                                notFoundCounter.increment()
+                                logger.warn("Customer not found (status {}): {}", response.statusCode, customerId)
+                                CustomerQueryResult.NotFound
+                            }
                         }
                     } catch (e: HttpClientErrorException) {
                         // Client errors (4xx) - these are not counted as circuit breaker failures
@@ -137,6 +146,6 @@ class CustomerServiceClient(
                 logger.error("Unexpected error fetching customer {}: {}", customerId, e.message, e)
                 CustomerQueryResult.Error("Unexpected error: ${e.message}", e)
             }
-        } ?: CustomerQueryResult.Error("Timer returned null result")
+        }
     }
 }

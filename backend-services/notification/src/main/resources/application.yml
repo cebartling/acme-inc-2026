@@ -110,6 +110,7 @@ resilience4j:
   timelimiter:
     instances:
       customerService:
+        # TimeLimiter is automatically integrated with the circuit breaker by Spring Cloud CircuitBreaker
         # Timeout configuration: CUSTOMER_SERVICE_TIMEOUT_MS should be numeric milliseconds (e.g., 5000)
         # The 'ms' suffix is appended here to create a proper duration value for TimeLimiter
         timeout-duration: ${CUSTOMER_SERVICE_TIMEOUT_MS:5000}ms
