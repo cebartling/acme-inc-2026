@@ -95,49 +95,43 @@ class CustomerServiceClient(
                 logger.debug("Fetching customer details for ID: {}", customerId)
 
                 // Execute the REST call within the circuit breaker
-                val result = circuitBreaker.executeSupplier {
-                    try {
-                        val response = client.get()
-                            .uri("/api/v1/customers/{id}", customerId.toString())
-                            .retrieve()
-                            .toEntity(CustomerDto::class.java)
+                circuitBreaker.executeSupplier {
+                    val response = client.get()
+                        .uri("/api/v1/customers/{id}", customerId.toString())
+                        .retrieve()
+                        .toEntity(CustomerDto::class.java)
 
-                        if (response.statusCode == HttpStatus.OK && response.body != null) {
-                            successCounter.increment()
-                            logger.debug("Successfully fetched customer: {}", customerId)
-                            CustomerQueryResult.Success(response.body!!)
-                        } else {
-                            notFoundCounter.increment()
-                            logger.warn("Customer not found: {}", customerId)
-                            CustomerQueryResult.NotFound
-                        }
-                    } catch (e: HttpClientErrorException) {
-                        // Handle 404s outside circuit breaker scope - these are not service failures
-                        if (e.statusCode == HttpStatus.NOT_FOUND) {
-                            notFoundCounter.increment()
-                            logger.warn("Customer not found: {}", customerId)
-                            CustomerQueryResult.NotFound
-                        } else {
-                            // Other 4xx errors are also client errors, not service failures
-                            // The circuit breaker is configured to ignore these via ignore-exceptions
-                            throw e
-                        }
-                    } catch (e: RestClientException) {
-                        // Other RestClientExceptions (server errors, timeouts, etc.) are service failures
-                        // Let the circuit breaker record them
-                        throw e
+                    if (response.statusCode == HttpStatus.OK && response.body != null) {
+                        successCounter.increment()
+                        logger.debug("Successfully fetched customer: {}", customerId)
+                        CustomerQueryResult.Success(response.body!!)
+                    } else {
+                        notFoundCounter.increment()
+                        logger.warn("Customer not found: {}", customerId)
+                        CustomerQueryResult.NotFound
                     }
                 }
-                result
             } catch (e: CallNotPermittedException) {
                 // Circuit breaker is open - fail fast
                 circuitBreakerOpenCounter.increment()
                 logger.error("Circuit breaker is OPEN for customer service, failing fast for customer {}", customerId)
                 CustomerQueryResult.Error("Customer service is currently unavailable (circuit breaker open)", e)
+            } catch (e: HttpClientErrorException) {
+                // Client errors (4xx) - these are not counted as circuit breaker failures
+                if (e.statusCode == HttpStatus.NOT_FOUND) {
+                    notFoundCounter.increment()
+                    logger.warn("Customer not found: {}", customerId)
+                    CustomerQueryResult.NotFound
+                } else {
+                    errorCounter.increment()
+                    logger.error("Client error fetching customer {}: {}", customerId, e.statusCode, e)
+                    CustomerQueryResult.Error("Client error: ${e.statusCode}", e)
+                }
             } catch (e: Exception) {
+                // Server errors, timeouts, and other failures - counted as circuit breaker failures
                 errorCounter.increment()
-                logger.error("Unexpected error fetching customer {}: {}", customerId, e.message, e)
-                CustomerQueryResult.Error("Unexpected error: ${e.message}", e)
+                logger.error("Error fetching customer {}: {}", customerId, e.message, e)
+                CustomerQueryResult.Error("Failed to fetch customer: ${e.message}", e)
             }
         } ?: CustomerQueryResult.Error("Timer returned null result")
     }
