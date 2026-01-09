@@ -53,6 +53,9 @@ dependencies {
     // UUID v7 support
     implementation("com.fasterxml.uuid:java-uuid-generator:5.1.0")
 
+    // Phone number validation
+    implementation("com.googlecode.libphonenumber:libphonenumber:8.13.50")
+
     // Kafka
     implementation("org.springframework.kafka:spring-kafka")
 
