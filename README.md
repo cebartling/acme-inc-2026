@@ -223,7 +223,6 @@ A unified shell script is provided for running acceptance tests with automatic r
 | `--api` | Run API tests only (@api tag) |
 | `--headed` | Run with visible browser (not headless) |
 | `--skip-install` | Skip npm install step |
-| `--allure` | Use Allure reports (opens interactive server) |
 | `--no-open` | Don't automatically open browser with results |
 
 ### Examples
@@ -233,7 +232,6 @@ A unified shell script is provided for running acceptance tests with automatic r
 ./scripts/run-acceptance-tests.sh --smoke            # Run smoke tests only
 ./scripts/run-acceptance-tests.sh --headed           # Run with visible browser
 ./scripts/run-acceptance-tests.sh --api --no-open    # Run API tests, don't open browser
-./scripts/run-acceptance-tests.sh --allure           # Run all, use Allure reports
 ```
 
 ### Reports
@@ -242,7 +240,6 @@ A unified shell script is provided for running acceptance tests with automatic r
 |-------------|----------|
 | HTML Report | `acceptance-tests/reports/cucumber-report.html` |
 | JSON Report | `acceptance-tests/reports/cucumber-report.json` |
-| Allure Results | `acceptance-tests/allure-results/` |
 
 ### Manual Test Execution
 
@@ -265,9 +262,6 @@ npm run test:smoke
 
 # Run tests with visible browser
 npm run test:headed
-
-# Generate and view Allure report
-npm run allure:serve
 ```
 
 ### npm Test Scripts
@@ -280,7 +274,6 @@ npm run allure:serve
 | `npm run test:customer` | Run customer app tests only |
 | `npm run test:admin` | Run admin app tests only |
 | `npm run test:headed` | Run tests with visible browser |
-| `npm run allure:serve` | Generate and open Allure report |
 
 ### Configuration
 
