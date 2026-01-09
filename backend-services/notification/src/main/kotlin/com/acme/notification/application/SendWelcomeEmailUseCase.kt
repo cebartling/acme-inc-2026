@@ -140,7 +140,19 @@ class SendWelcomeEmailUseCase(
                 logger.info("Welcome email already sent for customer {}, skipping", customerId)
                 val existing = deliveryRepository.findByRecipientId(customerId)
                     .firstOrNull { it.notificationType == NotificationType.WELCOME }
-                return SendWelcomeEmailResult.AlreadySent(existing?.id ?: customerId)
+
+                if (existing == null) {
+                    logger.error(
+                        "Inconsistent state detected: welcome notification exists for customer {} " +
+                            "but corresponding delivery record could not be retrieved",
+                        customerId
+                    )
+                    throw IllegalStateException(
+                        "Inconsistent notification delivery state for customer $customerId"
+                    )
+                }
+
+                return SendWelcomeEmailResult.AlreadySent(existing.id)
             }
 
             // Create delivery record
