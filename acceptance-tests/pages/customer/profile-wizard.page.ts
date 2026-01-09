@@ -110,10 +110,10 @@ export class ProfileWizardPage extends BasePage {
     this.completeProfileButton = page.getByRole('button', { name: 'Complete Profile' });
     this.skipProfileCompletionLink = page.getByRole('button', { name: /Skip profile completion/i });
 
-    // Review Step Sections
-    this.personalDetailsSection = page.locator('div').filter({ hasText: 'Personal Details' }).first();
-    this.addressSection = page.locator('div').filter({ hasText: /^Address/ });
-    this.preferencesSection = page.locator('div').filter({ hasText: 'Communication Preferences' });
+    // Review Step Sections - target Card components by data-slot attribute
+    this.personalDetailsSection = page.locator('[data-slot="card"]').filter({ has: page.locator('[data-slot="card-title"]', { hasText: 'Personal Details' }) });
+    this.addressSection = page.locator('[data-slot="card"]').filter({ has: page.locator('[data-slot="card-title"]', { hasText: /^Address$/ }) });
+    this.preferencesSection = page.locator('[data-slot="card"]').filter({ has: page.locator('[data-slot="card-title"]', { hasText: 'Communication Preferences' }) });
     this.editPersonalDetailsButton = this.personalDetailsSection.getByRole('button', { name: 'Edit' });
     this.editAddressButton = this.addressSection.getByRole('button', { name: 'Edit' });
     this.editPreferencesButton = this.preferencesSection.getByRole('button', { name: 'Edit' });

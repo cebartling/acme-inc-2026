@@ -290,9 +290,10 @@ Given('I have completed all wizard steps with:', async function (this: CustomWor
 
 Then('I should see all my entered information displayed', async function (this: CustomWorld) {
   // Verify we're on review step and key sections are visible
-  await expect(this.page.getByText('Personal Details')).toBeVisible();
-  await expect(this.page.getByText('Address')).toBeVisible();
-  await expect(this.page.getByText('Communication Preferences')).toBeVisible();
+  // Use card-title selectors to avoid matching wizard step indicators
+  await expect(this.page.locator('[data-slot="card-title"]', { hasText: 'Personal Details' })).toBeVisible();
+  await expect(this.page.locator('[data-slot="card-title"]', { hasText: /^Address$/ })).toBeVisible();
+  await expect(this.page.locator('[data-slot="card-title"]', { hasText: 'Communication Preferences' })).toBeVisible();
 });
 
 When('I fill in my personal details:', async function (this: CustomWorld, dataTable: DataTable) {
