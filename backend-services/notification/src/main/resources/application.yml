@@ -110,8 +110,8 @@ resilience4j:
   timelimiter:
     instances:
       customerService:
-        # Timeout aligned with customer-service.timeout-ms
-        timeout-duration: ${CUSTOMER_SERVICE_TIMEOUT_MS:5000}ms
+        # Timeout aligned with customer-service.timeout-ms (value in milliseconds)
+        timeout-duration: ${CUSTOMER_SERVICE_TIMEOUT_MS:5000}
   email:
     from-address: ${EMAIL_FROM_ADDRESS:noreply@acme.com}
     from-name: ${EMAIL_FROM_NAME:ACME}

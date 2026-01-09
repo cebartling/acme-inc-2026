@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
+import org.springframework.web.client.HttpClientErrorException
 import org.springframework.web.client.RestClient
 import org.springframework.web.client.RestClientException
 import java.util.UUID
@@ -110,16 +111,21 @@ class CustomerServiceClient(
                             logger.warn("Customer not found: {}", customerId)
                             CustomerQueryResult.NotFound
                         }
-                    } catch (e: RestClientException) {
+                    } catch (e: HttpClientErrorException) {
                         // Handle 404s outside circuit breaker scope - these are not service failures
-                        if (e.message?.contains("404") == true) {
+                        if (e.statusCode == HttpStatus.NOT_FOUND) {
                             notFoundCounter.increment()
                             logger.warn("Customer not found: {}", customerId)
                             CustomerQueryResult.NotFound
                         } else {
-                            // Other RestClientExceptions are service failures - let circuit breaker record them
+                            // Other 4xx errors are also client errors, not service failures
+                            // The circuit breaker is configured to ignore these via ignore-exceptions
                             throw e
                         }
+                    } catch (e: RestClientException) {
+                        // Other RestClientExceptions (server errors, timeouts, etc.) are service failures
+                        // Let the circuit breaker record them
+                        throw e
                     }
                 }
                 result
@@ -128,12 +134,6 @@ class CustomerServiceClient(
                 circuitBreakerOpenCounter.increment()
                 logger.error("Circuit breaker is OPEN for customer service, failing fast for customer {}", customerId)
                 CustomerQueryResult.Error("Customer service is currently unavailable (circuit breaker open)", e)
-            } catch (e: RestClientException) {
-                // This should not happen as we handle RestClientException inside circuit breaker,
-                // but kept for safety in case of unexpected behavior
-                errorCounter.increment()
-                logger.error("Error fetching customer {}: {}", customerId, e.message, e)
-                CustomerQueryResult.Error("Failed to fetch customer: ${e.message}", e)
             } catch (e: Exception) {
                 errorCounter.increment()
                 logger.error("Unexpected error fetching customer {}: {}", customerId, e.message, e)
