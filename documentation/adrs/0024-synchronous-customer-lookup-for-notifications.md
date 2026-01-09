@@ -86,9 +86,10 @@ class CustomerServiceClient(
 - **Retry Policy**: Kafka consumer retries failed messages (3x with 5-min intervals)
 - **Circuit Breaker**: Fail fast when Customer Service is consistently unavailable
 - **Monitoring**: Alert on elevated lookup failure rates
-- **Dead Letter Queue**: Route persistent failures to DLQ for manual intervention
+- **Dead Letter Queue (Deferred)**: A dedicated DLQ topic and routing from the Kafka consumer will be implemented in a later iteration; for now, messages that still fail after all retries are logged and skipped.
 - **Timeout Handling**: 5-second timeout prevents blocking consumer threads
 
+> Note: At the time of this ADR's acceptance, the DLQ is a planned mitigation and is not yet configured in the Kafka consumer. This is an acceptable interim trade-off given the low expected failure volume and strong monitoring; a follow-up ADR will capture the concrete DLQ design and rollout.
 ## Alternatives Not Chosen
 
 ### Extend CustomerActivated Event
