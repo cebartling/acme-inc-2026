@@ -118,3 +118,18 @@ Commit all changes to this feature branch.
 When completed, create a PR for merging this feature branch back into
 the `main` branch on GitHub.
 ```
+
+## Profile completion wizard
+
+```
+Implement user story located at @documentation/user-stories/0002-create-customer-profile/US-0002-08-profile-completion-wizard.md
+Think hard on implementation
+Use context7 mcp for researching library APIs
+Use playwright mcp for interacting with a web browser
+Make sure unit, integration and acceptance tests are created/updated for this functionality.
+Look for opportunities to add acceptance tests and architecture improvements (and document in ADRs).
+Create a feature branch from the `main` branch for this work.
+Commit all changes to this feature branch.
+When completed, create a PR for merging this feature branch back into
+the `main` branch on GitHub.
+```
