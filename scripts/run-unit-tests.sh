@@ -248,13 +248,13 @@ run_gradle_tests() {
 
     start_time=$(date +%s)
 
-    # Run Gradle tests
+    # Run Gradle clean and tests (always run fresh, no caching)
     if [[ "$VERBOSE" == "true" ]]; then
-        (cd "$service_dir" && $gradle_cmd test --info) || exit_code=$?
+        (cd "$service_dir" && $gradle_cmd clean test --info) || exit_code=$?
     elif [[ "$QUIET" == "true" ]]; then
-        (cd "$service_dir" && $gradle_cmd test --quiet) || exit_code=$?
+        (cd "$service_dir" && $gradle_cmd clean test --quiet) || exit_code=$?
     else
-        (cd "$service_dir" && $gradle_cmd test) || exit_code=$?
+        (cd "$service_dir" && $gradle_cmd clean test) || exit_code=$?
     fi
 
     end_time=$(date +%s)
