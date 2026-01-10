@@ -75,16 +75,16 @@ TOTAL_FAILED=0
 # Helper function to record test result
 record_result() {
     local name="$1"
-    local status="$2"
+    local test_status="$2"
     TEST_NAMES+=("$name")
-    TEST_STATUSES+=("$status")
+    TEST_STATUSES+=("$test_status")
 }
 
 # Helper function to get test result
 get_result() {
     local name="$1"
     local i
-    for i in "${!TEST_NAMES[@]}"; do
+    for (( i=1; i<=${#TEST_NAMES[@]}; i++ )); do
         if [[ "${TEST_NAMES[$i]}" == "$name" ]]; then
             echo "${TEST_STATUSES[$i]}"
             return
@@ -361,18 +361,18 @@ print_summary() {
 
     echo -e "${BOLD}Results:${NC}"
     local i
-    for i in "${!TEST_NAMES[@]}"; do
+    for (( i=1; i<=${#TEST_NAMES[@]}; i++ )); do
         local service="${TEST_NAMES[$i]}"
-        local status="${TEST_STATUSES[$i]}"
-        case "$status" in
+        local test_status="${TEST_STATUSES[$i]}"
+        case "$test_status" in
             PASSED)
-                echo -e "  ${GREEN}✓${NC} ${service}: ${GREEN}${status}${NC}"
+                echo -e "  ${GREEN}✓${NC} ${service}: ${GREEN}${test_status}${NC}"
                 ;;
             FAILED)
-                echo -e "  ${RED}✗${NC} ${service}: ${RED}${status}${NC}"
+                echo -e "  ${RED}✗${NC} ${service}: ${RED}${test_status}${NC}"
                 ;;
             SKIPPED)
-                echo -e "  ${YELLOW}○${NC} ${service}: ${YELLOW}${status}${NC}"
+                echo -e "  ${YELLOW}○${NC} ${service}: ${YELLOW}${test_status}${NC}"
                 ;;
         esac
     done
