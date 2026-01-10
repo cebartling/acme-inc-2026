@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ProfileCompleteRouteImport } from './routes/profile/complete'
 import { Route as ApiHealthRouteImport } from './routes/api.health'
 import { Route as DemoStartServerFuncsRouteImport } from './routes/demo/start.server-funcs'
 import { Route as DemoStartApiRequestRouteImport } from './routes/demo/start.api-request'
@@ -28,6 +29,11 @@ const RegisterRoute = RegisterRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProfileCompleteRoute = ProfileCompleteRouteImport.update({
+  id: '/profile/complete',
+  path: '/profile/complete',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiHealthRoute = ApiHealthRouteImport.update({
@@ -75,6 +81,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/register': typeof RegisterRoute
   '/api/health': typeof ApiHealthRoute
+  '/profile/complete': typeof ProfileCompleteRoute
   '/demo/api/names': typeof DemoApiNamesRoute
   '/demo/start/api-request': typeof DemoStartApiRequestRoute
   '/demo/start/server-funcs': typeof DemoStartServerFuncsRoute
@@ -87,6 +94,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/register': typeof RegisterRoute
   '/api/health': typeof ApiHealthRoute
+  '/profile/complete': typeof ProfileCompleteRoute
   '/demo/api/names': typeof DemoApiNamesRoute
   '/demo/start/api-request': typeof DemoStartApiRequestRoute
   '/demo/start/server-funcs': typeof DemoStartServerFuncsRoute
@@ -100,6 +108,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/register': typeof RegisterRoute
   '/api/health': typeof ApiHealthRoute
+  '/profile/complete': typeof ProfileCompleteRoute
   '/demo/api/names': typeof DemoApiNamesRoute
   '/demo/start/api-request': typeof DemoStartApiRequestRoute
   '/demo/start/server-funcs': typeof DemoStartServerFuncsRoute
@@ -114,6 +123,7 @@ export interface FileRouteTypes {
     | '/'
     | '/register'
     | '/api/health'
+    | '/profile/complete'
     | '/demo/api/names'
     | '/demo/start/api-request'
     | '/demo/start/server-funcs'
@@ -126,6 +136,7 @@ export interface FileRouteTypes {
     | '/'
     | '/register'
     | '/api/health'
+    | '/profile/complete'
     | '/demo/api/names'
     | '/demo/start/api-request'
     | '/demo/start/server-funcs'
@@ -138,6 +149,7 @@ export interface FileRouteTypes {
     | '/'
     | '/register'
     | '/api/health'
+    | '/profile/complete'
     | '/demo/api/names'
     | '/demo/start/api-request'
     | '/demo/start/server-funcs'
@@ -151,6 +163,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   RegisterRoute: typeof RegisterRoute
   ApiHealthRoute: typeof ApiHealthRoute
+  ProfileCompleteRoute: typeof ProfileCompleteRoute
   DemoApiNamesRoute: typeof DemoApiNamesRoute
   DemoStartApiRequestRoute: typeof DemoStartApiRequestRoute
   DemoStartServerFuncsRoute: typeof DemoStartServerFuncsRoute
@@ -174,6 +187,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/profile/complete': {
+      id: '/profile/complete'
+      path: '/profile/complete'
+      fullPath: '/profile/complete'
+      preLoaderRoute: typeof ProfileCompleteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/health': {
@@ -239,6 +259,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   RegisterRoute: RegisterRoute,
   ApiHealthRoute: ApiHealthRoute,
+  ProfileCompleteRoute: ProfileCompleteRoute,
   DemoApiNamesRoute: DemoApiNamesRoute,
   DemoStartApiRequestRoute: DemoStartApiRequestRoute,
   DemoStartServerFuncsRoute: DemoStartServerFuncsRoute,
