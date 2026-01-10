@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { isValidPhoneNumber, parsePhoneNumber } from 'libphonenumber-js';
+import { parsePhoneNumber } from 'libphonenumber-js';
 
 // Step 1: Personal Details Schema
 export const personalDetailsSchema = z.object({
