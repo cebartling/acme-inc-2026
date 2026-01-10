@@ -318,7 +318,7 @@ cp .env.example .env
 
 # Edit environment variables
 # Run tests against specific environment
-BASE_URL=http://localhost:5173 npm run test
+BASE_URL=http://localhost:7600 npm run test
 ```
 
 ### Sub-criteria

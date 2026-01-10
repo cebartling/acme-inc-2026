@@ -36,6 +36,12 @@ export class CustomWorld extends World<CustomWorldParameters> {
     }
   }
 
+  initializeApiClients(): void {
+    this.identityApiClient = new ApiClient(config.identityApiUrl);
+    this.customerApiClient = new ApiClient(config.customerApiUrl);
+    this.notificationApiClient = new ApiClient(config.notificationApiUrl);
+  }
+
   async createContext(): Promise<void> {
     this.context = await this.browser.newContext({
       viewport: { width: 1280, height: 720 },
@@ -53,9 +59,8 @@ export class CustomWorld extends World<CustomWorldParameters> {
     this.page.setDefaultTimeout(config.timeout.default);
     this.page.setDefaultNavigationTimeout(config.timeout.navigation);
 
-    this.identityApiClient = new ApiClient(config.identityApiUrl);
-    this.customerApiClient = new ApiClient(config.customerApiUrl);
-    this.notificationApiClient = new ApiClient(config.notificationApiUrl);
+    // Also initialize API clients for UI tests that may need them
+    this.initializeApiClients();
   }
 
   async closeContext(): Promise<void> {

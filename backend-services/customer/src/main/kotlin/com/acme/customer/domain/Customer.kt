@@ -65,13 +65,13 @@ class Customer(
     var emailVerified: Boolean = false,
 
     @Column(name = "phone_country_code", length = 5)
-    val phoneCountryCode: String? = null,
+    var phoneCountryCode: String? = null,
 
     @Column(name = "phone_number", length = 20)
-    val phoneNumber: String? = null,
+    var phoneNumber: String? = null,
 
     @Column(name = "phone_verified")
-    val phoneVerified: Boolean? = null,
+    var phoneVerified: Boolean? = null,
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 50)
@@ -82,22 +82,22 @@ class Customer(
     val type: CustomerType = CustomerType.INDIVIDUAL,
 
     @Column(name = "date_of_birth")
-    val dateOfBirth: LocalDate? = null,
+    var dateOfBirth: LocalDate? = null,
 
     @Column(name = "gender", length = 20)
-    val gender: String? = null,
+    var gender: String? = null,
 
     @Column(name = "preferred_locale", nullable = false, length = 10)
-    val preferredLocale: String = "en-US",
+    var preferredLocale: String = "en-US",
 
     @Column(name = "timezone", nullable = false, length = 50)
-    val timezone: String = "UTC",
+    var timezone: String = "UTC",
 
     @Column(name = "preferred_currency", nullable = false, length = 3)
-    val preferredCurrency: String = "USD",
+    var preferredCurrency: String = "USD",
 
     @Column(name = "profile_completeness", nullable = false)
-    val profileCompleteness: Int = 25,
+    var profileCompleteness: Int = 25,
 
     @Column(name = "registered_at", nullable = false, updatable = false)
     val registeredAt: Instant,
@@ -162,6 +162,109 @@ class Customer(
      * @return The customer number.
      */
     fun getCustomerNumber(): CustomerNumber = CustomerNumber(customerNumber)
+
+    /**
+     * Updates the customer's phone number.
+     *
+     * @param countryCode The country code (e.g., "+1").
+     * @param number The phone number without country code.
+     */
+    fun updatePhone(countryCode: String, number: String) {
+        this.phoneCountryCode = countryCode
+        this.phoneNumber = number
+        this.phoneVerified = false
+        this.lastActivityAt = Instant.now()
+        this.updatedAt = Instant.now()
+        recalculateProfileCompleteness()
+    }
+
+    /**
+     * Updates the customer's date of birth.
+     *
+     * @param dateOfBirth The customer's date of birth.
+     */
+    fun updateDateOfBirth(dateOfBirth: LocalDate) {
+        this.dateOfBirth = dateOfBirth
+        this.lastActivityAt = Instant.now()
+        this.updatedAt = Instant.now()
+        recalculateProfileCompleteness()
+    }
+
+    /**
+     * Updates the customer's gender.
+     *
+     * @param gender The customer's gender.
+     */
+    fun updateGender(gender: String) {
+        this.gender = gender
+        this.lastActivityAt = Instant.now()
+        this.updatedAt = Instant.now()
+        recalculateProfileCompleteness()
+    }
+
+    /**
+     * Updates the customer's preferred locale.
+     *
+     * @param locale The preferred locale (e.g., "en-US").
+     */
+    fun updatePreferredLocale(locale: String) {
+        this.preferredLocale = locale
+        this.lastActivityAt = Instant.now()
+        this.updatedAt = Instant.now()
+    }
+
+    /**
+     * Updates the customer's timezone.
+     *
+     * @param timezone The timezone (e.g., "America/New_York").
+     */
+    fun updateTimezone(timezone: String) {
+        this.timezone = timezone
+        this.lastActivityAt = Instant.now()
+        this.updatedAt = Instant.now()
+    }
+
+    /**
+     * Recalculates the profile completeness percentage based on filled fields.
+     *
+     * Profile completeness is calculated as follows:
+     * - Base: 25% (account created with name and email)
+     * - Email verified: +15%
+     * - Phone number: +15%
+     * - Date of birth: +15%
+     * - Gender: +10%
+     * - Timezone (non-default): +10%
+     * - Preferred locale (non-default): +10%
+     */
+    fun recalculateProfileCompleteness() {
+        var completeness = 25 // Base: account created with name and email
+
+        if (emailVerified) completeness += 15
+        if (!phoneNumber.isNullOrBlank()) completeness += 15
+        if (dateOfBirth != null) completeness += 15
+        if (!gender.isNullOrBlank()) completeness += 10
+        if (timezone != "UTC") completeness += 10
+        if (preferredLocale != "en-US") completeness += 10
+
+        this.profileCompleteness = completeness.coerceAtMost(100)
+    }
+
+    /**
+     * Returns the list of field names that have been set (non-null/non-default).
+     */
+    fun getCompletedProfileFields(): List<String> {
+        return buildList {
+            add("firstName")
+            add("lastName")
+            add("email")
+            if (emailVerified) add("emailVerified")
+            if (!phoneNumber.isNullOrBlank()) add("phone")
+            if (dateOfBirth != null) add("dateOfBirth")
+            if (!gender.isNullOrBlank()) add("gender")
+            if (timezone != "UTC") add("timezone")
+            if (preferredLocale != "en-US") add("preferredLocale")
+        }
+    }
 
     /**
      * Sets the customer status to SUSPENDED for testing purposes.

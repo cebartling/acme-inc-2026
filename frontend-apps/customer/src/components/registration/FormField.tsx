@@ -1,6 +1,6 @@
-import { Check } from 'lucide-react';
-import { Label } from '@/components/ui/label';
-import { cn } from '@/lib/utils';
+import { Check } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 
 interface FormFieldProps {
   label: string;
@@ -29,36 +29,37 @@ export function FormField({
   const showSuccess = touched && valid && !error;
 
   return (
-    <div className={cn('space-y-2', className)}>
+    <div className={cn("space-y-2", className)}>
       <div className="flex items-center justify-between">
         <Label
           htmlFor={htmlFor}
           className={cn(
-            'text-sm font-medium',
-            showError && 'text-red-600'
+            "text-sm font-medium text-white",
+            showError && "text-red-600",
           )}
         >
           {label}
-          {required && <span className="text-red-500 ml-1" aria-hidden="true">*</span>}
+          {required && (
+            <span className="text-red-500 ml-1" aria-hidden="true">
+              *
+            </span>
+          )}
         </Label>
         <div className="flex items-center gap-2">
           {characterCount && (
             <span
               className={cn(
-                'text-xs',
+                "text-xs",
                 characterCount.current >= characterCount.max
-                  ? 'text-orange-600'
-                  : 'text-gray-500'
+                  ? "text-orange-600"
+                  : "text-gray-500",
               )}
             >
               {characterCount.current}/{characterCount.max}
             </span>
           )}
           {showSuccess && (
-            <Check
-              className="h-4 w-4 text-green-500"
-              aria-label="Valid"
-            />
+            <Check className="h-4 w-4 text-green-500" aria-label="Valid" />
           )}
         </div>
       </div>
@@ -66,11 +67,7 @@ export function FormField({
       {children}
 
       {showError && (
-        <p
-          className="text-sm text-red-600"
-          role="alert"
-          aria-live="polite"
-        >
+        <p className="text-sm text-red-600" role="alert" aria-live="polite">
           {error}
         </p>
       )}

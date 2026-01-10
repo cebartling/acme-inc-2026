@@ -210,6 +210,219 @@ class CustomerTest {
         assertFalse(customer.isActive())
     }
 
+    @Test
+    fun `updatePhone should set phone fields and mark as unverified`() {
+        // Given
+        val customer = createTestCustomer()
+        val countryCode = "+1"
+        val number = "5551234567"
+
+        // When
+        customer.updatePhone(countryCode, number)
+
+        // Then
+        assertEquals(countryCode, customer.phoneCountryCode)
+        assertEquals(number, customer.phoneNumber)
+        assertFalse(customer.phoneVerified ?: true)
+    }
+
+    @Test
+    fun `updatePhone should update timestamps`() {
+        // Given
+        val customer = createTestCustomer()
+        val originalUpdatedAt = customer.updatedAt
+
+        // Wait a bit to ensure timestamp difference
+        Thread.sleep(10)
+
+        // When
+        customer.updatePhone("+1", "5551234567")
+
+        // Then
+        assertTrue(customer.updatedAt.isAfter(originalUpdatedAt))
+    }
+
+    @Test
+    fun `updateDateOfBirth should set date of birth`() {
+        // Given
+        val customer = createTestCustomer()
+        val dob = java.time.LocalDate.of(1990, 5, 15)
+
+        // When
+        customer.updateDateOfBirth(dob)
+
+        // Then
+        assertEquals(dob, customer.dateOfBirth)
+    }
+
+    @Test
+    fun `updateGender should set gender`() {
+        // Given
+        val customer = createTestCustomer()
+
+        // When
+        customer.updateGender("FEMALE")
+
+        // Then
+        assertEquals("FEMALE", customer.gender)
+    }
+
+    @Test
+    fun `updatePreferredLocale should set locale`() {
+        // Given
+        val customer = createTestCustomer()
+        assertEquals("en-US", customer.preferredLocale) // Default
+
+        // When
+        customer.updatePreferredLocale("es")
+
+        // Then
+        assertEquals("es", customer.preferredLocale)
+    }
+
+    @Test
+    fun `updateTimezone should set timezone`() {
+        // Given
+        val customer = createTestCustomer()
+        assertEquals("UTC", customer.timezone) // Default
+
+        // When
+        customer.updateTimezone("America/New_York")
+
+        // Then
+        assertEquals("America/New_York", customer.timezone)
+    }
+
+    @Test
+    fun `recalculateProfileCompleteness should calculate base completeness`() {
+        // Given
+        val customer = createTestCustomer()
+
+        // When
+        customer.recalculateProfileCompleteness()
+
+        // Then - Base is 25% (name + email)
+        assertEquals(25, customer.profileCompleteness)
+    }
+
+    @Test
+    fun `recalculateProfileCompleteness should add for verified email`() {
+        // Given
+        val customer = createTestCustomer()
+        customer.emailVerified = true
+
+        // When
+        customer.recalculateProfileCompleteness()
+
+        // Then - Base 25 + emailVerified 15 = 40
+        assertEquals(40, customer.profileCompleteness)
+    }
+
+    @Test
+    fun `recalculateProfileCompleteness should add for phone number`() {
+        // Given
+        val customer = createTestCustomer()
+        customer.updatePhone("+1", "5551234567")
+
+        // When - updatePhone already calls recalculateProfileCompleteness
+
+        // Then - Base 25 + phone 15 = 40
+        assertEquals(40, customer.profileCompleteness)
+    }
+
+    @Test
+    fun `recalculateProfileCompleteness should add for date of birth`() {
+        // Given
+        val customer = createTestCustomer()
+        customer.updateDateOfBirth(java.time.LocalDate.of(1990, 5, 15))
+
+        // When - updateDateOfBirth already calls recalculateProfileCompleteness
+
+        // Then - Base 25 + dateOfBirth 15 = 40
+        assertEquals(40, customer.profileCompleteness)
+    }
+
+    @Test
+    fun `recalculateProfileCompleteness should add for gender`() {
+        // Given
+        val customer = createTestCustomer()
+        customer.updateGender("MALE")
+
+        // When - updateGender already calls recalculateProfileCompleteness
+
+        // Then - Base 25 + gender 10 = 35
+        assertEquals(35, customer.profileCompleteness)
+    }
+
+    @Test
+    fun `recalculateProfileCompleteness should calculate full profile`() {
+        // Given
+        val customer = createTestCustomer()
+        customer.emailVerified = true
+        customer.updatePhone("+1", "5551234567")
+        customer.updateDateOfBirth(java.time.LocalDate.of(1990, 5, 15))
+        customer.updateGender("FEMALE")
+        customer.updateTimezone("America/New_York")
+        customer.updatePreferredLocale("es")
+
+        // When
+        customer.recalculateProfileCompleteness()
+
+        // Then - Base 25 + email 15 + phone 15 + dob 15 + gender 10 + tz 10 + locale 10 = 100
+        assertEquals(100, customer.profileCompleteness)
+    }
+
+    @Test
+    fun `recalculateProfileCompleteness should cap at 100`() {
+        // Given
+        val customer = createTestCustomer()
+        customer.emailVerified = true
+        customer.updatePhone("+1", "5551234567")
+        customer.updateDateOfBirth(java.time.LocalDate.of(1990, 5, 15))
+        customer.updateGender("FEMALE")
+        customer.updateTimezone("America/New_York")
+        customer.updatePreferredLocale("es")
+
+        // When
+        customer.recalculateProfileCompleteness()
+
+        // Then - Should not exceed 100
+        assertTrue(customer.profileCompleteness <= 100)
+    }
+
+    @Test
+    fun `getCompletedProfileFields should return base fields`() {
+        // Given
+        val customer = createTestCustomer()
+
+        // When
+        val fields = customer.getCompletedProfileFields()
+
+        // Then
+        assertTrue(fields.contains("firstName"))
+        assertTrue(fields.contains("lastName"))
+        assertTrue(fields.contains("email"))
+    }
+
+    @Test
+    fun `getCompletedProfileFields should include optional fields when set`() {
+        // Given
+        val customer = createTestCustomer()
+        customer.emailVerified = true
+        customer.updatePhone("+1", "5551234567")
+        customer.updateDateOfBirth(java.time.LocalDate.of(1990, 5, 15))
+        customer.updateGender("FEMALE")
+
+        // When
+        val fields = customer.getCompletedProfileFields()
+
+        // Then
+        assertTrue(fields.contains("emailVerified"))
+        assertTrue(fields.contains("phone"))
+        assertTrue(fields.contains("dateOfBirth"))
+        assertTrue(fields.contains("gender"))
+    }
+
     private fun createTestCustomer(id: UUID = UUID.randomUUID()): Customer {
         return Customer.createFromRegistration(
             id = id,

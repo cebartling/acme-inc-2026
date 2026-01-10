@@ -84,7 +84,7 @@ docker compose -f docker-compose.apps.yml down --remove-orphans
 | Identity Service | 10300 | http://localhost:10300 | Authentication & user management |
 | Customer Service | 10301 | http://localhost:10301 | Customer profile management |
 | Notification Service | 10302 | http://localhost:10302 | Email notifications |
-| Customer Frontend | 5173 | http://localhost:5173 | Customer-facing web application |
+| Customer Frontend | 7600 | http://localhost:7600 | Customer-facing web application |
 
 ### Building Individual Services
 
@@ -202,6 +202,15 @@ The `health` command checks the following services:
 ## Acceptance Testing
 
 The platform includes a BDD acceptance testing framework using Cucumber.js and Playwright.
+
+### Test Types
+
+| Type | Tags | Description | Browser |
+|------|------|-------------|---------|
+| UI Tests | `@customer`, `@admin` | Frontend browser automation | Required |
+| API Tests | `@api` | Backend HTTP API tests | Not needed |
+
+**Note:** The test hooks conditionally launch Playwright only for UI tests (`@customer` or `@admin` tags). API-only tests skip browser initialization for better performance.
 
 ### Acceptance Test Runner Script
 

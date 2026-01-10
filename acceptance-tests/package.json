@@ -10,7 +10,7 @@
     "test:regression": "node --import tsx ./node_modules/@cucumber/cucumber/bin/cucumber.js --import 'support/world.ts' --import 'support/hooks.ts' --import 'steps/**/*.ts' --tags '@regression and not @wip'",
     "test:customer": "node --import tsx ./node_modules/@cucumber/cucumber/bin/cucumber.js --import 'support/world.ts' --import 'support/hooks.ts' --import 'steps/**/*.ts' --tags '@customer and not @wip'",
     "test:admin": "node --import tsx ./node_modules/@cucumber/cucumber/bin/cucumber.js --import 'support/world.ts' --import 'support/hooks.ts' --import 'steps/**/*.ts' --tags '@admin and not @wip'",
-    "test:headed": "HEADED=true node --import tsx ./node_modules/@cucumber/cucumber/bin/cucumber.js",
+    "test:headed": "HEADED=true node --import tsx ./node_modules/@cucumber/cucumber/bin/cucumber.js --import 'support/world.ts' --import 'support/hooks.ts' --import 'steps/**/*.ts' --tags 'not @rate-limiting' --tags 'not @wip'",
     "lint": "eslint . --ext .ts",
     "lint:fix": "eslint . --ext .ts --fix",
     "format": "prettier --write \"**/*.ts\"",
