@@ -48,6 +48,7 @@ An Architecture Decision Record documents a significant architectural decision, 
 |-----|-------|--------|
 | [ADR-0015](0015-cucumber-playwright-testing.md) | Cucumber.js and Playwright for Acceptance Testing | Accepted |
 | [ADR-0016](0016-docker-compose-development.md) | Docker Compose for Local Development | Accepted |
+| [ADR-0027](0027-acceptance-testing-agentic-development.md) | Acceptance Testing as a Safety Net for Agentic Development | Accepted |
 
 ## ADR Status Definitions
 
