@@ -66,31 +66,31 @@ SKIP_INSTALL=false
 VERBOSE=false
 QUIET=false
 
-# Track results (using parallel arrays for Bash 3.x compatibility)
+# Track results (using parallel arrays for zsh compatibility)
 TEST_NAMES=()
 TEST_STATUSES=()
-TOTAL_PASSED=0
-TOTAL_FAILED=0
+TEST_COUNTS=()
+TEST_FAILURES=()
+TEST_ERRORS=()
+TEST_SKIPPED=()
+TOTAL_SUITES_PASSED=0
+TOTAL_SUITES_FAILED=0
 
 # Helper function to record test result
+# Usage: record_result <name> <status> [tests] [failures] [errors] [skipped]
 record_result() {
     local name="$1"
     local test_status="$2"
+    local tests="${3:-0}"
+    local failures="${4:-0}"
+    local errors="${5:-0}"
+    local skipped="${6:-0}"
     TEST_NAMES+=("$name")
     TEST_STATUSES+=("$test_status")
-}
-
-# Helper function to get test result
-get_result() {
-    local name="$1"
-    local i
-    for (( i=1; i<=${#TEST_NAMES[@]}; i++ )); do
-        if [[ "${TEST_NAMES[$i]}" == "$name" ]]; then
-            echo "${TEST_STATUSES[$i]}"
-            return
-        fi
-    done
-    echo "UNKNOWN"
+    TEST_COUNTS+=("$tests")
+    TEST_FAILURES+=("$failures")
+    TEST_ERRORS+=("$errors")
+    TEST_SKIPPED+=("$skipped")
 }
 
 # -----------------------------------------------------------------------------
@@ -325,8 +325,17 @@ run_gradle_tests() {
     # Parse test results from JUnit XML reports
     local test_counts=""
     local reports_dir="${service_dir}/build/test-results/test"
+    local parsed_tests=0
+    local parsed_failures=0
+    local parsed_errors=0
+    local parsed_skipped=0
+
     if parse_junit_reports "$reports_dir"; then
-        test_counts=$(format_test_counts $PARSED_TESTS $PARSED_FAILURES $PARSED_ERRORS $PARSED_SKIPPED)
+        parsed_tests=$PARSED_TESTS
+        parsed_failures=$PARSED_FAILURES
+        parsed_errors=$PARSED_ERRORS
+        parsed_skipped=$PARSED_SKIPPED
+        test_counts=$(format_test_counts $parsed_tests $parsed_failures $parsed_errors $parsed_skipped)
     fi
 
     if [[ $exit_code -eq 0 ]]; then
@@ -335,16 +344,16 @@ run_gradle_tests() {
         else
             print_success "${service_name} tests passed (${duration}s)"
         fi
-        record_result "$service_name" "PASSED"
-        ((TOTAL_PASSED++))
+        record_result "$service_name" "PASSED" "$parsed_tests" "$parsed_failures" "$parsed_errors" "$parsed_skipped"
+        ((TOTAL_SUITES_PASSED++))
     else
         if [[ -n "$test_counts" ]]; then
             print_error "${service_name}: ${test_counts} (${duration}s)"
         else
             print_error "${service_name} tests failed (${duration}s)"
         fi
-        record_result "$service_name" "FAILED"
-        ((TOTAL_FAILED++))
+        record_result "$service_name" "FAILED" "$parsed_tests" "$parsed_failures" "$parsed_errors" "$parsed_skipped"
+        ((TOTAL_SUITES_FAILED++))
     fi
 
     return $exit_code
@@ -360,13 +369,13 @@ run_npm_tests() {
 
     if [[ ! -d "$app_dir" ]]; then
         print_error "Directory not found: $app_dir"
-        record_result "$app_name" "SKIPPED"
+        record_result "$app_name" "SKIPPED" 0 0 0 0
         return 1
     fi
 
     # Ensure Node.js/npm is available
     if ! setup_node; then
-        record_result "$app_name" "SKIPPED"
+        record_result "$app_name" "SKIPPED" 0 0 0 0
         return 1
     fi
 
@@ -380,8 +389,8 @@ run_npm_tests() {
         print_info "Installing dependencies..."
         (cd "$app_dir" && npm install --silent) || {
             print_error "Failed to install dependencies for ${app_name}"
-            record_result "$app_name" "FAILED"
-            ((TOTAL_FAILED++))
+            record_result "$app_name" "FAILED" 0 0 0 0
+            ((TOTAL_SUITES_FAILED++))
             return 1
         }
     fi
@@ -398,14 +407,17 @@ run_npm_tests() {
     end_time=$(date +%s)
     duration=$((end_time - start_time))
 
+    # TODO: Parse Vitest output for test counts (currently not implemented)
+    # For now, we don't have test count parsing for npm/Vitest tests
+
     if [[ $exit_code -eq 0 ]]; then
         print_success "${app_name} tests passed (${duration}s)"
-        record_result "$app_name" "PASSED"
-        ((TOTAL_PASSED++))
+        record_result "$app_name" "PASSED" 0 0 0 0
+        ((TOTAL_SUITES_PASSED++))
     else
         print_error "${app_name} tests failed (${duration}s)"
-        record_result "$app_name" "FAILED"
-        ((TOTAL_FAILED++))
+        record_result "$app_name" "FAILED" 0 0 0 0
+        ((TOTAL_SUITES_FAILED++))
     fi
 
     return $exit_code
@@ -481,28 +493,74 @@ run_tests_sequential() {
 print_summary() {
     print_header "Test Summary"
 
+    # Calculate grand totals
+    local grand_total_tests=0
+    local grand_total_passed=0
+    local grand_total_failed=0
+    local grand_total_skipped=0
+
     echo -e "${BOLD}Results:${NC}"
     local i
     for (( i=1; i<=${#TEST_NAMES[@]}; i++ )); do
         local service="${TEST_NAMES[$i]}"
         local test_status="${TEST_STATUSES[$i]}"
+        local tests="${TEST_COUNTS[$i]:-0}"
+        local failures="${TEST_FAILURES[$i]:-0}"
+        local errors="${TEST_ERRORS[$i]:-0}"
+        local skipped="${TEST_SKIPPED[$i]:-0}"
+
+        # Calculate passed tests for this service
+        local passed=$((tests - failures - errors - skipped))
+        if [[ $passed -lt 0 ]]; then
+            passed=0
+        fi
+
+        # Accumulate grand totals
+        grand_total_tests=$((grand_total_tests + tests))
+        grand_total_passed=$((grand_total_passed + passed))
+        grand_total_failed=$((grand_total_failed + failures + errors))
+        grand_total_skipped=$((grand_total_skipped + skipped))
+
+        # Format the detail line
+        local detail=""
+        if [[ $tests -gt 0 ]]; then
+            detail="${passed} passed"
+            if [[ $((failures + errors)) -gt 0 ]]; then
+                detail="${detail}, $((failures + errors)) failed"
+            fi
+            if [[ $skipped -gt 0 ]]; then
+                detail="${detail}, ${skipped} skipped"
+            fi
+            detail=" (${detail})"
+        fi
+
         case "$test_status" in
             PASSED)
-                echo -e "  ${GREEN}✓${NC} ${service}: ${GREEN}${test_status}${NC}"
+                echo -e "  ${GREEN}✓${NC} ${service}: ${GREEN}${test_status}${NC}${detail}"
                 ;;
             FAILED)
-                echo -e "  ${RED}✗${NC} ${service}: ${RED}${test_status}${NC}"
+                echo -e "  ${RED}✗${NC} ${service}: ${RED}${test_status}${NC}${detail}"
                 ;;
             SKIPPED)
-                echo -e "  ${YELLOW}○${NC} ${service}: ${YELLOW}${test_status}${NC}"
+                echo -e "  ${YELLOW}○${NC} ${service}: ${YELLOW}${test_status}${NC}${detail}"
                 ;;
         esac
     done
 
     echo ""
-    echo -e "${BOLD}Total:${NC} ${GREEN}${TOTAL_PASSED} passed${NC}, ${RED}${TOTAL_FAILED} failed${NC}"
+    echo -e "${BOLD}Suites:${NC} ${GREEN}${TOTAL_SUITES_PASSED} passed${NC}, ${RED}${TOTAL_SUITES_FAILED} failed${NC}"
+    if [[ $grand_total_tests -gt 0 ]]; then
+        local tests_summary="${GREEN}${grand_total_passed} passed${NC}"
+        if [[ $grand_total_failed -gt 0 ]]; then
+            tests_summary="${tests_summary}, ${RED}${grand_total_failed} failed${NC}"
+        fi
+        if [[ $grand_total_skipped -gt 0 ]]; then
+            tests_summary="${tests_summary}, ${YELLOW}${grand_total_skipped} skipped${NC}"
+        fi
+        echo -e "${BOLD}Tests:${NC}  ${tests_summary}"
+    fi
 
-    if [[ $TOTAL_FAILED -gt 0 ]]; then
+    if [[ $TOTAL_SUITES_FAILED -gt 0 ]]; then
         echo -e "\n${RED}Some tests failed!${NC}"
         return 1
     else
