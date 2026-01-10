@@ -499,8 +499,24 @@ print_summary() {
     local grand_total_failed=0
     local grand_total_skipped=0
 
-    echo -e "${BOLD}Results:${NC}"
+    # Find the longest service name for column width
+    local max_name_len=20  # fixed width for service column
     local i
+
+    # Table structure
+    local col_status=8
+    local col_passed=8
+    local col_failed=8
+    local col_skipped=8
+    local divider="----------------------+---------+----------+----------+----------"
+
+    echo -e "${BOLD}Results:${NC}"
+    echo "$divider"
+    printf "${BOLD}%-20s${NC} | ${BOLD}%-7s${NC} | ${BOLD}%8s${NC} | ${BOLD}%8s${NC} | ${BOLD}%8s${NC}\n" \
+        "Service" "Status" "Passed" "Failed" "Skipped"
+    echo "$divider"
+
+    # Table rows
     for (( i=1; i<=${#TEST_NAMES[@]}; i++ )); do
         local service="${TEST_NAMES[$i]}"
         local test_status="${TEST_STATUSES[$i]}"
@@ -510,7 +526,8 @@ print_summary() {
         local skipped="${TEST_SKIPPED[$i]:-0}"
 
         # Calculate passed tests for this service
-        local passed=$((tests - failures - errors - skipped))
+        local total_failures=$((failures + errors))
+        local passed=$((tests - total_failures - skipped))
         if [[ $passed -lt 0 ]]; then
             passed=0
         fi
@@ -518,47 +535,49 @@ print_summary() {
         # Accumulate grand totals
         grand_total_tests=$((grand_total_tests + tests))
         grand_total_passed=$((grand_total_passed + passed))
-        grand_total_failed=$((grand_total_failed + failures + errors))
+        grand_total_failed=$((grand_total_failed + total_failures))
         grand_total_skipped=$((grand_total_skipped + skipped))
 
-        # Format the detail line
-        local detail=""
-        if [[ $tests -gt 0 ]]; then
-            detail="${passed} passed"
-            if [[ $((failures + errors)) -gt 0 ]]; then
-                detail="${detail}, $((failures + errors)) failed"
-            fi
-            if [[ $skipped -gt 0 ]]; then
-                detail="${detail}, ${skipped} skipped"
-            fi
-            detail=" (${detail})"
+        # Format and print row - determine color based on status
+        local status_color=""
+        if [[ "$test_status" == "PASSED" ]]; then
+            status_color="$GREEN"
+        elif [[ "$test_status" == "FAILED" ]]; then
+            status_color="$RED"
+        elif [[ "$test_status" == "SKIPPED" ]]; then
+            status_color="$YELLOW"
+        else
+            status_color="$NC"
         fi
 
-        case "$test_status" in
-            PASSED)
-                echo -e "  ${GREEN}✓${NC} ${service}: ${GREEN}${test_status}${NC}${detail}"
-                ;;
-            FAILED)
-                echo -e "  ${RED}✗${NC} ${service}: ${RED}${test_status}${NC}${detail}"
-                ;;
-            SKIPPED)
-                echo -e "  ${YELLOW}○${NC} ${service}: ${YELLOW}${test_status}${NC}${detail}"
-                ;;
-        esac
+        # Use printf for alignment, echo -e for colors
+        printf "%-20s | " "$service"
+        echo -en "${status_color}$(printf '%-7s' "$test_status")${NC}"
+        echo -n " | "
+        echo -en "${GREEN}$(printf '%8s' "$passed")${NC}"
+        echo -n " | "
+        if [[ $total_failures -gt 0 ]]; then
+            echo -en "${RED}$(printf '%8s' "$total_failures")${NC}"
+        else
+            printf '%8s' "$total_failures"
+        fi
+        echo -n " | "
+        if [[ $skipped -gt 0 ]]; then
+            echo -e "${YELLOW}$(printf '%8s' "$skipped")${NC}"
+        else
+            printf '%8s\n' "$skipped"
+        fi
     done
+
+    echo "$divider"
+
+    # Totals row
+    printf "${BOLD}%-20s${NC} | %-7s | %8s | %8s | %8s\n" \
+        "TOTAL" "" "$grand_total_passed" "$grand_total_failed" "$grand_total_skipped"
+    echo "$divider"
 
     echo ""
     echo -e "${BOLD}Suites:${NC} ${GREEN}${TOTAL_SUITES_PASSED} passed${NC}, ${RED}${TOTAL_SUITES_FAILED} failed${NC}"
-    if [[ $grand_total_tests -gt 0 ]]; then
-        local tests_summary="${GREEN}${grand_total_passed} passed${NC}"
-        if [[ $grand_total_failed -gt 0 ]]; then
-            tests_summary="${tests_summary}, ${RED}${grand_total_failed} failed${NC}"
-        fi
-        if [[ $grand_total_skipped -gt 0 ]]; then
-            tests_summary="${tests_summary}, ${YELLOW}${grand_total_skipped} skipped${NC}"
-        fi
-        echo -e "${BOLD}Tests:${NC}  ${tests_summary}"
-    fi
 
     if [[ $TOTAL_SUITES_FAILED -gt 0 ]]; then
         echo -e "\n${RED}Some tests failed!${NC}"
