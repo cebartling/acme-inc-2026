@@ -66,10 +66,32 @@ SKIP_INSTALL=false
 VERBOSE=false
 QUIET=false
 
-# Track results
-declare -A TEST_RESULTS
+# Track results (using parallel arrays for Bash 3.x compatibility)
+TEST_NAMES=()
+TEST_STATUSES=()
 TOTAL_PASSED=0
 TOTAL_FAILED=0
+
+# Helper function to record test result
+record_result() {
+    local name="$1"
+    local status="$2"
+    TEST_NAMES+=("$name")
+    TEST_STATUSES+=("$status")
+}
+
+# Helper function to get test result
+get_result() {
+    local name="$1"
+    local i
+    for i in "${!TEST_NAMES[@]}"; do
+        if [[ "${TEST_NAMES[$i]}" == "$name" ]]; then
+            echo "${TEST_STATUSES[$i]}"
+            return
+        fi
+    done
+    echo "UNKNOWN"
+}
 
 # -----------------------------------------------------------------------------
 # Helper Functions
@@ -166,7 +188,7 @@ run_gradle_tests() {
 
     if [[ ! -d "$service_dir" ]]; then
         print_error "Directory not found: $service_dir"
-        TEST_RESULTS["$service_name"]="SKIPPED"
+        record_result "$service_name" "SKIPPED"
         return 1
     fi
 
@@ -177,7 +199,7 @@ run_gradle_tests() {
         gradle_cmd="gradle"
     else
         print_error "No Gradle found for ${service_name}. Install Gradle or add gradlew wrapper."
-        TEST_RESULTS["$service_name"]="SKIPPED"
+        record_result "$service_name" "SKIPPED"
         return 1
     fi
 
@@ -201,11 +223,11 @@ run_gradle_tests() {
 
     if [[ $exit_code -eq 0 ]]; then
         print_success "${service_name} tests passed (${duration}s)"
-        TEST_RESULTS["$service_name"]="PASSED"
+        record_result "$service_name" "PASSED"
         ((TOTAL_PASSED++))
     else
         print_error "${service_name} tests failed (${duration}s)"
-        TEST_RESULTS["$service_name"]="FAILED"
+        record_result "$service_name" "FAILED"
         ((TOTAL_FAILED++))
     fi
 
@@ -222,7 +244,7 @@ run_npm_tests() {
 
     if [[ ! -d "$app_dir" ]]; then
         print_error "Directory not found: $app_dir"
-        TEST_RESULTS["$app_name"]="SKIPPED"
+        record_result "$app_name" "SKIPPED"
         return 1
     fi
 
@@ -236,7 +258,7 @@ run_npm_tests() {
         print_info "Installing dependencies..."
         (cd "$app_dir" && npm install --silent) || {
             print_error "Failed to install dependencies for ${app_name}"
-            TEST_RESULTS["$app_name"]="FAILED"
+            record_result "$app_name" "FAILED"
             ((TOTAL_FAILED++))
             return 1
         }
@@ -256,11 +278,11 @@ run_npm_tests() {
 
     if [[ $exit_code -eq 0 ]]; then
         print_success "${app_name} tests passed (${duration}s)"
-        TEST_RESULTS["$app_name"]="PASSED"
+        record_result "$app_name" "PASSED"
         ((TOTAL_PASSED++))
     else
         print_error "${app_name} tests failed (${duration}s)"
-        TEST_RESULTS["$app_name"]="FAILED"
+        record_result "$app_name" "FAILED"
         ((TOTAL_FAILED++))
     fi
 
@@ -338,8 +360,10 @@ print_summary() {
     print_header "Test Summary"
 
     echo -e "${BOLD}Results:${NC}"
-    for service in "${!TEST_RESULTS[@]}"; do
-        local status="${TEST_RESULTS[$service]}"
+    local i
+    for i in "${!TEST_NAMES[@]}"; do
+        local service="${TEST_NAMES[$i]}"
+        local status="${TEST_STATUSES[$i]}"
         case "$status" in
             PASSED)
                 echo -e "  ${GREEN}✓${NC} ${service}: ${GREEN}${status}${NC}"
