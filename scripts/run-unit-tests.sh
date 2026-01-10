@@ -508,13 +508,13 @@ print_summary() {
     local col_passed=8
     local col_failed=8
     local col_skipped=8
-    local divider="----------------------+---------+----------+----------+----------"
+    local divider="${CYAN}----------------------+---------+----------+----------+----------${NC}"
 
     echo -e "${BOLD}Results:${NC}"
-    echo "$divider"
-    printf "${BOLD}%-20s${NC} | ${BOLD}%-7s${NC} | ${BOLD}%8s${NC} | ${BOLD}%8s${NC} | ${BOLD}%8s${NC}\n" \
+    echo -e "$divider"
+    printf "${BOLD}%-20s${NC} ${CYAN}|${NC} ${BOLD}%-7s${NC} ${CYAN}|${NC} ${BOLD}${GREEN}%8s${NC} ${CYAN}|${NC} ${BOLD}${RED}%8s${NC} ${CYAN}|${NC} ${BOLD}${YELLOW}%8s${NC}\n" \
         "Service" "Status" "Passed" "Failed" "Skipped"
-    echo "$divider"
+    echo -e "$divider"
 
     # Table rows
     for (( i=1; i<=${#TEST_NAMES[@]}; i++ )); do
@@ -551,17 +551,18 @@ print_summary() {
         fi
 
         # Use printf for alignment, echo -e for colors
-        printf "%-20s | " "$service"
+        echo -en "${status_color}$(printf '%-20s' "$service")${NC}"
+        echo -en " ${CYAN}|${NC} "
         echo -en "${status_color}$(printf '%-7s' "$test_status")${NC}"
-        echo -n " | "
+        echo -en " ${CYAN}|${NC} "
         echo -en "${GREEN}$(printf '%8s' "$passed")${NC}"
-        echo -n " | "
+        echo -en " ${CYAN}|${NC} "
         if [[ $total_failures -gt 0 ]]; then
             echo -en "${RED}$(printf '%8s' "$total_failures")${NC}"
         else
             printf '%8s' "$total_failures"
         fi
-        echo -n " | "
+        echo -en " ${CYAN}|${NC} "
         if [[ $skipped -gt 0 ]]; then
             echo -e "${YELLOW}$(printf '%8s' "$skipped")${NC}"
         else
@@ -569,12 +570,27 @@ print_summary() {
         fi
     done
 
-    echo "$divider"
+    echo -e "$divider"
 
-    # Totals row
-    printf "${BOLD}%-20s${NC} | %-7s | %8s | %8s | %8s\n" \
-        "TOTAL" "" "$grand_total_passed" "$grand_total_failed" "$grand_total_skipped"
-    echo "$divider"
+    # Totals row with colors
+    echo -en "${BOLD}$(printf '%-20s' "TOTAL")${NC}"
+    echo -en " ${CYAN}|${NC} "
+    printf '%-7s' ""
+    echo -en " ${CYAN}|${NC} "
+    echo -en "${GREEN}${BOLD}$(printf '%8s' "$grand_total_passed")${NC}"
+    echo -en " ${CYAN}|${NC} "
+    if [[ $grand_total_failed -gt 0 ]]; then
+        echo -en "${RED}${BOLD}$(printf '%8s' "$grand_total_failed")${NC}"
+    else
+        printf '%8s' "$grand_total_failed"
+    fi
+    echo -en " ${CYAN}|${NC} "
+    if [[ $grand_total_skipped -gt 0 ]]; then
+        echo -e "${YELLOW}${BOLD}$(printf '%8s' "$grand_total_skipped")${NC}"
+    else
+        printf '%8s\n' "$grand_total_skipped"
+    fi
+    echo -e "$divider"
 
     echo ""
     echo -e "${BOLD}Suites:${NC} ${GREEN}${TOTAL_SUITES_PASSED} passed${NC}, ${RED}${TOTAL_SUITES_FAILED} failed${NC}"
