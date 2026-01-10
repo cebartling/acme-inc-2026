@@ -203,6 +203,15 @@ The `health` command checks the following services:
 
 The platform includes a BDD acceptance testing framework using Cucumber.js and Playwright.
 
+### Test Types
+
+| Type | Tags | Description | Browser |
+|------|------|-------------|---------|
+| UI Tests | `@customer`, `@admin` | Frontend browser automation | Required |
+| API Tests | `@api` | Backend HTTP API tests | Not needed |
+
+**Note:** The test hooks conditionally launch Playwright only for UI tests (`@customer` or `@admin` tags). API-only tests skip browser initialization for better performance.
+
 ### Acceptance Test Runner Script
 
 A unified shell script is provided for running acceptance tests with automatic report generation.

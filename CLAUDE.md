@@ -47,3 +47,36 @@ Use the Playwright MCP server for browser automation, testing, and web interacti
 2. Use `browser_snapshot` to get an accessibility tree of the page (better than screenshots for interactions)
 3. Interact with elements using their ref from the snapshot
 4. Use `browser_wait_for` to wait for dynamic content
+
+## Acceptance Tests
+
+The acceptance tests are located in `acceptance-tests/` and use Cucumber.js with Playwright.
+
+### Test Types and Tags
+
+| Tag | Description | Browser Required |
+|-----|-------------|------------------|
+| `@customer` | Customer frontend UI tests | Yes |
+| `@admin` | Admin frontend UI tests | Yes |
+| `@api` | API-only tests (HTTP calls) | No |
+| `@registration` | Registration flow tests | Yes (navigates itself) |
+
+### Hook Behavior
+
+The test hooks in `support/hooks.ts` conditionally launch Playwright:
+
+- **UI tests** (`@customer` or `@admin`): Launch browser, create context, navigate to app
+- **API tests** (`@api` without `@customer`/`@admin`): Only initialize API clients, no browser
+
+This optimization improves performance for API/backend tests.
+
+### Running Tests
+
+```bash
+cd acceptance-tests
+
+npm run test           # All tests
+npm run test:smoke     # Smoke tests only
+npm run test:customer  # Customer UI tests
+npm run test:headed    # With visible browser
+```
