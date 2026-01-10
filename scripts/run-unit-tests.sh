@@ -213,6 +213,68 @@ EOF
 }
 
 # -----------------------------------------------------------------------------
+# Test Result Parsing
+# -----------------------------------------------------------------------------
+
+# Parse JUnit XML test reports and return counts
+# Usage: parse_junit_reports <reports_dir>
+# Sets: PARSED_TESTS, PARSED_FAILURES, PARSED_ERRORS, PARSED_SKIPPED
+parse_junit_reports() {
+    local reports_dir="$1"
+    PARSED_TESTS=0
+    PARSED_FAILURES=0
+    PARSED_ERRORS=0
+    PARSED_SKIPPED=0
+
+    if [[ ! -d "$reports_dir" ]]; then
+        return 1
+    fi
+
+    # Check if any XML files exist
+    local xml_count=$(find "$reports_dir" -maxdepth 1 -name "*.xml" 2>/dev/null | wc -l)
+    if [[ $xml_count -eq 0 ]]; then
+        return 1
+    fi
+
+    for xml_file in "$reports_dir"/*.xml; do
+        if [[ -f "$xml_file" ]]; then
+            # Extract attributes from testsuite element
+            local tests=$(grep -o 'tests="[0-9]*"' "$xml_file" | head -1 | grep -o '[0-9]*')
+            local failures=$(grep -o 'failures="[0-9]*"' "$xml_file" | head -1 | grep -o '[0-9]*')
+            local errors=$(grep -o 'errors="[0-9]*"' "$xml_file" | head -1 | grep -o '[0-9]*')
+            local skipped=$(grep -o 'skipped="[0-9]*"' "$xml_file" | head -1 | grep -o '[0-9]*')
+
+            PARSED_TESTS=$((PARSED_TESTS + ${tests:-0}))
+            PARSED_FAILURES=$((PARSED_FAILURES + ${failures:-0}))
+            PARSED_ERRORS=$((PARSED_ERRORS + ${errors:-0}))
+            PARSED_SKIPPED=$((PARSED_SKIPPED + ${skipped:-0}))
+        fi
+    done
+
+    return 0
+}
+
+# Format test counts for display
+format_test_counts() {
+    local tests=$1
+    local failures=$2
+    local errors=$3
+    local skipped=$4
+
+    local result="${tests} tests"
+    if [[ $failures -gt 0 ]]; then
+        result="${result}, ${failures} failed"
+    fi
+    if [[ $errors -gt 0 ]]; then
+        result="${result}, ${errors} errors"
+    fi
+    if [[ $skipped -gt 0 ]]; then
+        result="${result}, ${skipped} skipped"
+    fi
+    echo "$result"
+}
+
+# -----------------------------------------------------------------------------
 # Test Runner Functions
 # -----------------------------------------------------------------------------
 
@@ -260,12 +322,27 @@ run_gradle_tests() {
     end_time=$(date +%s)
     duration=$((end_time - start_time))
 
+    # Parse test results from JUnit XML reports
+    local test_counts=""
+    local reports_dir="${service_dir}/build/test-results/test"
+    if parse_junit_reports "$reports_dir"; then
+        test_counts=$(format_test_counts $PARSED_TESTS $PARSED_FAILURES $PARSED_ERRORS $PARSED_SKIPPED)
+    fi
+
     if [[ $exit_code -eq 0 ]]; then
-        print_success "${service_name} tests passed (${duration}s)"
+        if [[ -n "$test_counts" ]]; then
+            print_success "${service_name}: ${test_counts} (${duration}s)"
+        else
+            print_success "${service_name} tests passed (${duration}s)"
+        fi
         record_result "$service_name" "PASSED"
         ((TOTAL_PASSED++))
     else
-        print_error "${service_name} tests failed (${duration}s)"
+        if [[ -n "$test_counts" ]]; then
+            print_error "${service_name}: ${test_counts} (${duration}s)"
+        else
+            print_error "${service_name} tests failed (${duration}s)"
+        fi
         record_result "$service_name" "FAILED"
         ((TOTAL_FAILED++))
     fi
