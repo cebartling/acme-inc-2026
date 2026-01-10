@@ -156,10 +156,6 @@ Then('I should be on the review step', async function (this: CustomWorld) {
   expect(await wizardPage.isOnReviewStep()).toBe(true);
 });
 
-Then('I should be redirected to the home page', async function (this: CustomWorld) {
-  await expect(this.page).toHaveURL(/\/$/, { timeout: 10000 });
-});
-
 // Personal Details Step Actions
 When('I select gender {string}', async function (this: CustomWorld, gender: string) {
   const wizardPage = new ProfileWizardPage(this.page);
