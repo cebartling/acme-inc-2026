@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env zsh
 # =============================================================================
 # Docker Management Script
 # =============================================================================
@@ -14,7 +14,7 @@ set -euo pipefail
 # -----------------------------------------------------------------------------
 # Configuration
 # -----------------------------------------------------------------------------
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${0}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 # Compose files
@@ -264,7 +264,7 @@ cleanup_all() {
     print_header "Full Cleanup (Images, Volumes, Networks)"
 
     print_warning "This will remove all unused Docker resources!"
-    read -p "Are you sure? (y/N): " confirm
+    read "confirm?Are you sure? (y/N): "
 
     if [[ "$confirm" =~ ^[Yy]$ ]]; then
         docker system prune -af --volumes
@@ -278,7 +278,7 @@ cleanup_volumes() {
     print_header "Stopping Services and Removing Volumes"
 
     print_warning "This will remove all data volumes!"
-    read -p "Are you sure? (y/N): " confirm
+    read "confirm?Are you sure? (y/N): "
 
     if [[ "$confirm" =~ ^[Yy]$ ]]; then
         apps_down -v 2>/dev/null || true
@@ -300,7 +300,7 @@ teardown() {
     echo -e "  ${RED}•${NC} Remove project networks"
     echo ""
 
-    read -p "Are you sure you want to proceed? (y/N): " confirm
+    read "confirm?Are you sure you want to proceed? (y/N): "
 
     if [[ "$confirm" =~ ^[Yy]$ ]]; then
         print_info "Stopping application services..."

@@ -10,6 +10,20 @@ Demo e-commerce platform for the fictitious ACME, Inc. company.
 
 This is a new repository. Build commands, architecture documentation, and development workflows will be added as the codebase evolves.
 
+## Prerequisites
+
+### Shell
+
+This repository requires **zsh** for running shell scripts in the `scripts/` directory. The scripts use zsh-specific features and syntax.
+
+- **macOS**: zsh is the default shell since macOS Catalina (10.15)
+- **Linux**: Install via package manager (e.g., `apt install zsh` or `dnf install zsh`)
+
+Verify zsh is available:
+```bash
+zsh --version
+```
+
 ## MCP Servers
 
 ### Context7
