@@ -11,13 +11,23 @@ Customer-facing web application for the ACME Inc. e-commerce platform.
 - **Build Tool**: Vite 7
 - **Testing**: Vitest
 
+## Prerequisites
+
+This project uses [nvm](https://github.com/nvm-sh/nvm) to manage Node.js versions. The required version is specified in `.nvmrc`.
+
+```bash
+# Install and use the correct Node.js version
+nvm install
+nvm use
+```
+
 ## Getting Started
 
 To run this application:
 
 ```bash
 npm install
-npm run start
+npm run dev
 ```
 
 # Building For Production
@@ -89,6 +99,29 @@ This project uses [Vitest](https://vitest.dev/) for testing. You can run the tes
 ```bash
 npm run test
 ```
+
+## Development Tasks
+
+A shell script is provided to automate common development tasks including route generation, linting, and formatting.
+
+```bash
+# Run all tasks (routes, lint, format)
+./scripts/dev-tasks.sh
+
+# Or run individual tasks
+./scripts/dev-tasks.sh routes    # Generate TanStack Router route tree
+./scripts/dev-tasks.sh lint      # Run ESLint with auto-fix
+./scripts/dev-tasks.sh format    # Run Prettier with auto-fix
+./scripts/dev-tasks.sh check     # Run all checks without modifications
+./scripts/dev-tasks.sh help      # Show all available commands
+```
+
+The script automatically loads the correct Node.js version via nvm.
+
+## Code Quality
+
+- **ESLint**: TypeScript and React linting with `eslint.config.js`
+- **Prettier**: Code formatting
 
 ## Styling
 
