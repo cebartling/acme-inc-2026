@@ -46,7 +46,7 @@ notification:
     verification:
       subject: Test Verification
       expiration-hours: 24
-      base-url: http://localhost:5173/verify
+      base-url: http://localhost:7600/verify
     support-email: support@acme.com
     company-name: ACME Inc.
 

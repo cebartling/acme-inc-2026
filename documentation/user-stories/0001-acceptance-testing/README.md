@@ -51,7 +51,7 @@ graph TB
 
     subgraph "Applications Under Test"
         subgraph "Frontend Applications"
-            CUSTOMER[Customer App<br/>localhost:5173]
+            CUSTOMER[Customer App<br/>localhost:7600]
             ADMIN[Admin App<br/>localhost:5174]
         end
 

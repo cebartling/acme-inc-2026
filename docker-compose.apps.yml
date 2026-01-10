@@ -218,7 +218,7 @@ services:
       # Email configuration
       EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-noreply@acme.com}
       EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-ACME}
-      VERIFICATION_BASE_URL: ${VERIFICATION_BASE_URL:-http://localhost:5173/verify}
+      VERIFICATION_BASE_URL: ${VERIFICATION_BASE_URL:-http://localhost:7600/verify}
       SUPPORT_EMAIL: ${SUPPORT_EMAIL:-support@acme.com}
       COMPANY_NAME: ${COMPANY_NAME:-ACME Inc.}
 
@@ -282,7 +282,7 @@ services:
     container_name: acme-customer-frontend
     hostname: customer-frontend
     ports:
-      - "${CUSTOMER_FRONTEND_PORT:-5173}:3000"
+      - "${CUSTOMER_FRONTEND_PORT:-7600}:3000"
     environment:
       NODE_ENV: production
       HOST: 0.0.0.0

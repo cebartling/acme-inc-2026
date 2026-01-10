@@ -84,7 +84,7 @@ docker compose -f docker-compose.apps.yml down --remove-orphans
 | Identity Service | 10300 | http://localhost:10300 | Authentication & user management |
 | Customer Service | 10301 | http://localhost:10301 | Customer profile management |
 | Notification Service | 10302 | http://localhost:10302 | Email notifications |
-| Customer Frontend | 5173 | http://localhost:5173 | Customer-facing web application |
+| Customer Frontend | 7600 | http://localhost:7600 | Customer-facing web application |
 
 ### Building Individual Services
 
