@@ -94,6 +94,45 @@ get_result() {
 }
 
 # -----------------------------------------------------------------------------
+# Node.js Setup
+# -----------------------------------------------------------------------------
+
+setup_node() {
+    # First check if node is already available
+    if command -v node &> /dev/null && command -v npm &> /dev/null; then
+        return 0
+    fi
+
+    # Set NVM_DIR
+    export NVM_DIR="$HOME/.nvm"
+
+    # Try nvm if available (check multiple locations)
+    if [[ -s "/opt/homebrew/opt/nvm/nvm.sh" ]]; then
+        # Homebrew installation on Apple Silicon
+        source "/opt/homebrew/opt/nvm/nvm.sh" 2>/dev/null
+        nvm use 2>/dev/null || true
+    elif [[ -s "/usr/local/opt/nvm/nvm.sh" ]]; then
+        # Homebrew installation on Intel Mac
+        source "/usr/local/opt/nvm/nvm.sh" 2>/dev/null
+        nvm use 2>/dev/null || true
+    elif [[ -s "$NVM_DIR/nvm.sh" ]]; then
+        # Standard nvm installation
+        source "$NVM_DIR/nvm.sh" 2>/dev/null
+        nvm use 2>/dev/null || true
+    elif command -v fnm &> /dev/null; then
+        eval "$(fnm env)" 2>/dev/null || true
+    fi
+
+    # Final verification
+    if ! command -v npm &> /dev/null; then
+        print_error "npm is not installed or not in PATH"
+        print_info "Please install Node.js or use nvm/fnm"
+        return 1
+    fi
+    return 0
+}
+
+# -----------------------------------------------------------------------------
 # Helper Functions
 # -----------------------------------------------------------------------------
 
@@ -244,6 +283,12 @@ run_npm_tests() {
 
     if [[ ! -d "$app_dir" ]]; then
         print_error "Directory not found: $app_dir"
+        record_result "$app_name" "SKIPPED"
+        return 1
+    fi
+
+    # Ensure Node.js/npm is available
+    if ! setup_node; then
         record_result "$app_name" "SKIPPED"
         return 1
     fi

@@ -18,7 +18,7 @@ class PhoneNumberValidatorTest {
     fun `validate should return Valid for valid US phone number`() {
         // Given
         val countryCode = "+1"
-        val number = "5551234567"
+        val number = "2025551234"  // DC area code with valid format
 
         // When
         val result = validator.validate(countryCode, number)
@@ -27,15 +27,15 @@ class PhoneNumberValidatorTest {
         assertTrue(result is PhoneValidationResult.Valid)
         val valid = result as PhoneValidationResult.Valid
         assertEquals("+1", valid.countryCode)
-        assertEquals("5551234567", valid.nationalNumber)
-        assertEquals("+15551234567", valid.formattedNumber)
+        assertEquals("2025551234", valid.nationalNumber)
+        assertEquals("+12025551234", valid.formattedNumber)
     }
 
     @Test
     fun `validate should return Valid for US phone number without plus prefix`() {
         // Given
         val countryCode = "1"
-        val number = "5551234567"
+        val number = "2025551234"  // DC area code with valid format
 
         // When
         val result = validator.validate(countryCode, number)
@@ -132,7 +132,7 @@ class PhoneNumberValidatorTest {
     fun `validate should handle phone number with spaces`() {
         // Given - some parsing libraries can handle formatted numbers
         val countryCode = "+1"
-        val number = "555 123 4567"
+        val number = "202 555 1234"  // DC area code with valid format
 
         // When
         val result = validator.validate(countryCode, number)
@@ -145,7 +145,7 @@ class PhoneNumberValidatorTest {
     fun `validate should handle phone number with dashes`() {
         // Given
         val countryCode = "+1"
-        val number = "555-123-4567"
+        val number = "202-555-1234"  // DC area code with valid format
 
         // When
         val result = validator.validate(countryCode, number)
@@ -157,7 +157,7 @@ class PhoneNumberValidatorTest {
     @Test
     fun `validateWithRegion should return Valid for number with default region`() {
         // Given
-        val number = "5551234567"
+        val number = "2025551234"  // DC area code with valid format
         val defaultRegion = "US"
 
         // When
