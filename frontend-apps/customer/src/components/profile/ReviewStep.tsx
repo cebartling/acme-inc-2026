@@ -1,13 +1,13 @@
-import { Loader2, Edit2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Loader2, Edit2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   useProfileWizardStore,
   usePersonalDetails,
   useAddress,
   usePreferences,
   useIsSubmitting,
-} from '@/stores/profileWizard.store';
+} from "@/stores/profileWizard.store";
 import {
   GENDER_OPTIONS,
   LOCALE_OPTIONS,
@@ -16,7 +16,7 @@ import {
   US_STATES,
   COUNTRY_OPTIONS,
   NOTIFICATION_FREQUENCY_OPTIONS,
-} from '@/schemas/profile.schema';
+} from "@/schemas/profile.schema";
 
 interface ReviewSectionProps {
   title: string;
@@ -54,14 +54,14 @@ function ReviewItem({ label, value }: ReviewItemProps) {
   return (
     <div className="flex justify-between py-1">
       <span className="text-gray-400">{label}</span>
-      <span className="text-white">{value || 'Not provided'}</span>
+      <span className="text-white">{value || "Not provided"}</span>
     </div>
   );
 }
 
 function getLabelFromOptions(
   value: string | undefined,
-  options: { value: string; label: string }[]
+  options: { value: string; label: string }[],
 ): string | undefined {
   if (!value) return undefined;
   return options.find((o) => o.value === value)?.label;
@@ -77,7 +77,9 @@ export function ReviewStep({ onSubmit }: ReviewStepProps) {
   const preferences = usePreferences();
   const isSubmitting = useIsSubmitting();
   const setCurrentStep = useProfileWizardStore((state) => state.setCurrentStep);
-  const goToPreviousStep = useProfileWizardStore((state) => state.goToPreviousStep);
+  const goToPreviousStep = useProfileWizardStore(
+    (state) => state.goToPreviousStep,
+  );
   const setSubmitting = useProfileWizardStore((state) => state.setSubmitting);
   const setSubmitError = useProfileWizardStore((state) => state.setSubmitError);
   const submitError = useProfileWizardStore((state) => state.submitError);
@@ -91,7 +93,7 @@ export function ReviewStep({ onSubmit }: ReviewStepProps) {
       setSubmitError(
         error instanceof Error
           ? error.message
-          : 'An error occurred while saving your profile'
+          : "An error occurred while saving your profile",
       );
     } finally {
       setSubmitting(false);
@@ -107,7 +109,7 @@ export function ReviewStep({ onSubmit }: ReviewStepProps) {
       {/* Personal Details Section */}
       <ReviewSection
         title="Personal Details"
-        onEdit={() => setCurrentStep('personal-details')}
+        onEdit={() => setCurrentStep("personal-details")}
       >
         <div className="space-y-1">
           {personalDetails?.phoneNumber && (
@@ -126,25 +128,31 @@ export function ReviewStep({ onSubmit }: ReviewStepProps) {
           />
           <ReviewItem
             label="Language"
-            value={getLabelFromOptions(personalDetails?.preferredLocale, LOCALE_OPTIONS)}
+            value={getLabelFromOptions(
+              personalDetails?.preferredLocale,
+              LOCALE_OPTIONS,
+            )}
           />
           <ReviewItem
             label="Timezone"
-            value={getLabelFromOptions(personalDetails?.timezone, TIMEZONE_OPTIONS)}
+            value={getLabelFromOptions(
+              personalDetails?.timezone,
+              TIMEZONE_OPTIONS,
+            )}
           />
         </div>
       </ReviewSection>
 
       {/* Address Section */}
-      <ReviewSection
-        title="Address"
-        onEdit={() => setCurrentStep('address')}
-      >
+      <ReviewSection title="Address" onEdit={() => setCurrentStep("address")}>
         {address ? (
           <div className="space-y-1">
             <ReviewItem
               label="Type"
-              value={getLabelFromOptions(address.addressType, ADDRESS_TYPE_OPTIONS)}
+              value={getLabelFromOptions(
+                address.addressType,
+                ADDRESS_TYPE_OPTIONS,
+              )}
             />
             {address.label && (
               <ReviewItem label="Label" value={address.label} />
@@ -163,7 +171,7 @@ export function ReviewStep({ onSubmit }: ReviewStepProps) {
             />
             <ReviewItem
               label="Default"
-              value={address.isDefault ? 'Yes' : 'No'}
+              value={address.isDefault ? "Yes" : "No"}
             />
           </div>
         ) : (
@@ -174,30 +182,32 @@ export function ReviewStep({ onSubmit }: ReviewStepProps) {
       {/* Preferences Section */}
       <ReviewSection
         title="Communication Preferences"
-        onEdit={() => setCurrentStep('preferences')}
+        onEdit={() => setCurrentStep("preferences")}
       >
         <div className="space-y-1">
           <ReviewItem
             label="Email Notifications"
-            value={preferences?.emailNotifications ? 'Enabled' : 'Disabled'}
+            value={preferences?.emailNotifications ? "Enabled" : "Disabled"}
           />
           <ReviewItem
             label="SMS Notifications"
-            value={preferences?.smsNotifications ? 'Enabled' : 'Disabled'}
+            value={preferences?.smsNotifications ? "Enabled" : "Disabled"}
           />
           <ReviewItem
             label="Push Notifications"
-            value={preferences?.pushNotifications ? 'Enabled' : 'Disabled'}
+            value={preferences?.pushNotifications ? "Enabled" : "Disabled"}
           />
           <ReviewItem
             label="Marketing"
-            value={preferences?.marketingCommunications ? 'Enabled' : 'Disabled'}
+            value={
+              preferences?.marketingCommunications ? "Enabled" : "Disabled"
+            }
           />
           <ReviewItem
             label="Frequency"
             value={getLabelFromOptions(
               preferences?.notificationFrequency,
-              NOTIFICATION_FREQUENCY_OPTIONS
+              NOTIFICATION_FREQUENCY_OPTIONS,
             )}
           />
         </div>
@@ -233,7 +243,7 @@ export function ReviewStep({ onSubmit }: ReviewStepProps) {
               Saving...
             </>
           ) : (
-            'Complete Profile'
+            "Complete Profile"
           )}
         </Button>
       </div>

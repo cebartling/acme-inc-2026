@@ -1,12 +1,12 @@
-import { Progress } from '@/components/ui/progress';
-import { Check } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { Progress } from "@/components/ui/progress";
+import { Check } from "lucide-react";
+import { cn } from "@/lib/utils";
 import {
   useCurrentStep,
   useProfileWizardStore,
   type WizardStep,
   TOTAL_STEPS,
-} from '@/stores/profileWizard.store';
+} from "@/stores/profileWizard.store";
 
 interface StepInfo {
   id: WizardStep;
@@ -16,24 +16,24 @@ interface StepInfo {
 
 const STEPS: StepInfo[] = [
   {
-    id: 'personal-details',
-    label: 'Personal Details',
-    description: 'Phone, date of birth, preferences',
+    id: "personal-details",
+    label: "Personal Details",
+    description: "Phone, date of birth, preferences",
   },
   {
-    id: 'address',
-    label: 'Address',
-    description: 'Add your shipping address',
+    id: "address",
+    label: "Address",
+    description: "Add your shipping address",
   },
   {
-    id: 'preferences',
-    label: 'Preferences',
-    description: 'Notification settings',
+    id: "preferences",
+    label: "Preferences",
+    description: "Notification settings",
   },
   {
-    id: 'review',
-    label: 'Review',
-    description: 'Confirm your information',
+    id: "review",
+    label: "Review",
+    description: "Confirm your information",
   },
 ];
 
@@ -67,22 +67,21 @@ export function WizardProgress() {
                   disabled={!canNavigate}
                   aria-label={`Step ${index + 1}: ${step.label}`}
                   className={cn(
-                    'group flex flex-col items-center w-full',
-                    canNavigate && 'cursor-pointer',
-                    !canNavigate && 'cursor-not-allowed'
+                    "group flex flex-col items-center w-full",
+                    canNavigate && "cursor-pointer",
+                    !canNavigate && "cursor-not-allowed",
                   )}
                 >
                   <span
                     className={cn(
-                      'flex h-10 w-10 items-center justify-center rounded-full border-2 text-sm font-medium',
-                      isCurrent &&
-                        'border-cyan-500 bg-cyan-500 text-white',
+                      "flex h-10 w-10 items-center justify-center rounded-full border-2 text-sm font-medium",
+                      isCurrent && "border-cyan-500 bg-cyan-500 text-white",
                       isComplete &&
                         !isCurrent &&
-                        'border-green-500 bg-green-500 text-white',
+                        "border-green-500 bg-green-500 text-white",
                       !isCurrent &&
                         !isComplete &&
-                        'border-gray-600 bg-gray-800 text-gray-400'
+                        "border-gray-600 bg-gray-800 text-gray-400",
                     )}
                   >
                     {isComplete && !isCurrent ? (
@@ -93,10 +92,10 @@ export function WizardProgress() {
                   </span>
                   <span
                     className={cn(
-                      'mt-2 text-xs font-medium text-center hidden sm:block',
-                      isCurrent && 'text-cyan-400',
-                      isComplete && !isCurrent && 'text-green-400',
-                      !isCurrent && !isComplete && 'text-gray-500'
+                      "mt-2 text-xs font-medium text-center hidden sm:block",
+                      isCurrent && "text-cyan-400",
+                      isComplete && !isCurrent && "text-green-400",
+                      !isCurrent && !isComplete && "text-gray-500",
                     )}
                   >
                     {step.label}

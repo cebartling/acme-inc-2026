@@ -1,27 +1,32 @@
-import { useForm, Controller } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
+} from "@/components/ui/select";
 import {
   preferencesSchema,
   type PreferencesFormData,
   NOTIFICATION_FREQUENCY_OPTIONS,
-} from '@/schemas/profile.schema';
-import { useProfileWizardStore, usePreferences } from '@/stores/profileWizard.store';
+} from "@/schemas/profile.schema";
+import {
+  useProfileWizardStore,
+  usePreferences,
+} from "@/stores/profileWizard.store";
 
 export function PreferencesStep() {
   const existingData = usePreferences();
   const setPreferences = useProfileWizardStore((state) => state.setPreferences);
   const goToNextStep = useProfileWizardStore((state) => state.goToNextStep);
-  const goToPreviousStep = useProfileWizardStore((state) => state.goToPreviousStep);
+  const goToPreviousStep = useProfileWizardStore(
+    (state) => state.goToPreviousStep,
+  );
 
   const { handleSubmit, control } = useForm<PreferencesFormData>({
     resolver: zodResolver(preferencesSchema),
@@ -30,7 +35,7 @@ export function PreferencesStep() {
       smsNotifications: false,
       pushNotifications: false,
       marketingCommunications: false,
-      notificationFrequency: 'IMMEDIATE',
+      notificationFrequency: "IMMEDIATE",
     },
   });
 
@@ -134,9 +139,13 @@ export function PreferencesStep() {
 
       {/* Notification Frequency */}
       <div className="space-y-4">
-        <h3 className="text-lg font-medium text-white">Notification Frequency</h3>
+        <h3 className="text-lg font-medium text-white">
+          Notification Frequency
+        </h3>
         <div className="space-y-2">
-          <Label className="text-white">How often would you like to receive notifications?</Label>
+          <Label className="text-white">
+            How often would you like to receive notifications?
+          </Label>
           <Controller
             name="notificationFrequency"
             control={control}

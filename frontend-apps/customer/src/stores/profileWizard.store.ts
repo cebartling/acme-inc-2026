@@ -1,11 +1,15 @@
-import { create } from 'zustand';
+import { create } from "zustand";
 import type {
   PersonalDetailsFormData,
   AddressFormData,
   PreferencesFormData,
-} from '@/schemas/profile.schema';
+} from "@/schemas/profile.schema";
 
-export type WizardStep = 'personal-details' | 'address' | 'preferences' | 'review';
+export type WizardStep =
+  | "personal-details"
+  | "address"
+  | "preferences"
+  | "review";
 
 interface ProfileWizardState {
   // Current step
@@ -42,7 +46,12 @@ interface ProfileWizardState {
   skipWizard: () => void;
 }
 
-const STEP_ORDER: WizardStep[] = ['personal-details', 'address', 'preferences', 'review'];
+const STEP_ORDER: WizardStep[] = [
+  "personal-details",
+  "address",
+  "preferences",
+  "review",
+];
 
 const getNextStep = (currentStep: WizardStep): WizardStep | null => {
   const currentIndex = STEP_ORDER.indexOf(currentStep);
@@ -61,7 +70,7 @@ const getPreviousStep = (currentStep: WizardStep): WizardStep | null => {
 };
 
 const initialState = {
-  currentStep: 'personal-details' as WizardStep,
+  currentStep: "personal-details" as WizardStep,
   personalDetails: null,
   address: null,
   preferences: null,
@@ -94,21 +103,21 @@ export const useProfileWizardStore = create<ProfileWizardState>((set, get) => ({
   setPersonalDetails: (data) =>
     set({
       personalDetails: data,
-      completedSteps: new Set([...get().completedSteps, 'personal-details']),
+      completedSteps: new Set([...get().completedSteps, "personal-details"]),
     }),
 
   setAddress: (data) =>
     set({
       address: data,
       completedSteps: data
-        ? new Set([...get().completedSteps, 'address'])
+        ? new Set([...get().completedSteps, "address"])
         : get().completedSteps,
     }),
 
   setPreferences: (data) =>
     set({
       preferences: data,
-      completedSteps: new Set([...get().completedSteps, 'preferences']),
+      completedSteps: new Set([...get().completedSteps, "preferences"]),
     }),
 
   markStepComplete: (step) =>
@@ -129,11 +138,15 @@ export const useProfileWizardStore = create<ProfileWizardState>((set, get) => ({
 }));
 
 // Selector hooks for common selections
-export const useCurrentStep = () => useProfileWizardStore((state) => state.currentStep);
-export const usePersonalDetails = () => useProfileWizardStore((state) => state.personalDetails);
+export const useCurrentStep = () =>
+  useProfileWizardStore((state) => state.currentStep);
+export const usePersonalDetails = () =>
+  useProfileWizardStore((state) => state.personalDetails);
 export const useAddress = () => useProfileWizardStore((state) => state.address);
-export const usePreferences = () => useProfileWizardStore((state) => state.preferences);
-export const useIsSubmitting = () => useProfileWizardStore((state) => state.isSubmitting);
+export const usePreferences = () =>
+  useProfileWizardStore((state) => state.preferences);
+export const useIsSubmitting = () =>
+  useProfileWizardStore((state) => state.isSubmitting);
 
 // Get progress percentage
 export const useWizardProgress = () =>

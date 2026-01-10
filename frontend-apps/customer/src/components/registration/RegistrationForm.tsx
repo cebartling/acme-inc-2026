@@ -1,29 +1,29 @@
-import { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2 } from 'lucide-react';
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Loader2 } from "lucide-react";
 
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Label } from '@/components/ui/label';
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
+} from "@/components/ui/card";
 
-import { FormField } from './FormField';
-import { PasswordInput } from './PasswordInput';
-import { PasswordStrengthIndicator } from './PasswordStrengthIndicator';
+import { FormField } from "./FormField";
+import { PasswordInput } from "./PasswordInput";
+import { PasswordStrengthIndicator } from "./PasswordStrengthIndicator";
 
 import {
   registrationSchema,
   calculatePasswordStrength,
   type RegistrationFormData,
-} from '@/schemas/registration.schema';
+} from "@/schemas/registration.schema";
 
 interface RegistrationFormProps {
   onSubmit: (data: RegistrationFormData) => Promise<void>;
@@ -41,23 +41,23 @@ export function RegistrationForm({ onSubmit }: RegistrationFormProps) {
     trigger,
   } = useForm<RegistrationFormData>({
     resolver: zodResolver(registrationSchema),
-    mode: 'onBlur',
+    mode: "onBlur",
     defaultValues: {
-      email: '',
-      password: '',
-      confirmPassword: '',
-      firstName: '',
-      lastName: '',
+      email: "",
+      password: "",
+      confirmPassword: "",
+      firstName: "",
+      lastName: "",
       tosAccepted: false,
       privacyPolicyAccepted: false,
       marketingOptIn: false,
     },
   });
 
-  const password = watch('password');
-  const firstName = watch('firstName');
-  const lastName = watch('lastName');
-  const passwordStrength = calculatePasswordStrength(password || '');
+  const password = watch("password");
+  const firstName = watch("firstName");
+  const lastName = watch("lastName");
+  const passwordStrength = calculatePasswordStrength(password || "");
 
   const handleFormSubmit = async (data: RegistrationFormData) => {
     setIsSubmitting(true);
@@ -68,10 +68,7 @@ export function RegistrationForm({ onSubmit }: RegistrationFormProps) {
     }
   };
 
-  const handleNameInput = (
-    field: 'firstName' | 'lastName',
-    value: string
-  ) => {
+  const handleNameInput = (field: "firstName" | "lastName", value: string) => {
     const truncated = value.slice(0, 50);
     setValue(field, truncated, { shouldValidate: true });
   };
@@ -104,9 +101,9 @@ export function RegistrationForm({ onSubmit }: RegistrationFormProps) {
               placeholder="you@example.com"
               autoComplete="email"
               aria-invalid={!!errors.email}
-              aria-describedby={errors.email ? 'email-error' : undefined}
-              className={errors.email ? 'border-red-500' : ''}
-              {...register('email')}
+              aria-describedby={errors.email ? "email-error" : undefined}
+              className={errors.email ? "border-red-500" : ""}
+              {...register("email")}
             />
           </FormField>
 
@@ -125,7 +122,7 @@ export function RegistrationForm({ onSubmit }: RegistrationFormProps) {
               aria-invalid={!!errors.password}
               aria-describedby="password-requirements"
               error={!!errors.password}
-              {...register('password')}
+              {...register("password")}
             />
             <PasswordStrengthIndicator
               strength={passwordStrength}
@@ -147,7 +144,7 @@ export function RegistrationForm({ onSubmit }: RegistrationFormProps) {
               autoComplete="new-password"
               aria-invalid={!!errors.confirmPassword}
               error={!!errors.confirmPassword}
-              {...register('confirmPassword')}
+              {...register("confirmPassword")}
             />
           </FormField>
 
@@ -167,9 +164,9 @@ export function RegistrationForm({ onSubmit }: RegistrationFormProps) {
               autoComplete="given-name"
               aria-invalid={!!errors.firstName}
               maxLength={50}
-              className={errors.firstName ? 'border-red-500' : ''}
-              {...register('firstName', {
-                onChange: (e) => handleNameInput('firstName', e.target.value),
+              className={errors.firstName ? "border-red-500" : ""}
+              {...register("firstName", {
+                onChange: (e) => handleNameInput("firstName", e.target.value),
               })}
             />
           </FormField>
@@ -190,9 +187,9 @@ export function RegistrationForm({ onSubmit }: RegistrationFormProps) {
               autoComplete="family-name"
               aria-invalid={!!errors.lastName}
               maxLength={50}
-              className={errors.lastName ? 'border-red-500' : ''}
-              {...register('lastName', {
-                onChange: (e) => handleNameInput('lastName', e.target.value),
+              className={errors.lastName ? "border-red-500" : ""}
+              {...register("lastName", {
+                onChange: (e) => handleNameInput("lastName", e.target.value),
               })}
             />
           </FormField>
@@ -203,25 +200,31 @@ export function RegistrationForm({ onSubmit }: RegistrationFormProps) {
                 id="tosAccepted"
                 aria-invalid={!!errors.tosAccepted}
                 onCheckedChange={(checked) => {
-                  setValue('tosAccepted', !!checked, {
+                  setValue("tosAccepted", !!checked, {
                     shouldValidate: true,
                   });
-                  trigger('tosAccepted');
+                  trigger("tosAccepted");
                 }}
-                className={errors.tosAccepted ? 'border-red-500' : ''}
+                className={errors.tosAccepted ? "border-red-500" : ""}
               />
               <div className="grid gap-1.5 leading-none">
                 <Label
                   htmlFor="tosAccepted"
                   className={`text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 ${
-                    errors.tosAccepted ? 'text-red-600' : ''
+                    errors.tosAccepted ? "text-red-600" : ""
                   }`}
                 >
-                  I accept the Terms of Service{' '}
-                  <span className="text-red-500" aria-hidden="true">*</span>
+                  I accept the Terms of Service{" "}
+                  <span className="text-red-500" aria-hidden="true">
+                    *
+                  </span>
                 </Label>
                 {errors.tosAccepted && (
-                  <p className="text-sm text-red-600" role="alert" aria-live="polite">
+                  <p
+                    className="text-sm text-red-600"
+                    role="alert"
+                    aria-live="polite"
+                  >
                     {errors.tosAccepted.message}
                   </p>
                 )}
@@ -233,25 +236,31 @@ export function RegistrationForm({ onSubmit }: RegistrationFormProps) {
                 id="privacyPolicyAccepted"
                 aria-invalid={!!errors.privacyPolicyAccepted}
                 onCheckedChange={(checked) => {
-                  setValue('privacyPolicyAccepted', !!checked, {
+                  setValue("privacyPolicyAccepted", !!checked, {
                     shouldValidate: true,
                   });
-                  trigger('privacyPolicyAccepted');
+                  trigger("privacyPolicyAccepted");
                 }}
-                className={errors.privacyPolicyAccepted ? 'border-red-500' : ''}
+                className={errors.privacyPolicyAccepted ? "border-red-500" : ""}
               />
               <div className="grid gap-1.5 leading-none">
                 <Label
                   htmlFor="privacyPolicyAccepted"
                   className={`text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 ${
-                    errors.privacyPolicyAccepted ? 'text-red-600' : ''
+                    errors.privacyPolicyAccepted ? "text-red-600" : ""
                   }`}
                 >
-                  I accept the Privacy Policy{' '}
-                  <span className="text-red-500" aria-hidden="true">*</span>
+                  I accept the Privacy Policy{" "}
+                  <span className="text-red-500" aria-hidden="true">
+                    *
+                  </span>
                 </Label>
                 {errors.privacyPolicyAccepted && (
-                  <p className="text-sm text-red-600" role="alert" aria-live="polite">
+                  <p
+                    className="text-sm text-red-600"
+                    role="alert"
+                    aria-live="polite"
+                  >
                     {errors.privacyPolicyAccepted.message}
                   </p>
                 )}
@@ -262,7 +271,9 @@ export function RegistrationForm({ onSubmit }: RegistrationFormProps) {
               <Checkbox
                 id="marketingOptIn"
                 onCheckedChange={(checked) => {
-                  setValue('marketingOptIn', !!checked, { shouldValidate: true });
+                  setValue("marketingOptIn", !!checked, {
+                    shouldValidate: true,
+                  });
                 }}
               />
               <Label
@@ -285,7 +296,7 @@ export function RegistrationForm({ onSubmit }: RegistrationFormProps) {
                 Creating Account...
               </>
             ) : (
-              'Create Account'
+              "Create Account"
             )}
           </Button>
         </form>

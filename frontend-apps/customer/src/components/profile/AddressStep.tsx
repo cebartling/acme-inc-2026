@@ -1,31 +1,36 @@
-import { useForm, Controller } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { FormField } from '@/components/registration/FormField';
+} from "@/components/ui/select";
+import { FormField } from "@/components/registration/FormField";
 import {
   addressSchema,
   type AddressFormData,
   ADDRESS_TYPE_OPTIONS,
   COUNTRY_OPTIONS,
   US_STATES,
-} from '@/schemas/profile.schema';
-import { useProfileWizardStore, useAddress } from '@/stores/profileWizard.store';
+} from "@/schemas/profile.schema";
+import {
+  useProfileWizardStore,
+  useAddress,
+} from "@/stores/profileWizard.store";
 
 export function AddressStep() {
   const existingData = useAddress();
   const setAddress = useProfileWizardStore((state) => state.setAddress);
   const goToNextStep = useProfileWizardStore((state) => state.goToNextStep);
-  const goToPreviousStep = useProfileWizardStore((state) => state.goToPreviousStep);
+  const goToPreviousStep = useProfileWizardStore(
+    (state) => state.goToPreviousStep,
+  );
 
   const {
     register,
@@ -35,21 +40,21 @@ export function AddressStep() {
     formState: { errors, touchedFields, dirtyFields, isSubmitted },
   } = useForm<AddressFormData>({
     resolver: zodResolver(addressSchema),
-    mode: 'onBlur',
+    mode: "onBlur",
     defaultValues: existingData || {
-      addressType: 'BOTH',
-      label: '',
-      streetLine1: '',
-      streetLine2: '',
-      city: '',
-      stateProvince: '',
-      postalCode: '',
-      country: 'US',
+      addressType: "BOTH",
+      label: "",
+      streetLine1: "",
+      streetLine2: "",
+      city: "",
+      stateProvince: "",
+      postalCode: "",
+      country: "US",
       isDefault: true,
     },
   });
 
-  const selectedCountry = watch('country');
+  const selectedCountry = watch("country");
 
   const onSubmit = (data: AddressFormData) => {
     setAddress(data);
@@ -111,7 +116,7 @@ export function AddressStep() {
           type="text"
           placeholder="e.g., Home, Office"
           className="bg-gray-800 border-gray-600 text-white placeholder:text-gray-500"
-          {...register('label')}
+          {...register("label")}
         />
       </FormField>
 
@@ -129,7 +134,7 @@ export function AddressStep() {
           type="text"
           placeholder="123 Main St"
           className="bg-gray-800 border-gray-600 text-white placeholder:text-gray-500"
-          {...register('streetLine1')}
+          {...register("streetLine1")}
         />
       </FormField>
 
@@ -146,7 +151,7 @@ export function AddressStep() {
           type="text"
           placeholder="Apt 4B"
           className="bg-gray-800 border-gray-600 text-white placeholder:text-gray-500"
-          {...register('streetLine2')}
+          {...register("streetLine2")}
         />
       </FormField>
 
@@ -165,7 +170,7 @@ export function AddressStep() {
             type="text"
             placeholder="City"
             className="bg-gray-800 border-gray-600 text-white placeholder:text-gray-500"
-            {...register('city')}
+            {...register("city")}
           />
         </FormField>
 
@@ -173,7 +178,7 @@ export function AddressStep() {
           <Label className="text-white">
             State/Province <span className="text-red-500">*</span>
           </Label>
-          {selectedCountry === 'US' ? (
+          {selectedCountry === "US" ? (
             <Controller
               name="stateProvince"
               control={control}
@@ -202,14 +207,15 @@ export function AddressStep() {
               type="text"
               placeholder="State/Province"
               className="bg-gray-800 border-gray-600 text-white placeholder:text-gray-500"
-              {...register('stateProvince')}
+              {...register("stateProvince")}
             />
           )}
-          {(touchedFields.stateProvince || isSubmitted) && errors.stateProvince && (
-            <p className="text-sm text-red-500" role="alert">
-              {errors.stateProvince.message}
-            </p>
-          )}
+          {(touchedFields.stateProvince || isSubmitted) &&
+            errors.stateProvince && (
+              <p className="text-sm text-red-500" role="alert">
+                {errors.stateProvince.message}
+              </p>
+            )}
         </div>
       </div>
 
@@ -228,7 +234,7 @@ export function AddressStep() {
             type="text"
             placeholder="12345"
             className="bg-gray-800 border-gray-600 text-white placeholder:text-gray-500"
-            {...register('postalCode')}
+            {...register("postalCode")}
           />
         </FormField>
 

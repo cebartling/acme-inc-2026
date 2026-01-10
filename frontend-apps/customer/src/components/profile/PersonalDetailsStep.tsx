@@ -1,16 +1,16 @@
-import { useForm, Controller } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { FormField } from '@/components/registration/FormField';
+} from "@/components/ui/select";
+import { FormField } from "@/components/registration/FormField";
 import {
   personalDetailsSchema,
   type PersonalDetailsFormData,
@@ -18,12 +18,17 @@ import {
   GENDER_OPTIONS,
   LOCALE_OPTIONS,
   TIMEZONE_OPTIONS,
-} from '@/schemas/profile.schema';
-import { useProfileWizardStore, usePersonalDetails } from '@/stores/profileWizard.store';
+} from "@/schemas/profile.schema";
+import {
+  useProfileWizardStore,
+  usePersonalDetails,
+} from "@/stores/profileWizard.store";
 
 export function PersonalDetailsStep() {
   const existingData = usePersonalDetails();
-  const setPersonalDetails = useProfileWizardStore((state) => state.setPersonalDetails);
+  const setPersonalDetails = useProfileWizardStore(
+    (state) => state.setPersonalDetails,
+  );
   const goToNextStep = useProfileWizardStore((state) => state.goToNextStep);
 
   const {
@@ -33,14 +38,14 @@ export function PersonalDetailsStep() {
     formState: { errors, touchedFields, dirtyFields },
   } = useForm<PersonalDetailsFormData>({
     resolver: zodResolver(personalDetailsSchema),
-    mode: 'onBlur',
+    mode: "onBlur",
     defaultValues: existingData || {
-      phoneCountryCode: '+1',
-      phoneNumber: '',
-      dateOfBirth: '',
+      phoneCountryCode: "+1",
+      phoneNumber: "",
+      dateOfBirth: "",
       gender: undefined,
-      preferredLocale: 'en-US',
-      timezone: 'UTC',
+      preferredLocale: "en-US",
+      timezone: "UTC",
     },
   });
 
@@ -88,7 +93,7 @@ export function PersonalDetailsStep() {
             type="tel"
             placeholder="555-123-4567"
             className="flex-1 bg-gray-800 border-gray-600 text-white placeholder:text-gray-500"
-            {...register('phoneNumber')}
+            {...register("phoneNumber")}
           />
         </div>
         {errors.phoneNumber && (
@@ -110,7 +115,7 @@ export function PersonalDetailsStep() {
           id="dateOfBirth"
           type="date"
           className="bg-gray-800 border-gray-600 text-white"
-          {...register('dateOfBirth')}
+          {...register("dateOfBirth")}
         />
       </FormField>
 

@@ -4,18 +4,18 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { WizardProgress } from './WizardProgress';
-import { PersonalDetailsStep } from './PersonalDetailsStep';
-import { AddressStep } from './AddressStep';
-import { PreferencesStep } from './PreferencesStep';
-import { ReviewStep } from './ReviewStep';
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { WizardProgress } from "./WizardProgress";
+import { PersonalDetailsStep } from "./PersonalDetailsStep";
+import { AddressStep } from "./AddressStep";
+import { PreferencesStep } from "./PreferencesStep";
+import { ReviewStep } from "./ReviewStep";
 import {
   useCurrentStep,
   useProfileWizardStore,
-} from '@/stores/profileWizard.store';
-import type { ProfileUpdateData } from '@/schemas/profile.schema';
+} from "@/stores/profileWizard.store";
+import type { ProfileUpdateData } from "@/schemas/profile.schema";
 
 interface ProfileWizardProps {
   customerId: string;
@@ -23,9 +23,15 @@ interface ProfileWizardProps {
   onSkip: () => void;
 }
 
-export function ProfileWizard({ customerId, onComplete, onSkip }: ProfileWizardProps) {
+export function ProfileWizard({
+  customerId,
+  onComplete,
+  onSkip,
+}: ProfileWizardProps) {
   const currentStep = useCurrentStep();
-  const personalDetails = useProfileWizardStore((state) => state.personalDetails);
+  const personalDetails = useProfileWizardStore(
+    (state) => state.personalDetails,
+  );
   const address = useProfileWizardStore((state) => state.address);
   const preferences = useProfileWizardStore((state) => state.preferences);
   const reset = useProfileWizardStore((state) => state.reset);
@@ -59,7 +65,7 @@ export function ProfileWizard({ customerId, onComplete, onSkip }: ProfileWizardP
 
     // TODO: Call the API to update the profile
     // For now, we'll simulate an API call
-    console.log('Submitting profile update:', {
+    console.log("Submitting profile update:", {
       customerId,
       profile: profileUpdate,
       address,
@@ -81,13 +87,13 @@ export function ProfileWizard({ customerId, onComplete, onSkip }: ProfileWizardP
 
   const renderStep = () => {
     switch (currentStep) {
-      case 'personal-details':
+      case "personal-details":
         return <PersonalDetailsStep />;
-      case 'address':
+      case "address":
         return <AddressStep />;
-      case 'preferences':
+      case "preferences":
         return <PreferencesStep />;
-      case 'review':
+      case "review":
         return <ReviewStep onSubmit={handleSubmit} />;
       default:
         return <PersonalDetailsStep />;
@@ -109,7 +115,7 @@ export function ProfileWizard({ customerId, onComplete, onSkip }: ProfileWizardP
         {renderStep()}
 
         {/* Skip All Button - only show on first step */}
-        {currentStep === 'personal-details' && (
+        {currentStep === "personal-details" && (
           <div className="mt-6 text-center">
             <Button
               variant="link"
@@ -125,8 +131,8 @@ export function ProfileWizard({ customerId, onComplete, onSkip }: ProfileWizardP
   );
 }
 
-export { WizardProgress } from './WizardProgress';
-export { PersonalDetailsStep } from './PersonalDetailsStep';
-export { AddressStep } from './AddressStep';
-export { PreferencesStep } from './PreferencesStep';
-export { ReviewStep } from './ReviewStep';
+export { WizardProgress } from "./WizardProgress";
+export { PersonalDetailsStep } from "./PersonalDetailsStep";
+export { AddressStep } from "./AddressStep";
+export { PreferencesStep } from "./PreferencesStep";
+export { ReviewStep } from "./ReviewStep";

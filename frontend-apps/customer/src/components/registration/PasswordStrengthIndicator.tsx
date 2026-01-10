@@ -1,5 +1,5 @@
-import { Check, X } from 'lucide-react';
-import type { PasswordStrength } from '@/schemas/registration.schema';
+import { Check, X } from "lucide-react";
+import type { PasswordStrength } from "@/schemas/registration.schema";
 
 interface PasswordStrengthIndicatorProps {
   strength: PasswordStrength;
@@ -15,11 +15,31 @@ export function PasswordStrengthIndicator({
   }
 
   const requirements = [
-    { key: 'minLength', label: 'Minimum 8 characters', met: strength.requirements.minLength },
-    { key: 'hasUppercase', label: 'At least one uppercase letter', met: strength.requirements.hasUppercase },
-    { key: 'hasLowercase', label: 'At least one lowercase letter', met: strength.requirements.hasLowercase },
-    { key: 'hasDigit', label: 'At least one digit', met: strength.requirements.hasDigit },
-    { key: 'hasSpecialChar', label: 'At least one special character (!@#$%^&*()_+-=[]{}|;:,.<>?)', met: strength.requirements.hasSpecialChar },
+    {
+      key: "minLength",
+      label: "Minimum 8 characters",
+      met: strength.requirements.minLength,
+    },
+    {
+      key: "hasUppercase",
+      label: "At least one uppercase letter",
+      met: strength.requirements.hasUppercase,
+    },
+    {
+      key: "hasLowercase",
+      label: "At least one lowercase letter",
+      met: strength.requirements.hasLowercase,
+    },
+    {
+      key: "hasDigit",
+      label: "At least one digit",
+      met: strength.requirements.hasDigit,
+    },
+    {
+      key: "hasSpecialChar",
+      label: "At least one special character (!@#$%^&*()_+-=[]{}|;:,.<>?)",
+      met: strength.requirements.hasSpecialChar,
+    },
   ];
 
   return (
@@ -33,13 +53,13 @@ export function PasswordStrengthIndicator({
         </div>
         <span
           className={`text-sm font-medium ${
-            strength.label === 'Weak'
-              ? 'text-red-600'
-              : strength.label === 'Fair'
-                ? 'text-orange-600'
-                : strength.label === 'Good'
-                  ? 'text-yellow-600'
-                  : 'text-green-600'
+            strength.label === "Weak"
+              ? "text-red-600"
+              : strength.label === "Fair"
+                ? "text-orange-600"
+                : strength.label === "Good"
+                  ? "text-yellow-600"
+                  : "text-green-600"
           }`}
         >
           {strength.label}
@@ -54,7 +74,7 @@ export function PasswordStrengthIndicator({
             ) : (
               <X className="h-4 w-4 text-gray-400" aria-hidden="true" />
             )}
-            <span className={met ? 'text-green-700' : 'text-gray-600'}>
+            <span className={met ? "text-green-700" : "text-gray-600"}>
               {label}
             </span>
           </li>

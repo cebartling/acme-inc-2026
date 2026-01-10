@@ -1,7 +1,7 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { ProfileWizard } from '@/components/profile';
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { ProfileWizard } from "@/components/profile";
 
-export const Route = createFileRoute('/profile/complete')({
+export const Route = createFileRoute("/profile/complete")({
   component: ProfileCompletePage,
 });
 
@@ -9,16 +9,16 @@ function ProfileCompletePage() {
   const navigate = useNavigate();
 
   // TODO: Get the actual customer ID from auth context
-  const customerId = 'mock-customer-id';
+  const customerId = "mock-customer-id";
 
   const handleComplete = () => {
     // Navigate to dashboard or home page
-    navigate({ to: '/' });
+    navigate({ to: "/" });
   };
 
   const handleSkip = () => {
     // Navigate to dashboard or home page
-    navigate({ to: '/' });
+    navigate({ to: "/" });
   };
 
   return (
