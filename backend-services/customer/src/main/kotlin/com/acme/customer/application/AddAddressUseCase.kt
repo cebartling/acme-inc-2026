@@ -127,7 +127,7 @@ class AddAddressUseCase(
 
             try {
                 // Create the address entity
-                val addressId = customerIdGenerator.generate().value
+                val addressId = customerIdGenerator.generate()
                 val address = Address.create(
                     id = addressId,
                     customerId = customerId,
