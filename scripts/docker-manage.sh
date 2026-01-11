@@ -92,11 +92,17 @@ setup_node() {
 
     # Try nvm if available (check multiple locations)
     if [[ -s "/opt/homebrew/opt/nvm/nvm.sh" ]]; then
+        # Homebrew installation on Apple Silicon
         source "/opt/homebrew/opt/nvm/nvm.sh" 2>/dev/null
+        nvm use 2>/dev/null || true
     elif [[ -s "/usr/local/opt/nvm/nvm.sh" ]]; then
+        # Homebrew installation on Intel Mac
         source "/usr/local/opt/nvm/nvm.sh" 2>/dev/null
+        nvm use 2>/dev/null || true
     elif [[ -s "$NVM_DIR/nvm.sh" ]]; then
+        # Standard nvm installation
         source "$NVM_DIR/nvm.sh" 2>/dev/null
+        nvm use 2>/dev/null || true
     elif command -v fnm &> /dev/null; then
         eval "$(fnm env)" 2>/dev/null || true
     fi
