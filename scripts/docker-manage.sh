@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env zsh
 # =============================================================================
 # Docker Management Script
 # =============================================================================
@@ -14,12 +14,18 @@ set -euo pipefail
 # -----------------------------------------------------------------------------
 # Configuration
 # -----------------------------------------------------------------------------
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${0}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 # Compose files
 INFRA_COMPOSE="${PROJECT_ROOT}/docker-compose.yml"
 APPS_COMPOSE="${PROJECT_ROOT}/docker-compose.apps.yml"
+
+# Frontend directories
+FRONTEND_DIRS=(
+    "${PROJECT_ROOT}/frontend-apps/admin"
+    "${PROJECT_ROOT}/frontend-apps/customer"
+)
 
 # Colors for output
 RED='\033[0;31m'
@@ -75,6 +81,79 @@ check_compose_file() {
     fi
 }
 
+setup_node() {
+    # First check if node/npm is already available
+    if command -v node &> /dev/null && command -v npm &> /dev/null; then
+        return 0
+    fi
+
+    # Set NVM_DIR
+    export NVM_DIR="$HOME/.nvm"
+
+    # Try nvm if available (check multiple locations)
+    if [[ -s "/opt/homebrew/opt/nvm/nvm.sh" ]]; then
+        # Homebrew installation on Apple Silicon
+        source "/opt/homebrew/opt/nvm/nvm.sh" 2>/dev/null
+        nvm use 2>/dev/null || true
+    elif [[ -s "/usr/local/opt/nvm/nvm.sh" ]]; then
+        # Homebrew installation on Intel Mac
+        source "/usr/local/opt/nvm/nvm.sh" 2>/dev/null
+        nvm use 2>/dev/null || true
+    elif [[ -s "$NVM_DIR/nvm.sh" ]]; then
+        # Standard nvm installation
+        source "$NVM_DIR/nvm.sh" 2>/dev/null
+        nvm use 2>/dev/null || true
+    elif command -v fnm &> /dev/null; then
+        eval "$(fnm env)" 2>/dev/null || true
+    fi
+
+    # Final verification
+    if ! command -v npm &> /dev/null; then
+        print_error "npm is not installed or not in PATH"
+        print_info "Please install Node.js or use nvm/fnm"
+        return 1
+    fi
+    return 0
+}
+
+sync_frontend_deps() {
+    print_info "Syncing frontend dependencies (ensuring package-lock.json is up to date)..."
+
+    if ! setup_node; then
+        print_error "Cannot sync frontend dependencies without Node.js/npm"
+        return 1
+    fi
+
+    local sync_failed=false
+
+    for dir in "${FRONTEND_DIRS[@]}"; do
+        if [[ -d "$dir" ]] && [[ -f "$dir/package.json" ]]; then
+            local app_name=$(basename "$dir")
+            print_info "Syncing $app_name dependencies..."
+
+            # Use nvm if .nvmrc exists, run full npm install to ensure lock file is complete
+            if [[ -f "$dir/.nvmrc" ]] && command -v nvm &> /dev/null; then
+                (cd "$dir" && nvm use 2>/dev/null && rm -rf node_modules && npm install) || {
+                    print_error "Failed to sync $app_name dependencies"
+                    sync_failed=true
+                }
+            else
+                (cd "$dir" && rm -rf node_modules && npm install) || {
+                    print_error "Failed to sync $app_name dependencies"
+                    sync_failed=true
+                }
+            fi
+        fi
+    done
+
+    if $sync_failed; then
+        return 1
+    fi
+
+    print_success "Frontend dependencies synced"
+    return 0
+}
+
 # -----------------------------------------------------------------------------
 # Infrastructure Commands
 # -----------------------------------------------------------------------------
@@ -123,6 +202,12 @@ apps_up() {
     print_header "Starting Application Services"
     check_compose_file "$APPS_COMPOSE"
 
+    # Sync frontend dependencies before building
+    sync_frontend_deps || {
+        print_error "Failed to sync frontend dependencies"
+        exit 1
+    }
+
     # Check if infrastructure network exists
     if ! docker network inspect acme-network &> /dev/null; then
         print_warning "Infrastructure network 'acme-network' not found"
@@ -168,6 +253,12 @@ apps_logs() {
 apps_build() {
     print_header "Building Application Services"
     check_compose_file "$APPS_COMPOSE"
+
+    # Sync frontend dependencies before building
+    sync_frontend_deps || {
+        print_error "Failed to sync frontend dependencies"
+        exit 1
+    }
 
     cd "$PROJECT_ROOT"
     docker compose -f "$APPS_COMPOSE" build --no-cache "$@"
@@ -264,7 +355,7 @@ cleanup_all() {
     print_header "Full Cleanup (Images, Volumes, Networks)"
 
     print_warning "This will remove all unused Docker resources!"
-    read -p "Are you sure? (y/N): " confirm
+    read "confirm?Are you sure? (y/N): "
 
     if [[ "$confirm" =~ ^[Yy]$ ]]; then
         docker system prune -af --volumes
@@ -278,7 +369,7 @@ cleanup_volumes() {
     print_header "Stopping Services and Removing Volumes"
 
     print_warning "This will remove all data volumes!"
-    read -p "Are you sure? (y/N): " confirm
+    read "confirm?Are you sure? (y/N): "
 
     if [[ "$confirm" =~ ^[Yy]$ ]]; then
         apps_down -v 2>/dev/null || true
@@ -300,7 +391,7 @@ teardown() {
     echo -e "  ${RED}•${NC} Remove project networks"
     echo ""
 
-    read -p "Are you sure you want to proceed? (y/N): " confirm
+    read "confirm?Are you sure you want to proceed? (y/N): "
 
     if [[ "$confirm" =~ ^[Yy]$ ]]; then
         print_info "Stopping application services..."
@@ -347,6 +438,14 @@ rebuild_service() {
     local service=$1
 
     print_header "Rebuilding Service: $service"
+
+    # Sync frontend dependencies if rebuilding a frontend service
+    if [[ "$service" == *"frontend"* ]] || [[ "$service" == "customer-frontend" ]] || [[ "$service" == "admin-frontend" ]]; then
+        sync_frontend_deps || {
+            print_error "Failed to sync frontend dependencies"
+            exit 1
+        }
+    fi
 
     cd "$PROJECT_ROOT"
     docker compose -f "$APPS_COMPOSE" up --build --force-recreate -d "$service"

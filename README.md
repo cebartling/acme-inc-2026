@@ -2,6 +2,15 @@
 
 Demo e-commerce platform for the fictitious ACME, Inc. company.
 
+## Prerequisites
+
+| Requirement | Version | Notes |
+|-------------|---------|-------|
+| Docker | Latest | For containerized services |
+| zsh | 5.0+ | Required for shell scripts (default on macOS since Catalina) |
+| Node.js | 24+ LTS | For frontend apps and acceptance tests |
+| Java | 21+ | For backend services |
+
 ## Local Development Infrastructure
 
 The platform uses Docker Compose to provide a fully containerized local development environment.
@@ -295,6 +304,7 @@ cp .env.example .env
 
 ### Prerequisites
 
+- **zsh** - Required for shell scripts in `scripts/` (default on macOS since Catalina)
 - Node.js 24+ (LTS/Krypton) - the script uses nvm/fnm if available
 - Application services should be running (`./scripts/docker-manage.sh start`)
 

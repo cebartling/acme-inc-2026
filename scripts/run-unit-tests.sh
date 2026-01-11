@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env zsh
 # =============================================================================
 # ACME Inc. Unit Test Runner
 # =============================================================================
@@ -34,7 +34,7 @@ set -euo pipefail
 # -----------------------------------------------------------------------------
 # Configuration
 # -----------------------------------------------------------------------------
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${0}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 # Backend service directories
@@ -66,10 +66,71 @@ SKIP_INSTALL=false
 VERBOSE=false
 QUIET=false
 
-# Track results
-declare -A TEST_RESULTS
-TOTAL_PASSED=0
-TOTAL_FAILED=0
+# Track results (using parallel arrays for zsh compatibility)
+TEST_NAMES=()
+TEST_STATUSES=()
+TEST_COUNTS=()
+TEST_FAILURES=()
+TEST_ERRORS=()
+TEST_SKIPPED=()
+TOTAL_SUITES_PASSED=0
+TOTAL_SUITES_FAILED=0
+
+# Helper function to record test result
+# Usage: record_result <name> <status> [tests] [failures] [errors] [skipped]
+record_result() {
+    local name="$1"
+    local test_status="$2"
+    local tests="${3:-0}"
+    local failures="${4:-0}"
+    local errors="${5:-0}"
+    local skipped="${6:-0}"
+    TEST_NAMES+=("$name")
+    TEST_STATUSES+=("$test_status")
+    TEST_COUNTS+=("$tests")
+    TEST_FAILURES+=("$failures")
+    TEST_ERRORS+=("$errors")
+    TEST_SKIPPED+=("$skipped")
+}
+
+# -----------------------------------------------------------------------------
+# Node.js Setup
+# -----------------------------------------------------------------------------
+
+setup_node() {
+    # First check if node is already available
+    if command -v node &> /dev/null && command -v npm &> /dev/null; then
+        return 0
+    fi
+
+    # Set NVM_DIR
+    export NVM_DIR="$HOME/.nvm"
+
+    # Try nvm if available (check multiple locations)
+    if [[ -s "/opt/homebrew/opt/nvm/nvm.sh" ]]; then
+        # Homebrew installation on Apple Silicon
+        source "/opt/homebrew/opt/nvm/nvm.sh" 2>/dev/null
+        nvm use 2>/dev/null || true
+    elif [[ -s "/usr/local/opt/nvm/nvm.sh" ]]; then
+        # Homebrew installation on Intel Mac
+        source "/usr/local/opt/nvm/nvm.sh" 2>/dev/null
+        nvm use 2>/dev/null || true
+    elif [[ -s "$NVM_DIR/nvm.sh" ]]; then
+        # Standard nvm installation
+        source "$NVM_DIR/nvm.sh" 2>/dev/null
+        nvm use 2>/dev/null || true
+    elif command -v fnm &> /dev/null; then
+        eval "$(fnm env)" 2>/dev/null || true
+    fi
+
+    # Final verification
+    if ! command -v npm &> /dev/null; then
+        print_error "npm is not installed or not in PATH"
+        print_info "Please install Node.js or use nvm/fnm"
+        return 1
+    fi
+    return 0
+}
 
 # -----------------------------------------------------------------------------
 # Helper Functions
@@ -152,6 +213,68 @@ EOF
 }
 
 # -----------------------------------------------------------------------------
+# Test Result Parsing
+# -----------------------------------------------------------------------------
+
+# Parse JUnit XML test reports and return counts
+# Usage: parse_junit_reports <reports_dir>
+# Sets: PARSED_TESTS, PARSED_FAILURES, PARSED_ERRORS, PARSED_SKIPPED
+parse_junit_reports() {
+    local reports_dir="$1"
+    PARSED_TESTS=0
+    PARSED_FAILURES=0
+    PARSED_ERRORS=0
+    PARSED_SKIPPED=0
+
+    if [[ ! -d "$reports_dir" ]]; then
+        return 1
+    fi
+
+    # Check if any XML files exist
+    local xml_count=$(find "$reports_dir" -maxdepth 1 -name "*.xml" 2>/dev/null | wc -l)
+    if [[ $xml_count -eq 0 ]]; then
+        return 1
+    fi
+
+    for xml_file in "$reports_dir"/*.xml; do
+        if [[ -f "$xml_file" ]]; then
+            # Extract attributes from testsuite element
+            local tests=$(grep -o 'tests="[0-9]*"' "$xml_file" | head -1 | grep -o '[0-9]*')
+            local failures=$(grep -o 'failures="[0-9]*"' "$xml_file" | head -1 | grep -o '[0-9]*')
+            local errors=$(grep -o 'errors="[0-9]*"' "$xml_file" | head -1 | grep -o '[0-9]*')
+            local skipped=$(grep -o 'skipped="[0-9]*"' "$xml_file" | head -1 | grep -o '[0-9]*')
+
+            PARSED_TESTS=$((PARSED_TESTS + ${tests:-0}))
+            PARSED_FAILURES=$((PARSED_FAILURES + ${failures:-0}))
+            PARSED_ERRORS=$((PARSED_ERRORS + ${errors:-0}))
+            PARSED_SKIPPED=$((PARSED_SKIPPED + ${skipped:-0}))
+        fi
+    done
+
+    return 0
+}
+
+# Format test counts for display
+format_test_counts() {
+    local tests=$1
+    local failures=$2
+    local errors=$3
+    local skipped=$4
+
+    local result="${tests} tests"
+    if [[ $failures -gt 0 ]]; then
+        result="${result}, ${failures} failed"
+    fi
+    if [[ $errors -gt 0 ]]; then
+        result="${result}, ${errors} errors"
+    fi
+    if [[ $skipped -gt 0 ]]; then
+        result="${result}, ${skipped} skipped"
+    fi
+    echo "$result"
+}
+
+# -----------------------------------------------------------------------------
 # Test Runner Functions
 # -----------------------------------------------------------------------------
 
@@ -166,7 +289,7 @@ run_gradle_tests() {
 
     if [[ ! -d "$service_dir" ]]; then
         print_error "Directory not found: $service_dir"
-        TEST_RESULTS["$service_name"]="SKIPPED"
+        record_result "$service_name" "SKIPPED"
         return 1
     fi
 
@@ -177,7 +300,7 @@ run_gradle_tests() {
         gradle_cmd="gradle"
     else
         print_error "No Gradle found for ${service_name}. Install Gradle or add gradlew wrapper."
-        TEST_RESULTS["$service_name"]="SKIPPED"
+        record_result "$service_name" "SKIPPED"
         return 1
     fi
 
@@ -187,26 +310,50 @@ run_gradle_tests() {
 
     start_time=$(date +%s)
 
-    # Run Gradle tests
+    # Run Gradle clean and tests (always run fresh, no caching)
     if [[ "$VERBOSE" == "true" ]]; then
-        (cd "$service_dir" && $gradle_cmd test --info) || exit_code=$?
+        (cd "$service_dir" && $gradle_cmd clean test --info) || exit_code=$?
     elif [[ "$QUIET" == "true" ]]; then
-        (cd "$service_dir" && $gradle_cmd test --quiet) || exit_code=$?
+        (cd "$service_dir" && $gradle_cmd clean test --quiet) || exit_code=$?
     else
-        (cd "$service_dir" && $gradle_cmd test) || exit_code=$?
+        (cd "$service_dir" && $gradle_cmd clean test) || exit_code=$?
     fi
 
     end_time=$(date +%s)
     duration=$((end_time - start_time))
 
+    # Parse test results from JUnit XML reports
+    local test_counts=""
+    local reports_dir="${service_dir}/build/test-results/test"
+    local parsed_tests=0
+    local parsed_failures=0
+    local parsed_errors=0
+    local parsed_skipped=0
+
+    if parse_junit_reports "$reports_dir"; then
+        parsed_tests=$PARSED_TESTS
+        parsed_failures=$PARSED_FAILURES
+        parsed_errors=$PARSED_ERRORS
+        parsed_skipped=$PARSED_SKIPPED
+        test_counts=$(format_test_counts $parsed_tests $parsed_failures $parsed_errors $parsed_skipped)
+    fi
+
     if [[ $exit_code -eq 0 ]]; then
-        print_success "${service_name} tests passed (${duration}s)"
-        TEST_RESULTS["$service_name"]="PASSED"
-        ((TOTAL_PASSED++))
+        if [[ -n "$test_counts" ]]; then
+            print_success "${service_name}: ${test_counts} (${duration}s)"
+        else
+            print_success "${service_name} tests passed (${duration}s)"
+        fi
+        record_result "$service_name" "PASSED" "$parsed_tests" "$parsed_failures" "$parsed_errors" "$parsed_skipped"
+        ((TOTAL_SUITES_PASSED++))
     else
-        print_error "${service_name} tests failed (${duration}s)"
-        TEST_RESULTS["$service_name"]="FAILED"
-        ((TOTAL_FAILED++))
+        if [[ -n "$test_counts" ]]; then
+            print_error "${service_name}: ${test_counts} (${duration}s)"
+        else
+            print_error "${service_name} tests failed (${duration}s)"
+        fi
+        record_result "$service_name" "FAILED" "$parsed_tests" "$parsed_failures" "$parsed_errors" "$parsed_skipped"
+        ((TOTAL_SUITES_FAILED++))
     fi
 
     return $exit_code
@@ -222,7 +369,13 @@ run_npm_tests() {
 
     if [[ ! -d "$app_dir" ]]; then
         print_error "Directory not found: $app_dir"
-        TEST_RESULTS["$app_name"]="SKIPPED"
+        record_result "$app_name" "SKIPPED" 0 0 0 0
+        return 1
+    fi
+
+    # Ensure Node.js/npm is available
+    if ! setup_node; then
+        record_result "$app_name" "SKIPPED" 0 0 0 0
         return 1
     fi
 
@@ -236,8 +389,8 @@ run_npm_tests() {
         print_info "Installing dependencies..."
         (cd "$app_dir" && npm install --silent) || {
             print_error "Failed to install dependencies for ${app_name}"
-            TEST_RESULTS["$app_name"]="FAILED"
-            ((TOTAL_FAILED++))
+            record_result "$app_name" "FAILED" 0 0 0 0
+            ((TOTAL_SUITES_FAILED++))
             return 1
         }
     fi
@@ -254,14 +407,17 @@ run_npm_tests() {
     end_time=$(date +%s)
     duration=$((end_time - start_time))
 
+    # TODO: Parse Vitest output for test counts (currently not implemented)
+    # For now, we don't have test count parsing for npm/Vitest tests
+
     if [[ $exit_code -eq 0 ]]; then
         print_success "${app_name} tests passed (${duration}s)"
-        TEST_RESULTS["$app_name"]="PASSED"
-        ((TOTAL_PASSED++))
+        record_result "$app_name" "PASSED" 0 0 0 0
+        ((TOTAL_SUITES_PASSED++))
     else
         print_error "${app_name} tests failed (${duration}s)"
-        TEST_RESULTS["$app_name"]="FAILED"
-        ((TOTAL_FAILED++))
+        record_result "$app_name" "FAILED" 0 0 0 0
+        ((TOTAL_SUITES_FAILED++))
     fi
 
     return $exit_code
@@ -337,26 +493,109 @@ run_tests_sequential() {
 print_summary() {
     print_header "Test Summary"
 
+    # Calculate grand totals
+    local grand_total_tests=0
+    local grand_total_passed=0
+    local grand_total_failed=0
+    local grand_total_skipped=0
+
+    # Find the longest service name for column width
+    local max_name_len=20  # fixed width for service column
+    local i
+
+    # Table structure
+    local col_status=8
+    local col_passed=8
+    local col_failed=8
+    local col_skipped=8
+    local divider="${CYAN}----------------------+---------+----------+----------+----------${NC}"
+
     echo -e "${BOLD}Results:${NC}"
-    for service in "${!TEST_RESULTS[@]}"; do
-        local status="${TEST_RESULTS[$service]}"
-        case "$status" in
-            PASSED)
-                echo -e "  ${GREEN}✓${NC} ${service}: ${GREEN}${status}${NC}"
-                ;;
-            FAILED)
-                echo -e "  ${RED}✗${NC} ${service}: ${RED}${status}${NC}"
-                ;;
-            SKIPPED)
-                echo -e "  ${YELLOW}○${NC} ${service}: ${YELLOW}${status}${NC}"
-                ;;
-        esac
+    echo -e "$divider"
+    printf "${BOLD}%-20s${NC} ${CYAN}|${NC} ${BOLD}%-7s${NC} ${CYAN}|${NC} ${BOLD}${GREEN}%8s${NC} ${CYAN}|${NC} ${BOLD}${RED}%8s${NC} ${CYAN}|${NC} ${BOLD}${YELLOW}%8s${NC}\n" \
+        "Service" "Status" "Passed" "Failed" "Skipped"
+    echo -e "$divider"
+
+    # Table rows
+    for (( i=1; i<=${#TEST_NAMES[@]}; i++ )); do
+        local service="${TEST_NAMES[$i]}"
+        local test_status="${TEST_STATUSES[$i]}"
+        local tests="${TEST_COUNTS[$i]:-0}"
+        local failures="${TEST_FAILURES[$i]:-0}"
+        local errors="${TEST_ERRORS[$i]:-0}"
+        local skipped="${TEST_SKIPPED[$i]:-0}"
+
+        # Calculate passed tests for this service
+        local total_failures=$((failures + errors))
+        local passed=$((tests - total_failures - skipped))
+        if [[ $passed -lt 0 ]]; then
+            passed=0
+        fi
+
+        # Accumulate grand totals
+        grand_total_tests=$((grand_total_tests + tests))
+        grand_total_passed=$((grand_total_passed + passed))
+        grand_total_failed=$((grand_total_failed + total_failures))
+        grand_total_skipped=$((grand_total_skipped + skipped))
+
+        # Format and print row - determine color based on status
+        local status_color=""
+        if [[ "$test_status" == "PASSED" ]]; then
+            status_color="$GREEN"
+        elif [[ "$test_status" == "FAILED" ]]; then
+            status_color="$RED"
+        elif [[ "$test_status" == "SKIPPED" ]]; then
+            status_color="$YELLOW"
+        else
+            status_color="$NC"
+        fi
+
+        # Use printf for alignment, echo -e for colors
+        echo -en "${status_color}$(printf '%-20s' "$service")${NC}"
+        echo -en " ${CYAN}|${NC} "
+        echo -en "${status_color}$(printf '%-7s' "$test_status")${NC}"
+        echo -en " ${CYAN}|${NC} "
+        echo -en "${GREEN}$(printf '%8s' "$passed")${NC}"
+        echo -en " ${CYAN}|${NC} "
+        if [[ $total_failures -gt 0 ]]; then
+            echo -en "${RED}$(printf '%8s' "$total_failures")${NC}"
+        else
+            printf '%8s' "$total_failures"
+        fi
+        echo -en " ${CYAN}|${NC} "
+        if [[ $skipped -gt 0 ]]; then
+            echo -e "${YELLOW}$(printf '%8s' "$skipped")${NC}"
+        else
+            printf '%8s\n' "$skipped"
+        fi
     done
 
-    echo ""
-    echo -e "${BOLD}Total:${NC} ${GREEN}${TOTAL_PASSED} passed${NC}, ${RED}${TOTAL_FAILED} failed${NC}"
+    echo -e "$divider"
 
-    if [[ $TOTAL_FAILED -gt 0 ]]; then
+    # Totals row with colors
+    echo -en "${BOLD}$(printf '%-20s' "TOTAL")${NC}"
+    echo -en " ${CYAN}|${NC} "
+    printf '%-7s' ""
+    echo -en " ${CYAN}|${NC} "
+    echo -en "${GREEN}${BOLD}$(printf '%8s' "$grand_total_passed")${NC}"
+    echo -en " ${CYAN}|${NC} "
+    if [[ $grand_total_failed -gt 0 ]]; then
+        echo -en "${RED}${BOLD}$(printf '%8s' "$grand_total_failed")${NC}"
+    else
+        printf '%8s' "$grand_total_failed"
+    fi
+    echo -en " ${CYAN}|${NC} "
+    if [[ $grand_total_skipped -gt 0 ]]; then
+        echo -e "${YELLOW}${BOLD}$(printf '%8s' "$grand_total_skipped")${NC}"
+    else
+        printf '%8s\n' "$grand_total_skipped"
+    fi
+    echo -e "$divider"
+
+    echo ""
+    echo -e "${BOLD}Suites:${NC} ${GREEN}${TOTAL_SUITES_PASSED} passed${NC}, ${RED}${TOTAL_SUITES_FAILED} failed${NC}"
+
+    if [[ $TOTAL_SUITES_FAILED -gt 0 ]]; then
         echo -e "\n${RED}Some tests failed!${NC}"
         return 1
     else
