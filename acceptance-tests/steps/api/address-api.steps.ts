@@ -45,16 +45,13 @@ interface ErrorResponse {
   errors?: Record<string, string>;
 }
 
-Given('the Customer Service is available', async function (this: CustomWorld) {
-  const isHealthy = await this.customerApiClient.healthCheck();
-  expect(isHealthy).toBe(true);
-});
+// Note: 'the Customer Service is available' step is defined in customer-profile.steps.ts
 
 Given('I have an authenticated customer', async function (this: CustomWorld) {
   // Create a test user and customer for authentication
-  // For now, we'll use test data
-  const testCustomerId = `test-customer-${Date.now()}`;
-  const testUserId = `test-user-${Date.now()}`;
+  // Generate valid UUIDs for customer and user IDs
+  const testCustomerId = crypto.randomUUID();
+  const testUserId = crypto.randomUUID();
 
   this.setTestData('customerId', testCustomerId);
   this.setTestData('userId', testUserId);
@@ -393,21 +390,4 @@ Then(
   }
 );
 
-// Re-export some common step definitions that may be used
-// These overlap with registration-api.steps.ts
-
-Then(
-  'the response should contain {string} with value {string}',
-  async function (this: CustomWorld, field: string, expectedValue: string) {
-    const response = this.getTestData<ApiResponse<AddressResponse>>('lastResponse');
-    expect(response).toBeDefined();
-
-    // Handle nested fields
-    if (field === 'isDefault') {
-      expect(String(response!.data.isDefault)).toBe(expectedValue);
-    } else {
-      const fieldValue = (response!.data as Record<string, unknown>)[field];
-      expect(String(fieldValue)).toBe(expectedValue);
-    }
-  }
-);
+// Note: 'the response should contain {string} with value {string}' step is defined in registration-api.steps.ts
