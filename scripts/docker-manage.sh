@@ -131,14 +131,14 @@ sync_frontend_deps() {
             local app_name=$(basename "$dir")
             print_info "Syncing $app_name dependencies..."
 
-            # Use nvm if .nvmrc exists
+            # Use nvm if .nvmrc exists, run full npm install to ensure lock file is complete
             if [[ -f "$dir/.nvmrc" ]] && command -v nvm &> /dev/null; then
-                (cd "$dir" && nvm use 2>/dev/null && npm install --package-lock-only --ignore-scripts) || {
+                (cd "$dir" && nvm use 2>/dev/null && rm -rf node_modules && npm install) || {
                     print_error "Failed to sync $app_name dependencies"
                     sync_failed=true
                 }
             else
-                (cd "$dir" && npm install --package-lock-only --ignore-scripts) || {
+                (cd "$dir" && rm -rf node_modules && npm install) || {
                     print_error "Failed to sync $app_name dependencies"
                     sync_failed=true
                 }
