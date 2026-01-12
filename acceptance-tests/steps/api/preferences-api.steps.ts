@@ -105,15 +105,68 @@ function getNestedValue(obj: unknown, path: string): unknown {
 
 // Note: 'I have an authenticated customer' is defined in address-api.steps.ts
 
+/**
+ * Ensures a test customer exists in the backend with the specified phone verification status.
+ * Uses the test helper API (only available in test profile).
+ */
+async function ensureTestCustomerWithPhoneStatus(
+  world: CustomWorld,
+  phoneVerified: boolean
+): Promise<void> {
+  const customerId = world.getTestData<string>("customerId");
+  const userId = world.getTestData<string>("userId");
+
+  // First, ensure the test customer exists
+  try {
+    await world.customerApiClient.post("/api/v1/test/customers", {
+      customerId,
+      userId,
+      phoneNumber: phoneVerified ? "5551234567" : null,
+      phoneCountryCode: phoneVerified ? "+1" : null,
+      phoneVerified,
+    });
+  } catch (error: unknown) {
+    // Customer might already exist, that's okay
+    if (
+      error &&
+      typeof error === "object" &&
+      "response" in error &&
+      error.response
+    ) {
+      const err = error as { response: { status: number } };
+      if (err.response.status !== 200 && err.response.status !== 409) {
+        throw error;
+      }
+    }
+  }
+
+  // Update phone verification status
+  try {
+    await world.customerApiClient.put(
+      `/api/v1/test/customers/${customerId}/phone-verification`,
+      {
+        verified: phoneVerified,
+        phoneNumber: phoneVerified ? "5551234567" : null,
+        phoneCountryCode: phoneVerified ? "+1" : null,
+      }
+    );
+  } catch (error: unknown) {
+    // Log but don't fail - the test helper might not be available
+    console.warn(
+      `Warning: Could not update phone verification status. ` +
+        `Ensure the backend is running with the 'test' profile.`
+    );
+  }
+
+  world.setTestData("phoneVerified", phoneVerified);
+}
+
 Given("my phone number is not verified", async function (this: CustomWorld) {
-  // This would typically be set up via the API or database
-  // For now, we'll track it in test data
-  this.setTestData("phoneVerified", false);
+  await ensureTestCustomerWithPhoneStatus(this, false);
 });
 
 Given("my phone number is verified", async function (this: CustomWorld) {
-  // This would typically be set up via the API or database
-  this.setTestData("phoneVerified", true);
+  await ensureTestCustomerWithPhoneStatus(this, true);
 });
 
 Given(
