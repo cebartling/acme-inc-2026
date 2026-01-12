@@ -217,14 +217,14 @@ Given(
     const userId = this.getTestData<string>("userId");
 
     // Build a preferences request with just this one field
-    const table = {
+    const mockTable = {
       hashes: () => [{ path, value }],
-    } as DataTable;
-    const prefs = tableToPreferencesRequest(table);
+    } as unknown as DataTable;
+    const prefs = tableToPreferencesRequest(mockTable);
 
     // Set up the preference via API
     try {
-      const response = await this.customerApiClient.put<PreferencesResponse>(
+      await this.customerApiClient.put<PreferencesResponse>(
         `/api/v1/customers/${customerId}/preferences`,
         prefs,
         { headers: { "X-User-Id": userId! } }
@@ -232,7 +232,7 @@ Given(
 
       // Store the current value for later verification
       this.setTestData(`currentPref-${path}`, value);
-    } catch (error: unknown) {
+    } catch {
       // If setting fails (e.g., no actual change), that's fine for this setup step
       // We just want to ensure the value is what we expect
       this.setTestData(`currentPref-${path}`, value);
@@ -449,16 +449,4 @@ Then(
   }
 );
 
-Then(
-  "the response should contain a validation error for {string}",
-  async function (this: CustomWorld, field: string) {
-    const data = this.getTestData<ErrorResponse>("lastResponseData");
-    expect(
-      data.errors?.some((err) =>
-        err.toLowerCase().includes(field.toLowerCase())
-      ) ||
-        data.error?.toLowerCase().includes(field.toLowerCase()) ||
-        data.message?.toLowerCase().includes(field.toLowerCase())
-    ).toBe(true);
-  }
-);
+// Note: 'the response should contain a validation error for' is defined in common/api-assertions.steps.ts
