@@ -308,7 +308,7 @@ When(
 );
 
 Then(
-  "the response should contain {string} with value {string}",
+  "the preferences response should have {string} set to {string}",
   async function (this: CustomWorld, path: string, expectedValue: string) {
     const data = this.getTestData<unknown>("lastResponseData");
 
@@ -334,7 +334,7 @@ Then(
 );
 
 Then(
-  "the response should contain {string}",
+  "the preferences response should include {string}",
   async function (this: CustomWorld, path: string) {
     const data = this.getTestData<unknown>("lastResponseData");
     const value = getNestedValue(data, path);

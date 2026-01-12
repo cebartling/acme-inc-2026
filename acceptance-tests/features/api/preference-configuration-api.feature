@@ -17,13 +17,13 @@ Feature: Preference Configuration API (US-0002-10)
       | communication.sms      | true         |
       | display.language       | es-ES        |
     Then the API should respond with status 200
-    And the response should contain "communication.email" with value "false"
-    And the response should contain "communication.sms" with value "true"
-    And the response should contain "display.language" with value "es-ES"
+    And the preferences response should have "communication.email" set to "false"
+    And the preferences response should have "communication.sms" set to "true"
+    And the preferences response should have "display.language" set to "es-ES"
     When I request my preferences
-    Then the response should contain "communication.email" with value "false"
-    And the response should contain "communication.sms" with value "true"
-    And the response should contain "display.language" with value "es-ES"
+    Then the preferences response should have "communication.email" set to "false"
+    And the preferences response should have "communication.sms" set to "true"
+    And the preferences response should have "display.language" set to "es-ES"
 
   # AC-0002-10-03: SMS Requires Verified Phone
   Scenario: Reject SMS enable when phone not verified
@@ -41,7 +41,7 @@ Feature: Preference Configuration API (US-0002-10)
       | path              | value |
       | communication.sms | true  |
     Then the API should respond with status 200
-    And the response should contain "communication.sms" with value "true"
+    And the preferences response should have "communication.sms" set to "true"
 
   # AC-0002-10-07: Partial Updates
   @smoke
@@ -58,11 +58,11 @@ Feature: Preference Configuration API (US-0002-10)
       | path                    | value        |
       | communication.frequency | DAILY_DIGEST |
     Then the API should respond with status 200
-    And the response should contain "communication.frequency" with value "DAILY_DIGEST"
-    And the response should contain "communication.email" with value "true"
-    And the response should contain "communication.sms" with value "false"
-    And the response should contain "privacy.allowAnalytics" with value "true"
-    And the response should contain "display.language" with value "en-US"
+    And the preferences response should have "communication.frequency" set to "DAILY_DIGEST"
+    And the preferences response should have "communication.email" set to "true"
+    And the preferences response should have "communication.sms" set to "false"
+    And the preferences response should have "privacy.allowAnalytics" set to "true"
+    And the preferences response should have "display.language" set to "en-US"
 
   # AC-0002-10-08: Language Validation
   Scenario: Reject unsupported language
@@ -78,7 +78,7 @@ Feature: Preference Configuration API (US-0002-10)
       | path             | value |
       | display.language | ja-JP |
     Then the API should respond with status 200
-    And the response should contain "display.language" with value "ja-JP"
+    And the preferences response should have "display.language" set to "ja-JP"
 
   # Notification Frequency Options
   Scenario Outline: Update notification frequency
@@ -86,7 +86,7 @@ Feature: Preference Configuration API (US-0002-10)
       | path                    | value      |
       | communication.frequency | <frequency> |
     Then the API should respond with status 200
-    And the response should contain "communication.frequency" with value "<frequency>"
+    And the preferences response should have "communication.frequency" set to "<frequency>"
 
     Examples:
       | frequency     |
@@ -109,9 +109,9 @@ Feature: Preference Configuration API (US-0002-10)
       | privacy.allowAnalytics         | false |
       | privacy.allowPersonalization   | false |
     Then the API should respond with status 200
-    And the response should contain "privacy.shareDataWithPartners" with value "true"
-    And the response should contain "privacy.allowAnalytics" with value "false"
-    And the response should contain "privacy.allowPersonalization" with value "false"
+    And the preferences response should have "privacy.shareDataWithPartners" set to "true"
+    And the preferences response should have "privacy.allowAnalytics" set to "false"
+    And the preferences response should have "privacy.allowPersonalization" set to "false"
 
   # Display Preferences
   Scenario: Update display preferences
@@ -121,9 +121,9 @@ Feature: Preference Configuration API (US-0002-10)
       | display.currency | EUR              |
       | display.timezone | Europe/Paris     |
     Then the API should respond with status 200
-    And the response should contain "display.language" with value "fr-FR"
-    And the response should contain "display.currency" with value "EUR"
-    And the response should contain "display.timezone" with value "Europe/Paris"
+    And the preferences response should have "display.language" set to "fr-FR"
+    And the preferences response should have "display.currency" set to "EUR"
+    And the preferences response should have "display.timezone" set to "Europe/Paris"
 
   Scenario: Reject invalid timezone
     When I update my preferences with:
@@ -144,11 +144,11 @@ Feature: Preference Configuration API (US-0002-10)
   Scenario: Get current preferences
     When I request my preferences
     Then the API should respond with status 200
-    And the response should contain "customerId"
-    And the response should contain "preferences.communication"
-    And the response should contain "preferences.privacy"
-    And the response should contain "preferences.display"
-    And the response should contain "updatedAt"
+    And the preferences response should include "customerId"
+    And the preferences response should include "preferences.communication"
+    And the preferences response should include "preferences.privacy"
+    And the preferences response should include "preferences.display"
+    And the preferences response should include "updatedAt"
 
   # Authorization
   @security
