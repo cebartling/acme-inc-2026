@@ -30,6 +30,8 @@ import {
   CheckCircle2,
   AlertCircle,
 } from "lucide-react";
+import { customerApi, ApiError } from "@/services/api";
+import { useUserId } from "@/stores/auth.store";
 
 interface PreferencesPageProps {
   customerId: string;
@@ -42,6 +44,7 @@ export function PreferencesPage({
   initialPreferences,
   onSave,
 }: PreferencesPageProps) {
+  const userId = useUserId();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<
     "idle" | "success" | "error"
@@ -84,20 +87,52 @@ export function PreferencesPage({
 
     try {
       if (onSave) {
+        // Use provided onSave callback (for testing)
         await onSave(data);
+      } else if (userId) {
+        // Call Customer Service API
+        await customerApi.updatePreferences(customerId, userId, {
+          communication: {
+            email: data.communication.email,
+            sms: data.communication.sms,
+            push: data.communication.push,
+            marketing: data.communication.marketing,
+            frequency: data.communication.frequency,
+          },
+          privacy: {
+            shareDataWithPartners: data.privacy.shareDataWithPartners,
+            allowAnalytics: data.privacy.allowAnalytics,
+            allowPersonalization: data.privacy.allowPersonalization,
+          },
+          display: {
+            language: data.display.language,
+            currency: data.display.currency,
+            timezone: data.display.timezone,
+          },
+        });
       } else {
-        // TODO: Integrate with Customer Service API
-        // PUT /api/v1/customers/{customerId}/preferences
-        console.log("Saving preferences:", { customerId, data });
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+        throw new Error("User not authenticated");
       }
       setSubmitStatus("success");
       setTimeout(() => setSubmitStatus("idle"), 3000);
     } catch (error) {
       setSubmitStatus("error");
-      setErrorMessage(
-        error instanceof Error ? error.message : "Failed to save preferences",
-      );
+      if (error instanceof ApiError) {
+        // Handle specific API errors
+        if (error.data?.error === "PHONE_NOT_VERIFIED") {
+          setErrorMessage(
+            "Please verify your phone number to enable SMS notifications"
+          );
+        } else if (error.data?.error === "UNSUPPORTED_LANGUAGE") {
+          setErrorMessage("The selected language is not supported");
+        } else {
+          setErrorMessage(error.message);
+        }
+      } else {
+        setErrorMessage(
+          error instanceof Error ? error.message : "Failed to save preferences"
+        );
+      }
     } finally {
       setIsSubmitting(false);
     }
