@@ -11,6 +11,7 @@ Feature: Preference Configuration API (US-0002-10)
   # AC-0002-10-01: Immediate Effect
   @smoke
   Scenario: Preferences changes take effect immediately
+    Given my phone number is verified
     When I update my preferences with:
       | path                   | value        |
       | communication.email    | false        |
