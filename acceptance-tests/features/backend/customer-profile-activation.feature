@@ -1,4 +1,4 @@
-@api @customer @activation
+@api @customer-service @activation
 Feature: Customer Profile Activation (US-0002-06)
   As a Customer Management Service
   I want to activate the customer profile when the user's email is verified

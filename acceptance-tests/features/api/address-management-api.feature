@@ -1,4 +1,4 @@
-@api @customer @address @wip
+@api @customer-service @address @wip
 Feature: Address Management API (US-0002-09)
   As an activated customer
   I want to add, edit, and manage my addresses
