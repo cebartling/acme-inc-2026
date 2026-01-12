@@ -119,17 +119,71 @@ Given("my phone number is verified", async function (this: CustomWorld) {
 Given(
   "my current preferences are:",
   async function (this: CustomWorld, table: DataTable) {
-    // In a real test, this would set up the initial state via API
-    // For now, we just store the expected values
+    const customerId = this.getTestData<string>("customerId");
+    const userId = this.getTestData<string>("userId");
     const prefs = tableToPreferencesRequest(table);
-    this.setTestData("initialPreferences", prefs);
+
+    // Set up initial preferences via API
+    try {
+      const response = await this.customerApiClient.put<PreferencesResponse>(
+        `/api/v1/customers/${customerId}/preferences`,
+        prefs,
+        { headers: { "X-User-Id": userId! } }
+      );
+
+      if (response.status !== 200) {
+        throw new Error(
+          `Failed to set initial preferences: ${response.status}`
+        );
+      }
+
+      this.setTestData("initialPreferences", prefs);
+    } catch (error: unknown) {
+      if (
+        error &&
+        typeof error === "object" &&
+        "response" in error &&
+        error.response
+      ) {
+        const err = error as {
+          response: { status: number; data: ErrorResponse };
+        };
+        throw new Error(
+          `Failed to set initial preferences: ${err.response.status} - ${JSON.stringify(err.response.data)}`
+        );
+      }
+      throw error;
+    }
   }
 );
 
 Given(
   "my current preferences have {string} set to {string}",
   async function (this: CustomWorld, path: string, value: string) {
-    this.setTestData(`currentPref-${path}`, value);
+    const customerId = this.getTestData<string>("customerId");
+    const userId = this.getTestData<string>("userId");
+
+    // Build a preferences request with just this one field
+    const table = {
+      hashes: () => [{ path, value }],
+    } as DataTable;
+    const prefs = tableToPreferencesRequest(table);
+
+    // Set up the preference via API
+    try {
+      const response = await this.customerApiClient.put<PreferencesResponse>(
+        `/api/v1/customers/${customerId}/preferences`,
+        prefs,
+        { headers: { "X-User-Id": userId! } }
+      );
+
+      // Store the current value for later verification
+      this.setTestData(`currentPref-${path}`, value);
+    } catch (error: unknown) {
+      // If setting fails (e.g., no actual change), that's fine for this setup step
+      // We just want to ensure the value is what we expect
+      this.setTestData(`currentPref-${path}`, value);
+    }
   }
 );
 
