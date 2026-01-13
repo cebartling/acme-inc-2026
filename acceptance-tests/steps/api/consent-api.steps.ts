@@ -58,6 +58,50 @@ interface ErrorResponse {
 
 const DEFAULT_IP = "192.168.1.1";
 const DEFAULT_USER_AGENT = "Cucumber-Test-Agent/1.0";
+// A valid UUID that represents a non-existent customer for authorization tests
+const OTHER_CUSTOMER_UUID = "00000000-0000-0000-0000-000000000099";
+
+/**
+ * Converts a customer ID string to a valid UUID.
+ * For placeholder values like "other-customer-id", returns a fixed UUID
+ * that will trigger authorization failures (customer doesn't match user).
+ */
+function normalizeCustomerId(customerId: string): string {
+  // Check if it's already a valid UUID format
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (uuidPattern.test(customerId)) {
+    return customerId;
+  }
+  // For placeholder values, return a valid UUID that represents a different customer
+  return OTHER_CUSTOMER_UUID;
+}
+
+/**
+ * Ensures a test customer exists in the backend.
+ * Uses the test helper API (only available in test profile).
+ */
+async function ensureTestCustomerExists(world: CustomWorld): Promise<void> {
+  const customerId = world.getTestData<string>("customerId");
+  const userId = world.getTestData<string>("userId");
+
+  const response = await world.customerApiClient.post("/api/v1/test/customers", {
+    customerId,
+    userId,
+    phoneNumber: null,
+    phoneCountryCode: null,
+    phoneVerified: false,
+  });
+
+  // 200 = success, 201 = created, 409 = already exists - all are acceptable
+  if (response.status !== 200 && response.status !== 201 && response.status !== 409) {
+    // Log warning but don't fail - the test helper might not be available
+    console.warn(
+      `Warning: Could not create test customer. Status: ${response.status}. ` +
+      `Ensure the backend is running with the 'test' profile. ` +
+      `Response: ${JSON.stringify(response.data)}`
+    );
+  }
+}
 
 // Helper to grant consent
 async function grantConsent(
@@ -68,6 +112,11 @@ async function grantConsent(
   userAgent: string = DEFAULT_USER_AGENT,
   customerId?: string
 ): Promise<void> {
+  // Ensure the test customer exists before granting consent
+  if (!customerId) {
+    await ensureTestCustomerExists(world);
+  }
+
   const custId = customerId || world.getTestData<string>("customerId");
   const userId = world.getTestData<string>("userId");
 
@@ -114,6 +163,11 @@ async function revokeConsent(
   source: string,
   customerId?: string
 ): Promise<void> {
+  // Ensure the test customer exists before revoking consent
+  if (!customerId) {
+    await ensureTestCustomerExists(world);
+  }
+
   const custId = customerId || world.getTestData<string>("customerId");
   const userId = world.getTestData<string>("userId");
 
@@ -244,11 +298,15 @@ When(
     consentType: string,
     customerId: string
   ) {
-    await grantConsent(this, consentType, "PROFILE_WIZARD", DEFAULT_IP, DEFAULT_USER_AGENT, customerId);
+    const normalizedCustomerId = normalizeCustomerId(customerId);
+    await grantConsent(this, consentType, "PROFILE_WIZARD", DEFAULT_IP, DEFAULT_USER_AGENT, normalizedCustomerId);
   }
 );
 
 When("I request my consents", async function (this: CustomWorld) {
+  // Ensure the test customer exists
+  await ensureTestCustomerExists(this);
+
   const customerId = this.getTestData<string>("customerId");
   const userId = this.getTestData<string>("userId");
 
@@ -283,10 +341,11 @@ When(
   "I try to get consents for customer {string}",
   async function (this: CustomWorld, customerId: string) {
     const userId = this.getTestData<string>("userId");
+    const normalizedCustomerId = normalizeCustomerId(customerId);
 
     try {
       const response = await this.customerApiClient.get<ConsentsListResponse>(
-        `/api/v1/customers/${customerId}/consents`,
+        `/api/v1/customers/${normalizedCustomerId}/consents`,
         { headers: { "X-User-Id": userId! } }
       );
 
@@ -312,6 +371,9 @@ When(
 );
 
 When("I export my consent history", async function (this: CustomWorld) {
+  // Ensure the test customer exists
+  await ensureTestCustomerExists(this);
+
   const customerId = this.getTestData<string>("customerId");
   const userId = this.getTestData<string>("userId");
 
@@ -346,6 +408,9 @@ When("I export my consent history", async function (this: CustomWorld) {
 When(
   "I export my consent history with format {string}",
   async function (this: CustomWorld, format: string) {
+    // Ensure the test customer exists
+    await ensureTestCustomerExists(this);
+
     const customerId = this.getTestData<string>("customerId");
     const userId = this.getTestData<string>("userId");
 
@@ -381,11 +446,12 @@ When(
   "I try to export consent history for customer {string}",
   async function (this: CustomWorld, customerId: string) {
     const userId = this.getTestData<string>("userId");
+    const normalizedCustomerId = normalizeCustomerId(customerId);
 
     try {
       const response =
         await this.customerApiClient.get<ConsentHistoryExportResponse>(
-          `/api/v1/customers/${customerId}/consents/history?format=json`,
+          `/api/v1/customers/${normalizedCustomerId}/consents/history?format=json`,
           { headers: { "X-User-Id": userId! } }
         );
 

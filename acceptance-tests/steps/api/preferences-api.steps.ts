@@ -243,7 +243,34 @@ Given(
 Given(
   "another customer exists with id {string}",
   async function (this: CustomWorld, customerId: string) {
-    this.setTestData("otherCustomerId", customerId);
+    // Normalize the customer ID to a valid UUID if it's a placeholder
+    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const normalizedCustomerId = uuidPattern.test(customerId)
+      ? customerId
+      : "00000000-0000-0000-0000-000000000099";
+
+    // Generate a different user ID for this customer (not the current user)
+    const otherUserId = "00000000-0000-0000-0000-000000000098";
+
+    // Create the other customer in the database
+    const response = await this.customerApiClient.post("/api/v1/test/customers", {
+      customerId: normalizedCustomerId,
+      userId: otherUserId,
+      phoneNumber: null,
+      phoneCountryCode: null,
+      phoneVerified: false,
+    });
+
+    // 200 = success, 201 = created, 409 = already exists - all are acceptable
+    if (response.status !== 200 && response.status !== 201 && response.status !== 409) {
+      console.warn(
+        `Warning: Could not create other test customer. Status: ${response.status}. ` +
+        `Response: ${JSON.stringify(response.data)}`
+      );
+    }
+
+    this.setTestData("otherCustomerId", normalizedCustomerId);
+    this.setTestData("otherUserId", otherUserId);
   }
 );
 
