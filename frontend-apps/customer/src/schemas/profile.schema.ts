@@ -64,16 +64,52 @@ export const addressSchema = z.object({
   isDefault: z.boolean().default(true),
 });
 
-// Step 3: Preferences Schema
+// Step 3: Preferences Schema (for profile wizard - simplified)
 export const preferencesSchema = z.object({
   emailNotifications: z.boolean().default(true),
   smsNotifications: z.boolean().default(false),
   pushNotifications: z.boolean().default(false),
   marketingCommunications: z.boolean().default(false),
   notificationFrequency: z
-    .enum(["IMMEDIATE", "DAILY", "WEEKLY"])
+    .enum(["IMMEDIATE", "DAILY_DIGEST", "WEEKLY_DIGEST"])
     .default("IMMEDIATE"),
 });
+
+// Full Preferences Schema (for preferences page)
+export const communicationPreferencesSchema = z.object({
+  email: z.boolean().default(true),
+  sms: z.boolean().default(false),
+  push: z.boolean().default(false),
+  marketing: z.boolean().default(false),
+  frequency: z
+    .enum(["IMMEDIATE", "DAILY_DIGEST", "WEEKLY_DIGEST"])
+    .default("IMMEDIATE"),
+});
+
+export const privacyPreferencesSchema = z.object({
+  shareDataWithPartners: z.boolean().default(false),
+  allowAnalytics: z.boolean().default(true),
+  allowPersonalization: z.boolean().default(true),
+});
+
+export const displayPreferencesSchema = z.object({
+  language: z.string().default("en-US"),
+  currency: z.string().default("USD"),
+  timezone: z.string().default("UTC"),
+});
+
+export const fullPreferencesSchema = z.object({
+  communication: communicationPreferencesSchema,
+  privacy: privacyPreferencesSchema,
+  display: displayPreferencesSchema,
+});
+
+export type CommunicationPreferencesData = z.infer<
+  typeof communicationPreferencesSchema
+>;
+export type PrivacyPreferencesData = z.infer<typeof privacyPreferencesSchema>;
+export type DisplayPreferencesData = z.infer<typeof displayPreferencesSchema>;
+export type FullPreferencesData = z.infer<typeof fullPreferencesSchema>;
 
 // Combined Profile Data for API submission
 export const profileUpdateSchema = z.object({
@@ -163,9 +199,47 @@ export const ADDRESS_TYPE_OPTIONS = [
 
 // Notification frequency options
 export const NOTIFICATION_FREQUENCY_OPTIONS = [
-  { value: "IMMEDIATE", label: "Immediate" },
-  { value: "DAILY", label: "Daily digest" },
-  { value: "WEEKLY", label: "Weekly digest" },
+  { value: "IMMEDIATE", label: "Immediate - Send notifications as they occur" },
+  {
+    value: "DAILY_DIGEST",
+    label: "Daily Digest - Batch into daily summary (9 AM local)",
+  },
+  {
+    value: "WEEKLY_DIGEST",
+    label: "Weekly Digest - Batch into weekly summary (Monday 9 AM local)",
+  },
+];
+
+// Currency options
+export const CURRENCY_OPTIONS = [
+  { value: "USD", label: "US Dollar (USD)" },
+  { value: "EUR", label: "Euro (EUR)" },
+  { value: "GBP", label: "British Pound (GBP)" },
+  { value: "CAD", label: "Canadian Dollar (CAD)" },
+  { value: "AUD", label: "Australian Dollar (AUD)" },
+  { value: "JPY", label: "Japanese Yen (JPY)" },
+  { value: "CNY", label: "Chinese Yuan (CNY)" },
+  { value: "KRW", label: "South Korean Won (KRW)" },
+  { value: "BRL", label: "Brazilian Real (BRL)" },
+  { value: "MXN", label: "Mexican Peso (MXN)" },
+];
+
+// Language options (expanded)
+export const LANGUAGE_OPTIONS = [
+  { value: "en-US", label: "English (US)" },
+  { value: "en-GB", label: "English (UK)" },
+  { value: "es-ES", label: "Spanish (Spain)" },
+  { value: "es-MX", label: "Spanish (Mexico)" },
+  { value: "fr-FR", label: "French (France)" },
+  { value: "fr-CA", label: "French (Canada)" },
+  { value: "de-DE", label: "German" },
+  { value: "it-IT", label: "Italian" },
+  { value: "pt-BR", label: "Portuguese (Brazil)" },
+  { value: "pt-PT", label: "Portuguese (Portugal)" },
+  { value: "ja-JP", label: "Japanese" },
+  { value: "zh-CN", label: "Chinese (Simplified)" },
+  { value: "zh-TW", label: "Chinese (Traditional)" },
+  { value: "ko-KR", label: "Korean" },
 ];
 
 // Countries for address

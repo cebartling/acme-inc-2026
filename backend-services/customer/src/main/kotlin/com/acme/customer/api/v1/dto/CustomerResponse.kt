@@ -61,11 +61,18 @@ data class CustomerResponse(
                         email = preferences.emailNotifications,
                         sms = preferences.smsNotifications,
                         push = preferences.pushNotifications,
-                        marketing = preferences.marketingCommunications
+                        marketing = preferences.marketingCommunications,
+                        frequency = preferences.notificationFrequency.name
                     ),
                     privacy = PrivacyPreferencesResponse(
                         shareDataWithPartners = preferences.shareDataWithPartners,
-                        allowAnalytics = preferences.allowAnalytics
+                        allowAnalytics = preferences.allowAnalytics,
+                        allowPersonalization = preferences.allowPersonalization
+                    ),
+                    display = DisplayPreferencesResponse(
+                        language = preferences.language,
+                        currency = preferences.currency,
+                        timezone = preferences.timezone
                     )
                 ),
                 profileCompleteness = customer.profileCompleteness,
@@ -103,17 +110,26 @@ data class ProfileResponse(
 
 data class PreferencesResponse(
     val communication: CommunicationPreferencesResponse,
-    val privacy: PrivacyPreferencesResponse
+    val privacy: PrivacyPreferencesResponse,
+    val display: DisplayPreferencesResponse
 )
 
 data class CommunicationPreferencesResponse(
     val email: Boolean,
     val sms: Boolean,
     val push: Boolean,
-    val marketing: Boolean
+    val marketing: Boolean,
+    val frequency: String
 )
 
 data class PrivacyPreferencesResponse(
     val shareDataWithPartners: Boolean,
-    val allowAnalytics: Boolean
+    val allowAnalytics: Boolean,
+    val allowPersonalization: Boolean
+)
+
+data class DisplayPreferencesResponse(
+    val language: String,
+    val currency: String,
+    val timezone: String
 )

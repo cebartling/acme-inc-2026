@@ -3,7 +3,39 @@ import { expect } from '@playwright/test';
 import { CustomWorld } from '../../support/world.js';
 import { ProfileWizardPage } from '../../pages/customer/profile-wizard.page.js';
 
+/**
+ * Sets up mock auth state in localStorage for frontend routes that require authentication.
+ * This simulates a logged-in user for acceptance testing.
+ */
+async function setupAuthState(world: CustomWorld): Promise<void> {
+  const customerId = world.getTestData<string>('customerId') || crypto.randomUUID();
+  const userId = world.getTestData<string>('userId') || crypto.randomUUID();
+
+  // Store for later use
+  world.setTestData('customerId', customerId);
+  world.setTestData('userId', userId);
+
+  // Inject auth state into localStorage before navigation
+  await world.page.addInitScript((authData) => {
+    localStorage.setItem('auth-storage', JSON.stringify({
+      state: {
+        user: {
+          userId: authData.userId,
+          customerId: authData.customerId,
+          email: 'test@example.com',
+          firstName: 'Test',
+          lastName: 'User',
+        },
+        isAuthenticated: true,
+        isLoading: false,
+      },
+      version: 0,
+    }));
+  }, { customerId, userId });
+}
+
 Given('I am on the profile completion wizard', async function (this: CustomWorld) {
+  await setupAuthState(this);
   const wizardPage = new ProfileWizardPage(this.page);
   await wizardPage.navigate();
   await this.page.waitForLoadState('networkidle');
@@ -11,6 +43,7 @@ Given('I am on the profile completion wizard', async function (this: CustomWorld
 });
 
 Given('I am on the address step', async function (this: CustomWorld) {
+  await setupAuthState(this);
   const wizardPage = new ProfileWizardPage(this.page);
   if (!(await wizardPage.isOnAddressStep())) {
     await wizardPage.navigate();
@@ -21,6 +54,7 @@ Given('I am on the address step', async function (this: CustomWorld) {
 });
 
 Given('I am on the preferences step', async function (this: CustomWorld) {
+  await setupAuthState(this);
   const wizardPage = new ProfileWizardPage(this.page);
   if (!(await wizardPage.isOnPreferencesStep())) {
     await wizardPage.navigate();
@@ -33,6 +67,7 @@ Given('I am on the preferences step', async function (this: CustomWorld) {
 });
 
 Given('I am on the review step', async function (this: CustomWorld) {
+  await setupAuthState(this);
   const wizardPage = new ProfileWizardPage(this.page);
   if (!(await wizardPage.isOnReviewStep())) {
     await wizardPage.navigate();
@@ -272,6 +307,7 @@ When('I complete the address step', async function (this: CustomWorld) {
 });
 
 Given('I have completed all wizard steps with:', async function (this: CustomWorld, _dataTable: DataTable) {
+  await setupAuthState(this);
   const wizardPage = new ProfileWizardPage(this.page);
   await wizardPage.navigate();
   await this.page.waitForLoadState('networkidle');

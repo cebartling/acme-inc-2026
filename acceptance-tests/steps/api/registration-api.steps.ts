@@ -205,32 +205,8 @@ When(
   }
 );
 
-Then(
-  'the API should respond with status {int}',
-  async function (this: CustomWorld, expectedStatus: number) {
-    const response = this.getTestData<ApiResponse>('lastResponse');
-    expect(response).toBeDefined();
-    expect(response!.status).toBe(expectedStatus);
-  }
-);
-
-Then(
-  'the response should contain error {string}',
-  async function (this: CustomWorld, expectedError: string) {
-    const response = this.getTestData<ApiResponse<ErrorResponse>>('lastResponse');
-    expect(response).toBeDefined();
-    expect(response!.data.error).toBe(expectedError);
-  }
-);
-
-Then(
-  'the response should contain message {string}',
-  async function (this: CustomWorld, expectedMessage: string) {
-    const response = this.getTestData<ApiResponse<ErrorResponse>>('lastResponse');
-    expect(response).toBeDefined();
-    expect(response!.data.message).toBe(expectedMessage);
-  }
-);
+// Note: 'the API should respond with status', 'the response should contain error',
+// and 'the response should contain message' are defined in common/api-assertions.steps.ts
 
 Then(
   'the response should contain a valid UUID for {string}',
