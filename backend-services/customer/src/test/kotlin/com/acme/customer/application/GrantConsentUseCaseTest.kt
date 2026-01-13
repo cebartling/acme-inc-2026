@@ -27,6 +27,7 @@ class GrantConsentUseCaseTest {
     private lateinit var customerRepository: CustomerRepository
     private lateinit var consentRecordRepository: ConsentRecordRepository
     private lateinit var eventPublisher: CustomerEventPublisher
+    private lateinit var profileCompletionService: ProfileCompletionService
     private lateinit var useCase: GrantConsentUseCase
 
     private val customerId = UUID.randomUUID()
@@ -39,11 +40,15 @@ class GrantConsentUseCaseTest {
         customerRepository = mockk()
         consentRecordRepository = mockk()
         eventPublisher = mockk()
+        profileCompletionService = mockk()
+
+        every { profileCompletionService.checkAndUpdateCompletion(any(), any(), any(), any()) } returns null
 
         useCase = GrantConsentUseCase(
             customerRepository = customerRepository,
             consentRecordRepository = consentRecordRepository,
             eventPublisher = eventPublisher,
+            profileCompletionService = profileCompletionService,
             meterRegistry = SimpleMeterRegistry()
         )
         useCase.initMetrics()

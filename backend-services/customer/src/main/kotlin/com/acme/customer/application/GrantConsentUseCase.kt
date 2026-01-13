@@ -97,6 +97,7 @@ class GrantConsentUseCase(
     private val customerRepository: CustomerRepository,
     private val consentRecordRepository: ConsentRecordRepository,
     private val eventPublisher: CustomerEventPublisher,
+    private val profileCompletionService: ProfileCompletionService,
     private val meterRegistry: MeterRegistry
 ) {
     private val logger = LoggerFactory.getLogger(GrantConsentUseCase::class.java)
@@ -205,6 +206,9 @@ class GrantConsentUseCase(
         }
 
         return try {
+            // Store previous completeness score for completion check
+            val previousScore = customer.profileCompleteness
+
             // Get current version
             val currentVersion = currentConsent?.version ?: 0
 
@@ -269,6 +273,16 @@ class GrantConsentUseCase(
                 consentType,
                 consentRecord.version
             )
+
+            // Check for profile completion when consent is granted (required consents affect completion)
+            if (granted && consentType.required) {
+                profileCompletionService.checkAndUpdateCompletion(
+                    customerId = customerId,
+                    previousScore = previousScore,
+                    correlationId = correlationId,
+                    causationId = consentRecord.id
+                )
+            }
 
             GrantConsentResult.Success(consentRecord)
         } catch (e: Exception) {

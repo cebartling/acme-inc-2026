@@ -26,6 +26,7 @@ class ActivateCustomerUseCaseTest {
     private lateinit var eventStoreRepository: EventStoreRepository
     private lateinit var customerReadModelProjector: CustomerReadModelProjector
     private lateinit var outboxWriter: OutboxWriter
+    private lateinit var profileCompletionService: ProfileCompletionService
     private lateinit var useCase: ActivateCustomerUseCase
 
     @BeforeEach
@@ -35,6 +36,9 @@ class ActivateCustomerUseCaseTest {
         eventStoreRepository = mockk()
         customerReadModelProjector = mockk()
         outboxWriter = mockk()
+        profileCompletionService = mockk()
+
+        every { profileCompletionService.checkAndUpdateCompletion(any(), any(), any(), any()) } returns null
 
         useCase = ActivateCustomerUseCase(
             customerRepository = customerRepository,
@@ -42,6 +46,7 @@ class ActivateCustomerUseCaseTest {
             eventStoreRepository = eventStoreRepository,
             customerReadModelProjector = customerReadModelProjector,
             outboxWriter = outboxWriter,
+            profileCompletionService = profileCompletionService,
             meterRegistry = SimpleMeterRegistry()
         )
     }

@@ -31,6 +31,7 @@ class UpdateProfileUseCaseTest {
     private lateinit var customerReadModelProjector: CustomerReadModelProjector
     private lateinit var outboxWriter: OutboxWriter
     private lateinit var phoneNumberValidator: PhoneNumberValidator
+    private lateinit var profileCompletionService: ProfileCompletionService
     private lateinit var useCase: UpdateProfileUseCase
 
     @BeforeEach
@@ -41,6 +42,9 @@ class UpdateProfileUseCaseTest {
         customerReadModelProjector = mockk()
         outboxWriter = mockk()
         phoneNumberValidator = mockk()
+        profileCompletionService = mockk()
+
+        every { profileCompletionService.checkAndUpdateCompletion(any(), any(), any(), any()) } returns null
 
         useCase = UpdateProfileUseCase(
             customerRepository = customerRepository,
@@ -49,6 +53,7 @@ class UpdateProfileUseCaseTest {
             customerReadModelProjector = customerReadModelProjector,
             outboxWriter = outboxWriter,
             phoneNumberValidator = phoneNumberValidator,
+            profileCompletionService = profileCompletionService,
             meterRegistry = SimpleMeterRegistry()
         )
     }

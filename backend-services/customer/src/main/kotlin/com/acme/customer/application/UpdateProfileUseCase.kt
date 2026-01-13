@@ -40,6 +40,7 @@ class UpdateProfileUseCase(
     private val customerReadModelProjector: CustomerReadModelProjector,
     private val outboxWriter: OutboxWriter,
     private val phoneNumberValidator: PhoneNumberValidator,
+    private val profileCompletionService: ProfileCompletionService,
     meterRegistry: MeterRegistry
 ) {
     private val logger = LoggerFactory.getLogger(UpdateProfileUseCase::class.java)
@@ -117,6 +118,9 @@ class UpdateProfileUseCase(
             }
 
             try {
+                // Store previous completeness score for completion check
+                val previousScore = customer.profileCompleteness
+
                 // Track which fields were changed
                 val changedFields = mutableListOf<String>()
 
@@ -176,6 +180,14 @@ class UpdateProfileUseCase(
 
                 // Write to outbox within the transaction
                 outboxWriter.write(event, ProfileUpdated.TOPIC)
+
+                // Check for profile completion and publish ProfileCompleted event if 100%
+                profileCompletionService.checkAndUpdateCompletion(
+                    customerId = customerId,
+                    previousScore = previousScore,
+                    correlationId = correlationId,
+                    causationId = event.eventId
+                )
 
                 profileUpdateCounter.increment()
 

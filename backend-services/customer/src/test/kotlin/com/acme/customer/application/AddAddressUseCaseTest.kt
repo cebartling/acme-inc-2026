@@ -26,6 +26,7 @@ class AddAddressUseCaseTest {
     private lateinit var eventStoreRepository: EventStoreRepository
     private lateinit var outboxWriter: OutboxWriter
     private lateinit var customerIdGenerator: CustomerIdGenerator
+    private lateinit var profileCompletionService: ProfileCompletionService
     private lateinit var useCase: AddAddressUseCase
 
     @BeforeEach
@@ -35,6 +36,9 @@ class AddAddressUseCaseTest {
         eventStoreRepository = mockk()
         outboxWriter = mockk()
         customerIdGenerator = mockk()
+        profileCompletionService = mockk()
+
+        every { profileCompletionService.checkAndUpdateCompletion(any(), any(), any(), any()) } returns null
 
         useCase = AddAddressUseCase(
             customerRepository = customerRepository,
@@ -42,6 +46,7 @@ class AddAddressUseCaseTest {
             eventStoreRepository = eventStoreRepository,
             outboxWriter = outboxWriter,
             customerIdGenerator = customerIdGenerator,
+            profileCompletionService = profileCompletionService,
             meterRegistry = SimpleMeterRegistry()
         )
     }
@@ -398,6 +403,7 @@ class AddAddressUseCaseTest {
         return mockk {
             every { id } returns customerId
             every { this@mockk.userId } returns userId
+            every { profileCompleteness } returns 25
         }
     }
 
