@@ -395,28 +395,62 @@ run_npm_tests() {
         }
     fi
 
-    # Run npm tests
+    # Run npm tests and capture output for parsing
+    local test_output
     if [[ "$VERBOSE" == "true" ]]; then
-        (cd "$app_dir" && npm test -- --reporter=verbose) || exit_code=$?
+        test_output=$( (cd "$app_dir" && npm test -- --reporter=verbose) 2>&1) || exit_code=$?
     elif [[ "$QUIET" == "true" ]]; then
-        (cd "$app_dir" && npm test -- --reporter=dot) || exit_code=$?
+        test_output=$( (cd "$app_dir" && npm test -- --reporter=dot) 2>&1) || exit_code=$?
     else
-        (cd "$app_dir" && npm test) || exit_code=$?
+        test_output=$( (cd "$app_dir" && npm test) 2>&1) || exit_code=$?
     fi
+
+    # Print the output
+    echo "$test_output"
 
     end_time=$(date +%s)
     duration=$((end_time - start_time))
 
-    # TODO: Parse Vitest output for test counts (currently not implemented)
-    # For now, we don't have test count parsing for npm/Vitest tests
+    # Parse Vitest output for test counts
+    # Strip ANSI color codes for parsing (Vitest uses colors)
+    local clean_output
+    clean_output=$(echo "$test_output" | sed 's/\x1b\[[0-9;]*m//g')
+
+    # Vitest format: "Tests  32 passed (32)" or "Tests  5 passed | 2 failed (7)"
+    local tests_passed=0
+    local tests_failed=0
+    local tests_skipped=0
+
+    # Extract passed count using grep/sed (portable across bash/zsh)
+    local passed_line
+    passed_line=$(echo "$clean_output" | grep -o 'Tests[[:space:]]*[0-9]*[[:space:]]*passed' | head -1)
+    if [[ -n "$passed_line" ]]; then
+        tests_passed=$(echo "$passed_line" | grep -o '[0-9]*' | head -1)
+    fi
+
+    # Extract failed count
+    local failed_match
+    failed_match=$(echo "$clean_output" | grep -o '[0-9]*[[:space:]]*failed' | head -1)
+    if [[ -n "$failed_match" ]]; then
+        tests_failed=$(echo "$failed_match" | grep -o '[0-9]*' | head -1)
+    fi
+
+    # Extract skipped count
+    local skipped_match
+    skipped_match=$(echo "$clean_output" | grep -o '[0-9]*[[:space:]]*skipped' | head -1)
+    if [[ -n "$skipped_match" ]]; then
+        tests_skipped=$(echo "$skipped_match" | grep -o '[0-9]*' | head -1)
+    fi
+
+    local total_tests=$((tests_passed + tests_failed + tests_skipped))
 
     if [[ $exit_code -eq 0 ]]; then
         print_success "${app_name} tests passed (${duration}s)"
-        record_result "$app_name" "PASSED" 0 0 0 0
+        record_result "$app_name" "PASSED" "$total_tests" "$tests_failed" "$tests_skipped" 0
         ((TOTAL_SUITES_PASSED++))
     else
         print_error "${app_name} tests failed (${duration}s)"
-        record_result "$app_name" "FAILED" 0 0 0 0
+        record_result "$app_name" "FAILED" "$total_tests" "$tests_failed" "$tests_skipped" 0
         ((TOTAL_SUITES_FAILED++))
     fi
 

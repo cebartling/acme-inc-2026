@@ -57,10 +57,13 @@ class TestHelperController(
             return ResponseEntity.ok(TestCustomerResponse(customerId.toString(), "already_exists"))
         }
 
+        // Generate a short customer number that fits in 20 chars (DB constraint)
+        // Format: T-{6 hex chars from customer ID} = 8 chars total
+        val shortId = customerId.toString().replace("-", "").take(12)
         val customer = Customer(
             id = customerId,
             userId = userId,
-            customerNumber = "TEST-${now.toEpochMilli()}-${(1..999999).random().toString().padStart(6, '0')}",
+            customerNumber = "T-$shortId",
             email = request.email ?: "test-${customerId}@example.com",
             firstName = request.firstName ?: "Test",
             lastName = request.lastName ?: "Customer",

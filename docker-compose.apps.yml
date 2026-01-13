@@ -121,7 +121,8 @@ services:
     environment:
       # Server configuration
       SERVER_PORT: 10301
-      SPRING_PROFILES_ACTIVE: docker
+      # Include 'test' profile to enable TestHelperController for acceptance tests
+      SPRING_PROFILES_ACTIVE: docker,test
 
       # PostgreSQL configuration
       POSTGRES_HOST: postgres
