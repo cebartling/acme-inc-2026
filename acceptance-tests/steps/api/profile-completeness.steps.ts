@@ -152,29 +152,6 @@ Given(
 );
 
 Given(
-  "I have granted consent for {string}",
-  async function (this: CustomWorld, consentType: string) {
-    const customerId = this.getTestData<string>("customerId");
-    const userId = this.getTestData<string>("userId");
-
-    try {
-      await this.customerApiClient.post(
-        `/api/v1/customers/${customerId}/consents`,
-        {
-          consentType,
-          granted: true,
-          source: "REGISTRATION",
-        },
-        { headers: { "X-User-Id": userId! } }
-      );
-    } catch (error: unknown) {
-      // Consent might already exist, that's okay
-      console.warn(`Warning: Could not grant consent ${consentType}`);
-    }
-  }
-);
-
-Given(
   "the address is validated",
   async function (this: CustomWorld) {
     // This would need a test helper to mark the address as validated
