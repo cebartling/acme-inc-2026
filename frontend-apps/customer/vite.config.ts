@@ -26,11 +26,18 @@ const config = defineConfig({
     include: ['src/**/*.{test,spec}.{js,ts,jsx,tsx}'],
     server: {
       deps: {
-        inline: ['@radix-ui'],
+        inline: ['@radix-ui', 'lucide-react'],
       },
     },
     alias: {
       '@/': new URL('./src/', import.meta.url).pathname,
+    },
+    deps: {
+      optimizer: {
+        web: {
+          include: ['react', 'react-dom', 'react-dom/client'],
+        },
+      },
     },
   },
 })
