@@ -1,4 +1,4 @@
-@api @customer-service @consent @wip
+@api @customer-service @consent
 Feature: Consent Management API (US-0002-11)
   As an activated customer
   I want to manage my consent for data processing and marketing
