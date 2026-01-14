@@ -1,9 +1,11 @@
 package com.acme.customer.api.v1
 
 import com.acme.customer.api.v1.dto.CustomerResponse
+import com.acme.customer.api.v1.dto.ProfileCompletenessResponse
 import com.acme.customer.api.v1.dto.ProfileResponse
 import com.acme.customer.api.v1.dto.UpdateProfileRequest
 import com.acme.customer.api.v1.dto.UpdateProfileResponse
+import com.acme.customer.application.ProfileCompletenessCalculator
 import com.acme.customer.application.UpdateProfileResult
 import com.acme.customer.application.UpdateProfileUseCase
 import com.acme.customer.infrastructure.persistence.CustomerPreferencesRepository
@@ -30,7 +32,8 @@ import java.util.UUID
 class CustomerController(
     private val customerRepository: CustomerRepository,
     private val customerPreferencesRepository: CustomerPreferencesRepository,
-    private val updateProfileUseCase: UpdateProfileUseCase
+    private val updateProfileUseCase: UpdateProfileUseCase,
+    private val profileCompletenessCalculator: ProfileCompletenessCalculator
 ) {
     private val logger = LoggerFactory.getLogger(CustomerController::class.java)
 
@@ -232,5 +235,57 @@ class CustomerController(
                     .body(mapOf("error" to "An internal error occurred"))
             }
         }
+    }
+
+    /**
+     * Gets the profile completeness score and breakdown for a customer.
+     *
+     * Returns detailed information about profile completion including:
+     * - Overall score (0-100%)
+     * - Section-by-section breakdown with weights
+     * - Individual items within each section
+     * - Next recommended action
+     *
+     * @param id The customer ID (UUID).
+     * @return The profile completeness breakdown or 404 if not found.
+     */
+    @GetMapping("/{id}/profile/completeness")
+    fun getProfileCompleteness(
+        @PathVariable id: String,
+        @RequestHeader("X-User-Id", required = false) userId: String?
+    ): ResponseEntity<ProfileCompletenessResponse> {
+        logger.debug("Getting profile completeness for customer: {}", id)
+
+        val customerId = try {
+            UUID.fromString(id)
+        } catch (e: IllegalArgumentException) {
+            logger.warn("Invalid customer ID format: {}", id)
+            return ResponseEntity.badRequest().build()
+        }
+
+        val customer = customerRepository.findById(customerId).orElse(null)
+            ?: run {
+                logger.debug("Customer not found: {}", id)
+                return ResponseEntity.notFound().build()
+            }
+
+        // Authorization check: if userId is provided, verify ownership
+        if (userId != null) {
+            val parsedUserId = try {
+                UUID.fromString(userId)
+            } catch (e: IllegalArgumentException) {
+                logger.warn("Invalid user ID format: {}", userId)
+                return ResponseEntity.badRequest().build()
+            }
+
+            if (customer.userId != parsedUserId) {
+                logger.debug("User {} not authorized to access customer {}", userId, id)
+                return ResponseEntity.notFound().build()
+            }
+        }
+
+        val completeness = profileCompletenessCalculator.calculate(customer)
+
+        return ResponseEntity.ok(ProfileCompletenessResponse.fromDomain(completeness))
     }
 }

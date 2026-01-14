@@ -40,6 +40,7 @@ class ActivateCustomerUseCase(
     private val eventStoreRepository: EventStoreRepository,
     private val customerReadModelProjector: CustomerReadModelProjector,
     private val outboxWriter: OutboxWriter,
+    private val profileCompletionService: ProfileCompletionService,
     meterRegistry: MeterRegistry
 ) {
     private val logger = LoggerFactory.getLogger(ActivateCustomerUseCase::class.java)
@@ -97,6 +98,9 @@ class ActivateCustomerUseCase(
             }
 
             try {
+                // Store previous completeness score for completion check
+                val previousScore = customer.profileCompleteness
+
                 // Activate the customer
                 customer.activate(activatedAt)
 
@@ -135,6 +139,14 @@ class ActivateCustomerUseCase(
                 // Write to outbox within the transaction
                 // The OutboxRelay will publish asynchronously, decoupled from this transaction
                 outboxWriter.write(event, CustomerActivated.TOPIC)
+
+                // Check for profile completion (email verified is part of basic info)
+                profileCompletionService.checkAndUpdateCompletion(
+                    customerId = customer.id,
+                    previousScore = previousScore,
+                    correlationId = correlationId,
+                    causationId = event.eventId
+                )
 
                 customerActivatedCounter.increment()
 

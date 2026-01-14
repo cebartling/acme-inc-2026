@@ -6,7 +6,7 @@
 
 // API base URLs - these would typically come from environment variables
 const CUSTOMER_SERVICE_URL =
-  import.meta.env.VITE_CUSTOMER_SERVICE_URL || "http://localhost:8080";
+  import.meta.env.VITE_CUSTOMER_SERVICE_URL || "http://localhost:10301";
 
 /**
  * Custom error class for API errors with status code and response data.
@@ -96,6 +96,20 @@ export const customerApi = {
       }
     );
   },
+
+  /**
+   * Gets a customer's profile completeness breakdown.
+   */
+  async getProfileCompleteness(
+    customerId: string
+  ): Promise<ProfileCompletenessResponse> {
+    return apiRequest<ProfileCompletenessResponse>(
+      `${CUSTOMER_SERVICE_URL}/api/v1/customers/${customerId}/profile/completeness`,
+      {
+        method: "GET",
+      }
+    );
+  },
 };
 
 /**
@@ -146,4 +160,45 @@ export interface UpdatePreferencesRequest {
     currency?: string;
     timezone?: string;
   };
+}
+
+/**
+ * Response type for profile completeness API.
+ */
+export interface ProfileCompletenessResponse {
+  customerId: string;
+  overallScore: number;
+  sections: ProfileCompletenessSection[];
+  nextAction: ProfileCompletenessNextAction | null;
+  updatedAt: string;
+}
+
+/**
+ * A section in the profile completeness breakdown.
+ */
+export interface ProfileCompletenessSection {
+  name: string;
+  displayName: string;
+  weight: number;
+  score: number;
+  isComplete: boolean;
+  items: ProfileCompletenessItem[];
+}
+
+/**
+ * An item within a profile completeness section.
+ */
+export interface ProfileCompletenessItem {
+  name: string;
+  complete: boolean;
+  action?: string;
+}
+
+/**
+ * The next recommended action to improve profile completeness.
+ */
+export interface ProfileCompletenessNextAction {
+  section: string;
+  action: string;
+  url: string;
 }

@@ -1,6 +1,8 @@
 package com.acme.customer.domain
 
 import jakarta.persistence.*
+import org.hibernate.annotations.JdbcTypeCode
+import org.hibernate.type.SqlTypes
 import java.math.BigDecimal
 import java.time.Instant
 import java.util.UUID
@@ -78,6 +80,7 @@ class Address(
     @Column(name = "longitude", precision = 11, scale = 8)
     var longitude: BigDecimal? = null,
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "validation_details", columnDefinition = "jsonb")
     var validationDetails: String? = null,
 

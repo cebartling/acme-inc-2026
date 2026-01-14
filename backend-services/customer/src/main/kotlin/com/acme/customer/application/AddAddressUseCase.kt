@@ -36,6 +36,7 @@ class AddAddressUseCase(
     private val eventStoreRepository: EventStoreRepository,
     private val outboxWriter: OutboxWriter,
     private val customerIdGenerator: CustomerIdGenerator,
+    private val profileCompletionService: ProfileCompletionService,
     meterRegistry: MeterRegistry
 ) {
     private val logger = LoggerFactory.getLogger(AddAddressUseCase::class.java)
@@ -126,6 +127,9 @@ class AddAddressUseCase(
             }
 
             try {
+                // Store previous completeness score for completion check
+                val previousScore = customer.profileCompleteness
+
                 // Create the address entity
                 val addressId = customerIdGenerator.generate()
                 val address = Address.create(
@@ -186,6 +190,17 @@ class AddAddressUseCase(
 
                 // Write to outbox within the transaction
                 outboxWriter.write(event, AddressAdded.TOPIC)
+
+                // Check for profile completion and publish ProfileCompleted event if 100%
+                // Only check if address is validated, as that's what affects completeness
+                if (address.isValidated) {
+                    profileCompletionService.checkAndUpdateCompletion(
+                        customerId = customerId,
+                        previousScore = previousScore,
+                        correlationId = correlationId,
+                        causationId = event.eventId
+                    )
+                }
 
                 addressAddedCounter.increment()
 
