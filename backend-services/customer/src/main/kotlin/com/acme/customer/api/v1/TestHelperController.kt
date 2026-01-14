@@ -5,8 +5,10 @@ import com.acme.customer.domain.CustomerPreferences
 import com.acme.customer.domain.CustomerStatus
 import com.acme.customer.domain.CustomerType
 import com.acme.customer.domain.NotificationFrequency
+import com.acme.customer.infrastructure.persistence.AddressRepository
 import com.acme.customer.infrastructure.persistence.CustomerPreferencesRepository
 import com.acme.customer.infrastructure.persistence.CustomerRepository
+import java.math.BigDecimal
 import org.slf4j.LoggerFactory
 import org.springframework.context.annotation.Profile
 import org.springframework.http.ResponseEntity
@@ -33,7 +35,8 @@ import java.util.UUID
 @Profile("test")
 class TestHelperController(
     private val customerRepository: CustomerRepository,
-    private val preferencesRepository: CustomerPreferencesRepository
+    private val preferencesRepository: CustomerPreferencesRepository,
+    private val addressRepository: AddressRepository
 ) {
     private val logger = LoggerFactory.getLogger(TestHelperController::class.java)
 
@@ -140,6 +143,46 @@ class TestHelperController(
         logger.info("Updated phone verification for customer: {}", customerId)
         return ResponseEntity.ok(mapOf("status" to "updated", "phoneVerified" to request.verified))
     }
+
+    /**
+     * Validates an address for testing purposes.
+     *
+     * @param customerId The customer ID.
+     * @param addressId The address ID.
+     * @param request The validation request.
+     * @return Success or error response.
+     */
+    @PutMapping("/customers/{customerId}/addresses/{addressId}/validate")
+    fun validateAddress(
+        @PathVariable customerId: String,
+        @PathVariable addressId: String,
+        @RequestBody request: ValidateAddressRequest
+    ): ResponseEntity<Any> {
+        logger.info("Validating address {} for customer {}: {}", addressId, customerId, request.isValid)
+
+        val parsedAddressId = try {
+            UUID.fromString(addressId)
+        } catch (e: IllegalArgumentException) {
+            return ResponseEntity.badRequest()
+                .body(mapOf("error" to "Invalid address ID format"))
+        }
+
+        val address = addressRepository.findById(parsedAddressId).orElse(null)
+            ?: return ResponseEntity.notFound().build()
+
+        // Update validation status
+        address.setValidationResult(
+            isValid = request.isValid,
+            latitude = request.latitude,
+            longitude = request.longitude,
+            details = request.details
+        )
+
+        addressRepository.save(address)
+
+        logger.info("Validated address {} with status: {}", addressId, request.isValid)
+        return ResponseEntity.ok(mapOf("status" to "validated", "isValid" to request.isValid))
+    }
 }
 
 /**
@@ -173,4 +216,14 @@ data class UpdatePhoneVerificationRequest(
     val verified: Boolean,
     val phoneNumber: String? = null,
     val phoneCountryCode: String? = null
+)
+
+/**
+ * Request DTO for validating an address.
+ */
+data class ValidateAddressRequest(
+    val isValid: Boolean,
+    val latitude: BigDecimal? = null,
+    val longitude: BigDecimal? = null,
+    val details: String? = null
 )

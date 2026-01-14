@@ -1,4 +1,4 @@
-@api @customer-service @profile-completeness @wip
+@api @customer-service @profile-completeness
 Feature: Profile Completeness Tracking API (US-0002-12)
   As an activated customer
   I want to see my profile completeness score and what's missing
@@ -50,7 +50,7 @@ Feature: Profile Completeness Tracking API (US-0002-12)
   # AC-0002-12-01: Real-time Recalculation
   Scenario: Score increases when phone number is added
     Given my profile completeness score is recorded
-    When I update my profile with phone "+1" "5551234567"
+    When I update my profile with phone "+1" "2024561234"
     And I request my profile completeness
     Then the completeness response should have "overallScore" greater than the previous score
     And the completeness section "contactInfo" should have "isComplete" set to "true"
@@ -143,13 +143,13 @@ Feature: Profile Completeness Tracking API (US-0002-12)
   # Authorization
   @security
   Scenario: Reject access to another customer's completeness
-    Given another customer exists with id "other-customer-id"
-    When I try to get completeness for customer "other-customer-id"
+    Given another customer exists with id "00000000-0000-0000-0000-000000000099"
+    When I try to get completeness for customer "00000000-0000-0000-0000-000000000099"
     Then the API should respond with status 404
 
   # AC-0002-12-08: Progress Persistence
   Scenario: Progress persists across sessions
-    Given my profile has been updated with phone "+1" "5551234567"
+    Given my profile has been updated with phone "+1" "2024561234"
     When I request my profile completeness
     Then the completeness section "contactInfo" should have "isComplete" set to "true"
     # Simulate new session

@@ -56,8 +56,31 @@ Given('I have an authenticated customer', async function (this: CustomWorld) {
   this.setTestData('customerId', testCustomerId);
   this.setTestData('userId', testUserId);
 
-  // Note: In a real implementation, this would authenticate and get tokens
-  // For now, we'll set headers for the customer API client
+  // Create the customer in the backend via test helper API
+  try {
+    await this.customerApiClient.post('/api/v1/test/customers', {
+      customerId: testCustomerId,
+      userId: testUserId,
+      email: `test-${testCustomerId}@example.com`,
+      firstName: 'Test',
+      lastName: 'Customer',
+      displayName: 'Test Customer',
+      emailVerified: true,
+    });
+  } catch (error: unknown) {
+    // Customer might already exist, that's okay
+    if (
+      error &&
+      typeof error === 'object' &&
+      'response' in error &&
+      error.response
+    ) {
+      const err = error as { response: { status: number } };
+      if (err.response.status !== 409) {
+        console.warn('Warning: Could not create test customer:', err.response.status);
+      }
+    }
+  }
 });
 
 Given(

@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as PreferencesRouteImport } from './routes/preferences'
+import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProfileCompleteRouteImport } from './routes/profile/complete'
 import { Route as ApiHealthRouteImport } from './routes/api.health'
@@ -30,6 +31,11 @@ const RegisterRoute = RegisterRouteImport.update({
 const PreferencesRoute = PreferencesRouteImport.update({
   id: '/preferences',
   path: '/preferences',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardRoute = DashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -85,6 +91,7 @@ const DemoStartSsrDataOnlyRoute = DemoStartSsrDataOnlyRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/dashboard': typeof DashboardRoute
   '/preferences': typeof PreferencesRoute
   '/register': typeof RegisterRoute
   '/api/health': typeof ApiHealthRoute
@@ -99,6 +106,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/dashboard': typeof DashboardRoute
   '/preferences': typeof PreferencesRoute
   '/register': typeof RegisterRoute
   '/api/health': typeof ApiHealthRoute
@@ -114,6 +122,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/dashboard': typeof DashboardRoute
   '/preferences': typeof PreferencesRoute
   '/register': typeof RegisterRoute
   '/api/health': typeof ApiHealthRoute
@@ -130,6 +139,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/dashboard'
     | '/preferences'
     | '/register'
     | '/api/health'
@@ -144,6 +154,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/dashboard'
     | '/preferences'
     | '/register'
     | '/api/health'
@@ -158,6 +169,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/dashboard'
     | '/preferences'
     | '/register'
     | '/api/health'
@@ -173,6 +185,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  DashboardRoute: typeof DashboardRoute
   PreferencesRoute: typeof PreferencesRoute
   RegisterRoute: typeof RegisterRoute
   ApiHealthRoute: typeof ApiHealthRoute
@@ -200,6 +213,13 @@ declare module '@tanstack/react-router' {
       path: '/preferences'
       fullPath: '/preferences'
       preLoaderRoute: typeof PreferencesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboard': {
+      id: '/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof DashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -277,6 +297,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  DashboardRoute: DashboardRoute,
   PreferencesRoute: PreferencesRoute,
   RegisterRoute: RegisterRoute,
   ApiHealthRoute: ApiHealthRoute,

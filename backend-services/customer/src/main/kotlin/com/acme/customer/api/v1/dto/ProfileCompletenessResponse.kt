@@ -1,6 +1,7 @@
 package com.acme.customer.api.v1.dto
 
 import com.acme.customer.domain.ProfileCompleteness
+import com.fasterxml.jackson.annotation.JsonProperty
 import java.time.Instant
 
 /**
@@ -20,6 +21,7 @@ data class SectionCompletenessDto(
     val displayName: String,
     val weight: Int,
     val score: Int,
+    @get:JsonProperty("isComplete")
     val isComplete: Boolean,
     val items: List<ItemCompletenessDto>
 )

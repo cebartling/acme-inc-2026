@@ -250,7 +250,10 @@ class CustomerController(
      * @return The profile completeness breakdown or 404 if not found.
      */
     @GetMapping("/{id}/profile/completeness")
-    fun getProfileCompleteness(@PathVariable id: String): ResponseEntity<ProfileCompletenessResponse> {
+    fun getProfileCompleteness(
+        @PathVariable id: String,
+        @RequestHeader("X-User-Id", required = false) userId: String?
+    ): ResponseEntity<ProfileCompletenessResponse> {
         logger.debug("Getting profile completeness for customer: {}", id)
 
         val customerId = try {
@@ -265,6 +268,21 @@ class CustomerController(
                 logger.debug("Customer not found: {}", id)
                 return ResponseEntity.notFound().build()
             }
+
+        // Authorization check: if userId is provided, verify ownership
+        if (userId != null) {
+            val parsedUserId = try {
+                UUID.fromString(userId)
+            } catch (e: IllegalArgumentException) {
+                logger.warn("Invalid user ID format: {}", userId)
+                return ResponseEntity.badRequest().build()
+            }
+
+            if (customer.userId != parsedUserId) {
+                logger.debug("User {} not authorized to access customer {}", userId, id)
+                return ResponseEntity.notFound().build()
+            }
+        }
 
         val completeness = profileCompletenessCalculator.calculate(customer)
 
