@@ -16,7 +16,7 @@
 #   --admin           Run admin frontend tests
 #   --customer-app    Run customer frontend tests
 #   --parallel        Run test suites in parallel (faster but mixed output)
-#   --skip-install    Skip npm install for frontend tests
+#   --skip-install    Skip dependency installation for frontend tests
 #   --verbose, -v     Show verbose test output
 #   --quiet, -q       Minimal output (summary only)
 #   --help, -h        Show this help message
@@ -190,7 +190,7 @@ ${YELLOW}Individual Services:${NC}
 
 ${YELLOW}Execution Options:${NC}
   --parallel        Run test suites in parallel (faster but mixed output)
-  --skip-install    Skip npm install for frontend tests
+  --skip-install    Skip dependency installation for frontend tests
   --verbose, -v     Show verbose test output
   --quiet, -q       Minimal output (summary only)
 
@@ -384,10 +384,10 @@ run_npm_tests() {
 
     start_time=$(date +%s)
 
-    # Install dependencies if needed
+    # Install dependencies if needed (using npm ci to preserve lock file)
     if [[ "$SKIP_INSTALL" != "true" ]]; then
         print_info "Installing dependencies..."
-        (cd "$app_dir" && npm install --silent) || {
+        (cd "$app_dir" && npm ci --silent) || {
             print_error "Failed to install dependencies for ${app_name}"
             record_result "$app_name" "FAILED" 0 0 0 0
             ((TOTAL_SUITES_FAILED++))
