@@ -6,7 +6,7 @@
 
 // API base URLs - these would typically come from environment variables
 const CUSTOMER_SERVICE_URL =
-  import.meta.env.VITE_CUSTOMER_SERVICE_URL || "http://localhost:8080";
+  import.meta.env.VITE_CUSTOMER_SERVICE_URL || "http://localhost:10301";
 
 /**
  * Custom error class for API errors with status code and response data.

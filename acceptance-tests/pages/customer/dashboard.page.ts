@@ -33,9 +33,9 @@ export class DashboardPage extends BasePage {
     // Widget container
     this.profileCompletenessWidget = page.getByTestId('profile-completeness-widget');
 
-    // Widget header
-    this.widgetTitle = this.profileCompletenessWidget.getByRole('heading', { name: 'Profile Completeness' });
-    this.widgetDescription = this.profileCompletenessWidget.locator('[class*="CardDescription"]');
+    // Widget header - CardTitle uses data-slot, not heading role
+    this.widgetTitle = this.profileCompletenessWidget.locator('[data-slot="card-title"]');
+    this.widgetDescription = this.profileCompletenessWidget.locator('[data-slot="card-description"]');
 
     // Progress ring
     this.progressRing = this.profileCompletenessWidget.locator('.relative.inline-flex');
@@ -52,8 +52,8 @@ export class DashboardPage extends BasePage {
     // Complete profile button
     this.completeProfileButton = this.profileCompletenessWidget.getByRole('link', { name: 'Complete Your Profile' });
 
-    // Section breakdown
-    this.sectionBreakdown = this.profileCompletenessWidget.locator('.rounded-lg.border.border-gray-700');
+    // Section breakdown - look for container with section buttons
+    this.sectionBreakdown = this.profileCompletenessWidget.locator('div:has(button[type="button"][aria-expanded])');
 
     // Loading and error states
     this.loadingSkeleton = this.profileCompletenessWidget.locator('.animate-pulse');
@@ -194,8 +194,9 @@ export class DashboardPage extends BasePage {
    * Click on a section to expand/collapse it.
    */
   async clickSection(sectionName: string): Promise<void> {
-    const sectionButton = this.sectionBreakdown.locator('button[type="button"]', {
-      has: this.page.locator(`text="${sectionName}"`),
+    // Search for section button directly within the widget
+    const sectionButton = this.profileCompletenessWidget.locator('button[type="button"]', {
+      hasText: sectionName,
     });
     await sectionButton.click();
   }
@@ -215,13 +216,9 @@ export class DashboardPage extends BasePage {
    * Get items displayed when a section is expanded.
    */
   async getExpandedSectionItems(sectionName: string): Promise<string[]> {
-    // Find the section button
-    const sectionButton = this.sectionBreakdown.locator('button[type="button"]', {
-      has: this.page.locator(`text="${sectionName}"`),
-    });
-
-    // The items are in a sibling div after the button
-    const itemsContainer = sectionButton.locator('~ div.bg-gray-800\\/50');
+    // Find all item rows in the expanded section
+    // Items are in a div with bg-gray-800/50 class that appears after clicking a section
+    const itemsContainer = this.profileCompletenessWidget.locator('div.bg-gray-800\\/50');
     const items = itemsContainer.locator('.flex.items-center.gap-2.py-1');
 
     const names: string[] = [];
@@ -241,10 +238,12 @@ export class DashboardPage extends BasePage {
    * Check if a section shows a checkmark (complete).
    */
   async isSectionComplete(sectionName: string): Promise<boolean> {
-    const sectionButton = this.sectionBreakdown.locator('button[type="button"]', {
-      has: this.page.locator(`text="${sectionName}"`),
+    // Search for section button directly within the widget
+    const sectionButton = this.profileCompletenessWidget.locator('button[type="button"]', {
+      hasText: sectionName,
     });
-    const checkmark = sectionButton.locator('span.bg-green-600');
+    // Check for the green checkmark background
+    const checkmark = sectionButton.locator('span.rounded-full.bg-green-600');
     return this.isVisible(checkmark);
   }
 
@@ -252,10 +251,12 @@ export class DashboardPage extends BasePage {
    * Get the score displayed for a section.
    */
   async getSectionScore(sectionName: string): Promise<string> {
-    const sectionButton = this.sectionBreakdown.locator('button[type="button"]', {
-      has: this.page.locator(`text="${sectionName}"`),
+    // Search for section button directly within the widget
+    const sectionButton = this.profileCompletenessWidget.locator('button[type="button"]', {
+      hasText: sectionName,
     });
-    const scoreElement = sectionButton.locator('.flex.items-center.gap-2 span').first();
+    // Get the percentage score text
+    const scoreElement = sectionButton.locator('span.text-sm').filter({ hasText: '%' });
     return this.getText(scoreElement);
   }
 

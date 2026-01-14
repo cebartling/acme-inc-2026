@@ -51,17 +51,17 @@ Feature: Profile Completeness Widget (US-0002-12)
   Scenario: Display section breakdown with completion status
     When I navigate to the dashboard
     Then I should see the following sections in the widget:
-      | section          |
-      | Basic Info       |
-      | Contact Info     |
-      | Personal Details |
-      | Address          |
-      | Preferences      |
-      | Consent          |
+      | section             |
+      | Basic Information   |
+      | Contact Information |
+      | Personal Details    |
+      | Address             |
+      | Preferences         |
+      | Consent             |
 
   Scenario: Expand section to see individual items
     When I navigate to the dashboard
-    And I click on the "Basic Info" section
+    And I click on the "Basic Information" section
     Then the section should expand
     And I should see the following items:
       | item           |
@@ -72,14 +72,14 @@ Feature: Profile Completeness Widget (US-0002-12)
   Scenario: Completed sections show checkmark
     Given my basic info is complete
     When I navigate to the dashboard
-    Then the "Basic Info" section should show a checkmark
-    And the "Basic Info" section should show "100%" score
+    Then the "Basic Information" section should show a checkmark
+    And the "Basic Information" section should show "100%" score
 
   Scenario: Incomplete sections show empty circle
     Given my contact info is incomplete
     When I navigate to the dashboard
-    Then the "Contact Info" section should show an empty circle
-    And the "Contact Info" section should show "0%" score
+    Then the "Contact Information" section should show an empty circle
+    And the "Contact Information" section should show "0%" score
 
   # AC-0002-12-06: Next Action Recommendation
   Scenario: Show next recommended action when profile is incomplete
