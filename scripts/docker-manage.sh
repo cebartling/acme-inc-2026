@@ -27,13 +27,13 @@ FRONTEND_DIRS=(
     "${PROJECT_ROOT}/frontend-apps/customer"
 )
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-NC='\033[0m' # No Color
+# Colors for output (using $'...' syntax for proper escape sequence interpretation in zsh)
+RED=$'\033[0;31m'
+GREEN=$'\033[0;32m'
+YELLOW=$'\033[1;33m'
+BLUE=$'\033[0;34m'
+CYAN=$'\033[0;36m'
+NC=$'\033[0m' # No Color
 
 # -----------------------------------------------------------------------------
 # Helper Functions
