@@ -73,8 +73,10 @@ describe("personalDetailsSchema", () => {
     });
 
     it("accepts valid date for user 13 years old", () => {
+      // Use 13 years and 1 day ago to avoid edge case with exact birthday
       const thirteenYearsAgo = new Date();
       thirteenYearsAgo.setFullYear(thirteenYearsAgo.getFullYear() - 13);
+      thirteenYearsAgo.setDate(thirteenYearsAgo.getDate() - 1);
       const result = personalDetailsSchema.safeParse({
         dateOfBirth: thirteenYearsAgo.toISOString().split("T")[0],
       });
