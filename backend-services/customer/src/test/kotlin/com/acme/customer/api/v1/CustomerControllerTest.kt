@@ -487,7 +487,7 @@ class CustomerControllerTest {
 
         @Test
         fun `should return 400 for invalid customer ID format`() {
-            val response = controller.getProfileCompleteness("invalid-uuid")
+            val response = controller.getProfileCompleteness("invalid-uuid", userId.toString())
 
             assertEquals(HttpStatus.BAD_REQUEST, response.statusCode)
         }
@@ -496,7 +496,7 @@ class CustomerControllerTest {
         fun `should return 404 when customer not found`() {
             every { customerRepository.findById(customerId) } returns Optional.empty()
 
-            val response = controller.getProfileCompleteness(customerId.toString())
+            val response = controller.getProfileCompleteness(customerId.toString(), userId.toString())
 
             assertEquals(HttpStatus.NOT_FOUND, response.statusCode)
         }
@@ -508,7 +508,7 @@ class CustomerControllerTest {
             every { customerRepository.findById(customerId) } returns Optional.of(customer)
             every { profileCompletenessCalculator.calculate(customer) } returns completeness
 
-            val response = controller.getProfileCompleteness(customerId.toString())
+            val response = controller.getProfileCompleteness(customerId.toString(), userId.toString())
 
             assertEquals(HttpStatus.OK, response.statusCode)
             assertNotNull(response.body)
@@ -523,7 +523,7 @@ class CustomerControllerTest {
             every { customerRepository.findById(customerId) } returns Optional.of(customer)
             every { profileCompletenessCalculator.calculate(customer) } returns completeness
 
-            val response = controller.getProfileCompleteness(customerId.toString())
+            val response = controller.getProfileCompleteness(customerId.toString(), userId.toString())
 
             assertEquals(HttpStatus.OK, response.statusCode)
             assertNotNull(response.body)
