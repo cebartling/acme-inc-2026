@@ -1,5 +1,6 @@
 package com.acme.identity.application
 
+import arrow.core.getOrElse
 import com.acme.identity.domain.RegistrationSource
 import com.acme.identity.domain.User
 import com.acme.identity.domain.UserStatus
@@ -23,6 +24,7 @@ import java.util.concurrent.CompletableFuture
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
+import kotlin.test.fail
 
 class ResendVerificationUseCaseTest {
 
@@ -83,9 +85,10 @@ class ResendVerificationUseCaseTest {
         val result = resendVerificationUseCase.execute(testEmail)
 
         // Then
-        assertIs<ResendVerificationResult.Success>(result)
-        assertTrue(result.message.contains("verification link has been sent"))
-        assertEquals(2, result.requestsRemaining)
+        assertTrue(result.isRight())
+        val success = result.getOrElse { fail("Expected success but got error") }
+        assertTrue(success.message.contains("verification link has been sent"))
+        assertEquals(2, success.requestsRemaining)
 
         verify(exactly = 1) { verificationTokenRepository.save(any()) }
         verify(exactly = 1) { eventStoreRepository.append(any()) }
@@ -105,9 +108,14 @@ class ResendVerificationUseCaseTest {
         val result = resendVerificationUseCase.execute(testEmail)
 
         // Then
-        assertIs<ResendVerificationResult.RateLimited>(result)
-        assertEquals("Too many requests. Please try again later.", result.message)
-        assertEquals(retryAfter, result.retryAfter)
+        assertTrue(result.isLeft())
+        result.fold(
+            ifLeft = { error ->
+                assertIs<ResendError.RateLimited>(error)
+                assertEquals(retryAfter, error.retryAfter)
+            },
+            ifRight = { fail("Expected error but got success") }
+        )
 
         verify(exactly = 0) { userRepository.findByEmail(any()) }
         verify(exactly = 0) { eventStoreRepository.append(any()) }
@@ -125,8 +133,9 @@ class ResendVerificationUseCaseTest {
         val result = resendVerificationUseCase.execute("nonexistent@example.com")
 
         // Then
-        assertIs<ResendVerificationResult.Success>(result)
-        assertTrue(result.message.contains("verification link has been sent"))
+        assertTrue(result.isRight())
+        val success = result.getOrElse { fail("Expected success but got error") }
+        assertTrue(success.message.contains("verification link has been sent"))
 
         // Should not attempt to create token or publish event
         verify(exactly = 0) { verificationTokenRepository.save(any()) }
@@ -158,8 +167,9 @@ class ResendVerificationUseCaseTest {
         val result = resendVerificationUseCase.execute(testEmail)
 
         // Then
-        assertIs<ResendVerificationResult.Success>(result)
-        assertTrue(result.message.contains("verification link has been sent"))
+        assertTrue(result.isRight())
+        val success = result.getOrElse { fail("Expected success but got error") }
+        assertTrue(success.message.contains("verification link has been sent"))
 
         // Should not create token for already-verified user
         verify(exactly = 0) { verificationTokenRepository.save(any()) }

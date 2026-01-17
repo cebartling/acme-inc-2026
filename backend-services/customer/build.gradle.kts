@@ -45,6 +45,11 @@ dependencies {
     implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
 
+    // Arrow - Functional Programming
+    implementation("io.arrow-kt:arrow-core:2.1.0")
+    implementation("io.arrow-kt:arrow-fx-coroutines:2.1.0")
+    implementation("io.arrow-kt:arrow-core-serialization:2.1.0")
+
     // Database & Migrations
     runtimeOnly("org.postgresql:postgresql")
     implementation("org.flywaydb:flyway-core:11.5.0")

@@ -1,5 +1,6 @@
 package com.acme.identity.application
 
+import arrow.core.getOrElse
 import com.acme.identity.api.v1.dto.RegisterUserRequest
 import com.acme.identity.domain.RegistrationSource
 import com.acme.identity.domain.User
@@ -22,6 +23,8 @@ import java.util.concurrent.CompletableFuture
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
+import kotlin.test.fail
 
 class RegisterUserUseCaseTest {
 
@@ -82,11 +85,12 @@ class RegisterUserUseCaseTest {
         val result = registerUserUseCase.execute(request)
 
         // Then
-        assertIs<RegisterUserResult.Success>(result)
-        assertEquals(testUserId, result.response.userId)
-        assertEquals(request.email.lowercase(), result.response.email)
-        assertEquals(UserStatus.PENDING_VERIFICATION, result.response.status)
-        assertNotNull(result.response.createdAt)
+        assertTrue(result.isRight())
+        val response = result.getOrElse { fail("Expected success but got error") }
+        assertEquals(testUserId, response.userId)
+        assertEquals(request.email.lowercase(), response.email)
+        assertEquals(UserStatus.PENDING_VERIFICATION, response.status)
+        assertNotNull(response.createdAt)
 
         verify(exactly = 1) { eventStoreRepository.append(any()) }
         verify(exactly = 1) { userRepository.save(any()) }
@@ -105,8 +109,14 @@ class RegisterUserUseCaseTest {
         val result = registerUserUseCase.execute(request)
 
         // Then
-        assertIs<RegisterUserResult.DuplicateEmail>(result)
-        assertEquals("An account with this email already exists", result.message)
+        assertTrue(result.isLeft())
+        result.fold(
+            ifLeft = { error ->
+                assertIs<RegistrationError.DuplicateEmail>(error)
+                assertEquals(request.email.lowercase(), error.email)
+            },
+            ifRight = { fail("Expected error but got success") }
+        )
 
         verify(exactly = 0) { userRepository.save(any()) }
         verify(exactly = 0) { eventStoreRepository.append(any()) }
@@ -160,8 +170,9 @@ class RegisterUserUseCaseTest {
 
         // Then
         verify(exactly = 1) { userIdGenerator.generateRaw() }
-        assertIs<RegisterUserResult.Success>(result)
-        assertEquals(testUserId, result.response.userId)
+        assertTrue(result.isRight())
+        val response = result.getOrElse { fail("Expected success") }
+        assertEquals(testUserId, response.userId)
     }
 
     @Test

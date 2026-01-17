@@ -1,9 +1,10 @@
 package com.acme.identity.api.v1
 
+import arrow.core.getOrElse
 import com.acme.identity.api.v1.dto.ErrorResponse
 import com.acme.identity.api.v1.dto.RegisterUserRequest
 import com.acme.identity.api.v1.dto.RegisterUserResponse
-import com.acme.identity.application.RegisterUserResult
+import com.acme.identity.application.RegistrationError
 import com.acme.identity.application.RegisterUserUseCase
 import com.acme.identity.domain.RegistrationSource
 import com.acme.identity.infrastructure.security.RateLimiter
@@ -74,29 +75,27 @@ class UserController(
         val registrationSource = parseRegistrationSource(source)
         val corrId = correlationId?.let { UUID.fromString(it) } ?: UUID.randomUUID()
 
-        return when (val result = registerUserUseCase.execute(request, registrationSource, corrId)) {
-            is RegisterUserResult.Success -> {
-                ResponseEntity.status(HttpStatus.CREATED).body(result.response)
-            }
-
-            is RegisterUserResult.DuplicateEmail -> {
-                ResponseEntity.status(HttpStatus.CONFLICT).body(
-                    ErrorResponse(
-                        error = "DUPLICATE_EMAIL",
-                        message = result.message
+        return registerUserUseCase.execute(request, registrationSource, corrId).fold(
+            ifLeft = { error ->
+                when (error) {
+                    is RegistrationError.DuplicateEmail -> ResponseEntity.status(HttpStatus.CONFLICT).body(
+                        ErrorResponse(
+                            error = "DUPLICATE_EMAIL",
+                            message = "An account with this email already exists"
+                        )
                     )
-                )
-            }
-
-            is RegisterUserResult.Error -> {
-                ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
-                    ErrorResponse(
-                        error = "REGISTRATION_ERROR",
-                        message = result.message
+                    is RegistrationError.InternalError -> ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                        ErrorResponse(
+                            error = "REGISTRATION_ERROR",
+                            message = error.message
+                        )
                     )
-                )
+                }
+            },
+            ifRight = { response ->
+                ResponseEntity.status(HttpStatus.CREATED).body(response)
             }
-        }
+        )
     }
 
     /**

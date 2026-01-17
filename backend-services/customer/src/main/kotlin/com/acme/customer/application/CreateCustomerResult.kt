@@ -1,28 +1,17 @@
 package com.acme.customer.application
 
+import arrow.core.Either
 import com.acme.customer.domain.Customer
 import com.acme.customer.domain.CustomerPreferences
 import java.util.UUID
 
 /**
- * Sealed class representing the result of a customer creation operation.
+ * Sealed interface representing possible customer creation errors.
  *
- * Using a sealed class enables exhaustive when-expressions and
- * type-safe handling of all possible outcomes.
+ * Using Arrow's Either with a sealed error hierarchy provides type-safe
+ * error handling with exhaustive pattern matching.
  */
-sealed class CreateCustomerResult {
-
-    /**
-     * Customer was successfully created.
-     *
-     * @property customer The newly created customer.
-     * @property preferences The customer's preferences.
-     */
-    data class Success(
-        val customer: Customer,
-        val preferences: CustomerPreferences
-    ) : CreateCustomerResult()
-
+sealed interface CreateCustomerError {
     /**
      * A customer already exists for this user ID.
      *
@@ -34,7 +23,7 @@ sealed class CreateCustomerResult {
     data class AlreadyExists(
         val userId: UUID,
         val existingCustomerId: UUID
-    ) : CreateCustomerResult()
+    ) : CreateCustomerError
 
     /**
      * The operation failed due to an error.
@@ -45,5 +34,21 @@ sealed class CreateCustomerResult {
     data class Failure(
         val message: String,
         val cause: Throwable? = null
-    ) : CreateCustomerResult()
+    ) : CreateCustomerError
 }
+
+/**
+ * Response data for successful customer creation.
+ *
+ * @property customer The newly created customer.
+ * @property preferences The customer's preferences.
+ */
+data class CreateCustomerSuccess(
+    val customer: Customer,
+    val preferences: CustomerPreferences
+)
+
+/**
+ * Type alias for the customer creation result using Arrow's Either.
+ */
+typealias CreateCustomerResult = Either<CreateCustomerError, CreateCustomerSuccess>

@@ -1,5 +1,9 @@
 package com.acme.identity.application
 
+import arrow.core.Either
+import arrow.core.raise.either
+import arrow.core.raise.ensure
+import arrow.core.raise.ensureNotNull
 import com.acme.identity.domain.UserStatus
 import com.acme.identity.domain.events.ActivationMethod
 import com.acme.identity.domain.events.EmailVerified
@@ -17,53 +21,47 @@ import java.time.Instant
 import java.util.UUID
 
 /**
- * Sealed class representing the possible outcomes of email verification.
+ * Sealed interface representing possible email verification errors.
  *
- * Using a sealed class allows exhaustive when-expressions and provides
- * type-safe error handling without exceptions for expected failure cases.
+ * Using Arrow's Either with a sealed error hierarchy provides type-safe
+ * error handling with exhaustive pattern matching.
  */
-sealed class VerifyEmailResult {
-    /**
-     * Email verification completed successfully.
-     *
-     * @property userId The ID of the verified user.
-     * @property email The verified email address.
-     * @property activatedAt When the account was activated.
-     */
-    data class Success(
-        val userId: UUID,
-        val email: String,
-        val activatedAt: Instant
-    ) : VerifyEmailResult()
-
+sealed interface VerificationError {
     /**
      * Verification failed because the token has expired.
-     *
-     * @property message A human-readable error message.
      */
-    data class ExpiredToken(val message: String) : VerifyEmailResult()
+    data object ExpiredToken : VerificationError
 
     /**
      * Verification failed because the token is invalid or doesn't exist.
-     *
-     * @property message A human-readable error message.
      */
-    data class InvalidToken(val message: String) : VerifyEmailResult()
+    data object InvalidToken : VerificationError
 
     /**
      * Verification failed because the email is already verified.
-     *
-     * @property message A human-readable error message.
      */
-    data class AlreadyVerified(val message: String) : VerifyEmailResult()
+    data object AlreadyVerified : VerificationError
 
     /**
      * Verification failed due to an unexpected error.
      *
      * @property message A human-readable error message.
      */
-    data class Error(val message: String) : VerifyEmailResult()
+    data class InternalError(val message: String) : VerificationError
 }
+
+/**
+ * Response data for successful email verification.
+ *
+ * @property userId The ID of the verified user.
+ * @property email The verified email address.
+ * @property activatedAt When the account was activated.
+ */
+data class VerificationSuccess(
+    val userId: UUID,
+    val email: String,
+    val activatedAt: Instant
+)
 
 /**
  * Application service implementing the email verification use case.
@@ -106,122 +104,104 @@ class VerifyEmailUseCase(
      *
      * @param token The verification token from the email link.
      * @param correlationId Unique ID for distributed tracing.
-     * @return [VerifyEmailResult] indicating success or the specific failure reason.
+     * @return [Either] containing either a [VerificationError] or [VerificationSuccess].
      */
     @Transactional
     fun execute(
         token: String,
         correlationId: UUID = UUID.randomUUID()
-    ): VerifyEmailResult {
-        return verificationTimer.record<VerifyEmailResult> {
-            try {
-                executeInternal(token, correlationId)
-            } catch (e: Exception) {
-                logger.error("Email verification failed for token: [REDACTED]", e)
-                incrementVerificationCounter("error")
-                VerifyEmailResult.Error("Verification failed due to an internal error.")
+    ): Either<VerificationError, VerificationSuccess> {
+        return verificationTimer.record<Either<VerificationError, VerificationSuccess>> {
+            either {
+                // Find the verification token
+                val verificationToken = verificationTokenRepository.findByToken(token)
+
+                ensureNotNull(verificationToken) {
+                    logger.info("Verification attempt with non-existent token")
+                    incrementVerificationCounter("invalid")
+                    VerificationError.InvalidToken
+                }
+
+                // Check if token is already used
+                ensure(!verificationToken.isUsed()) {
+                    logger.info("Verification attempt with already-used token for user: {}", verificationToken.userId)
+                    incrementVerificationCounter("already_verified")
+                    VerificationError.AlreadyVerified
+                }
+
+                // Check if token is expired
+                ensure(!verificationToken.isExpired()) {
+                    logger.info("Verification attempt with expired token for user: {}", verificationToken.userId)
+                    incrementVerificationCounter("expired")
+                    VerificationError.ExpiredToken
+                }
+
+                // Find the user
+                val user = userRepository.findById(verificationToken.userId).orElse(null)
+                ensureNotNull(user) {
+                    logger.error("User not found for valid verification token: {}", verificationToken.userId)
+                    incrementVerificationCounter("error")
+                    VerificationError.InternalError("Verification failed due to an internal error.")
+                }
+
+                // Check if user is already verified
+                ensure(!user.emailVerified) {
+                    logger.info("Verification attempt for already-verified user: {}", user.id)
+                    // Mark token as used anyway to prevent reuse
+                    verificationToken.markAsUsed()
+                    verificationTokenRepository.save(verificationToken)
+                    incrementVerificationCounter("already_verified")
+                    VerificationError.AlreadyVerified
+                }
+
+                val now = Instant.now()
+
+                // Mark token as used
+                verificationToken.markAsUsed()
+                verificationTokenRepository.save(verificationToken)
+
+                // Activate user and mark email as verified
+                val activatedUser = user.activate()
+                activatedUser.markEmailAsVerified()
+                userRepository.save(activatedUser)
+
+                // Create domain events
+                val emailVerifiedEvent = EmailVerified.create(
+                    userId = activatedUser.id,
+                    email = activatedUser.email,
+                    verifiedAt = now,
+                    correlationId = correlationId
+                )
+
+                val userActivatedEvent = UserActivated.create(
+                    userId = activatedUser.id,
+                    activatedAt = now,
+                    activationMethod = ActivationMethod.EMAIL_VERIFICATION,
+                    correlationId = correlationId
+                )
+
+                // Persist events to event store atomically
+                eventStoreRepository.append(emailVerifiedEvent)
+                eventStoreRepository.append(userActivatedEvent)
+
+                // Publish events to Kafka (async)
+                userEventPublisher.publishEmailVerified(emailVerifiedEvent)
+                userEventPublisher.publishUserActivated(userActivatedEvent)
+
+                logger.info(
+                    "Email verified and account activated for user: {} with email: {}",
+                    activatedUser.id,
+                    activatedUser.email
+                )
+                incrementVerificationCounter("success")
+
+                VerificationSuccess(
+                    userId = activatedUser.id,
+                    email = activatedUser.email,
+                    activatedAt = now
+                )
             }
-        } ?: VerifyEmailResult.Error("Verification failed: unexpected null result")
-    }
-
-    /**
-     * Internal implementation of the verification logic.
-     *
-     * @param token The verification token.
-     * @param correlationId The correlation ID for tracing.
-     * @return The verification result.
-     */
-    private fun executeInternal(
-        token: String,
-        correlationId: UUID
-    ): VerifyEmailResult {
-        // Find the verification token
-        val verificationToken = verificationTokenRepository.findByToken(token)
-
-        if (verificationToken == null) {
-            logger.info("Verification attempt with non-existent token")
-            incrementVerificationCounter("invalid")
-            return VerifyEmailResult.InvalidToken("Invalid verification link. Request a new one.")
-        }
-
-        // Check if token is already used
-        if (verificationToken.isUsed()) {
-            logger.info("Verification attempt with already-used token for user: {}", verificationToken.userId)
-            incrementVerificationCounter("already_verified")
-            return VerifyEmailResult.AlreadyVerified("Your email is already verified. Please log in.")
-        }
-
-        // Check if token is expired
-        if (verificationToken.isExpired()) {
-            logger.info("Verification attempt with expired token for user: {}", verificationToken.userId)
-            incrementVerificationCounter("expired")
-            return VerifyEmailResult.ExpiredToken("Your verification link has expired. Request a new one.")
-        }
-
-        // Find the user
-        val user = userRepository.findById(verificationToken.userId).orElse(null)
-        if (user == null) {
-            logger.error("User not found for valid verification token: {}", verificationToken.userId)
-            incrementVerificationCounter("error")
-            return VerifyEmailResult.Error("Verification failed due to an internal error.")
-        }
-
-        // Check if user is already verified
-        if (user.emailVerified) {
-            logger.info("Verification attempt for already-verified user: {}", user.id)
-            // Mark token as used anyway to prevent reuse
-            verificationToken.markAsUsed()
-            verificationTokenRepository.save(verificationToken)
-            incrementVerificationCounter("already_verified")
-            return VerifyEmailResult.AlreadyVerified("Your email is already verified. Please log in.")
-        }
-
-        val now = Instant.now()
-
-        // Mark token as used
-        verificationToken.markAsUsed()
-        verificationTokenRepository.save(verificationToken)
-
-        // Activate user and mark email as verified
-        val activatedUser = user.activate()
-        activatedUser.markEmailAsVerified()
-        userRepository.save(activatedUser)
-
-        // Create domain events
-        val emailVerifiedEvent = EmailVerified.create(
-            userId = activatedUser.id,
-            email = activatedUser.email,
-            verifiedAt = now,
-            correlationId = correlationId
-        )
-
-        val userActivatedEvent = UserActivated.create(
-            userId = activatedUser.id,
-            activatedAt = now,
-            activationMethod = ActivationMethod.EMAIL_VERIFICATION,
-            correlationId = correlationId
-        )
-
-        // Persist events to event store atomically
-        eventStoreRepository.append(emailVerifiedEvent)
-        eventStoreRepository.append(userActivatedEvent)
-
-        // Publish events to Kafka (async)
-        userEventPublisher.publishEmailVerified(emailVerifiedEvent)
-        userEventPublisher.publishUserActivated(userActivatedEvent)
-
-        logger.info(
-            "Email verified and account activated for user: {} with email: {}",
-            activatedUser.id,
-            activatedUser.email
-        )
-        incrementVerificationCounter("success")
-
-        return VerifyEmailResult.Success(
-            userId = activatedUser.id,
-            email = activatedUser.email,
-            activatedAt = now
-        )
+        } ?: Either.Left(VerificationError.InternalError("Verification failed: unexpected null result"))
     }
 
     /**

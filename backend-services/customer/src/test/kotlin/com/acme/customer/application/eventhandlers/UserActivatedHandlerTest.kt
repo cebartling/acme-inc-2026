@@ -1,6 +1,9 @@
 package com.acme.customer.application.eventhandlers
 
-import com.acme.customer.application.ActivateCustomerResult
+import arrow.core.left
+import arrow.core.right
+import com.acme.customer.application.ActivateCustomerError
+import com.acme.customer.application.ActivateCustomerSuccess
 import com.acme.customer.application.ActivateCustomerUseCase
 import com.acme.customer.domain.Customer
 import com.acme.customer.domain.CustomerStatus
@@ -70,7 +73,7 @@ class UserActivatedHandlerTest {
 
         every { processedEventRepository.existsByEventId(eventId) } returns false
         every { activateCustomerUseCase.execute(any(), any(), any(), any()) } returns
-            ActivateCustomerResult.Success(customer)
+            ActivateCustomerSuccess(customer).right()
         every { processedEventRepository.save(any()) } answers { firstArg() }
 
         // When
@@ -106,13 +109,13 @@ class UserActivatedHandlerTest {
 
         every { processedEventRepository.existsByEventId(eventId) } returns false
         every { activateCustomerUseCase.execute(any(), any(), any(), any()) } returns
-            ActivateCustomerResult.AlreadyActive(customerId)
+            ActivateCustomerError.AlreadyActive(customerId).left()
         every { processedEventRepository.save(any()) } answers { firstArg() }
 
-        // When
+        // When - handler should not throw, and should save event as processed
         handler.handle(event)
 
-        // Then
+        // Then - event is saved as processed (handler completes without throwing)
         verify { processedEventRepository.save(match { it.eventId == eventId }) }
     }
 
@@ -125,7 +128,7 @@ class UserActivatedHandlerTest {
 
         every { processedEventRepository.existsByEventId(eventId) } returns false
         every { activateCustomerUseCase.execute(any(), any(), any(), any()) } returns
-            ActivateCustomerResult.CustomerNotFound(userId)
+            ActivateCustomerError.CustomerNotFound(userId).left()
 
         // When/Then
         val exception = assertThrows<RuntimeException> {
@@ -144,7 +147,7 @@ class UserActivatedHandlerTest {
 
         every { processedEventRepository.existsByEventId(eventId) } returns false
         every { activateCustomerUseCase.execute(any(), any(), any(), any()) } returns
-            ActivateCustomerResult.Failure("Database error", RuntimeException("Connection failed"))
+            ActivateCustomerError.Failure("Database error", RuntimeException("Connection failed")).left()
 
         // When/Then
         val exception = assertThrows<RuntimeException> {
@@ -170,7 +173,7 @@ class UserActivatedHandlerTest {
 
         every { processedEventRepository.existsByEventId(eventId) } returns false
         every { activateCustomerUseCase.execute(any(), any(), any(), any()) } returns
-            ActivateCustomerResult.Success(customer)
+            ActivateCustomerSuccess(customer).right()
         every { processedEventRepository.save(capture(processedEventSlot)) } answers { firstArg() }
 
         // When

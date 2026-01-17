@@ -1,6 +1,6 @@
 package com.acme.customer.application.eventhandlers
 
-import com.acme.customer.application.ActivateCustomerResult
+import com.acme.customer.application.ActivateCustomerError
 import com.acme.customer.application.ActivateCustomerUseCase
 import com.acme.customer.infrastructure.messaging.dto.UserActivatedEvent
 import com.acme.customer.infrastructure.persistence.ProcessedEvent
@@ -49,50 +49,49 @@ class UserActivatedHandler(
             return
         }
 
-        val result = activateCustomerUseCase.execute(
+        activateCustomerUseCase.execute(
             userId = event.payload.userId,
             activatedAt = event.payload.activatedAt,
             correlationId = event.correlationId,
             causationId = event.eventId
-        )
-
-        when (result) {
-            is ActivateCustomerResult.Success -> {
+        ).fold(
+            ifLeft = { error ->
+                when (error) {
+                    is ActivateCustomerError.AlreadyActive -> {
+                        logger.info(
+                            "Customer {} already active for user {}, event processed idempotently",
+                            error.customerId,
+                            event.payload.userId
+                        )
+                    }
+                    is ActivateCustomerError.CustomerNotFound -> {
+                        logger.warn(
+                            "No customer found for user {}, cannot activate",
+                            error.userId
+                        )
+                        // This is not necessarily an error - the customer profile might not have been
+                        // created yet due to event ordering. The event will be retried.
+                        throw RuntimeException("Customer not found for user ${error.userId}")
+                    }
+                    is ActivateCustomerError.Failure -> {
+                        logger.error(
+                            "Failed to activate customer for user {}: {}",
+                            event.payload.userId,
+                            error.message,
+                            error.cause
+                        )
+                        throw RuntimeException(error.message, error.cause)
+                    }
+                }
+            },
+            ifRight = { success ->
                 logger.info(
                     "Activated customer {} for user {}",
-                    result.customer.id,
+                    success.customer.id,
                     event.payload.userId
                 )
             }
-
-            is ActivateCustomerResult.AlreadyActive -> {
-                logger.info(
-                    "Customer {} already active for user {}, event processed idempotently",
-                    result.customerId,
-                    event.payload.userId
-                )
-            }
-
-            is ActivateCustomerResult.CustomerNotFound -> {
-                logger.warn(
-                    "No customer found for user {}, cannot activate",
-                    result.userId
-                )
-                // This is not necessarily an error - the customer profile might not have been
-                // created yet due to event ordering. The event will be retried.
-                throw RuntimeException("Customer not found for user ${result.userId}")
-            }
-
-            is ActivateCustomerResult.Failure -> {
-                logger.error(
-                    "Failed to activate customer for user {}: {}",
-                    event.payload.userId,
-                    result.message,
-                    result.cause
-                )
-                throw RuntimeException(result.message, result.cause)
-            }
-        }
+        )
 
         // Mark event as processed within same transaction (after successful processing)
         processedEventRepository.save(
