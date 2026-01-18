@@ -85,7 +85,7 @@ Feature: Customer Signin Form
 
   Scenario: Registration link navigation
     When I click the registration link on signin page
-    Then I should be on the "registration" page
+    Then I should be on the "register" page
 
   # AC-0003-01-10: Error Display for API Errors
   Scenario: Display error message when signin fails
