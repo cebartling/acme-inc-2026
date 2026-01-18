@@ -9,8 +9,37 @@ import { SigninForm } from "@/components/signin";
 import { useAuthStore } from "@/stores/auth.store";
 import type { SigninFormData } from "@/schemas/signin.schema";
 
+/**
+ * Validates that a redirect URL is safe (internal path only).
+ * Prevents open redirect attacks by rejecting:
+ * - Absolute URLs (http://, https://, etc.)
+ * - Protocol-relative URLs (//example.com)
+ * - URLs with encoded characters that could bypass validation
+ */
+function isValidRedirectUrl(url: string): boolean {
+  // Must start with a single forward slash (relative path)
+  if (!url.startsWith("/")) return false;
+
+  // Reject protocol-relative URLs (//example.com)
+  if (url.startsWith("//")) return false;
+
+  // Reject URLs containing protocol indicators
+  if (url.includes("://")) return false;
+
+  // Reject URLs with encoded slashes or colons that could bypass checks
+  const decoded = decodeURIComponent(url);
+  if (decoded.startsWith("//") || decoded.includes("://")) return false;
+
+  return true;
+}
+
 const signinSearchSchema = z.object({
-  redirect: z.string().optional(),
+  redirect: z
+    .string()
+    .optional()
+    .refine((val) => !val || isValidRedirectUrl(val), {
+      message: "Invalid redirect URL",
+    }),
   logout: z.string().optional(),
 });
 
@@ -58,8 +87,11 @@ function SigninPage() {
         lastName: "User",
       });
 
-      // Navigate to redirect URL or dashboard
-      const redirectTo = search.redirect || "/dashboard";
+      // Navigate to redirect URL or dashboard (with validation as defense-in-depth)
+      const redirectTo =
+        search.redirect && isValidRedirectUrl(search.redirect)
+          ? search.redirect
+          : "/dashboard";
       navigate({ to: redirectTo });
     } catch (err) {
       // Handle API errors
