@@ -36,7 +36,7 @@ function RegisterPage() {
         <p className="text-center text-gray-400 mt-6">
           Already have an account?{" "}
           <a
-            href="/login"
+            href="/signin"
             className="text-cyan-400 hover:text-cyan-300 font-medium"
           >
             Sign in

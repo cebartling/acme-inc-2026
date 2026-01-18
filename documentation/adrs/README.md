@@ -50,6 +50,14 @@ An Architecture Decision Record documents a significant architectural decision, 
 | [ADR-0016](0016-docker-compose-development.md) | Docker Compose for Local Development | Accepted |
 | [ADR-0027](0027-acceptance-testing-agentic-development.md) | Acceptance Testing as a Safety Net for Agentic Development | Accepted |
 
+### Frontend Patterns
+
+| ADR | Title | Status |
+|-----|-------|--------|
+| [ADR-0025](0025-multi-step-wizard-pattern.md) | Multi-Step Wizard Pattern for Profile Completion | Accepted |
+| [ADR-0026](0026-phone-number-validation.md) | Phone Number Validation | Accepted |
+| [ADR-0030](0030-signin-form-reusable-patterns.md) | Signin Form Reusable Component Patterns | Accepted |
+
 ## ADR Status Definitions
 
 - **Proposed**: Under discussion, not yet accepted
