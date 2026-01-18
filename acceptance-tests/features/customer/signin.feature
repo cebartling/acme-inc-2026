@@ -98,6 +98,7 @@ Feature: Customer Signin Form
   # Full Signin Flow
   @smoke
   Scenario: Successfully complete signin form
+    Given an active user exists with email "customer@acme.com" and password "ValidP@ssw0rd!"
     When I enter signin email "customer@acme.com"
     And I enter signin password "ValidP@ssw0rd!"
     And I submit the signin form

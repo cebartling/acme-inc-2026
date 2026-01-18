@@ -18,8 +18,13 @@ Before({ tags: '@customer or @admin' }, async function (this: CustomWorld) {
   await this.createContext();
 });
 
-// API Tests: Only initialize API clients for @api tagged scenarios (no browser needed)
+// API Tests: Initialize API clients for @api tagged scenarios (no browser needed)
 Before({ tags: '@api and not @customer and not @admin' }, async function (this: CustomWorld) {
+  this.initializeApiClients();
+});
+
+// UI Tests: Also initialize API clients for @customer scenarios that need API setup
+Before({ tags: '@customer' }, async function (this: CustomWorld) {
   this.initializeApiClients();
 });
 

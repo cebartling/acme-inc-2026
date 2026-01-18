@@ -83,6 +83,19 @@ async function createTestUser(
     registrationRequest
   );
 
+  // Handle 409 Conflict (user already exists)
+  if (response.status === 409) {
+    // User already exists - store email and password for later use
+    world.setTestData('testUserEmail', email);
+    world.setTestData('testUserPassword', password);
+    // Return empty string as we don't have the userId
+    return '';
+  }
+
+  if (response.status !== 201 && response.status !== 200) {
+    throw new Error(`Failed to register user: ${response.status} - ${JSON.stringify(response.data)}`);
+  }
+
   const userId = response.data.userId;
 
   // Store for later use
@@ -115,8 +128,13 @@ async function createTestUser(
 Given(
   'an active user exists with email {string} and password {string}',
   async function (this: CustomWorld, email: string, password: string) {
-    const uniqueEmail = makeUniqueEmail(email);
-    await createTestUser(this, uniqueEmail, password, { status: 'ACTIVE' });
+    // For UI tests, use the exact email as-is so it matches what's typed in the form
+    // For API tests that don't need a specific email, make it unique to avoid conflicts
+    const isExactEmailNeeded = email.includes('customer@') || email.includes('user@');
+    const targetEmail = isExactEmailNeeded ? email : makeUniqueEmail(email);
+
+    // createTestUser handles 409 conflicts internally
+    await createTestUser(this, targetEmail, password, { status: 'ACTIVE' });
   }
 );
 
