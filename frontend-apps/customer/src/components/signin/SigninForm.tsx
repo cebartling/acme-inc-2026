@@ -162,7 +162,7 @@ export function SigninForm({ onSubmit, error }: SigninFormProps) {
       <CardFooter className="flex justify-center">
         <p className="text-sm text-muted-foreground">
           Don&apos;t have an account?{" "}
-          <Link to="/registration" className="text-primary hover:underline">
+          <Link to="/register" className="text-primary hover:underline">
             Create one
           </Link>
         </p>
