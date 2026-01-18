@@ -7,6 +7,7 @@ import {
 import { z } from "zod";
 import { SigninForm } from "@/components/signin";
 import { useAuthStore } from "@/stores/auth.store";
+import { identityApi, ApiError } from "@/services/api";
 import type { SigninFormData } from "@/schemas/signin.schema";
 
 /**
@@ -62,29 +63,30 @@ function SigninPage() {
     setError(undefined);
 
     try {
-      // TODO: Integrate with Identity Service API
-      // POST /api/v1/auth/signin
-      console.log("Signin data:", data);
+      // Call Identity Service API
+      const response = await identityApi.signin({
+        email: data.email,
+        password: data.password,
+        rememberMe: data.rememberMe,
+      });
 
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      // TODO: Replace with actual API response
-      // Simulate invalid credentials for testing error handling
-      if (
-        data.email === "invalid@example.com" ||
-        data.password === "wrongpassword"
-      ) {
-        throw new Error("Invalid credentials");
+      if (response.status === "MFA_REQUIRED") {
+        // TODO: Navigate to MFA verification page
+        // For now, show a message that MFA is not yet implemented
+        setError("MFA verification is required but not yet implemented.");
+        return;
       }
 
-      // For now, simulate successful signin
+      // Successful signin - store user info
+      // Note: The signin API only returns userId. In a full implementation,
+      // we would fetch additional user profile data from a separate endpoint.
+      // For now, we use the email from the form and placeholder values.
       setUser({
-        userId: "user_123",
-        customerId: "cust_123",
+        userId: response.userId,
+        customerId: response.userId, // TODO: Get from user profile API
         email: data.email,
-        firstName: "Demo",
-        lastName: "User",
+        firstName: "User", // TODO: Get from user profile API
+        lastName: "", // TODO: Get from user profile API
       });
 
       // Navigate to redirect URL or dashboard (with validation as defense-in-depth)
@@ -95,7 +97,17 @@ function SigninPage() {
       navigate({ to: redirectTo });
     } catch (err) {
       // Handle API errors
-      setError("Invalid email or password. Please try again.");
+      if (err instanceof ApiError) {
+        // Use the error message from the API response
+        const errorData = err.data as { message?: string; remainingAttempts?: number };
+        if (errorData?.remainingAttempts !== undefined && errorData.remainingAttempts > 0) {
+          setError(`${errorData.message || "Invalid email or password."} (${errorData.remainingAttempts} attempts remaining)`);
+        } else {
+          setError(errorData?.message || "Invalid email or password. Please try again.");
+        }
+      } else {
+        setError("An unexpected error occurred. Please try again.");
+      }
       console.error("Signin error:", err);
     }
   };

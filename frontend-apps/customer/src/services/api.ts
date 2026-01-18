@@ -5,6 +5,8 @@
  */
 
 // API base URLs - these would typically come from environment variables
+const IDENTITY_SERVICE_URL =
+  import.meta.env.VITE_IDENTITY_SERVICE_URL || "http://localhost:10300";
 const CUSTOMER_SERVICE_URL =
   import.meta.env.VITE_CUSTOMER_SERVICE_URL || "http://localhost:10301";
 
@@ -202,3 +204,75 @@ export interface ProfileCompletenessNextAction {
   action: string;
   url: string;
 }
+
+// =============================================================================
+// Identity Service API
+// =============================================================================
+
+/**
+ * Request type for signin API.
+ */
+export interface SigninRequest {
+  email: string;
+  password: string;
+  rememberMe: boolean;
+  deviceFingerprint?: string;
+}
+
+/**
+ * Response type for successful signin.
+ */
+export interface SigninSuccessResponse {
+  status: "SUCCESS";
+  userId: string;
+  expiresIn: number;
+}
+
+/**
+ * Response type for MFA required signin.
+ */
+export interface SigninMfaResponse {
+  status: "MFA_REQUIRED";
+  mfaToken: string;
+  mfaMethods: string[];
+  expiresIn: number;
+}
+
+/**
+ * Combined signin response type.
+ */
+export type SigninResponse = SigninSuccessResponse | SigninMfaResponse;
+
+/**
+ * Error response from signin API.
+ */
+export interface SigninErrorResponse {
+  error: string;
+  message: string;
+  remainingAttempts?: number;
+  reason?: string;
+  supportUrl?: string;
+  lockedUntil?: string;
+}
+
+/**
+ * Identity Service API client.
+ */
+export const identityApi = {
+  /**
+   * Authenticates a user with email and password.
+   *
+   * @param credentials - The user's signin credentials.
+   * @returns The signin response on success.
+   * @throws ApiError on authentication failure.
+   */
+  async signin(credentials: SigninRequest): Promise<SigninResponse> {
+    return apiRequest<SigninResponse>(
+      `${IDENTITY_SERVICE_URL}/api/v1/auth/signin`,
+      {
+        method: "POST",
+        body: JSON.stringify(credentials),
+      }
+    );
+  },
+};
