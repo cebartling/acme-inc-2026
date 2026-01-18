@@ -46,3 +46,19 @@ Commit all changes to this feature branch.
 When completed, create a PR for merging this feature branch back into
 the `main` branch on GitHub.
 ```
+
+## Create customer signin user stories
+
+```
+Create user stories from the detailed journey steps found in @documentation/journeys/0003-customer-signin.md.
+Write user stories to @documentation/user-stories/0003-create-customer-signin directory.
+Think hard about the implementation of each user story.
+Transfer acceptance criteria from user journey document to each new user story, where appropriate.
+Add new acceptance criteria to each user story to fill in the gaps.
+All diagrams should use Mermaid.js. No ASCII art.
+Implementation and technology found at @documentation/IMPLEMENTATION.md.
+Create a feature branch from the `main` branch for this work.
+Commit all changes to this feature branch.
+When completed, create a PR for merging this feature branch back into
+the `main` branch on GitHub.
+```
