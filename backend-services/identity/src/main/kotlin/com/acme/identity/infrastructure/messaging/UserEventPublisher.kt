@@ -1,5 +1,7 @@
 package com.acme.identity.infrastructure.messaging
 
+import com.acme.identity.domain.events.AuthenticationFailed
+import com.acme.identity.domain.events.AuthenticationSucceeded
 import com.acme.identity.domain.events.EmailVerified
 import com.acme.identity.domain.events.UserActivated
 import com.acme.identity.domain.events.UserRegistered
@@ -139,6 +141,82 @@ class UserEventPublisher(
             .exceptionally { ex ->
                 logger.error(
                     "Failed to publish UserActivated event for user {}. " +
+                    "Event is persisted in event store but not published to Kafka. " +
+                    "Manual intervention may be required.",
+                    event.payload.userId,
+                    ex
+                )
+                null
+            }
+    }
+
+    /**
+     * Publishes an [AuthenticationFailed] event to Kafka.
+     *
+     * The publish operation is asynchronous. The returned future completes
+     * when Kafka acknowledges receipt of the message. Failures are logged
+     * but not rethrown to avoid blocking the authentication response.
+     *
+     * @param event The authentication failed event to publish.
+     * @return A [CompletableFuture] that completes when publishing succeeds.
+     */
+    fun publishAuthenticationFailed(event: AuthenticationFailed): CompletableFuture<Void> {
+        val key = event.aggregateId.toString()
+        val value = objectMapper.writeValueAsString(event)
+
+        logger.debug("Publishing AuthenticationFailed event for email: {}", event.payload.email)
+
+        return kafkaTemplate.send(AuthenticationFailed.TOPIC, key, value)
+            .thenAccept { result ->
+                logger.info(
+                    "Published AuthenticationFailed event for email {} to topic {} partition {} offset {}",
+                    event.payload.email,
+                    result.recordMetadata.topic(),
+                    result.recordMetadata.partition(),
+                    result.recordMetadata.offset()
+                )
+            }
+            .exceptionally { ex ->
+                logger.error(
+                    "Failed to publish AuthenticationFailed event for email {}. " +
+                    "Event is persisted in event store but not published to Kafka. " +
+                    "Manual intervention may be required.",
+                    event.payload.email,
+                    ex
+                )
+                null
+            }
+    }
+
+    /**
+     * Publishes an [AuthenticationSucceeded] event to Kafka.
+     *
+     * The publish operation is asynchronous. The returned future completes
+     * when Kafka acknowledges receipt of the message. Failures are logged
+     * but not rethrown to avoid blocking the authentication response.
+     *
+     * @param event The authentication succeeded event to publish.
+     * @return A [CompletableFuture] that completes when publishing succeeds.
+     */
+    fun publishAuthenticationSucceeded(event: AuthenticationSucceeded): CompletableFuture<Void> {
+        val key = event.aggregateId.toString()
+        val value = objectMapper.writeValueAsString(event)
+
+        logger.debug("Publishing AuthenticationSucceeded event for user: {}", event.payload.userId)
+
+        return kafkaTemplate.send(AuthenticationSucceeded.TOPIC, key, value)
+            .thenAccept { result ->
+                logger.info(
+                    "Published AuthenticationSucceeded event for user {} to topic {} partition {} offset {}",
+                    event.payload.userId,
+                    result.recordMetadata.topic(),
+                    result.recordMetadata.partition(),
+                    result.recordMetadata.offset()
+                )
+            }
+            .exceptionally { ex ->
+                logger.error(
+                    "Failed to publish AuthenticationSucceeded event for user {}. " +
                     "Event is persisted in event store but not published to Kafka. " +
                     "Manual intervention may be required.",
                     event.payload.userId,

@@ -26,6 +26,19 @@ enum class UserStatus {
     SUSPENDED,
 
     /**
+     * User account has been temporarily locked due to too many
+     * failed signin attempts. Will automatically unlock after
+     * the lockout period expires.
+     */
+    LOCKED,
+
+    /**
+     * User account has been deactivated by the user or an admin.
+     * Can be reactivated through customer support.
+     */
+    DEACTIVATED,
+
+    /**
      * User account has been soft-deleted. The record is retained
      * for audit purposes but the user can no longer access the system.
      */

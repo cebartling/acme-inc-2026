@@ -63,8 +63,17 @@ identity:
       requests-per-minute: 5
     resend:
       requests-per-hour: 3
+    signin:
+      requests-per-minute: 10
+  authentication:
+    max-failed-attempts: 5
+    lockout-duration-minutes: 15
+    access-token-expiry-seconds: 900
+    refresh-token-expiry-seconds: 604800
+    mfa-token-expiry-seconds: 300
   frontend:
     base-url: ${FRONTEND_BASE_URL:https://www.acme.com}
+  support-url: ${SUPPORT_URL:https://www.acme.com/support}
 
 logging:
   level:
