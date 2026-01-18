@@ -52,7 +52,7 @@ class User(
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 50)
-    val status: UserStatus = UserStatus.PENDING_VERIFICATION,
+    var status: UserStatus = UserStatus.PENDING_VERIFICATION,
 
     @Column(name = "tos_accepted_at", nullable = false)
     val tosAcceptedAt: Instant,
@@ -207,6 +207,7 @@ class User(
      * @param duration The duration for which the account should be locked.
      */
     fun lock(duration: Duration) {
+        status = UserStatus.LOCKED
         lockedUntil = Instant.now().plus(duration)
         updatedAt = Instant.now()
     }
@@ -214,11 +215,11 @@ class User(
     /**
      * Unlocks the user account.
      *
-     * Clears the lockout timestamp and resets failed attempts.
-     * Does not change the status - that should be handled separately.
+     * Sets the status to ACTIVE, clears the lockout timestamp, and resets failed attempts.
      * Does not persist changes - caller must save the user.
      */
     fun unlock() {
+        status = UserStatus.ACTIVE
         lockedUntil = null
         failedAttempts = 0
         updatedAt = Instant.now()
