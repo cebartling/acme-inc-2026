@@ -34,7 +34,7 @@ export function FormField({
         <Label
           htmlFor={htmlFor}
           className={cn(
-            "text-sm font-medium text-white",
+            "text-sm font-medium text-foreground",
             showError && "text-red-600",
           )}
         >

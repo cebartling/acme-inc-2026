@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SigninRouteImport } from './routes/signin'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as PreferencesRouteImport } from './routes/preferences'
 import { Route as DashboardRouteImport } from './routes/dashboard'
@@ -23,6 +24,11 @@ import { Route as DemoStartSsrSpaModeRouteImport } from './routes/demo/start.ssr
 import { Route as DemoStartSsrFullSsrRouteImport } from './routes/demo/start.ssr.full-ssr'
 import { Route as DemoStartSsrDataOnlyRouteImport } from './routes/demo/start.ssr.data-only'
 
+const SigninRoute = SigninRouteImport.update({
+  id: '/signin',
+  path: '/signin',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
   path: '/register',
@@ -94,6 +100,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof DashboardRoute
   '/preferences': typeof PreferencesRoute
   '/register': typeof RegisterRoute
+  '/signin': typeof SigninRoute
   '/api/health': typeof ApiHealthRoute
   '/profile/complete': typeof ProfileCompleteRoute
   '/demo/api/names': typeof DemoApiNamesRoute
@@ -109,6 +116,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof DashboardRoute
   '/preferences': typeof PreferencesRoute
   '/register': typeof RegisterRoute
+  '/signin': typeof SigninRoute
   '/api/health': typeof ApiHealthRoute
   '/profile/complete': typeof ProfileCompleteRoute
   '/demo/api/names': typeof DemoApiNamesRoute
@@ -125,6 +133,7 @@ export interface FileRoutesById {
   '/dashboard': typeof DashboardRoute
   '/preferences': typeof PreferencesRoute
   '/register': typeof RegisterRoute
+  '/signin': typeof SigninRoute
   '/api/health': typeof ApiHealthRoute
   '/profile/complete': typeof ProfileCompleteRoute
   '/demo/api/names': typeof DemoApiNamesRoute
@@ -142,6 +151,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/preferences'
     | '/register'
+    | '/signin'
     | '/api/health'
     | '/profile/complete'
     | '/demo/api/names'
@@ -157,6 +167,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/preferences'
     | '/register'
+    | '/signin'
     | '/api/health'
     | '/profile/complete'
     | '/demo/api/names'
@@ -172,6 +183,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/preferences'
     | '/register'
+    | '/signin'
     | '/api/health'
     | '/profile/complete'
     | '/demo/api/names'
@@ -188,6 +200,7 @@ export interface RootRouteChildren {
   DashboardRoute: typeof DashboardRoute
   PreferencesRoute: typeof PreferencesRoute
   RegisterRoute: typeof RegisterRoute
+  SigninRoute: typeof SigninRoute
   ApiHealthRoute: typeof ApiHealthRoute
   ProfileCompleteRoute: typeof ProfileCompleteRoute
   DemoApiNamesRoute: typeof DemoApiNamesRoute
@@ -201,6 +214,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/signin': {
+      id: '/signin'
+      path: '/signin'
+      fullPath: '/signin'
+      preLoaderRoute: typeof SigninRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/register': {
       id: '/register'
       path: '/register'
@@ -300,6 +320,7 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardRoute: DashboardRoute,
   PreferencesRoute: PreferencesRoute,
   RegisterRoute: RegisterRoute,
+  SigninRoute: SigninRoute,
   ApiHealthRoute: ApiHealthRoute,
   ProfileCompleteRoute: ProfileCompleteRoute,
   DemoApiNamesRoute: DemoApiNamesRoute,

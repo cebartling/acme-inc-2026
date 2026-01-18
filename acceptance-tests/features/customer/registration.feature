@@ -113,6 +113,6 @@ Feature: Customer Registration Form
     And I submit the registration form
     Then I should be redirected to the home page
 
-  Scenario: Navigate to login from registration page
+  Scenario: Navigate to signin from registration page
     When I click the "Sign in" link
-    Then I should be on the "login" page
+    Then I should be on the "signin" page
