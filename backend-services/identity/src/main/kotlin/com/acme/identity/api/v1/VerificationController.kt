@@ -3,9 +3,9 @@ package com.acme.identity.api.v1
 import com.acme.identity.api.v1.dto.ErrorResponse
 import com.acme.identity.api.v1.dto.ResendVerificationRequest
 import com.acme.identity.api.v1.dto.ResendVerificationResponse
-import com.acme.identity.application.ResendVerificationResult
+import com.acme.identity.application.ResendError
 import com.acme.identity.application.ResendVerificationUseCase
-import com.acme.identity.application.VerifyEmailResult
+import com.acme.identity.application.VerificationError
 import com.acme.identity.application.VerifyEmailUseCase
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.validation.Valid
@@ -67,32 +67,32 @@ class VerificationController(
             }
         } ?: UUID.randomUUID()
 
-        return when (val result = verifyEmailUseCase.execute(token, corrId)) {
-            is VerifyEmailResult.Success -> {
-                logger.info("Email verified successfully for user: {}", result.userId)
+        return verifyEmailUseCase.execute(token, corrId).fold(
+            ifLeft = { error ->
+                when (error) {
+                    is VerificationError.ExpiredToken -> {
+                        logger.info("Verification failed: expired token")
+                        redirectTo("$frontendBaseUrl/verify/resend?error=expired")
+                    }
+                    is VerificationError.InvalidToken -> {
+                        logger.info("Verification failed: invalid token")
+                        redirectTo("$frontendBaseUrl/verify/resend?error=invalid")
+                    }
+                    is VerificationError.AlreadyVerified -> {
+                        logger.info("Verification attempt for already-verified user")
+                        redirectTo("$frontendBaseUrl/login?already_verified=true")
+                    }
+                    is VerificationError.InternalError -> {
+                        logger.error("Verification failed with error: {}", error.message)
+                        redirectTo("$frontendBaseUrl/verify/resend?error=invalid")
+                    }
+                }
+            },
+            ifRight = { success ->
+                logger.info("Email verified successfully for user: {}", success.userId)
                 redirectTo("$frontendBaseUrl/login?verified=true")
             }
-
-            is VerifyEmailResult.ExpiredToken -> {
-                logger.info("Verification failed: expired token")
-                redirectTo("$frontendBaseUrl/verify/resend?error=expired")
-            }
-
-            is VerifyEmailResult.InvalidToken -> {
-                logger.info("Verification failed: invalid token")
-                redirectTo("$frontendBaseUrl/verify/resend?error=invalid")
-            }
-
-            is VerifyEmailResult.AlreadyVerified -> {
-                logger.info("Verification attempt for already-verified user")
-                redirectTo("$frontendBaseUrl/login?already_verified=true")
-            }
-
-            is VerifyEmailResult.Error -> {
-                logger.error("Verification failed with error: {}", result.message)
-                redirectTo("$frontendBaseUrl/verify/resend?error=invalid")
-            }
-        }
+        )
     }
 
     /**
@@ -121,39 +121,41 @@ class VerificationController(
             }
         } ?: UUID.randomUUID()
 
-        return when (val result = resendVerificationUseCase.execute(request.email, clientIp, corrId)) {
-            is ResendVerificationResult.Success -> {
+        return resendVerificationUseCase.execute(request.email, clientIp, corrId).fold(
+            ifLeft = { error ->
+                when (error) {
+                    is ResendError.RateLimited -> {
+                        val retryAfterSeconds = Duration.between(Instant.now(), error.retryAfter).seconds
+                        val minutes = formatDuration(retryAfterSeconds)
+                        val minuteLabel = if (minutes == 1L) "minute" else "minutes"
+                        ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                            .header(HttpHeaders.RETRY_AFTER, retryAfterSeconds.toString())
+                            .body(
+                                ErrorResponse(
+                                    error = "RATE_LIMIT_EXCEEDED",
+                                    message = "Too many requests. Please try again in $minutes $minuteLabel."
+                                )
+                            )
+                    }
+                    is ResendError.InternalError -> {
+                        ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                            ErrorResponse(
+                                error = "RESEND_ERROR",
+                                message = error.message
+                            )
+                        )
+                    }
+                }
+            },
+            ifRight = { success ->
                 ResponseEntity.ok(
                     ResendVerificationResponse(
-                        message = result.message,
-                        requestsRemaining = result.requestsRemaining
+                        message = success.message,
+                        requestsRemaining = success.requestsRemaining
                     )
                 )
             }
-
-            is ResendVerificationResult.RateLimited -> {
-                val retryAfterSeconds = Duration.between(Instant.now(), result.retryAfter).seconds
-                val minutes = formatDuration(retryAfterSeconds)
-                val minuteLabel = if (minutes == 1L) "minute" else "minutes"
-                ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                    .header(HttpHeaders.RETRY_AFTER, retryAfterSeconds.toString())
-                    .body(
-                        ErrorResponse(
-                            error = "RATE_LIMIT_EXCEEDED",
-                            message = "Too many requests. Please try again in $minutes $minuteLabel."
-                        )
-                    )
-            }
-
-            is ResendVerificationResult.Error -> {
-                ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
-                    ErrorResponse(
-                        error = "RESEND_ERROR",
-                        message = result.message
-                    )
-                )
-            }
-        }
+        )
     }
 
     /**

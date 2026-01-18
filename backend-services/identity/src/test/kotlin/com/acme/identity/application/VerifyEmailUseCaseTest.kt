@@ -1,5 +1,6 @@
 package com.acme.identity.application
 
+import arrow.core.getOrElse
 import com.acme.identity.domain.RegistrationSource
 import com.acme.identity.domain.User
 import com.acme.identity.domain.UserStatus
@@ -19,6 +20,8 @@ import java.util.concurrent.CompletableFuture
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
+import kotlin.test.fail
 
 class VerifyEmailUseCaseTest {
 
@@ -67,10 +70,11 @@ class VerifyEmailUseCaseTest {
         val result = verifyEmailUseCase.execute(testToken)
 
         // Then
-        assertIs<VerifyEmailResult.Success>(result)
-        assertEquals(testUserId, result.userId)
-        assertEquals("customer@example.com", result.email)
-        assertNotNull(result.activatedAt)
+        assertTrue(result.isRight())
+        val success = result.getOrElse { fail("Expected success but got error") }
+        assertEquals(testUserId, success.userId)
+        assertEquals("customer@example.com", success.email)
+        assertNotNull(success.activatedAt)
 
         verify(exactly = 1) { verificationTokenRepository.save(any()) }
         verify(exactly = 1) { userRepository.save(any()) }
@@ -88,8 +92,13 @@ class VerifyEmailUseCaseTest {
         val result = verifyEmailUseCase.execute(testToken)
 
         // Then
-        assertIs<VerifyEmailResult.InvalidToken>(result)
-        assertEquals("Invalid verification link. Request a new one.", result.message)
+        assertTrue(result.isLeft())
+        result.fold(
+            ifLeft = { error ->
+                assertIs<VerificationError.InvalidToken>(error)
+            },
+            ifRight = { fail("Expected error but got success") }
+        )
 
         verify(exactly = 0) { userRepository.findById(any()) }
         verify(exactly = 0) { eventStoreRepository.append(any()) }
@@ -111,8 +120,13 @@ class VerifyEmailUseCaseTest {
         val result = verifyEmailUseCase.execute(testToken)
 
         // Then
-        assertIs<VerifyEmailResult.ExpiredToken>(result)
-        assertEquals("Your verification link has expired. Request a new one.", result.message)
+        assertTrue(result.isLeft())
+        result.fold(
+            ifLeft = { error ->
+                assertIs<VerificationError.ExpiredToken>(error)
+            },
+            ifRight = { fail("Expected error but got success") }
+        )
 
         verify(exactly = 0) { userRepository.findById(any()) }
         verify(exactly = 0) { eventStoreRepository.append(any()) }
@@ -135,8 +149,13 @@ class VerifyEmailUseCaseTest {
         val result = verifyEmailUseCase.execute(testToken)
 
         // Then
-        assertIs<VerifyEmailResult.AlreadyVerified>(result)
-        assertEquals("Your email is already verified. Please log in.", result.message)
+        assertTrue(result.isLeft())
+        result.fold(
+            ifLeft = { error ->
+                assertIs<VerificationError.AlreadyVerified>(error)
+            },
+            ifRight = { fail("Expected error but got success") }
+        )
 
         verify(exactly = 0) { userRepository.findById(any()) }
         verify(exactly = 0) { eventStoreRepository.append(any()) }
@@ -167,8 +186,13 @@ class VerifyEmailUseCaseTest {
         val result = verifyEmailUseCase.execute(testToken)
 
         // Then
-        assertIs<VerifyEmailResult.AlreadyVerified>(result)
-        assertEquals("Your email is already verified. Please log in.", result.message)
+        assertTrue(result.isLeft())
+        result.fold(
+            ifLeft = { error ->
+                assertIs<VerificationError.AlreadyVerified>(error)
+            },
+            ifRight = { fail("Expected error but got success") }
+        )
 
         // Token should still be marked as used
         verify(exactly = 1) { verificationTokenRepository.save(any()) }

@@ -1,5 +1,6 @@
 package com.acme.customer.application
 
+import arrow.core.getOrElse
 import com.acme.customer.domain.Customer
 import com.acme.customer.domain.CustomerPreferences
 import com.acme.customer.domain.CustomerStatus
@@ -17,7 +18,9 @@ import java.util.Optional
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertTrue
+import kotlin.test.fail
 
 class ActivateCustomerUseCaseTest {
 
@@ -91,8 +94,8 @@ class ActivateCustomerUseCaseTest {
         )
 
         // Then
-        assertTrue(result is ActivateCustomerResult.Success)
-        val success = result as ActivateCustomerResult.Success
+        assertTrue(result.isRight())
+        val success = result.getOrElse { fail("Expected success but got error") }
         assertEquals(customerId, success.customer.id)
         assertEquals(CustomerStatus.ACTIVE, success.customer.status)
         assertTrue(success.customer.emailVerified)
@@ -135,9 +138,14 @@ class ActivateCustomerUseCaseTest {
         )
 
         // Then
-        assertTrue(result is ActivateCustomerResult.AlreadyActive)
-        val alreadyActive = result as ActivateCustomerResult.AlreadyActive
-        assertEquals(customerId, alreadyActive.customerId)
+        assertTrue(result.isLeft())
+        result.fold(
+            ifLeft = { error ->
+                assertIs<ActivateCustomerError.AlreadyActive>(error)
+                assertEquals(customerId, error.customerId)
+            },
+            ifRight = { fail("Expected error but got success") }
+        )
 
         // Verify no activation occurred
         verify(exactly = 0) { eventStoreRepository.append(any()) }
@@ -161,9 +169,14 @@ class ActivateCustomerUseCaseTest {
         )
 
         // Then
-        assertTrue(result is ActivateCustomerResult.CustomerNotFound)
-        val notFound = result as ActivateCustomerResult.CustomerNotFound
-        assertEquals(userId, notFound.userId)
+        assertTrue(result.isLeft())
+        result.fold(
+            ifLeft = { error ->
+                assertIs<ActivateCustomerError.CustomerNotFound>(error)
+                assertEquals(userId, error.userId)
+            },
+            ifRight = { fail("Expected error but got success") }
+        )
 
         // Verify no activation occurred
         verify(exactly = 0) { eventStoreRepository.append(any()) }
@@ -208,9 +221,14 @@ class ActivateCustomerUseCaseTest {
         )
 
         // Then
-        assertTrue(result is ActivateCustomerResult.Failure)
-        val failure = result as ActivateCustomerResult.Failure
-        assertTrue(failure.message.contains("MongoDB connection failed"))
+        assertTrue(result.isLeft())
+        result.fold(
+            ifLeft = { error ->
+                assertIs<ActivateCustomerError.Failure>(error)
+                assertTrue(error.message.contains("MongoDB connection failed"))
+            },
+            ifRight = { fail("Expected error but got success") }
+        )
     }
 
     @Test
@@ -252,9 +270,14 @@ class ActivateCustomerUseCaseTest {
         )
 
         // Then
-        assertTrue(result is ActivateCustomerResult.Failure)
-        val failure = result as ActivateCustomerResult.Failure
-        assertTrue(failure.message.contains("Database constraint violation"))
+        assertTrue(result.isLeft())
+        result.fold(
+            ifLeft = { error ->
+                assertIs<ActivateCustomerError.Failure>(error)
+                assertTrue(error.message.contains("Database constraint violation"))
+            },
+            ifRight = { fail("Expected error but got success") }
+        )
     }
 
     @Test
@@ -330,10 +353,15 @@ class ActivateCustomerUseCaseTest {
         )
 
         // Then
-        assertTrue(result is ActivateCustomerResult.Failure)
-        val failure = result as ActivateCustomerResult.Failure
-        assertTrue(failure.message.contains("Cannot activate customer"))
-        assertTrue(failure.message.contains("Customer preferences not found for $customerId"))
+        assertTrue(result.isLeft())
+        result.fold(
+            ifLeft = { error ->
+                assertIs<ActivateCustomerError.Failure>(error)
+                assertTrue(error.message.contains("Cannot activate customer"))
+                assertTrue(error.message.contains("Customer preferences not found for $customerId"))
+            },
+            ifRight = { fail("Expected error but got success") }
+        )
 
         // Verify that event and customer were saved before preferences check
         verify { eventStoreRepository.append(any()) }

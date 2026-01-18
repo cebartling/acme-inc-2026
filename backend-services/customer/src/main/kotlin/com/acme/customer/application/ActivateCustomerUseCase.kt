@@ -1,5 +1,7 @@
 package com.acme.customer.application
 
+import arrow.core.left
+import arrow.core.right
 import com.acme.customer.domain.events.CustomerActivated
 import com.acme.customer.infrastructure.messaging.OutboxWriter
 import com.acme.customer.infrastructure.persistence.CustomerPreferencesRepository
@@ -84,7 +86,7 @@ class ActivateCustomerUseCase(
             if (customer == null) {
                 logger.warn("No customer found for user {}", userId)
                 customerNotFoundCounter.increment()
-                return@record ActivateCustomerResult.CustomerNotFound(userId)
+                return@record ActivateCustomerError.CustomerNotFound(userId).left()
             }
 
             // Check if already active (idempotency)
@@ -94,7 +96,7 @@ class ActivateCustomerUseCase(
                     customer.id
                 )
                 customerAlreadyActiveCounter.increment()
-                return@record ActivateCustomerResult.AlreadyActive(customer.id)
+                return@record ActivateCustomerError.AlreadyActive(customer.id).left()
             }
 
             try {
@@ -150,7 +152,7 @@ class ActivateCustomerUseCase(
 
                 customerActivatedCounter.increment()
 
-                ActivateCustomerResult.Success(customer)
+                ActivateCustomerSuccess(customer).right()
             } catch (e: IllegalStateException) {
                 logger.error(
                     "Cannot activate customer {} for user {}: {}",
@@ -159,10 +161,10 @@ class ActivateCustomerUseCase(
                     e.message,
                     e
                 )
-                ActivateCustomerResult.Failure(
+                ActivateCustomerError.Failure(
                     message = "Cannot activate customer: ${e.message}",
                     cause = e
-                )
+                ).left()
             } catch (e: Exception) {
                 logger.error(
                     "Failed to activate customer for user {}: {}",
@@ -170,10 +172,10 @@ class ActivateCustomerUseCase(
                     e.message,
                     e
                 )
-                ActivateCustomerResult.Failure(
+                ActivateCustomerError.Failure(
                     message = "Failed to activate customer: ${e.message}",
                     cause = e
-                )
+                ).left()
             }
         }!!
     }

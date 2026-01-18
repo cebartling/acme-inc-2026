@@ -1,6 +1,6 @@
 package com.acme.customer.application.eventhandlers
 
-import com.acme.customer.application.CreateCustomerResult
+import com.acme.customer.application.CreateCustomerError
 import com.acme.customer.application.CreateCustomerUseCase
 import com.acme.customer.infrastructure.messaging.dto.UserRegisteredEvent
 import com.acme.customer.infrastructure.persistence.ProcessedEvent
@@ -49,7 +49,7 @@ class UserRegisteredHandler(
             return
         }
 
-        val result = createCustomerUseCase.execute(
+        createCustomerUseCase.execute(
             userId = event.payload.userId,
             email = event.payload.email,
             firstName = event.payload.firstName,
@@ -58,36 +58,36 @@ class UserRegisteredHandler(
             registeredAt = event.timestamp,
             correlationId = event.correlationId,
             causationId = event.eventId
-        )
-
-        when (result) {
-            is CreateCustomerResult.Success -> {
+        ).fold(
+            ifLeft = { error ->
+                when (error) {
+                    is CreateCustomerError.AlreadyExists -> {
+                        logger.info(
+                            "Customer {} already exists for user {}, event processed idempotently",
+                            error.existingCustomerId,
+                            error.userId
+                        )
+                    }
+                    is CreateCustomerError.Failure -> {
+                        logger.error(
+                            "Failed to create customer for user {}: {}",
+                            event.payload.userId,
+                            error.message,
+                            error.cause
+                        )
+                        throw RuntimeException(error.message, error.cause)
+                    }
+                }
+            },
+            ifRight = { success ->
                 logger.info(
                     "Created customer {} with number {} for user {}",
-                    result.customer.id,
-                    result.customer.customerNumber,
+                    success.customer.id,
+                    success.customer.customerNumber,
                     event.payload.userId
                 )
             }
-
-            is CreateCustomerResult.AlreadyExists -> {
-                logger.info(
-                    "Customer {} already exists for user {}, event processed idempotently",
-                    result.existingCustomerId,
-                    result.userId
-                )
-            }
-
-            is CreateCustomerResult.Failure -> {
-                logger.error(
-                    "Failed to create customer for user {}: {}",
-                    event.payload.userId,
-                    result.message,
-                    result.cause
-                )
-                throw RuntimeException(result.message, result.cause)
-            }
-        }
+        )
 
         // Mark event as processed within same transaction (after successful processing)
         processedEventRepository.save(

@@ -1,5 +1,7 @@
 package com.acme.identity.application
 
+import arrow.core.Either
+import arrow.core.raise.either
 import com.acme.identity.domain.VerificationResendRequest
 import com.acme.identity.domain.VerificationToken
 import com.acme.identity.domain.events.UserRegistered
@@ -20,43 +22,37 @@ import java.time.Instant
 import java.util.UUID
 
 /**
- * Sealed class representing the possible outcomes of resending verification email.
+ * Sealed interface representing possible resend verification errors.
  *
- * Using a sealed class allows exhaustive when-expressions and provides
- * type-safe error handling without exceptions for expected failure cases.
+ * Using Arrow's Either with a sealed error hierarchy provides type-safe
+ * error handling with exhaustive pattern matching.
  */
-sealed class ResendVerificationResult {
-    /**
-     * Resend request processed successfully.
-     *
-     * Note: For security reasons, this is returned even if the email doesn't exist.
-     *
-     * @property message A human-readable success message.
-     * @property requestsRemaining Number of resend requests remaining.
-     */
-    data class Success(
-        val message: String,
-        val requestsRemaining: Int
-    ) : ResendVerificationResult()
-
+sealed interface ResendError {
     /**
      * Resend failed because the rate limit was exceeded.
      *
-     * @property message A human-readable error message.
      * @property retryAfter When the rate limit will reset.
      */
-    data class RateLimited(
-        val message: String,
-        val retryAfter: Instant
-    ) : ResendVerificationResult()
+    data class RateLimited(val retryAfter: Instant) : ResendError
 
     /**
      * Resend failed due to an unexpected error.
      *
      * @property message A human-readable error message.
      */
-    data class Error(val message: String) : ResendVerificationResult()
+    data class InternalError(val message: String) : ResendError
 }
+
+/**
+ * Response data for successful resend verification.
+ *
+ * @property message A human-readable success message.
+ * @property requestsRemaining Number of resend requests remaining.
+ */
+data class ResendSuccess(
+    val message: String,
+    val requestsRemaining: Int
+)
 
 /**
  * Application service implementing the resend verification email use case.
@@ -105,126 +101,103 @@ class ResendVerificationUseCase(
      * @param email The email address to resend verification to.
      * @param ipAddress The IP address of the requester (for rate limiting).
      * @param correlationId Unique ID for distributed tracing.
-     * @return [ResendVerificationResult] indicating success or failure.
+     * @return [Either] containing either a [ResendError] or [ResendSuccess].
      */
     @Transactional
     fun execute(
         email: String,
         ipAddress: String? = null,
         correlationId: UUID = UUID.randomUUID()
-    ): ResendVerificationResult {
-        return resendTimer.record<ResendVerificationResult> {
-            try {
-                executeInternal(email, ipAddress, correlationId)
-            } catch (e: Exception) {
-                logger.error("Resend verification failed for email: {}", email, e)
-                incrementResendCounter("error")
-                ResendVerificationResult.Error("Failed to process request. Please try again later.")
-            }
-        } ?: ResendVerificationResult.Error("Resend failed: unexpected null result")
-    }
+    ): Either<ResendError, ResendSuccess> {
+        return resendTimer.record<Either<ResendError, ResendSuccess>> {
+            either {
+                val normalizedEmail = email.lowercase()
 
-    /**
-     * Internal implementation of the resend logic.
-     *
-     * @param email The email address.
-     * @param ipAddress The IP address of the requester.
-     * @param correlationId The correlation ID for tracing.
-     * @return The resend result.
-     */
-    private fun executeInternal(
-        email: String,
-        ipAddress: String?,
-        correlationId: UUID
-    ): ResendVerificationResult {
-        val normalizedEmail = email.lowercase()
+                // Check rate limit first
+                when (val rateLimitResult = verificationRateLimiter.checkRateLimit(normalizedEmail)) {
+                    is RateLimitResult.Exceeded -> {
+                        logger.info("Rate limit exceeded for resend verification: {}", normalizedEmail)
+                        incrementResendCounter("rate_limited")
+                        meterRegistry.counter("rate_limit_exceeded_total", "type", "resend_verification").increment()
+                        raise(ResendError.RateLimited(retryAfter = rateLimitResult.retryAfter))
+                    }
+                    is RateLimitResult.Allowed -> {
+                        // Continue processing
+                    }
+                }
 
-        // Check rate limit first
-        when (val rateLimitResult = verificationRateLimiter.checkRateLimit(normalizedEmail)) {
-            is RateLimitResult.Exceeded -> {
-                logger.info("Rate limit exceeded for resend verification: {}", normalizedEmail)
-                incrementResendCounter("rate_limited")
-                meterRegistry.counter("rate_limit_exceeded_total", "type", "resend_verification").increment()
-                return ResendVerificationResult.RateLimited(
-                    message = "Too many requests. Please try again later.",
-                    retryAfter = rateLimitResult.retryAfter
+                // Record the resend request for rate limiting
+                val resendRequest = VerificationResendRequest(
+                    id = UUID.randomUUID(),
+                    email = normalizedEmail,
+                    ipAddress = ipAddress
+                )
+                resendRequestRepository.save(resendRequest)
+
+                // Get remaining requests after recording this one
+                val (remaining, _) = verificationRateLimiter.getRateLimitInfo(normalizedEmail)
+
+                // Find user - but don't reveal if user doesn't exist
+                val user = userRepository.findByEmail(normalizedEmail)
+
+                if (user == null) {
+                    logger.debug("Resend request for non-existent email: {}", normalizedEmail)
+                    // Return success to prevent email enumeration
+                    incrementResendCounter("success")
+                    return@either ResendSuccess(
+                        message = "If an account exists with this email, a verification link has been sent.",
+                        requestsRemaining = remaining
+                    )
+                }
+
+                // Check if user is already verified
+                if (user.emailVerified || user.isActive()) {
+                    logger.debug("Resend request for already-verified user: {}", user.id)
+                    // Return success to prevent information leakage
+                    incrementResendCounter("success")
+                    return@either ResendSuccess(
+                        message = "If an account exists with this email, a verification link has been sent.",
+                        requestsRemaining = remaining
+                    )
+                }
+
+                // Generate new verification token
+                val verificationToken = VerificationToken(
+                    id = UUID.randomUUID(),
+                    userId = user.id,
+                    token = verificationTokenGenerator.generate(),
+                    expiresAt = verificationTokenGenerator.calculateExpiration()
+                )
+                verificationTokenRepository.save(verificationToken)
+
+                // Create UserRegistered event (notification service listens for this)
+                val event = UserRegistered.create(
+                    userId = user.id,
+                    email = user.email,
+                    firstName = user.firstName,
+                    lastName = user.lastName,
+                    tosAcceptedAt = user.tosAcceptedAt,
+                    marketingOptIn = user.marketingOptIn,
+                    registrationSource = user.registrationSource,
+                    verificationToken = verificationToken.token,
+                    correlationId = correlationId
+                )
+
+                // Persist to event store
+                eventStoreRepository.append(event)
+
+                // Publish event to trigger notification
+                userEventPublisher.publish(event)
+
+                logger.info("Resend verification email triggered for user: {}", user.id)
+                incrementResendCounter("success")
+
+                ResendSuccess(
+                    message = "If an account exists with this email, a verification link has been sent.",
+                    requestsRemaining = remaining
                 )
             }
-            is RateLimitResult.Allowed -> {
-                // Continue processing
-            }
-        }
-
-        // Record the resend request for rate limiting
-        val resendRequest = VerificationResendRequest(
-            id = UUID.randomUUID(),
-            email = normalizedEmail,
-            ipAddress = ipAddress
-        )
-        resendRequestRepository.save(resendRequest)
-
-        // Get remaining requests after recording this one
-        val (remaining, _) = verificationRateLimiter.getRateLimitInfo(normalizedEmail)
-
-        // Find user - but don't reveal if user doesn't exist
-        val user = userRepository.findByEmail(normalizedEmail)
-
-        if (user == null) {
-            logger.debug("Resend request for non-existent email: {}", normalizedEmail)
-            // Return success to prevent email enumeration
-            incrementResendCounter("success")
-            return ResendVerificationResult.Success(
-                message = "If an account exists with this email, a verification link has been sent.",
-                requestsRemaining = remaining
-            )
-        }
-
-        // Check if user is already verified
-        if (user.emailVerified || user.isActive()) {
-            logger.debug("Resend request for already-verified user: {}", user.id)
-            // Return success to prevent information leakage
-            incrementResendCounter("success")
-            return ResendVerificationResult.Success(
-                message = "If an account exists with this email, a verification link has been sent.",
-                requestsRemaining = remaining
-            )
-        }
-
-        // Generate new verification token
-        val verificationToken = VerificationToken(
-            id = UUID.randomUUID(),
-            userId = user.id,
-            token = verificationTokenGenerator.generate(),
-            expiresAt = verificationTokenGenerator.calculateExpiration()
-        )
-        verificationTokenRepository.save(verificationToken)
-
-        // Create UserRegistered event (notification service listens for this)
-        val event = UserRegistered.create(
-            userId = user.id,
-            email = user.email,
-            firstName = user.firstName,
-            lastName = user.lastName,
-            tosAcceptedAt = user.tosAcceptedAt,
-            marketingOptIn = user.marketingOptIn,
-            registrationSource = user.registrationSource,
-            verificationToken = verificationToken.token,
-            correlationId = correlationId
-        )
-
-        // Persist to event store
-        eventStoreRepository.append(event)
-
-        // Publish event to trigger notification
-        userEventPublisher.publish(event)
-
-        logger.info("Resend verification email triggered for user: {}", user.id)
-        incrementResendCounter("success")
-
-        return ResendVerificationResult.Success(
-            message = "If an account exists with this email, a verification link has been sent.",
-            requestsRemaining = remaining
-        )
+        } ?: Either.Left(ResendError.InternalError("Resend failed: unexpected null result"))
     }
 
     /**

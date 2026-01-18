@@ -64,6 +64,7 @@ Grafana Tempo (since v2.8.0) and Loki use Google's distroless base container ima
 - Spring Actuator health check endpoints
 - REST endpoints
 - Kafka for messaging
+- Arrow Kotlin for typed error handling
 - JUnit 6 and Mockito for unit testing
 - Use KDoc comments throughout the code
 
@@ -106,6 +107,130 @@ Caffeine is a high-performance, near-optimal caching library for Java/Kotlin app
 - Integrate cache metrics with Micrometer for observability
 - Consider write-behind patterns for cache-aside with database writes
 - Size caches based on memory constraints and access patterns
+
+### Arrow Kotlin for typed error handling
+
+Arrow is a functional programming library for Kotlin that provides type-safe error handling and other functional patterns.
+
+**Dependencies (all backend services):**
+
+```kotlin
+dependencies {
+    // Arrow Core - Either, Option, Raise DSL
+    implementation("io.arrow-kt:arrow-core:2.1.0")
+
+    // Arrow Fx Coroutines - resilience, parallel ops
+    implementation("io.arrow-kt:arrow-fx-coroutines:2.1.0")
+
+    // Arrow Core Serialization - Jackson integration
+    implementation("io.arrow-kt:arrow-core-serialization:2.1.0")
+}
+```
+
+**Error handling pattern:**
+
+Use `Either<Error, Success>` instead of custom sealed Result classes:
+
+```kotlin
+// Define error hierarchy as sealed interface
+sealed interface RegistrationError {
+    data class DuplicateEmail(val email: String) : RegistrationError
+    data class ValidationError(val message: String) : RegistrationError
+}
+
+// Use case returns Either
+fun execute(request: RegisterUserRequest): Either<RegistrationError, RegisterUserResponse> {
+    return either {
+        // ensure() raises error if condition is false
+        ensure(!userRepository.existsByEmail(request.email)) {
+            RegistrationError.DuplicateEmail(request.email)
+        }
+
+        // ensureNotNull() raises error if value is null
+        val user = ensureNotNull(userRepository.findById(id)) {
+            RegistrationError.ValidationError("User not found")
+        }
+
+        // Return success value
+        RegisterUserResponse(userId = user.id)
+    }
+}
+```
+
+**Controller integration:**
+
+Use `.fold()` to handle Either results in controllers:
+
+```kotlin
+@PostMapping("/register")
+fun register(@RequestBody request: RegisterUserRequest): ResponseEntity<*> {
+    return registerUserUseCase.execute(request).fold(
+        ifLeft = { error ->
+            when (error) {
+                is RegistrationError.DuplicateEmail ->
+                    ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponse(error.email))
+                is RegistrationError.ValidationError ->
+                    ResponseEntity.badRequest().body(ErrorResponse(error.message))
+            }
+        },
+        ifRight = { response ->
+            ResponseEntity.status(HttpStatus.CREATED).body(response)
+        }
+    )
+}
+```
+
+**Event handler integration:**
+
+```kotlin
+activateCustomerUseCase.execute(userId, activatedAt).fold(
+    ifLeft = { error ->
+        when (error) {
+            is ActivateCustomerError.AlreadyActive -> logger.info("Already active")
+            is ActivateCustomerError.CustomerNotFound -> throw RuntimeException("Not found")
+            is ActivateCustomerError.Failure -> throw RuntimeException(error.message)
+        }
+    },
+    ifRight = { success ->
+        logger.info("Activated customer: ${success.customer.id}")
+    }
+)
+```
+
+**Testing pattern:**
+
+```kotlin
+@Test
+fun `should return success`() {
+    val result = useCase.execute(request)
+
+    assertTrue(result.isRight())
+    val success = result.getOrElse { fail("Expected success") }
+    assertEquals(expectedId, success.userId)
+}
+
+@Test
+fun `should return error for duplicate`() {
+    val result = useCase.execute(duplicateRequest)
+
+    assertTrue(result.isLeft())
+    result.fold(
+        ifLeft = { error ->
+            assertIs<RegistrationError.DuplicateEmail>(error)
+            assertEquals(email, error.email)
+        },
+        ifRight = { fail("Expected error") }
+    )
+}
+```
+
+**Best practices:**
+
+- Define error types as sealed interfaces for exhaustive when expressions
+- Use `ensure()` and `ensureNotNull()` inside `either { }` blocks for validation
+- Return `Error.left()` and `Success.right()` when not using the DSL
+- Use `.fold()` in controllers for type-safe response mapping
+- Prefer `Either` over exceptions for expected business errors
 
 ### Spring Boot 4 Breaking Changes
 

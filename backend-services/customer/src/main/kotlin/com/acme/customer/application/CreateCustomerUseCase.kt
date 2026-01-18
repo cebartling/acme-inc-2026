@@ -1,5 +1,8 @@
 package com.acme.customer.application
 
+import arrow.core.Either
+import arrow.core.left
+import arrow.core.right
 import com.acme.customer.domain.Customer
 import com.acme.customer.domain.CustomerNumber
 import com.acme.customer.domain.CustomerPreferences
@@ -101,10 +104,10 @@ class CreateCustomerUseCase(
                     userId
                 )
                 customerExistsCounter.increment()
-                return@record CreateCustomerResult.AlreadyExists(
+                return@record CreateCustomerError.AlreadyExists(
                     userId = userId,
                     existingCustomerId = existingCustomer.id
-                )
+                ).left()
             }
 
             try {
@@ -173,20 +176,20 @@ class CreateCustomerUseCase(
                 // Wait for projection to complete, then write to outbox
                 // This ensures consistency between write model (PostgreSQL) and read model (MongoDB)
                 val projectionFuture = customerReadModelProjector.projectCustomer(customer, preferences)
-                
+
                 // Wait for projection to complete before writing to outbox
                 projectionFuture.join()
-                
+
                 // Write to outbox within the transaction
                 // The OutboxRelay will publish asynchronously, decoupled from this transaction
                 outboxWriter.write(event, CustomerRegistered.TOPIC)
 
                 customerCreatedCounter.increment()
 
-                CreateCustomerResult.Success(
+                CreateCustomerSuccess(
                     customer = customer,
                     preferences = preferences
-                )
+                ).right()
             } catch (e: DataIntegrityViolationException) {
                 // Handle race condition: another instance created the customer between our check and save
                 // The transaction has already rolled back at this point, so we're outside the transaction scope
@@ -195,7 +198,7 @@ class CreateCustomerUseCase(
                     userId,
                     e
                 )
-                
+
                 // Re-check if customer exists after constraint violation
                 // Note: This is a best-effort check outside the transaction scope.
                 // If another instance created the customer, we should find it here.
@@ -206,10 +209,10 @@ class CreateCustomerUseCase(
                         userId
                     )
                     customerExistsCounter.increment()
-                    return@record CreateCustomerResult.AlreadyExists(
+                    return@record CreateCustomerError.AlreadyExists(
                         userId = userId,
                         existingCustomerId = existingCustomer.id
-                    )
+                    ).left()
                 } ?: run {
                     // Constraint violation but customer still doesn't exist - unexpected
                     logger.error(
@@ -217,10 +220,10 @@ class CreateCustomerUseCase(
                         userId,
                         e
                     )
-                    return@record CreateCustomerResult.Failure(
+                    return@record CreateCustomerError.Failure(
                         message = "Database constraint violation: ${e.message}",
                         cause = e
-                    )
+                    ).left()
                 }
             } catch (e: Exception) {
                 logger.error(
@@ -229,10 +232,10 @@ class CreateCustomerUseCase(
                     e.message,
                     e
                 )
-                CreateCustomerResult.Failure(
+                CreateCustomerError.Failure(
                     message = "Failed to create customer: ${e.message}",
                     cause = e
-                )
+                ).left()
             }
         }!!
     }

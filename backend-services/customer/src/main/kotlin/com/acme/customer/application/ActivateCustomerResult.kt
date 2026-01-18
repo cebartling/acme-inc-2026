@@ -1,25 +1,16 @@
 package com.acme.customer.application
 
+import arrow.core.Either
 import com.acme.customer.domain.Customer
 import java.util.UUID
 
 /**
- * Sealed class representing the result of a customer activation operation.
+ * Sealed interface representing possible customer activation errors.
  *
- * Using a sealed class enables exhaustive when-expressions and
- * type-safe handling of all possible outcomes.
+ * Using Arrow's Either with a sealed error hierarchy provides type-safe
+ * error handling with exhaustive pattern matching.
  */
-sealed class ActivateCustomerResult {
-
-    /**
-     * Customer was successfully activated.
-     *
-     * @property customer The activated customer.
-     */
-    data class Success(
-        val customer: Customer
-    ) : ActivateCustomerResult()
-
+sealed interface ActivateCustomerError {
     /**
      * The customer is already active.
      *
@@ -29,7 +20,7 @@ sealed class ActivateCustomerResult {
      */
     data class AlreadyActive(
         val customerId: UUID
-    ) : ActivateCustomerResult()
+    ) : ActivateCustomerError
 
     /**
      * No customer was found for the given user ID.
@@ -38,7 +29,7 @@ sealed class ActivateCustomerResult {
      */
     data class CustomerNotFound(
         val userId: UUID
-    ) : ActivateCustomerResult()
+    ) : ActivateCustomerError
 
     /**
      * The operation failed due to an error.
@@ -49,5 +40,19 @@ sealed class ActivateCustomerResult {
     data class Failure(
         val message: String,
         val cause: Throwable? = null
-    ) : ActivateCustomerResult()
+    ) : ActivateCustomerError
 }
+
+/**
+ * Response data for successful customer activation.
+ *
+ * @property customer The activated customer.
+ */
+data class ActivateCustomerSuccess(
+    val customer: Customer
+)
+
+/**
+ * Type alias for the customer activation result using Arrow's Either.
+ */
+typealias ActivateCustomerResult = Either<ActivateCustomerError, ActivateCustomerSuccess>

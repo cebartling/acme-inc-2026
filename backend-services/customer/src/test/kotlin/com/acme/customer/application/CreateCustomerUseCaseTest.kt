@@ -1,5 +1,6 @@
 package com.acme.customer.application
 
+import arrow.core.getOrElse
 import com.acme.customer.domain.Customer
 import com.acme.customer.domain.CustomerPreferences
 import com.acme.customer.infrastructure.messaging.OutboxWriter
@@ -18,7 +19,9 @@ import java.time.YearMonth
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertTrue
+import kotlin.test.fail
 
 class CreateCustomerUseCaseTest {
 
@@ -88,8 +91,8 @@ class CreateCustomerUseCaseTest {
         )
 
         // Then
-        assertTrue(result is CreateCustomerResult.Success)
-        val success = result as CreateCustomerResult.Success
+        assertTrue(result.isRight())
+        val success = result.getOrElse { fail("Expected success but got error") }
         assertEquals(customerId, success.customer.id)
         assertEquals(userId, success.customer.userId)
         assertEquals(email, success.customer.email)
@@ -131,10 +134,15 @@ class CreateCustomerUseCaseTest {
         )
 
         // Then
-        assertTrue(result is CreateCustomerResult.AlreadyExists)
-        val alreadyExists = result as CreateCustomerResult.AlreadyExists
-        assertEquals(userId, alreadyExists.userId)
-        assertEquals(existingCustomerId, alreadyExists.existingCustomerId)
+        assertTrue(result.isLeft())
+        result.fold(
+            ifLeft = { error ->
+                assertIs<CreateCustomerError.AlreadyExists>(error)
+                assertEquals(userId, error.userId)
+                assertEquals(existingCustomerId, error.existingCustomerId)
+            },
+            ifRight = { fail("Expected error but got success") }
+        )
 
         // Verify no customer creation occurred
         verify(exactly = 0) { customerIdGenerator.generate() }
@@ -228,9 +236,14 @@ class CreateCustomerUseCaseTest {
         )
 
         // Then
-        assertTrue(result is CreateCustomerResult.Failure)
-        val failure = result as CreateCustomerResult.Failure
-        assertTrue(failure.message.contains("Database error"))
+        assertTrue(result.isLeft())
+        result.fold(
+            ifLeft = { error ->
+                assertIs<CreateCustomerError.Failure>(error)
+                assertTrue(error.message.contains("Database error"))
+            },
+            ifRight = { fail("Expected error but got success") }
+        )
     }
 
     @Test
@@ -252,9 +265,9 @@ class CreateCustomerUseCaseTest {
         every { eventStoreRepository.append(any()) } just Runs
         every { customerRepository.save(any()) } answers { firstArg() }
         every { customerPreferencesRepository.save(any()) } answers { firstArg() }
-        
+
         // MongoDB projection fails
-        every { customerReadModelProjector.projectCustomer(any(), any()) } returns 
+        every { customerReadModelProjector.projectCustomer(any(), any()) } returns
             CompletableFuture.failedFuture(RuntimeException("MongoDB connection failed"))
 
         // When
@@ -270,9 +283,14 @@ class CreateCustomerUseCaseTest {
         )
 
         // Then - transaction should fail and return Failure result
-        assertTrue(result is CreateCustomerResult.Failure)
-        val failure = result as CreateCustomerResult.Failure
-        assertTrue(failure.message.contains("MongoDB connection failed"))
+        assertTrue(result.isLeft())
+        result.fold(
+            ifLeft = { error ->
+                assertIs<CreateCustomerError.Failure>(error)
+                assertTrue(error.message.contains("MongoDB connection failed"))
+            },
+            ifRight = { fail("Expected error but got success") }
+        )
     }
 
     @Test
@@ -295,7 +313,7 @@ class CreateCustomerUseCaseTest {
         every { customerRepository.save(any()) } answers { firstArg() }
         every { customerPreferencesRepository.save(any()) } answers { firstArg() }
         every { customerReadModelProjector.projectCustomer(any(), any()) } returns CompletableFuture.completedFuture(null)
-        
+
         // Outbox write fails
         every { outboxWriter.write(any(), any()) } throws RuntimeException("Database constraint violation")
 
@@ -312,8 +330,13 @@ class CreateCustomerUseCaseTest {
         )
 
         // Then - transaction should fail and return Failure result
-        assertTrue(result is CreateCustomerResult.Failure)
-        val failure = result as CreateCustomerResult.Failure
-        assertTrue(failure.message.contains("Database constraint violation"))
+        assertTrue(result.isLeft())
+        result.fold(
+            ifLeft = { error ->
+                assertIs<CreateCustomerError.Failure>(error)
+                assertTrue(error.message.contains("Database constraint violation"))
+            },
+            ifRight = { fail("Expected error but got success") }
+        )
     }
 }
