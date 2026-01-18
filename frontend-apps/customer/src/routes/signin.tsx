@@ -41,6 +41,14 @@ function SigninPage() {
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
       // TODO: Replace with actual API response
+      // Simulate invalid credentials for testing error handling
+      if (
+        data.email === "invalid@example.com" ||
+        data.password === "wrongpassword"
+      ) {
+        throw new Error("Invalid credentials");
+      }
+
       // For now, simulate successful signin
       setUser({
         userId: "user_123",

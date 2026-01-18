@@ -16,6 +16,8 @@ Given('I am on the signin page', async function (this: CustomWorld) {
 When('I enter signin email {string}', async function (this: CustomWorld, email: string) {
   const signinPage = new SigninPage(this.page);
   await signinPage.fillEmail(email);
+  // Blur to trigger onBlur validation
+  await signinPage.blurEmail();
 });
 
 When('I leave the signin email field empty', async function (this: CustomWorld) {
@@ -44,6 +46,8 @@ Then('I should see a success indicator on the signin email field', async functio
 When('I enter signin password {string}', async function (this: CustomWorld, password: string) {
   const signinPage = new SigninPage(this.page);
   await signinPage.fillPassword(password);
+  // Blur to trigger onBlur validation
+  await signinPage.blurPassword();
 });
 
 When('I leave the signin password field empty', async function (this: CustomWorld) {
