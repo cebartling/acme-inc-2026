@@ -35,4 +35,13 @@ interface VerificationTokenRepository : JpaRepository<VerificationToken, UUID> {
      * @return List of all tokens for this user.
      */
     fun findByUserId(userId: UUID): List<VerificationToken>
+
+    /**
+     * Deletes all verification tokens for a specific user.
+     *
+     * Used for test cleanup when deleting a user.
+     *
+     * @param userId The ID of the user.
+     */
+    fun deleteByUserId(userId: UUID)
 }

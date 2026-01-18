@@ -1,9 +1,12 @@
 package com.acme.identity.api.v1
 
+import com.acme.identity.infrastructure.persistence.UserRepository
 import com.acme.identity.infrastructure.persistence.VerificationTokenRepository
 import org.slf4j.LoggerFactory
 import org.springframework.context.annotation.Profile
 import org.springframework.http.ResponseEntity
+import org.springframework.transaction.annotation.Transactional
+import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RequestMapping
@@ -23,7 +26,8 @@ import java.util.UUID
 @RequestMapping("/api/v1/test")
 @Profile("test", "docker")
 class TestController(
-    private val verificationTokenRepository: VerificationTokenRepository
+    private val verificationTokenRepository: VerificationTokenRepository,
+    private val userRepository: UserRepository
 ) {
     private val logger = LoggerFactory.getLogger(TestController::class.java)
 
@@ -61,6 +65,35 @@ class TestController(
             )
         } else {
             logger.debug("No active verification token found for user {}", userId)
+            ResponseEntity.notFound().build()
+        }
+    }
+
+    /**
+     * Deletes a user by email address.
+     *
+     * This endpoint is intended for acceptance testing to allow tests to
+     * clean up users before recreating them with specific credentials.
+     *
+     * @param email The email address of the user to delete.
+     * @return 204 No Content on success, 404 if user not found.
+     */
+    @DeleteMapping("/users/by-email/{email}")
+    @Transactional
+    fun deleteUserByEmail(@PathVariable email: String): ResponseEntity<Void> {
+        logger.debug("Test endpoint: Deleting user by email {}", email)
+
+        val user = userRepository.findByEmail(email.lowercase())
+
+        return if (user != null) {
+            // Delete verification tokens first (foreign key constraint)
+            verificationTokenRepository.deleteByUserId(user.id)
+            // Delete the user
+            userRepository.delete(user)
+            logger.info("Deleted user {} with email {}", user.id, email)
+            ResponseEntity.noContent().build()
+        } else {
+            logger.debug("No user found with email {}", email)
             ResponseEntity.notFound().build()
         }
     }

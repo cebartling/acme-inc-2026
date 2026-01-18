@@ -121,6 +121,25 @@ async function createTestUser(
   return userId;
 }
 
+/**
+ * Helper to delete a user by email (for test cleanup/reset)
+ * Uses direct database access via test endpoint
+ */
+async function deleteUserByEmail(world: CustomWorld, email: string): Promise<void> {
+  try {
+    // Use test endpoint to delete user by email
+    const response = await world.identityApiClient.delete<void>(
+      `/api/v1/test/users/by-email/${encodeURIComponent(email)}`
+    );
+    // Ignore 404 - user doesn't exist, which is fine
+    if (response.status !== 200 && response.status !== 204 && response.status !== 404) {
+      console.warn(`Failed to delete user ${email}: ${response.status}`);
+    }
+  } catch {
+    // Ignore errors - user might not exist
+  }
+}
+
 // ============================================================================
 // GIVEN Steps
 // ============================================================================
@@ -132,6 +151,11 @@ Given(
     // For API tests that don't need a specific email, make it unique to avoid conflicts
     const isExactEmailNeeded = email.includes('customer@') || email.includes('user@');
     const targetEmail = isExactEmailNeeded ? email : makeUniqueEmail(email);
+
+    // For exact email matches, delete existing user first to ensure correct password
+    if (isExactEmailNeeded) {
+      await deleteUserByEmail(this, targetEmail);
+    }
 
     // createTestUser handles 409 conflicts internally
     await createTestUser(this, targetEmail, password, { status: 'ACTIVE' });
