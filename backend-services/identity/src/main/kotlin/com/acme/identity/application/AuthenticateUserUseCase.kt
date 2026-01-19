@@ -247,7 +247,8 @@ class AuthenticateUserUseCase(
                         // Lock the account
                         val lockoutDuration = Duration.ofMinutes(lockoutDurationMinutes)
                         user.lock(lockoutDuration)
-                        val lockedUntilTime = user.lockedUntil ?: Instant.now().plus(lockoutDuration)
+                        // user.lockedUntil is guaranteed non-null after lock() sets it
+                        val lockedUntilTime = user.lockedUntil!!
                         userRepository.save(user)
 
                         // Publish failed authentication event
