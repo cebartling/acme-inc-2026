@@ -192,6 +192,7 @@ Given(
       await this.identityApiClient.post('/api/v1/auth/signin', {
         email,
         password: 'WrongPassword' + i,
+        rememberMe: false,
       });
     }
 
@@ -274,6 +275,7 @@ When('I submit another signin request', async function (this: CustomWorld) {
   const request: SigninRequest = {
     email,
     password: 'SomePassword123!',
+    rememberMe: false,
   };
 
   const response = await this.identityApiClient.post<SigninResponse | SigninErrorResponse>(
@@ -308,6 +310,7 @@ When(
     const request: SigninRequest = {
       email,
       password: data.password,
+      rememberMe: false,
     };
 
     const headers: Record<string, string> = {};
@@ -428,6 +431,7 @@ When(
       const request: SigninRequest = {
         email: testUserEmail,
         password: `WrongPassword${i}!`,
+        rememberMe: false,
       };
 
       lastResponse = await this.identityApiClient.post<SigninResponse | SigninErrorResponse>(
@@ -455,6 +459,7 @@ Given(
         {
           email: testUserEmail,
           password: `WrongPassword${i}!`,
+          rememberMe: false,
         }
       );
     }

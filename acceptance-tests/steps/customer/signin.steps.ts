@@ -147,6 +147,16 @@ Given('the signin API will return an error', async function (this: CustomWorld) 
 
 When('I submit the signin form', async function (this: CustomWorld) {
   const signinPage = new SigninPage(this.page);
+  // Wait for submit button to be enabled (form validation complete)
+  await this.page.waitForFunction(
+    () => {
+      const btn = document.querySelector('button[type="submit"], button:has-text("Sign In")');
+      return btn && !btn.hasAttribute('disabled');
+    },
+    { timeout: 5000 }
+  ).catch(() => {
+    // Button might still be disabled, try anyway
+  });
   await signinPage.submitForm();
 });
 
@@ -174,24 +184,43 @@ When(
     const testUserEmail = this.getTestData<string>('testUserEmail') || email;
 
     for (let i = 0; i < times; i++) {
-      // Fill in the form
+      // Clear and fill email field
+      await signinPage.emailInput.clear();
       await signinPage.fillEmail(testUserEmail);
+
+      // Clear and fill password field
+      await signinPage.passwordInput.clear();
       await signinPage.fillPassword(`WrongPassword${i}!`);
 
+      // Blur to trigger validation
+      await signinPage.passwordInput.blur();
+
+      // Wait for submit button to be enabled
+      await signinPage.submitButton.waitFor({ state: 'attached', timeout: 5000 });
+      await this.page.waitForFunction(
+        (selector) => {
+          const btn = document.querySelector(selector);
+          return btn && !btn.hasAttribute('disabled');
+        },
+        'button:has-text("Sign In")',
+        { timeout: 5000 }
+      ).catch(() => {
+        // Button might already be enabled or we hit lockout
+      });
+
+      // Check if we got locked out
+      const lockoutMessage = this.page.getByTestId('lockout-message');
+      const isLocked = await lockoutMessage.isVisible().catch(() => false);
+      if (isLocked) {
+        break;
+      }
+
       // Submit the form
-      await signinPage.submitForm();
-
-      // Wait for the response - either error message or lockout message
-      await this.page.waitForTimeout(1000);
-
-      // If not the last attempt, clear the form for the next attempt
-      if (i < times - 1) {
-        // Check if we got locked out early
-        const lockoutMessage = this.page.getByTestId('lockout-message');
-        const isLocked = await lockoutMessage.isVisible().catch(() => false);
-        if (isLocked) {
-          break;
-        }
+      const isEnabled = await signinPage.submitButton.isEnabled().catch(() => false);
+      if (isEnabled) {
+        await signinPage.submitForm();
+        // Wait for response
+        await this.page.waitForTimeout(500);
       }
     }
   }
@@ -233,4 +262,6 @@ When('I fill in the signin form with:', async function (this: CustomWorld, dataT
 
   await signinPage.fillEmail(email);
   await signinPage.fillPassword(data.password);
+  // Blur to trigger form validation
+  await signinPage.passwordInput.blur();
 });
