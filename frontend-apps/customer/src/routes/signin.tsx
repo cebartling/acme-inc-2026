@@ -103,7 +103,7 @@ function SigninPage() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [lockout?.isLocked, lockout?.remainingSeconds]);
+  }, [lockout?.isLocked, lockout?.lockedUntil]);
 
   const handleSubmit = async (data: SigninFormData) => {
     setError(undefined);
