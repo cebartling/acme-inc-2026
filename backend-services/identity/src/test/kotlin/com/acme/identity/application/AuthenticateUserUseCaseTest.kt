@@ -507,6 +507,43 @@ class AuthenticateUserUseCaseTest {
     }
 
     @Test
+    fun `execute should NOT lock account after 4 failed attempts`() {
+        // Given - user has 3 previous failed attempts, this will be the 4th
+        val request = createValidRequest()
+        val context = createContext()
+        val user = createActiveUser().apply { failedAttempts = 3 }
+
+        every { userRepository.findByEmail(testEmail) } returns user
+        every { passwordHasher.verify(testPassword, user.passwordHash) } returns false
+        every { userRepository.save(any()) } answers { firstArg() }
+        every { eventStoreRepository.append(any()) } just Runs
+        every { userEventPublisher.publishAuthenticationFailed(any()) } returns CompletableFuture.completedFuture(null)
+
+        // When
+        val result = authenticateUserUseCase.execute(request, context)
+
+        // Then - should return InvalidCredentials, NOT AccountLocked
+        assertTrue(result.isLeft())
+        result.fold(
+            ifLeft = { error ->
+                assertIs<AuthenticationError.InvalidCredentials>(error)
+                assertEquals(1, error.remainingAttempts) // 5 max - 4 failed = 1 remaining
+            },
+            ifRight = { fail("Expected error but got success") }
+        )
+
+        // Verify user was NOT locked (status should still be ACTIVE)
+        val savedUser = slot<User>()
+        verify { userRepository.save(capture(savedUser)) }
+        assertEquals(UserStatus.ACTIVE, savedUser.captured.status)
+        assertEquals(null, savedUser.captured.lockedUntil)
+        assertEquals(4, savedUser.captured.failedAttempts)
+
+        // Verify AccountLocked event was NOT published
+        verify(exactly = 0) { userEventPublisher.publishAccountLocked(any()) }
+    }
+
+    @Test
     fun `execute should publish AccountLocked event when lockout triggers`() {
         // Given
         val request = createValidRequest()
