@@ -16,6 +16,7 @@ import com.acme.identity.domain.events.AuthenticationFailed
 import com.acme.identity.domain.events.AuthenticationFailureReason
 import com.acme.identity.domain.events.AuthenticationSucceeded
 import java.time.Duration
+import java.time.Instant
 import com.acme.identity.infrastructure.messaging.UserEventPublisher
 import com.acme.identity.infrastructure.persistence.EventStoreRepository
 import com.acme.identity.infrastructure.persistence.UserRepository
@@ -191,7 +192,7 @@ class AuthenticateUserUseCase(
                 if (user.isLocked()) {
                     // Check if lockout has expired
                     val lockedUntil = user.lockedUntil
-                    if (lockedUntil != null && lockedUntil.isBefore(java.time.Instant.now())) {
+                    if (lockedUntil != null && lockedUntil.isBefore(Instant.now())) {
                         // Lockout has expired - unlock the account
                         user.unlock()
                         userRepository.save(user)
@@ -209,7 +210,7 @@ class AuthenticateUserUseCase(
                     } else {
                         // Account is still locked
                         val lockoutRemainingSeconds = if (lockedUntil != null) {
-                            Duration.between(java.time.Instant.now(), lockedUntil).seconds.coerceAtLeast(0)
+                            Duration.between(Instant.now(), lockedUntil).seconds.coerceAtLeast(0)
                         } else {
                             0L
                         }
@@ -246,7 +247,7 @@ class AuthenticateUserUseCase(
                         // Lock the account
                         val lockoutDuration = Duration.ofMinutes(lockoutDurationMinutes)
                         user.lock(lockoutDuration)
-                        val lockedUntilTime = user.lockedUntil ?: java.time.Instant.now().plus(lockoutDuration)
+                        val lockedUntilTime = user.lockedUntil ?: Instant.now().plus(lockoutDuration)
                         userRepository.save(user)
 
                         // Publish failed authentication event
@@ -474,7 +475,7 @@ class AuthenticateUserUseCase(
     private fun publishLockEvent(
         user: User,
         reason: AccountLockReason,
-        lockedUntil: java.time.Instant,
+        lockedUntil: Instant,
         context: AuthenticationContext
     ) {
         val event = AccountLockedEvent.create(
