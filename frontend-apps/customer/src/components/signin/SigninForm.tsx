@@ -25,9 +25,10 @@ import { signinSchema, type SigninFormData } from "@/schemas/signin.schema";
 export interface SigninFormProps {
   onSubmit: (data: SigninFormData) => Promise<void>;
   error?: string;
+  isDisabled?: boolean;
 }
 
-export function SigninForm({ onSubmit, error }: SigninFormProps) {
+export function SigninForm({ onSubmit, error, isDisabled = false }: SigninFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const {
@@ -95,6 +96,7 @@ export function SigninForm({ onSubmit, error }: SigninFormProps) {
               aria-invalid={!!errors.email}
               aria-describedby={errors.email ? "email-error" : undefined}
               className={errors.email ? "border-red-500" : ""}
+              disabled={isDisabled}
               {...register("email")}
             />
           </FormField>
@@ -113,6 +115,7 @@ export function SigninForm({ onSubmit, error }: SigninFormProps) {
               autoComplete="current-password"
               aria-invalid={!!errors.password}
               error={!!errors.password}
+              disabled={isDisabled}
               {...register("password")}
             />
           </FormField>
@@ -121,6 +124,7 @@ export function SigninForm({ onSubmit, error }: SigninFormProps) {
             <div className="flex items-center space-x-2">
               <Checkbox
                 id="rememberMe"
+                disabled={isDisabled}
                 onCheckedChange={(checked) => {
                   setValue("rememberMe", !!checked, {
                     shouldValidate: true,
@@ -146,7 +150,7 @@ export function SigninForm({ onSubmit, error }: SigninFormProps) {
           <Button
             type="submit"
             className="w-full"
-            disabled={!isValid || isSubmitting}
+            disabled={!isValid || isSubmitting || isDisabled}
           >
             {isSubmitting ? (
               <>

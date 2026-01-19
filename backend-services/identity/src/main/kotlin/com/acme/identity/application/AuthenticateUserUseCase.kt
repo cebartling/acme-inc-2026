@@ -8,9 +8,14 @@ import com.acme.identity.api.v1.dto.SigninRequest
 import com.acme.identity.api.v1.dto.SigninResponse
 import com.acme.identity.domain.User
 import com.acme.identity.domain.UserStatus
+import com.acme.identity.domain.events.AccountLocked as AccountLockedEvent
+import com.acme.identity.domain.events.AccountLockReason
+import com.acme.identity.domain.events.AccountUnlocked as AccountUnlockedEvent
+import com.acme.identity.domain.events.AccountUnlockReason
 import com.acme.identity.domain.events.AuthenticationFailed
 import com.acme.identity.domain.events.AuthenticationFailureReason
 import com.acme.identity.domain.events.AuthenticationSucceeded
+import java.time.Duration
 import com.acme.identity.infrastructure.messaging.UserEventPublisher
 import com.acme.identity.infrastructure.persistence.EventStoreRepository
 import com.acme.identity.infrastructure.persistence.UserRepository
@@ -52,8 +57,12 @@ sealed interface AuthenticationError {
      * Authentication failed because the account is locked.
      *
      * @property lockedUntil ISO-8601 timestamp when the lock expires.
+     * @property lockoutRemainingSeconds Seconds remaining until lockout expires.
      */
-    data class AccountLocked(val lockedUntil: String) : AuthenticationError
+    data class AccountLocked(
+        val lockedUntil: String,
+        val lockoutRemainingSeconds: Long
+    ) : AuthenticationError
 
     /**
      * Authentication failed due to rate limiting.
@@ -112,8 +121,12 @@ class AuthenticateUserUseCase(
     private val meterRegistry: MeterRegistry,
     @Value("\${identity.authentication.max-failed-attempts:5}")
     private val maxFailedAttempts: Int = 5,
+    @Value("\${identity.lockout.lockout-duration-minutes:15}")
+    private val lockoutDurationMinutes: Long = 15,
     @Value("\${identity.support-url:https://www.acme.com/support}")
-    private val supportUrl: String = "https://www.acme.com/support"
+    private val supportUrl: String = "https://www.acme.com/support",
+    @Value("\${identity.password-reset-url:https://www.acme.com/forgot-password}")
+    private val passwordResetUrl: String = "https://www.acme.com/forgot-password"
 ) {
     private val logger = LoggerFactory.getLogger(AuthenticateUserUseCase::class.java)
 
@@ -176,18 +189,45 @@ class AuthenticateUserUseCase(
 
                 // Check if account is locked
                 if (user.isLocked()) {
-                    publishFailedEvent(
-                        userId = user.id,
-                        email = normalizedEmail,
-                        reason = AuthenticationFailureReason.ACCOUNT_LOCKED,
-                        context = context,
-                        failedAttemptCount = user.failedAttempts,
-                        deviceFingerprint = request.deviceFingerprint
-                    )
-                    incrementAuthenticationCounter("account_locked")
-                    raise(AuthenticationError.AccountLocked(
-                        lockedUntil = user.lockedUntil?.toString() ?: ""
-                    ))
+                    // Check if lockout has expired
+                    val lockedUntil = user.lockedUntil
+                    if (lockedUntil != null && lockedUntil.isBefore(java.time.Instant.now())) {
+                        // Lockout has expired - unlock the account
+                        user.unlock()
+                        userRepository.save(user)
+
+                        // Publish AccountUnlocked event
+                        publishUnlockEvent(
+                            user = user,
+                            reason = AccountUnlockReason.LOCKOUT_EXPIRED,
+                            previousLockReason = AccountLockReason.EXCESSIVE_FAILED_ATTEMPTS,
+                            correlationId = context.correlationId
+                        )
+
+                        logger.info("Account lockout expired for user {}, account unlocked", user.id)
+                        incrementAuthenticationCounter("lockout_expired")
+                    } else {
+                        // Account is still locked
+                        val lockoutRemainingSeconds = if (lockedUntil != null) {
+                            Duration.between(java.time.Instant.now(), lockedUntil).seconds.coerceAtLeast(0)
+                        } else {
+                            0L
+                        }
+
+                        publishFailedEvent(
+                            userId = user.id,
+                            email = normalizedEmail,
+                            reason = AuthenticationFailureReason.ACCOUNT_LOCKED,
+                            context = context,
+                            failedAttemptCount = user.failedAttempts,
+                            deviceFingerprint = request.deviceFingerprint
+                        )
+                        incrementAuthenticationCounter("account_locked")
+                        raise(AuthenticationError.AccountLocked(
+                            lockedUntil = lockedUntil?.toString() ?: "",
+                            lockoutRemainingSeconds = lockoutRemainingSeconds
+                        ))
+                    }
                 }
 
                 // Verify password
@@ -198,27 +238,70 @@ class AuthenticateUserUseCase(
                 if (!passwordValid) {
                     // Increment failed attempts
                     user.incrementFailedAttempts()
-                    userRepository.save(user)
 
                     val remainingAttempts = user.remainingAttempts(maxFailedAttempts)
 
-                    publishFailedEvent(
-                        userId = user.id,
-                        email = normalizedEmail,
-                        reason = AuthenticationFailureReason.INVALID_PASSWORD,
-                        context = context,
-                        failedAttemptCount = user.failedAttempts,
-                        deviceFingerprint = request.deviceFingerprint
-                    )
+                    // Check if we should lock the account
+                    if (user.failedAttempts >= maxFailedAttempts) {
+                        // Lock the account
+                        val lockoutDuration = Duration.ofMinutes(lockoutDurationMinutes)
+                        user.lock(lockoutDuration)
+                        val lockedUntilTime = user.lockedUntil ?: java.time.Instant.now().plus(lockoutDuration)
+                        userRepository.save(user)
 
-                    incrementAuthenticationCounter("invalid_credentials")
-                    logger.info(
-                        "Failed authentication attempt for user {} (attempt {})",
-                        user.id,
-                        user.failedAttempts
-                    )
+                        // Publish failed authentication event
+                        publishFailedEvent(
+                            userId = user.id,
+                            email = normalizedEmail,
+                            reason = AuthenticationFailureReason.INVALID_PASSWORD,
+                            context = context,
+                            failedAttemptCount = user.failedAttempts,
+                            deviceFingerprint = request.deviceFingerprint
+                        )
 
-                    raise(AuthenticationError.InvalidCredentials(remainingAttempts = remainingAttempts))
+                        // Publish account locked event
+                        publishLockEvent(
+                            user = user,
+                            reason = AccountLockReason.EXCESSIVE_FAILED_ATTEMPTS,
+                            lockedUntil = lockedUntilTime,
+                            context = context
+                        )
+
+                        incrementAuthenticationCounter("account_locked_triggered")
+                        logger.warn(
+                            "Account locked for user {} after {} failed attempts. Locked until {}",
+                            user.id,
+                            user.failedAttempts,
+                            lockedUntilTime
+                        )
+
+                        raise(AuthenticationError.AccountLocked(
+                            lockedUntil = lockedUntilTime.toString(),
+                            lockoutRemainingSeconds = lockoutDuration.seconds
+                        ))
+                    } else {
+                        // Just save the incremented failed attempts
+                        userRepository.save(user)
+
+                        publishFailedEvent(
+                            userId = user.id,
+                            email = normalizedEmail,
+                            reason = AuthenticationFailureReason.INVALID_PASSWORD,
+                            context = context,
+                            failedAttemptCount = user.failedAttempts,
+                            deviceFingerprint = request.deviceFingerprint
+                        )
+
+                        incrementAuthenticationCounter("invalid_credentials")
+                        logger.info(
+                            "Failed authentication attempt for user {} (attempt {}, {} remaining)",
+                            user.id,
+                            user.failedAttempts,
+                            remainingAttempts
+                        )
+
+                        raise(AuthenticationError.InvalidCredentials(remainingAttempts = remainingAttempts))
+                    }
                 }
 
                 // Check account status
@@ -381,6 +464,59 @@ class AuthenticateUserUseCase(
     private fun getMfaMethods(user: User): List<MfaMethod> {
         // Placeholder - would be retrieved from user's MFA configuration
         return listOf(MfaMethod.TOTP)
+    }
+
+    /**
+     * Publishes an AccountLocked event to the event store and Kafka.
+     *
+     * This triggers the Notification Service to send a lockout email to the customer.
+     */
+    private fun publishLockEvent(
+        user: User,
+        reason: AccountLockReason,
+        lockedUntil: java.time.Instant,
+        context: AuthenticationContext
+    ) {
+        val event = AccountLockedEvent.create(
+            userId = user.id,
+            email = user.email,
+            reason = reason,
+            failedAttemptCount = user.failedAttempts,
+            lockedUntil = lockedUntil,
+            ipAddress = context.ipAddress,
+            userAgent = context.userAgent,
+            correlationId = context.correlationId
+        )
+
+        // Persist to event store first
+        eventStoreRepository.append(event)
+
+        // Publish to Kafka (async) - triggers notification email
+        userEventPublisher.publishAccountLocked(event)
+    }
+
+    /**
+     * Publishes an AccountUnlocked event to the event store and Kafka.
+     */
+    private fun publishUnlockEvent(
+        user: User,
+        reason: AccountUnlockReason,
+        previousLockReason: AccountLockReason?,
+        correlationId: UUID
+    ) {
+        val event = AccountUnlockedEvent.create(
+            userId = user.id,
+            email = user.email,
+            reason = reason,
+            previousLockReason = previousLockReason,
+            correlationId = correlationId
+        )
+
+        // Persist to event store first
+        eventStoreRepository.append(event)
+
+        // Publish to Kafka (async)
+        userEventPublisher.publishAccountUnlocked(event)
     }
 
     /**

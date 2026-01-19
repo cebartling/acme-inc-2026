@@ -160,3 +160,77 @@ Then('I should see the signin error message', async function (this: CustomWorld)
 Then('I should be redirected to the dashboard page', async function (this: CustomWorld) {
   await expect(this.page).toHaveURL(/\/dashboard/, { timeout: 10000 });
 });
+
+// ============================================================================
+// Account Lockout UI Steps (US-0003-04)
+// ============================================================================
+
+When(
+  'I attempt to signin {int} times with email {string} and wrong password',
+  async function (this: CustomWorld, times: number, email: string) {
+    const signinPage = new SigninPage(this.page);
+
+    // Get the actual test user email
+    const testUserEmail = this.getTestData<string>('testUserEmail') || email;
+
+    for (let i = 0; i < times; i++) {
+      // Fill in the form
+      await signinPage.fillEmail(testUserEmail);
+      await signinPage.fillPassword(`WrongPassword${i}!`);
+
+      // Submit the form
+      await signinPage.submitForm();
+
+      // Wait for the response - either error message or lockout message
+      await this.page.waitForTimeout(1000);
+
+      // If not the last attempt, clear the form for the next attempt
+      if (i < times - 1) {
+        // Check if we got locked out early
+        const lockoutMessage = this.page.getByTestId('lockout-message');
+        const isLocked = await lockoutMessage.isVisible().catch(() => false);
+        if (isLocked) {
+          break;
+        }
+      }
+    }
+  }
+);
+
+Then('I should see the account lockout message', async function (this: CustomWorld) {
+  await expect(this.page.getByTestId('lockout-message')).toBeVisible({ timeout: 10000 });
+  await expect(this.page.getByText('Account Locked')).toBeVisible();
+});
+
+Then('I should see the lockout countdown timer', async function (this: CustomWorld) {
+  await expect(this.page.getByTestId('lockout-countdown')).toBeVisible({ timeout: 5000 });
+});
+
+Then('I should see a link to reset my password', async function (this: CustomWorld) {
+  await expect(this.page.getByTestId('password-reset-link')).toBeVisible({ timeout: 5000 });
+});
+
+Then('the signin form should be disabled', async function (this: CustomWorld) {
+  const signinPage = new SigninPage(this.page);
+  const isDisabled = await signinPage.isSubmitButtonDisabled();
+  expect(isDisabled).toBe(true);
+});
+
+Then('the lockout countdown should show minutes remaining', async function (this: CustomWorld) {
+  const countdown = this.page.getByTestId('lockout-countdown');
+  await expect(countdown).toBeVisible({ timeout: 5000 });
+  // Check that the countdown contains "m" for minutes (e.g., "14m 30s")
+  await expect(countdown).toContainText(/\d+m/);
+});
+
+When('I fill in the signin form with:', async function (this: CustomWorld, dataTable: { rowsHash: () => Record<string, string> }) {
+  const data = dataTable.rowsHash();
+  const signinPage = new SigninPage(this.page);
+
+  // Get test user email if available
+  const testUserEmail = this.getTestData<string>('testUserEmail');
+  const email = testUserEmail || data.email;
+
+  await signinPage.fillEmail(email);
+  await signinPage.fillPassword(data.password);
+});

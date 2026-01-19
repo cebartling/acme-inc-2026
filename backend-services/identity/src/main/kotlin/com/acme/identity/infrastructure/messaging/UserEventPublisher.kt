@@ -1,5 +1,7 @@
 package com.acme.identity.infrastructure.messaging
 
+import com.acme.identity.domain.events.AccountLocked
+import com.acme.identity.domain.events.AccountUnlocked
 import com.acme.identity.domain.events.AuthenticationFailed
 import com.acme.identity.domain.events.AuthenticationSucceeded
 import com.acme.identity.domain.events.EmailVerified
@@ -217,6 +219,85 @@ class UserEventPublisher(
             .exceptionally { ex ->
                 logger.error(
                     "Failed to publish AuthenticationSucceeded event for user {}. " +
+                    "Event is persisted in event store but not published to Kafka. " +
+                    "Manual intervention may be required.",
+                    event.payload.userId,
+                    ex
+                )
+                null
+            }
+    }
+
+    /**
+     * Publishes an [AccountLocked] event to Kafka.
+     *
+     * The publish operation is asynchronous. The returned future completes
+     * when Kafka acknowledges receipt of the message. Failures are logged
+     * but not rethrown to avoid blocking the authentication response.
+     *
+     * This event triggers the Notification Service to send a lockout email
+     * to the customer.
+     *
+     * @param event The account locked event to publish.
+     * @return A [CompletableFuture] that completes when publishing succeeds.
+     */
+    fun publishAccountLocked(event: AccountLocked): CompletableFuture<Void> {
+        val key = event.aggregateId.toString()
+        val value = objectMapper.writeValueAsString(event)
+
+        logger.debug("Publishing AccountLocked event for user: {}", event.payload.userId)
+
+        return kafkaTemplate.send(AccountLocked.TOPIC, key, value)
+            .thenAccept { result ->
+                logger.info(
+                    "Published AccountLocked event for user {} to topic {} partition {} offset {}",
+                    event.payload.userId,
+                    result.recordMetadata.topic(),
+                    result.recordMetadata.partition(),
+                    result.recordMetadata.offset()
+                )
+            }
+            .exceptionally { ex ->
+                logger.error(
+                    "Failed to publish AccountLocked event for user {}. " +
+                    "Event is persisted in event store but not published to Kafka. " +
+                    "Manual intervention may be required.",
+                    event.payload.userId,
+                    ex
+                )
+                null
+            }
+    }
+
+    /**
+     * Publishes an [AccountUnlocked] event to Kafka.
+     *
+     * The publish operation is asynchronous. The returned future completes
+     * when Kafka acknowledges receipt of the message. Failures are logged
+     * but not rethrown to avoid blocking the authentication response.
+     *
+     * @param event The account unlocked event to publish.
+     * @return A [CompletableFuture] that completes when publishing succeeds.
+     */
+    fun publishAccountUnlocked(event: AccountUnlocked): CompletableFuture<Void> {
+        val key = event.aggregateId.toString()
+        val value = objectMapper.writeValueAsString(event)
+
+        logger.debug("Publishing AccountUnlocked event for user: {}", event.payload.userId)
+
+        return kafkaTemplate.send(AccountUnlocked.TOPIC, key, value)
+            .thenAccept { result ->
+                logger.info(
+                    "Published AccountUnlocked event for user {} to topic {} partition {} offset {}",
+                    event.payload.userId,
+                    result.recordMetadata.topic(),
+                    result.recordMetadata.partition(),
+                    result.recordMetadata.offset()
+                )
+            }
+            .exceptionally { ex ->
+                logger.error(
+                    "Failed to publish AccountUnlocked event for user {}. " +
                     "Event is persisted in event store but not published to Kafka. " +
                     "Manual intervention may be required.",
                     event.payload.userId,
