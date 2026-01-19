@@ -188,8 +188,8 @@ class AuthenticateUserUseCase(
                     raise(AuthenticationError.InvalidCredentials(remainingAttempts = 0))
                 }
 
-                // Check if account is locked
-                if (user.isLocked()) {
+                // Check if account has LOCKED status (may be expired or active lockout)
+                if (user.status == UserStatus.LOCKED) {
                     // Check if lockout has expired
                     val lockedUntil = user.lockedUntil
                     if (lockedUntil != null && lockedUntil.isBefore(Instant.now())) {

@@ -6,8 +6,11 @@ import com.acme.identity.api.v1.dto.SigninStatus
 import com.acme.identity.domain.RegistrationSource
 import com.acme.identity.domain.User
 import com.acme.identity.domain.UserStatus
+import com.acme.identity.domain.events.AccountLocked
+import com.acme.identity.domain.events.AccountUnlocked
 import com.acme.identity.domain.events.AuthenticationFailed
 import com.acme.identity.domain.events.AuthenticationSucceeded
+import com.acme.identity.domain.events.DomainEvent
 import com.acme.identity.infrastructure.messaging.UserEventPublisher
 import com.acme.identity.infrastructure.persistence.EventStoreRepository
 import com.acme.identity.infrastructure.persistence.UserRepository
@@ -55,7 +58,9 @@ class AuthenticateUserUseCaseTest {
             passwordHasher = passwordHasher,
             meterRegistry = meterRegistry,
             maxFailedAttempts = 5,
-            supportUrl = "https://www.acme.com/support"
+            lockoutDurationMinutes = 15,
+            supportUrl = "https://www.acme.com/support",
+            passwordResetUrl = "https://www.acme.com/forgot-password"
         )
 
         // Default mock for password hashing (for dummy password check)
@@ -315,6 +320,290 @@ class AuthenticateUserUseCaseTest {
             ifLeft = { error ->
                 assertIs<AuthenticationError.AccountLocked>(error)
                 assertNotNull(error.lockedUntil)
+            },
+            ifRight = { fail("Expected error but got success") }
+        )
+    }
+
+    // =========================================================================
+    // Lockout Expiration Tests (US-0003-04)
+    // =========================================================================
+
+    @Test
+    fun `execute should detect expired lockout and unlock account`() {
+        // Given
+        val request = createValidRequest()
+        val context = createContext()
+        val user = createUser(status = UserStatus.LOCKED).apply {
+            lockedUntil = Instant.now().minusSeconds(60) // Expired 1 minute ago
+            failedAttempts = 5
+        }
+
+        every { userRepository.findByEmail(testEmail) } returns user
+        every { passwordHasher.verify(testPassword, user.passwordHash) } returns true
+        every { userRepository.save(any()) } answers { firstArg() }
+        every { eventStoreRepository.append(any()) } just Runs
+        every { userEventPublisher.publishAccountUnlocked(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publishAuthenticationSucceeded(any()) } returns CompletableFuture.completedFuture(null)
+
+        // When
+        val result = authenticateUserUseCase.execute(request, context)
+
+        // Then
+        assertTrue(result.isRight())
+        val response = result.getOrElse { fail("Expected success but got error") }
+        assertEquals(SigninStatus.SUCCESS, response.status)
+    }
+
+    @Test
+    fun `execute should save unlocked account after lockout expiration`() {
+        // Given
+        val request = createValidRequest()
+        val context = createContext()
+        val user = createUser(status = UserStatus.LOCKED).apply {
+            lockedUntil = Instant.now().minusSeconds(60) // Expired 1 minute ago
+            failedAttempts = 5
+        }
+
+        every { userRepository.findByEmail(testEmail) } returns user
+        every { passwordHasher.verify(testPassword, user.passwordHash) } returns true
+        every { userRepository.save(any()) } answers { firstArg() }
+        every { eventStoreRepository.append(any()) } just Runs
+        every { userEventPublisher.publishAccountUnlocked(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publishAuthenticationSucceeded(any()) } returns CompletableFuture.completedFuture(null)
+
+        // When
+        authenticateUserUseCase.execute(request, context)
+
+        // Then - verify user was saved with unlocked status
+        val savedUsers = mutableListOf<User>()
+        verify(atLeast = 1) { userRepository.save(capture(savedUsers)) }
+
+        // First save should be the unlock
+        val unlockedUser = savedUsers.first()
+        assertEquals(UserStatus.ACTIVE, unlockedUser.status)
+        assertEquals(null, unlockedUser.lockedUntil)
+    }
+
+    @Test
+    fun `execute should publish AccountUnlocked event with LOCKOUT_EXPIRED reason`() {
+        // Given
+        val request = createValidRequest()
+        val context = createContext()
+        val user = createUser(status = UserStatus.LOCKED).apply {
+            lockedUntil = Instant.now().minusSeconds(60) // Expired 1 minute ago
+            failedAttempts = 5
+        }
+
+        val capturedEvents = mutableListOf<DomainEvent>()
+        every { userRepository.findByEmail(testEmail) } returns user
+        every { passwordHasher.verify(testPassword, user.passwordHash) } returns true
+        every { userRepository.save(any()) } answers { firstArg() }
+        every { eventStoreRepository.append(capture(capturedEvents)) } just Runs
+        every { userEventPublisher.publishAccountUnlocked(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publishAuthenticationSucceeded(any()) } returns CompletableFuture.completedFuture(null)
+
+        // When
+        authenticateUserUseCase.execute(request, context)
+
+        // Then - verify AccountUnlocked event was published (capture and filter by type)
+        val accountUnlockedEvents = capturedEvents.filterIsInstance<AccountUnlocked>()
+        assertEquals(1, accountUnlockedEvents.size)
+        verify(exactly = 1) { userEventPublisher.publishAccountUnlocked(any()) }
+    }
+
+    @Test
+    fun `execute should allow successful signin after lockout expiration`() {
+        // Given
+        val request = createValidRequest()
+        val context = createContext()
+        val user = createUser(status = UserStatus.LOCKED).apply {
+            lockedUntil = Instant.now().minusSeconds(60) // Expired 1 minute ago
+            failedAttempts = 5
+        }
+
+        every { userRepository.findByEmail(testEmail) } returns user
+        every { passwordHasher.verify(testPassword, user.passwordHash) } returns true
+        every { userRepository.save(any()) } answers { firstArg() }
+        every { eventStoreRepository.append(any()) } just Runs
+        every { userEventPublisher.publishAccountUnlocked(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publishAuthenticationSucceeded(any()) } returns CompletableFuture.completedFuture(null)
+
+        // When
+        val result = authenticateUserUseCase.execute(request, context)
+
+        // Then
+        assertTrue(result.isRight())
+        val response = result.getOrElse { fail("Expected success but got error") }
+        assertEquals(SigninStatus.SUCCESS, response.status)
+        assertEquals(testUserId, response.userId)
+
+        // Verify success event was also published
+        verify(exactly = 1) { userEventPublisher.publishAuthenticationSucceeded(any()) }
+    }
+
+    @Test
+    fun `execute should record lockout_expired metric when lockout expires`() {
+        // Given
+        val request = createValidRequest()
+        val context = createContext()
+        val user = createUser(status = UserStatus.LOCKED).apply {
+            lockedUntil = Instant.now().minusSeconds(60) // Expired 1 minute ago
+            failedAttempts = 5
+        }
+
+        every { userRepository.findByEmail(testEmail) } returns user
+        every { passwordHasher.verify(testPassword, user.passwordHash) } returns true
+        every { userRepository.save(any()) } answers { firstArg() }
+        every { eventStoreRepository.append(any()) } just Runs
+        every { userEventPublisher.publishAccountUnlocked(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publishAuthenticationSucceeded(any()) } returns CompletableFuture.completedFuture(null)
+
+        // When
+        authenticateUserUseCase.execute(request, context)
+
+        // Then
+        val counter = meterRegistry.counter("authentication_attempts_total", "status", "lockout_expired")
+        assertEquals(1.0, counter.count())
+    }
+
+    // =========================================================================
+    // Lockout Triggering Tests (US-0003-04)
+    // =========================================================================
+
+    @Test
+    fun `execute should lock account after 5 failed attempts`() {
+        // Given
+        val request = createValidRequest()
+        val context = createContext()
+        val user = createActiveUser().apply { failedAttempts = 4 } // One more failure triggers lockout
+
+        every { userRepository.findByEmail(testEmail) } returns user
+        every { passwordHasher.verify(testPassword, user.passwordHash) } returns false
+        every { userRepository.save(any()) } answers { firstArg() }
+        every { eventStoreRepository.append(any()) } just Runs
+        every { userEventPublisher.publishAuthenticationFailed(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publishAccountLocked(any()) } returns CompletableFuture.completedFuture(null)
+
+        // When
+        val result = authenticateUserUseCase.execute(request, context)
+
+        // Then
+        assertTrue(result.isLeft())
+        result.fold(
+            ifLeft = { error ->
+                assertIs<AuthenticationError.AccountLocked>(error)
+                assertNotNull(error.lockedUntil)
+                assertTrue(error.lockoutRemainingSeconds > 0)
+            },
+            ifRight = { fail("Expected error but got success") }
+        )
+
+        // Verify user was locked
+        val savedUser = slot<User>()
+        verify { userRepository.save(capture(savedUser)) }
+        assertEquals(UserStatus.LOCKED, savedUser.captured.status)
+        assertNotNull(savedUser.captured.lockedUntil)
+    }
+
+    @Test
+    fun `execute should publish AccountLocked event when lockout triggers`() {
+        // Given
+        val request = createValidRequest()
+        val context = createContext()
+        val user = createActiveUser().apply { failedAttempts = 4 } // One more failure triggers lockout
+
+        val capturedEvents = mutableListOf<DomainEvent>()
+        every { userRepository.findByEmail(testEmail) } returns user
+        every { passwordHasher.verify(testPassword, user.passwordHash) } returns false
+        every { userRepository.save(any()) } answers { firstArg() }
+        every { eventStoreRepository.append(capture(capturedEvents)) } just Runs
+        every { userEventPublisher.publishAuthenticationFailed(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publishAccountLocked(any()) } returns CompletableFuture.completedFuture(null)
+
+        // When
+        authenticateUserUseCase.execute(request, context)
+
+        // Then - verify AccountLocked event was published (capture and filter by type)
+        val accountLockedEvents = capturedEvents.filterIsInstance<AccountLocked>()
+        assertEquals(1, accountLockedEvents.size)
+        verify(exactly = 1) { userEventPublisher.publishAccountLocked(any()) }
+    }
+
+    @Test
+    fun `execute should set lockout duration to 15 minutes`() {
+        // Given
+        val request = createValidRequest()
+        val context = createContext()
+        val user = createActiveUser().apply { failedAttempts = 4 }
+
+        every { userRepository.findByEmail(testEmail) } returns user
+        every { passwordHasher.verify(testPassword, user.passwordHash) } returns false
+        every { userRepository.save(any()) } answers { firstArg() }
+        every { eventStoreRepository.append(any()) } just Runs
+        every { userEventPublisher.publishAuthenticationFailed(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publishAccountLocked(any()) } returns CompletableFuture.completedFuture(null)
+
+        // When
+        val result = authenticateUserUseCase.execute(request, context)
+
+        // Then
+        assertTrue(result.isLeft())
+        result.fold(
+            ifLeft = { error ->
+                assertIs<AuthenticationError.AccountLocked>(error)
+                // 15 minutes = 900 seconds
+                assertTrue(error.lockoutRemainingSeconds in 895..900)
+            },
+            ifRight = { fail("Expected error but got success") }
+        )
+    }
+
+    @Test
+    fun `execute should record account_locked_triggered metric when lockout triggers`() {
+        // Given
+        val request = createValidRequest()
+        val context = createContext()
+        val user = createActiveUser().apply { failedAttempts = 4 }
+
+        every { userRepository.findByEmail(testEmail) } returns user
+        every { passwordHasher.verify(testPassword, user.passwordHash) } returns false
+        every { userRepository.save(any()) } answers { firstArg() }
+        every { eventStoreRepository.append(any()) } just Runs
+        every { userEventPublisher.publishAuthenticationFailed(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publishAccountLocked(any()) } returns CompletableFuture.completedFuture(null)
+
+        // When
+        authenticateUserUseCase.execute(request, context)
+
+        // Then
+        val counter = meterRegistry.counter("authentication_attempts_total", "status", "account_locked_triggered")
+        assertEquals(1.0, counter.count())
+    }
+
+    @Test
+    fun `execute should return remaining lockout seconds for locked account`() {
+        // Given
+        val request = createValidRequest()
+        val context = createContext()
+        val user = createUser(status = UserStatus.LOCKED).apply {
+            lockedUntil = Instant.now().plusSeconds(600) // 10 minutes remaining
+        }
+
+        every { userRepository.findByEmail(testEmail) } returns user
+        every { eventStoreRepository.append(any()) } just Runs
+        every { userEventPublisher.publishAuthenticationFailed(any()) } returns CompletableFuture.completedFuture(null)
+
+        // When
+        val result = authenticateUserUseCase.execute(request, context)
+
+        // Then
+        assertTrue(result.isLeft())
+        result.fold(
+            ifLeft = { error ->
+                assertIs<AuthenticationError.AccountLocked>(error)
+                // Should be approximately 600 seconds (allow some variance for test execution time)
+                assertTrue(error.lockoutRemainingSeconds in 595..600)
             },
             ifRight = { fail("Expected error but got success") }
         )
