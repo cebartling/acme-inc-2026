@@ -54,7 +54,20 @@ Feature: Account Lockout (US-0003-04)
     Then the API should respond with status 423
     And an AccountLocked event should be persisted in the event store
 
-  # AC-0003-04-06: Decreasing remaining attempts warning
+  # AC-0003-04-06: Lockout countdown decreases over time
+  Scenario: lockoutRemainingSeconds decreases over time
+    Given an active user exists with email "countdown@acme.com" and password "ValidP@ss123!"
+    When I submit 5 signin requests with wrong password for "countdown@acme.com"
+    Then the API should respond with status 423
+    And I store the "lockoutRemainingSeconds" value
+    When I wait 3 seconds
+    And I submit a signin request with:
+      | email    | countdown@acme.com |
+      | password | AnyPassword123!    |
+    Then the API should respond with status 423
+    And the "lockoutRemainingSeconds" should be less than the stored value
+
+  # AC-0003-04-07: Decreasing remaining attempts warning
   Scenario: Remaining attempts decreases with each failed attempt
     Given an active user exists with email "attempts@acme.com" and password "ValidP@ss123!"
     When I submit a signin request with:

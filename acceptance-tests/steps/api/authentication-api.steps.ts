@@ -503,3 +503,44 @@ Then(
     expect((response!.data as SigninErrorResponse).error).toBe('ACCOUNT_LOCKED');
   }
 );
+
+// ============================================================================
+// Lockout Countdown Steps
+// ============================================================================
+
+Then(
+  'I store the {string} value',
+  async function (this: CustomWorld, fieldName: string) {
+    const response = this.getTestData<ApiResponse<SigninErrorResponse>>('lastResponse');
+    expect(response).toBeDefined();
+
+    const data = response!.data as Record<string, unknown>;
+    const value = data[fieldName];
+    expect(value).toBeDefined();
+
+    this.setTestData(`stored_${fieldName}`, value);
+  }
+);
+
+When(
+  'I wait {int} seconds',
+  async function (this: CustomWorld, seconds: number) {
+    await new Promise((resolve) => setTimeout(resolve, seconds * 1000));
+  }
+);
+
+Then(
+  'the {string} should be less than the stored value',
+  async function (this: CustomWorld, fieldName: string) {
+    const response = this.getTestData<ApiResponse<SigninErrorResponse>>('lastResponse');
+    expect(response).toBeDefined();
+
+    const data = response!.data as Record<string, unknown>;
+    const currentValue = data[fieldName] as number;
+    const storedValue = this.getTestData<number>(`stored_${fieldName}`);
+
+    expect(storedValue).toBeDefined();
+    expect(currentValue).toBeDefined();
+    expect(currentValue).toBeLessThan(storedValue!);
+  }
+);
