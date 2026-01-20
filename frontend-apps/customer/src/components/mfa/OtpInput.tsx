@@ -23,6 +23,7 @@ export interface OtpInputProps {
  * - Paste support for full code
  * - Auto-submits when all digits entered
  * - Numeric-only input
+ * - Auto-clears and focuses first input on error (for retry)
  */
 export function OtpInput({
   length = 6,
@@ -45,6 +46,17 @@ export function OtpInput({
       inputRefs.current[0].focus();
     }
   }, [autoFocus]);
+
+  // Clear inputs and focus first field when error occurs
+  useEffect(() => {
+    if (error) {
+      setValues(Array(length).fill(""));
+      // Small delay to ensure state update completes before focusing
+      requestAnimationFrame(() => {
+        inputRefs.current[0]?.focus();
+      });
+    }
+  }, [error, length]);
 
   // Check if all values are filled and trigger onComplete
   const checkComplete = useCallback(
