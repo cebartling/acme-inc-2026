@@ -96,6 +96,9 @@ class VerifyMfaUseCaseTest {
         assertTrue(result.isRight())
         val success = result.getOrElse { fail("Expected success") }
         assertEquals(testUserId, success.userId)
+        assertEquals("test@example.com", success.email)
+        assertEquals("Test", success.firstName)
+        assertEquals("User", success.lastName)
         assertEquals(false, success.deviceRemembered)
 
         // Verify challenge was deleted
@@ -302,6 +305,10 @@ class VerifyMfaUseCaseTest {
         // Then
         assertTrue(result.isRight())
         val success = result.getOrElse { fail("Expected success") }
+        assertEquals(testUserId, success.userId)
+        assertEquals("test@example.com", success.email)
+        assertEquals("Test", success.firstName)
+        assertEquals("User", success.lastName)
         assertEquals(true, success.deviceRemembered)
     }
 

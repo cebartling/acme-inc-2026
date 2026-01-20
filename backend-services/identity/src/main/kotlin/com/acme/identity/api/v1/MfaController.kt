@@ -87,6 +87,9 @@ class MfaController(
                 ResponseEntity.ok(
                     MfaVerifyResponse(
                         userId = result.userId,
+                        email = result.email,
+                        firstName = result.firstName,
+                        lastName = result.lastName,
                         deviceTrusted = result.deviceRemembered
                     )
                 )

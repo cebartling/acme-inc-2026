@@ -56,10 +56,16 @@ sealed interface MfaVerificationError {
  * Result of successful MFA verification.
  *
  * @property userId The authenticated user's ID.
+ * @property email The authenticated user's email.
+ * @property firstName The authenticated user's first name.
+ * @property lastName The authenticated user's last name.
  * @property deviceRemembered Whether the user opted to remember the device.
  */
 data class MfaVerificationResult(
     val userId: UUID,
+    val email: String,
+    val firstName: String,
+    val lastName: String,
     val deviceRemembered: Boolean
 )
 
@@ -243,6 +249,9 @@ class VerifyMfaUseCase(
 
                 MfaVerificationResult(
                     userId = user.id,
+                    email = user.email,
+                    firstName = user.firstName,
+                    lastName = user.lastName,
                     deviceRemembered = request.rememberDevice
                 )
             }

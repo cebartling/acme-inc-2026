@@ -8,6 +8,9 @@ import java.util.UUID
  *
  * @property status The verification status (SUCCESS).
  * @property userId The authenticated user's ID.
+ * @property email The authenticated user's email.
+ * @property firstName The authenticated user's first name.
+ * @property lastName The authenticated user's last name.
  * @property deviceTrusted Whether the device was marked as trusted.
  * @property expiresIn Token expiration time in seconds.
  */
@@ -15,6 +18,9 @@ import java.util.UUID
 data class MfaVerifyResponse(
     val status: String = "SUCCESS",
     val userId: UUID,
+    val email: String,
+    val firstName: String,
+    val lastName: String,
     val deviceTrusted: Boolean,
     val expiresIn: Int = DEFAULT_ACCESS_TOKEN_EXPIRY_SECONDS
 ) {

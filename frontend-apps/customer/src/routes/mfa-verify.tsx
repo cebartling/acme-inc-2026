@@ -107,13 +107,13 @@ function MfaVerifyPage() {
       // Clear MFA state from session storage
       sessionStorage.removeItem("mfaState");
 
-      // Store user info
+      // Store user info from response
       setUser({
         userId: response.userId,
         customerId: response.userId,
-        email: mfaState.email,
-        firstName: "User",
-        lastName: "",
+        email: response.email,
+        firstName: response.firstName,
+        lastName: response.lastName,
       });
 
       // Navigate to redirect URL or dashboard
