@@ -13,3 +13,11 @@ Commit all changes to this feature branch.
 When completed, create a PR for merging this feature branch back into
 the `main` branch on GitHub.
 ```
+
+## Playwright verification
+
+```
+With regards to the customer frontend application running in a Docker container at http://localhost:7600/,
+verify 5 failed sign-in attempts trigger 423 response
+Use playwright mcp for automating the web browser
+```
