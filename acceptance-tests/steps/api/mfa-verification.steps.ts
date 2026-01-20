@@ -35,15 +35,28 @@ interface SigninMfaResponse {
 // ============================================================================
 
 Given('the user has TOTP MFA enabled with a valid secret', async function (this: CustomWorld) {
-  // In a real implementation, this would:
-  // 1. Generate a TOTP secret
-  // 2. Enable MFA for the user via a test endpoint
-  // For now, we flag this for verification and assume the test endpoint handles it
-  this.setTestData('totpEnabled', true);
+  const userId = this.getTestData<string>('testUserId');
 
-  // Store a test TOTP secret (in real tests, this would come from the backend)
+  if (!userId) {
+    throw new Error('Test user must be created before enabling MFA');
+  }
+
   // This is a valid base32 encoded secret
-  this.setTestData('totpSecret', 'JBSWY3DPEHPK3PXP');
+  const totpSecret = 'JBSWY3DPEHPK3PXP';
+
+  // Enable MFA for the user via the test endpoint
+  const response = await this.identityApiClient.post<{ userId: string; mfaEnabled: boolean; totpEnabled: boolean }>(
+    `/api/v1/test/users/${userId}/enable-mfa`,
+    { totpSecret }
+  );
+
+  if (response.status !== 200) {
+    throw new Error(`Failed to enable MFA for user: ${response.status} - ${JSON.stringify(response.data)}`);
+  }
+
+  // Store the TOTP secret for generating codes later
+  this.setTestData('totpEnabled', true);
+  this.setTestData('totpSecret', totpSecret);
 });
 
 Given('I have completed credential validation and received an MFA token', async function (this: CustomWorld) {

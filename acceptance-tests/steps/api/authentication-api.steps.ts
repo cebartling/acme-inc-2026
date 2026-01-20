@@ -85,13 +85,40 @@ async function createTestUser(
     registrationRequest
   );
 
-  // Handle 409 Conflict (user already exists)
+  // Handle 409 Conflict (user already exists) - delete and recreate to get userId
   if (response.status === 409) {
-    // User already exists - store email and password for later use
+    // Delete the existing user via test endpoint
+    await world.identityApiClient.delete<void>(`/api/v1/test/users/by-email/${encodeURIComponent(email)}`);
+
+    // Re-register the user
+    const retryResponse = await world.identityApiClient.post<{ userId: string }>(
+      '/api/v1/users/register',
+      registrationRequest
+    );
+
+    if (retryResponse.status !== 201 && retryResponse.status !== 200) {
+      throw new Error(`Failed to re-register user after deletion: ${retryResponse.status} - ${JSON.stringify(retryResponse.data)}`);
+    }
+
+    const userId = retryResponse.data.userId;
+    world.setTestData('testUserId', userId);
     world.setTestData('testUserEmail', email);
     world.setTestData('testUserPassword', password);
-    // Return empty string as we don't have the userId
-    return '';
+
+    // Verify the user's email using the test endpoint
+    if (options.status === 'ACTIVE' || options.status === undefined) {
+      const tokenResponse = await world.identityApiClient.get<VerificationTokenResponse>(
+        `/api/v1/test/users/${userId}/verification-token`
+      );
+
+      if (tokenResponse.status === 200 && tokenResponse.data.token) {
+        await world.identityApiClient.get<void>(
+          `/api/v1/users/verify?token=${tokenResponse.data.token}`
+        );
+      }
+    }
+
+    return userId;
   }
 
   if (response.status !== 201 && response.status !== 200) {

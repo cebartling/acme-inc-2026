@@ -9,6 +9,8 @@ import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import java.util.UUID
@@ -94,6 +96,62 @@ class TestController(
             ResponseEntity.noContent().build()
         } else {
             logger.debug("No user found with email {}", email)
+            ResponseEntity.notFound().build()
+        }
+    }
+
+    /**
+     * Request DTO for enabling MFA.
+     */
+    data class EnableMfaRequest(
+        val totpSecret: String
+    )
+
+    /**
+     * Response DTO for MFA enablement.
+     */
+    data class EnableMfaResponse(
+        val userId: String,
+        val mfaEnabled: Boolean,
+        val totpEnabled: Boolean
+    )
+
+    /**
+     * Enables TOTP MFA for a user.
+     *
+     * This endpoint is intended for acceptance testing to enable MFA
+     * for test users without going through the full MFA setup flow.
+     *
+     * @param userId The UUID of the user.
+     * @param request The request containing the TOTP secret.
+     * @return The MFA status if successful, or a 404 response.
+     */
+    @PostMapping("/users/{userId}/enable-mfa")
+    @Transactional
+    fun enableMfa(
+        @PathVariable userId: UUID,
+        @RequestBody request: EnableMfaRequest
+    ): ResponseEntity<EnableMfaResponse> {
+        logger.debug("Test endpoint: Enabling MFA for user {}", userId)
+
+        val user = userRepository.findById(userId).orElse(null)
+
+        return if (user != null) {
+            user.mfaEnabled = true
+            user.totpEnabled = true
+            user.totpSecret = request.totpSecret
+            userRepository.save(user)
+
+            logger.info("Enabled MFA for user {}", userId)
+            ResponseEntity.ok(
+                EnableMfaResponse(
+                    userId = userId.toString(),
+                    mfaEnabled = true,
+                    totpEnabled = true
+                )
+            )
+        } else {
+            logger.debug("No user found with id {}", userId)
             ResponseEntity.notFound().build()
         }
     }
