@@ -14,14 +14,11 @@ import com.acme.identity.domain.events.AccountUnlockReason
 import com.acme.identity.domain.events.AuthenticationFailed
 import com.acme.identity.domain.events.AuthenticationFailureReason
 import com.acme.identity.domain.events.AuthenticationSucceeded
-import com.acme.identity.domain.events.MFAChallengeInitiated
-import com.acme.identity.domain.MfaChallenge
 import java.time.Duration
 import java.time.Instant
 import com.acme.identity.infrastructure.messaging.UserEventPublisher
 import com.acme.identity.domain.MfaMethod
 import com.acme.identity.infrastructure.persistence.EventStoreRepository
-import com.acme.identity.infrastructure.persistence.MfaChallengeRepository
 import com.acme.identity.infrastructure.persistence.UserRepository
 import com.acme.identity.infrastructure.security.PasswordHasher
 import io.micrometer.core.instrument.MeterRegistry
@@ -122,7 +119,7 @@ class AuthenticateUserUseCase(
     private val eventStoreRepository: EventStoreRepository,
     private val userEventPublisher: UserEventPublisher,
     private val passwordHasher: PasswordHasher,
-    private val mfaChallengeRepository: MfaChallengeRepository,
+    private val mfaChallengeService: MfaChallengeService,
     private val meterRegistry: MeterRegistry,
     @Value("\${identity.authentication.max-failed-attempts:5}")
     private val maxFailedAttempts: Int = 5,
@@ -342,8 +339,12 @@ class AuthenticateUserUseCase(
 
                 // Build response based on MFA status
                 if (user.mfaEnabled && user.totpEnabled) {
-                    // Create MFA challenge
-                    val challenge = createMfaChallenge(user, context)
+                    // Create MFA challenge using the shared service
+                    val challenge = mfaChallengeService.createChallenge(
+                        userId = user.id,
+                        method = MfaMethod.TOTP,
+                        correlationId = context.correlationId
+                    )
                     SigninResponse.mfaRequired(
                         mfaToken = challenge.token,
                         mfaMethods = getMfaMethods(user)
@@ -449,40 +450,6 @@ class AuthenticateUserUseCase(
 
         // Publish to Kafka (async)
         userEventPublisher.publishAuthenticationSucceeded(event)
-    }
-
-    /**
-     * Creates an MFA challenge for the user and publishes the challenge initiated event.
-     *
-     * @param user The user to create a challenge for.
-     * @param context The authentication context.
-     * @return The created MFA challenge.
-     */
-    private fun createMfaChallenge(user: User, context: AuthenticationContext): MfaChallenge {
-        // Delete any existing challenges for this user
-        mfaChallengeRepository.deleteByUserId(user.id)
-
-        // Determine MFA method (currently only TOTP supported)
-        val method = MfaMethod.TOTP
-
-        // Create new challenge
-        val challenge = MfaChallenge.create(userId = user.id, method = method)
-        mfaChallengeRepository.save(challenge)
-
-        // Publish MFA challenge initiated event
-        val event = MFAChallengeInitiated.create(
-            userId = user.id,
-            mfaToken = challenge.token,
-            method = method.name,
-            expiresAt = challenge.expiresAt,
-            correlationId = context.correlationId
-        )
-        eventStoreRepository.append(event)
-        userEventPublisher.publishMFAChallengeInitiated(event)
-
-        logger.info("Created MFA challenge for user {} with method {}", user.id, method)
-
-        return challenge
     }
 
     /**

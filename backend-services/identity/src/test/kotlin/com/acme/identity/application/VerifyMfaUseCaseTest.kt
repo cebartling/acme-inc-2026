@@ -37,6 +37,7 @@ class VerifyMfaUseCaseTest {
     private lateinit var userEventPublisher: UserEventPublisher
     private lateinit var totpService: TotpService
     private lateinit var meterRegistry: SimpleMeterRegistry
+    private lateinit var mfaChallengeService: MfaChallengeService
     private lateinit var verifyMfaUseCase: VerifyMfaUseCase
 
     private val testUserId = UUID.randomUUID()
@@ -52,6 +53,7 @@ class VerifyMfaUseCaseTest {
         userEventPublisher = mockk()
         totpService = TotpService() // Use real TOTP service for accuracy
         meterRegistry = SimpleMeterRegistry()
+        mfaChallengeService = mockk()
 
         verifyMfaUseCase = VerifyMfaUseCase(
             mfaChallengeRepository = mfaChallengeRepository,
@@ -60,7 +62,8 @@ class VerifyMfaUseCaseTest {
             eventStoreRepository = eventStoreRepository,
             userEventPublisher = userEventPublisher,
             totpService = totpService,
-            meterRegistry = meterRegistry
+            meterRegistry = meterRegistry,
+            mfaChallengeService = mfaChallengeService
         )
 
         // Default mock setups
@@ -79,7 +82,7 @@ class VerifyMfaUseCaseTest {
 
         every { mfaChallengeRepository.findByToken(testMfaToken) } returns challenge
         every { userRepository.findById(testUserId) } returns Optional.of(user)
-        every { usedTotpCodeRepository.existsByUserIdAndCodeHashAndTimeStep(any(), any(), any()) } returns false
+        every { usedTotpCodeRepository.existsByUserIdAndCodeHashAndTimeStepIn(any(), any(), any()) } returns false
         every { usedTotpCodeRepository.save(any()) } answers { firstArg() }
         every { mfaChallengeRepository.delete(challenge) } just Runs
 
@@ -194,7 +197,7 @@ class VerifyMfaUseCaseTest {
 
         every { mfaChallengeRepository.findByToken(testMfaToken) } returns challenge
         every { userRepository.findById(testUserId) } returns Optional.of(user)
-        every { usedTotpCodeRepository.existsByUserIdAndCodeHashAndTimeStep(any(), any(), any()) } returns false
+        every { usedTotpCodeRepository.existsByUserIdAndCodeHashAndTimeStepIn(any(), any(), any()) } returns false
         every { mfaChallengeRepository.save(any()) } answers { firstArg() }
 
         val request = createVerificationRequest(code = "000000") // Invalid code
@@ -227,7 +230,7 @@ class VerifyMfaUseCaseTest {
 
         every { mfaChallengeRepository.findByToken(testMfaToken) } returns challenge
         every { userRepository.findById(testUserId) } returns Optional.of(user)
-        every { usedTotpCodeRepository.existsByUserIdAndCodeHashAndTimeStep(any(), any(), any()) } returns true
+        every { usedTotpCodeRepository.existsByUserIdAndCodeHashAndTimeStepIn(any(), any(), any()) } returns true
         every { mfaChallengeRepository.save(any()) } answers { firstArg() }
 
         val request = createVerificationRequest(code = validCode)
@@ -259,7 +262,7 @@ class VerifyMfaUseCaseTest {
 
         every { mfaChallengeRepository.findByToken(testMfaToken) } returns challengeWithTwoAttempts
         every { userRepository.findById(testUserId) } returns Optional.of(user)
-        every { usedTotpCodeRepository.existsByUserIdAndCodeHashAndTimeStep(any(), any(), any()) } returns false
+        every { usedTotpCodeRepository.existsByUserIdAndCodeHashAndTimeStepIn(any(), any(), any()) } returns false
         every { mfaChallengeRepository.save(any()) } answers { firstArg() }
         every { mfaChallengeRepository.delete(any()) } just Runs
 
@@ -286,7 +289,7 @@ class VerifyMfaUseCaseTest {
 
         every { mfaChallengeRepository.findByToken(testMfaToken) } returns challenge
         every { userRepository.findById(testUserId) } returns Optional.of(user)
-        every { usedTotpCodeRepository.existsByUserIdAndCodeHashAndTimeStep(any(), any(), any()) } returns false
+        every { usedTotpCodeRepository.existsByUserIdAndCodeHashAndTimeStepIn(any(), any(), any()) } returns false
         every { usedTotpCodeRepository.save(any()) } answers { firstArg() }
         every { mfaChallengeRepository.delete(challenge) } just Runs
 
@@ -303,32 +306,23 @@ class VerifyMfaUseCaseTest {
     }
 
     @Test
-    fun `createChallenge should create and persist new challenge`() {
+    fun `createChallenge should delegate to MfaChallengeService`() {
         // Given
-        every { mfaChallengeRepository.deleteByUserId(testUserId) } just Runs
-        every { mfaChallengeRepository.save(any()) } answers { firstArg() }
-
         val correlationId = UUID.randomUUID()
+        val expectedChallenge = MfaChallenge.create(userId = testUserId, method = MfaMethod.TOTP)
+
+        every { mfaChallengeService.createChallenge(testUserId, MfaMethod.TOTP, correlationId) } returns expectedChallenge
 
         // When
         val challenge = verifyMfaUseCase.createChallenge(testUserId, MfaMethod.TOTP, correlationId)
 
         // Then
+        assertEquals(expectedChallenge, challenge)
         assertEquals(testUserId, challenge.userId)
         assertEquals(MfaMethod.TOTP, challenge.method)
-        assertEquals(0, challenge.attempts)
-        assertTrue(challenge.token.startsWith("mfa_"))
-        assertTrue(challenge.expiresAt.isAfter(Instant.now()))
 
-        // Verify old challenges were deleted
-        verify(exactly = 1) { mfaChallengeRepository.deleteByUserId(testUserId) }
-
-        // Verify new challenge was saved
-        verify(exactly = 1) { mfaChallengeRepository.save(any()) }
-
-        // Verify event was published
-        verify(exactly = 1) { eventStoreRepository.append(any<MFAChallengeInitiated>()) }
-        verify(exactly = 1) { userEventPublisher.publishMFAChallengeInitiated(any()) }
+        // Verify delegation to service
+        verify(exactly = 1) { mfaChallengeService.createChallenge(testUserId, MfaMethod.TOTP, correlationId) }
     }
 
     @Test
@@ -340,7 +334,7 @@ class VerifyMfaUseCaseTest {
 
         every { mfaChallengeRepository.findByToken(testMfaToken) } returns challenge
         every { userRepository.findById(testUserId) } returns Optional.of(user)
-        every { usedTotpCodeRepository.existsByUserIdAndCodeHashAndTimeStep(any(), any(), any()) } returns false
+        every { usedTotpCodeRepository.existsByUserIdAndCodeHashAndTimeStepIn(any(), any(), any()) } returns false
         every { usedTotpCodeRepository.save(any()) } answers { firstArg() }
         every { mfaChallengeRepository.delete(challenge) } just Runs
 

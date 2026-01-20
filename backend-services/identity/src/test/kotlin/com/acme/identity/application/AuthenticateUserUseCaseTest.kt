@@ -13,7 +13,6 @@ import com.acme.identity.domain.events.AuthenticationSucceeded
 import com.acme.identity.domain.events.DomainEvent
 import com.acme.identity.infrastructure.messaging.UserEventPublisher
 import com.acme.identity.infrastructure.persistence.EventStoreRepository
-import com.acme.identity.infrastructure.persistence.MfaChallengeRepository
 import com.acme.identity.infrastructure.persistence.UserRepository
 import com.acme.identity.infrastructure.security.PasswordHasher
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
@@ -36,7 +35,7 @@ class AuthenticateUserUseCaseTest {
     private lateinit var eventStoreRepository: EventStoreRepository
     private lateinit var userEventPublisher: UserEventPublisher
     private lateinit var passwordHasher: PasswordHasher
-    private lateinit var mfaChallengeRepository: MfaChallengeRepository
+    private lateinit var mfaChallengeService: MfaChallengeService
     private lateinit var meterRegistry: SimpleMeterRegistry
     private lateinit var authenticateUserUseCase: AuthenticateUserUseCase
 
@@ -51,7 +50,7 @@ class AuthenticateUserUseCaseTest {
         eventStoreRepository = mockk()
         userEventPublisher = mockk()
         passwordHasher = mockk()
-        mfaChallengeRepository = mockk()
+        mfaChallengeService = mockk()
         meterRegistry = SimpleMeterRegistry()
 
         authenticateUserUseCase = AuthenticateUserUseCase(
@@ -59,7 +58,7 @@ class AuthenticateUserUseCaseTest {
             eventStoreRepository = eventStoreRepository,
             userEventPublisher = userEventPublisher,
             passwordHasher = passwordHasher,
-            mfaChallengeRepository = mfaChallengeRepository,
+            mfaChallengeService = mfaChallengeService,
             meterRegistry = meterRegistry,
             maxFailedAttempts = 5,
             lockoutDurationMinutes = 15,
@@ -666,9 +665,12 @@ class AuthenticateUserUseCaseTest {
         every { userRepository.save(any()) } answers { firstArg() }
         every { eventStoreRepository.append(any()) } just Runs
         every { userEventPublisher.publishAuthenticationSucceeded(any()) } returns CompletableFuture.completedFuture(null)
-        every { mfaChallengeRepository.deleteByUserId(any()) } just Runs
-        every { mfaChallengeRepository.save(any()) } answers { firstArg() }
-        every { userEventPublisher.publishMFAChallengeInitiated(any()) } returns CompletableFuture.completedFuture(null)
+        every { mfaChallengeService.createChallenge(any(), any(), any()) } answers {
+            com.acme.identity.domain.MfaChallenge.create(
+                userId = firstArg(),
+                method = secondArg()
+            )
+        }
 
         // When
         val result = authenticateUserUseCase.execute(request, context)

@@ -9,6 +9,7 @@ import com.acme.identity.application.MfaVerificationRequest
 import com.acme.identity.application.VerifyMfaUseCase
 import com.acme.identity.domain.MfaMethod
 import jakarta.servlet.http.HttpServletRequest
+import java.net.InetAddress
 import jakarta.validation.Valid
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
@@ -139,17 +140,44 @@ class MfaController(
      * Extracts the client IP address from the request.
      *
      * Handles X-Forwarded-For header for clients behind proxies/load balancers.
+     * Validates that the extracted value is a valid IP address format.
      */
     private fun getClientIp(request: HttpServletRequest): String {
         val xForwardedFor = request.getHeader("X-Forwarded-For")
-        return if (!xForwardedFor.isNullOrBlank()) {
-            xForwardedFor
-                .split(",")
-                .map { it.trim() }
-                .firstOrNull { it.isNotEmpty() }
-                ?: request.remoteAddr
-        } else {
-            request.remoteAddr
+
+        if (xForwardedFor.isNullOrBlank() || xForwardedFor.length > MAX_FORWARDED_HEADER_LENGTH) {
+            return request.remoteAddr
         }
+
+        val candidateIp = xForwardedFor
+            .split(",")
+            .take(MAX_FORWARDED_ENTRIES)
+            .map { it.trim() }
+            .firstOrNull { it.isNotEmpty() && isValidIpAddress(it) }
+
+        return candidateIp ?: request.remoteAddr
+    }
+
+    /**
+     * Validates that a string is a valid IPv4 or IPv6 address.
+     */
+    private fun isValidIpAddress(ip: String): Boolean {
+        if (ip.length > MAX_IP_LENGTH) {
+            return false
+        }
+
+        return try {
+            InetAddress.getByName(ip)
+            true
+        } catch (e: Exception) {
+            logger.debug("Invalid IP address format in X-Forwarded-For: {}", ip)
+            false
+        }
+    }
+
+    companion object {
+        private const val MAX_FORWARDED_HEADER_LENGTH = 500
+        private const val MAX_FORWARDED_ENTRIES = 10
+        private const val MAX_IP_LENGTH = 45 // Max length of IPv6 address
     }
 }

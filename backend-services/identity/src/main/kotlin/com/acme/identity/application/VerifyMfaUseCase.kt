@@ -7,7 +7,6 @@ import arrow.core.raise.ensureNotNull
 import com.acme.identity.domain.MfaChallenge
 import com.acme.identity.domain.MfaMethod
 import com.acme.identity.domain.UsedTotpCode
-import com.acme.identity.domain.events.MFAChallengeInitiated
 import com.acme.identity.domain.events.MFAVerificationFailed
 import com.acme.identity.domain.events.MFAVerificationFailureReason
 import com.acme.identity.domain.events.MFAVerificationSucceeded
@@ -116,7 +115,8 @@ class VerifyMfaUseCase(
     private val eventStoreRepository: EventStoreRepository,
     private val userEventPublisher: UserEventPublisher,
     private val totpService: TotpService,
-    private val meterRegistry: MeterRegistry
+    private val meterRegistry: MeterRegistry,
+    private val mfaChallengeService: MfaChallengeService
 ) {
     private val logger = LoggerFactory.getLogger(VerifyMfaUseCase::class.java)
 
@@ -185,16 +185,16 @@ class VerifyMfaUseCase(
                 val currentTimeStep = totpService.getCurrentTimeStep()
                 val codeHash = totpService.hashCode(request.code)
 
-                // Check adjacent time steps for replay prevention (covers tolerance window)
-                for (offset in -TotpService.TIME_TOLERANCE_STEPS..TotpService.TIME_TOLERANCE_STEPS) {
-                    val timeStep = currentTimeStep + offset
-                    if (usedTotpCodeRepository.existsByUserIdAndCodeHashAndTimeStep(user.id, codeHash, timeStep)) {
-                        challenge.incrementAttempts()
-                        mfaChallengeRepository.save(challenge)
-                        publishFailedEvent(challenge, MFAVerificationFailureReason.CODE_ALREADY_USED, context)
-                        incrementMfaCounter("code_already_used")
-                        raise(MfaVerificationError.CodeAlreadyUsed(remainingAttempts = challenge.remainingAttempts()))
-                    }
+                // Check all time steps in tolerance window with a single query (avoids N+1)
+                val timeStepsToCheck = (-TotpService.TIME_TOLERANCE_STEPS..TotpService.TIME_TOLERANCE_STEPS)
+                    .map { offset -> currentTimeStep + offset }
+
+                if (usedTotpCodeRepository.existsByUserIdAndCodeHashAndTimeStepIn(user.id, codeHash, timeStepsToCheck)) {
+                    challenge.incrementAttempts()
+                    mfaChallengeRepository.save(challenge)
+                    publishFailedEvent(challenge, MFAVerificationFailureReason.CODE_ALREADY_USED, context)
+                    incrementMfaCounter("code_already_used")
+                    raise(MfaVerificationError.CodeAlreadyUsed(remainingAttempts = challenge.remainingAttempts()))
                 }
 
                 // Verify the TOTP code
@@ -252,34 +252,15 @@ class VerifyMfaUseCase(
     /**
      * Creates an MFA challenge for a user after successful credential validation.
      *
+     * Delegates to MfaChallengeService for the actual implementation.
+     *
      * @param userId The user's ID.
      * @param method The MFA method to use.
      * @param correlationId The correlation ID for tracing.
      * @return The created MFA challenge.
      */
-    @Transactional
     fun createChallenge(userId: UUID, method: MfaMethod, correlationId: UUID): MfaChallenge {
-        // Delete any existing challenges for this user
-        mfaChallengeRepository.deleteByUserId(userId)
-
-        // Create new challenge
-        val challenge = MfaChallenge.create(userId = userId, method = method)
-        mfaChallengeRepository.save(challenge)
-
-        // Publish event
-        val event = MFAChallengeInitiated.create(
-            userId = userId,
-            mfaToken = challenge.token,
-            method = method.name,
-            expiresAt = challenge.expiresAt,
-            correlationId = correlationId
-        )
-        eventStoreRepository.append(event)
-        userEventPublisher.publishMFAChallengeInitiated(event)
-
-        logger.info("Created MFA challenge for user {} with method {}", userId, method)
-
-        return challenge
+        return mfaChallengeService.createChallenge(userId, method, correlationId)
     }
 
     /**

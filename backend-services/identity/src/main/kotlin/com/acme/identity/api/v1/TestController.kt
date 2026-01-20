@@ -266,6 +266,14 @@ class TestController(
     )
 
     /**
+     * Response DTO for validation errors.
+     */
+    data class ValidationErrorResponse(
+        val error: String,
+        val message: String
+    )
+
+    /**
      * Response DTO for MFA enablement.
      */
     data class EnableMfaResponse(
@@ -289,8 +297,20 @@ class TestController(
     fun enableMfa(
         @PathVariable userId: UUID,
         @RequestBody request: EnableMfaRequest
-    ): ResponseEntity<EnableMfaResponse> {
+    ): ResponseEntity<Any> {
         logger.debug("Test endpoint: Enabling MFA for user {}", userId)
+
+        // Validate TOTP secret format
+        val validationError = validateTotpSecret(request.totpSecret)
+        if (validationError != null) {
+            logger.warn("Invalid TOTP secret for user {}: {}", userId, validationError)
+            return ResponseEntity.badRequest().body(
+                ValidationErrorResponse(
+                    error = "INVALID_TOTP_SECRET",
+                    message = validationError
+                )
+            )
+        }
 
         val user = userRepository.findById(userId).orElse(null)
 
@@ -312,6 +332,39 @@ class TestController(
             logger.debug("No user found with id {}", userId)
             ResponseEntity.notFound().build()
         }
+    }
+
+    /**
+     * Validates that a TOTP secret is properly formatted.
+     *
+     * @param secret The TOTP secret to validate.
+     * @return An error message if invalid, or null if valid.
+     */
+    private fun validateTotpSecret(secret: String): String? {
+        if (secret.isBlank()) {
+            return "TOTP secret cannot be empty"
+        }
+
+        // Remove any padding characters for length check
+        val secretWithoutPadding = secret.replace("=", "")
+
+        // Base32 alphabet: A-Z and 2-7
+        val base32Regex = Regex("^[A-Z2-7]+=*$")
+        if (!base32Regex.matches(secret.uppercase())) {
+            return "TOTP secret must be base32 encoded (A-Z, 2-7 characters only)"
+        }
+
+        // Minimum 26 base32 chars = 130 bits >= 128 bits (16 bytes) per RFC 4226
+        if (secretWithoutPadding.length < MIN_TOTP_SECRET_LENGTH) {
+            return "TOTP secret must be at least $MIN_TOTP_SECRET_LENGTH base32 characters (128 bits)"
+        }
+
+        // Maximum reasonable length check
+        if (secret.length > MAX_TOTP_SECRET_LENGTH) {
+            return "TOTP secret exceeds maximum length of $MAX_TOTP_SECRET_LENGTH characters"
+        }
+
+        return null
     }
 
     /**
@@ -362,5 +415,12 @@ class TestController(
             logger.debug("No MFA challenge found with token {}", request.mfaToken.take(20))
             ResponseEntity.notFound().build()
         }
+    }
+
+    companion object {
+        // Minimum 26 base32 chars = 130 bits >= 128 bits (16 bytes) per RFC 4226
+        private const val MIN_TOTP_SECRET_LENGTH = 26
+        // Maximum reasonable length for a TOTP secret
+        private const val MAX_TOTP_SECRET_LENGTH = 128
     }
 }

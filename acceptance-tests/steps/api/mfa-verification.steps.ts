@@ -401,15 +401,16 @@ Then('the response should contain {string} with value false', async function (th
  * Uses the same algorithm as the backend (RFC 6238 with SHA-1, 6 digits, 30 sec step).
  *
  * @param secret - The TOTP secret (base32 encoded, must be at least 16 bytes / 26 chars)
- * @param _offset - Time step offset (currently unused, backend has ±1 step tolerance)
+ * @param offset - Time step offset (e.g., -1 for previous step, +1 for next step)
  * @returns A 6-digit TOTP code
  */
-function generateTotpCode(secret: string, _offset: number = 0): string {
+function generateTotpCode(secret: string, offset: number = 0): string {
   if (!secret) {
     throw new Error('TOTP secret is required');
   }
 
-  // Generate code for current time using otplib's synchronous function
-  // The backend accepts codes within ±1 time step (30 seconds each)
-  return generateSync({ secret });
+  const period = 30; // TOTP time step in seconds
+  const epoch = Math.floor(Date.now() / 1000) + (offset * period);
+
+  return generateSync({ secret, epoch });
 }

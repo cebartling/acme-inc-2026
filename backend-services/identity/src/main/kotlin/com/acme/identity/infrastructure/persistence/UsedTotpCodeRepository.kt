@@ -28,6 +28,20 @@ interface UsedTotpCodeRepository : JpaRepository<UsedTotpCode, UUID> {
     fun existsByUserIdAndCodeHashAndTimeStep(userId: UUID, codeHash: String, timeStep: Long): Boolean
 
     /**
+     * Checks if a TOTP code has already been used for a specific user within any of the given time steps.
+     *
+     * This method uses a single query with an IN clause to check multiple time steps,
+     * avoiding the N+1 query pattern when checking code reuse across the TOTP tolerance window.
+     *
+     * @param userId The user's ID.
+     * @param codeHash SHA-256 hash of the code.
+     * @param timeSteps The TOTP time steps to check (typically current ±1 for tolerance).
+     * @return `true` if this code has been used in any of the time steps, `false` otherwise.
+     */
+    @Query("SELECT CASE WHEN COUNT(c) > 0 THEN true ELSE false END FROM UsedTotpCode c WHERE c.userId = :userId AND c.codeHash = :codeHash AND c.timeStep IN :timeSteps")
+    fun existsByUserIdAndCodeHashAndTimeStepIn(userId: UUID, codeHash: String, timeSteps: Collection<Long>): Boolean
+
+    /**
      * Deletes all expired used code records for cleanup.
      *
      * @param before Delete records that expired before this instant.
