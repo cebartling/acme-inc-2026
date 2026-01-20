@@ -37,7 +37,7 @@ CREATE INDEX IF NOT EXISTS idx_mfa_challenges_expires_at ON mfa_challenges(expir
 CREATE TABLE IF NOT EXISTS used_totp_codes (
     id UUID PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    code_hash VARCHAR(64) NOT NULL,
+    code_hash CHAR(64) NOT NULL,  -- SHA-256 hex is always exactly 64 characters
     time_step BIGINT NOT NULL,
     used_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     expires_at TIMESTAMP WITH TIME ZONE NOT NULL,

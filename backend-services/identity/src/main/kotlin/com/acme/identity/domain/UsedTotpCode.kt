@@ -32,7 +32,7 @@ class UsedTotpCode(
     @Column(name = "user_id", nullable = false)
     val userId: UUID,
 
-    @Column(name = "code_hash", nullable = false, length = 64)
+    @Column(name = "code_hash", nullable = false, columnDefinition = "CHAR(64)")
     val codeHash: String,
 
     @Column(name = "time_step", nullable = false)
