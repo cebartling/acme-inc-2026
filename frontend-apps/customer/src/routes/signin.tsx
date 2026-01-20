@@ -118,7 +118,29 @@ function SigninPage() {
       });
 
       if (response.status === "MFA_REQUIRED") {
-        // Store MFA state in session storage for the verification page
+        // Store MFA state in sessionStorage for the verification page.
+        //
+        // Security considerations:
+        // - The mfaToken is a short-lived credential (5 minutes TTL) that can only
+        //   be used to complete MFA verification, not to authenticate directly.
+        // - sessionStorage is automatically cleared when the tab/window closes,
+        //   limiting the exposure window.
+        // - sessionStorage is isolated per tab (unlike localStorage), preventing
+        //   cross-tab access.
+        // - The token is cleared immediately after successful verification or
+        //   on expiry/lockout errors in the mfa-verify route.
+        //
+        // Residual risks:
+        // - XSS attacks could read the token from sessionStorage. This is mitigated
+        //   by the short TTL and the fact that XSS would likely have access to the
+        //   authenticated session anyway.
+        // - Browser extensions with host permissions could read the storage.
+        //
+        // Alternative approaches considered:
+        // - URL parameters: More visible in browser history and logs.
+        // - In-memory only: Would break on page refresh during MFA flow.
+        // - Encrypted storage: Key management adds complexity without significant
+        //   benefit given the short token lifetime.
         sessionStorage.setItem(
           "mfaState",
           JSON.stringify({
