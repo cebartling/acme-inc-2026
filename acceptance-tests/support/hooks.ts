@@ -18,9 +18,10 @@ Before({ tags: '@customer or @admin' }, async function (this: CustomWorld) {
   await this.createContext();
 });
 
-// API Tests: Initialize API clients for @api tagged scenarios (no browser needed)
+// API Tests: Initialize API clients and create test session for @api tagged scenarios
 Before({ tags: '@api and not @customer and not @admin' }, async function (this: CustomWorld) {
   this.initializeApiClients();
+  await this.createTestSession();
 });
 
 // UI Tests: Also initialize API clients for @customer scenarios that need API setup
@@ -56,7 +57,10 @@ After(async function (this: CustomWorld, scenario) {
     await this.closeBrowser();
   }
 
-  // Clear test data for all tests
+  // Clean up test session (rolls back all created test data)
+  await this.cleanupTestSession();
+
+  // Clear local test data
   this.clearTestData();
 });
 

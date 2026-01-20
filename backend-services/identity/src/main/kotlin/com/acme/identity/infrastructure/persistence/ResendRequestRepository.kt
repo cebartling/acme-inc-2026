@@ -52,4 +52,14 @@ interface ResendRequestRepository : JpaRepository<VerificationResendRequest, UUI
     @Modifying
     @Query("DELETE FROM VerificationResendRequest r WHERE r.requestedAt < :before")
     fun deleteOlderThan(before: Instant)
+
+    /**
+     * Deletes all resend requests for an email.
+     * Used for test cleanup.
+     *
+     * @param email The email address.
+     */
+    @Modifying
+    @Query("DELETE FROM VerificationResendRequest r WHERE r.email = :email")
+    fun deleteByEmail(email: String)
 }

@@ -36,4 +36,14 @@ interface UsedTotpCodeRepository : JpaRepository<UsedTotpCode, UUID> {
     @Modifying
     @Query("DELETE FROM UsedTotpCode c WHERE c.expiresAt < :before")
     fun deleteExpiredCodes(before: Instant): Int
+
+    /**
+     * Deletes all used TOTP codes for a user.
+     * Used for test cleanup.
+     *
+     * @param userId The user's ID.
+     */
+    @Modifying
+    @Query("DELETE FROM UsedTotpCode c WHERE c.userId = :userId")
+    fun deleteByUserId(userId: UUID)
 }

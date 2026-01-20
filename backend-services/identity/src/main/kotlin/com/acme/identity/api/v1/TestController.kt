@@ -1,6 +1,8 @@
 package com.acme.identity.api.v1
 
 import com.acme.identity.infrastructure.persistence.MfaChallengeRepository
+import com.acme.identity.infrastructure.persistence.ResendRequestRepository
+import com.acme.identity.infrastructure.persistence.UsedTotpCodeRepository
 import com.acme.identity.infrastructure.persistence.UserRepository
 import com.acme.identity.infrastructure.persistence.VerificationTokenRepository
 import org.slf4j.LoggerFactory
@@ -16,13 +18,14 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import java.time.Instant
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Test-only controller for acceptance and integration testing.
  *
  * This controller is only available when the "test" or "docker" profile is active.
  * It provides endpoints that expose internal data for testing purposes,
- * such as verification tokens.
+ * such as verification tokens and test session management.
  *
  * WARNING: This controller should NEVER be enabled in production environments.
  */
@@ -32,9 +35,160 @@ import java.util.UUID
 class TestController(
     private val verificationTokenRepository: VerificationTokenRepository,
     private val userRepository: UserRepository,
-    private val mfaChallengeRepository: MfaChallengeRepository
+    private val mfaChallengeRepository: MfaChallengeRepository,
+    private val usedTotpCodeRepository: UsedTotpCodeRepository,
+    private val resendRequestRepository: ResendRequestRepository
 ) {
     private val logger = LoggerFactory.getLogger(TestController::class.java)
+
+    /**
+     * In-memory storage for test sessions.
+     * Each session tracks user IDs created during that session for cleanup.
+     */
+    private val testSessions = ConcurrentHashMap<String, TestSession>()
+
+    /**
+     * Data class representing a test session.
+     */
+    data class TestSession(
+        val sessionId: String,
+        val createdAt: Instant = Instant.now(),
+        val userIds: MutableList<UUID> = mutableListOf(),
+        val emails: MutableList<String> = mutableListOf()
+    )
+
+    // =========================================================================
+    // Test Session Management
+    // =========================================================================
+
+    /**
+     * Response DTO for session creation.
+     */
+    data class CreateSessionResponse(
+        val sessionId: String,
+        val createdAt: String
+    )
+
+    /**
+     * Creates a new test session for tracking test data.
+     *
+     * @return The session ID and creation time.
+     */
+    @PostMapping("/sessions")
+    fun createSession(): ResponseEntity<CreateSessionResponse> {
+        val sessionId = "test-${UUID.randomUUID()}"
+        val session = TestSession(sessionId = sessionId)
+        testSessions[sessionId] = session
+
+        logger.info("Created test session: {}", sessionId)
+        return ResponseEntity.ok(
+            CreateSessionResponse(
+                sessionId = sessionId,
+                createdAt = session.createdAt.toString()
+            )
+        )
+    }
+
+    /**
+     * Request DTO for registering a user with a session.
+     */
+    data class RegisterUserRequest(
+        val userId: String,
+        val email: String
+    )
+
+    /**
+     * Registers a user ID with a test session for cleanup.
+     *
+     * @param sessionId The session ID.
+     * @param request The user registration request.
+     * @return 200 OK if registered, 404 if session not found.
+     */
+    @PostMapping("/sessions/{sessionId}/users")
+    fun registerUserWithSession(
+        @PathVariable sessionId: String,
+        @RequestBody request: RegisterUserRequest
+    ): ResponseEntity<Void> {
+        val session = testSessions[sessionId]
+            ?: return ResponseEntity.notFound().build()
+
+        val userId = UUID.fromString(request.userId)
+        session.userIds.add(userId)
+        session.emails.add(request.email.lowercase())
+
+        logger.debug("Registered user {} with session {}", userId, sessionId)
+        return ResponseEntity.ok().build()
+    }
+
+    /**
+     * Response DTO for session cleanup.
+     */
+    data class CleanupSessionResponse(
+        val sessionId: String,
+        val deletedUsers: Int,
+        val deletedEmails: Int
+    )
+
+    /**
+     * Cleans up all data created during a test session (rollback equivalent).
+     *
+     * Deletes all users and related data registered with this session.
+     * This provides transaction-like rollback semantics for tests.
+     *
+     * @param sessionId The session ID.
+     * @return Cleanup statistics, or 404 if session not found.
+     */
+    @DeleteMapping("/sessions/{sessionId}")
+    @Transactional
+    fun cleanupSession(@PathVariable sessionId: String): ResponseEntity<CleanupSessionResponse> {
+        val session = testSessions.remove(sessionId)
+            ?: return ResponseEntity.notFound().build()
+
+        logger.info("Cleaning up test session: {} ({} users, {} emails)",
+            sessionId, session.userIds.size, session.emails.size)
+
+        var deletedUsers = 0
+
+        // Delete users in reverse order (LIFO) to handle any dependencies
+        for (userId in session.userIds.reversed()) {
+            try {
+                deleteUserData(userId)
+                deletedUsers++
+            } catch (e: Exception) {
+                logger.warn("Failed to delete user {}: {}", userId, e.message)
+            }
+        }
+
+        // Clean up any resend requests by email
+        for (email in session.emails) {
+            try {
+                resendRequestRepository.deleteByEmail(email)
+            } catch (e: Exception) {
+                logger.warn("Failed to delete resend requests for {}: {}", email, e.message)
+            }
+        }
+
+        logger.info("Test session {} cleanup complete: {} users deleted", sessionId, deletedUsers)
+        return ResponseEntity.ok(
+            CleanupSessionResponse(
+                sessionId = sessionId,
+                deletedUsers = deletedUsers,
+                deletedEmails = session.emails.size
+            )
+        )
+    }
+
+    /**
+     * Helper to delete all data associated with a user.
+     */
+    private fun deleteUserData(userId: UUID) {
+        // Delete in order of dependencies (children first)
+        mfaChallengeRepository.deleteByUserId(userId)
+        usedTotpCodeRepository.deleteByUserId(userId)
+        verificationTokenRepository.deleteByUserId(userId)
+        userRepository.deleteById(userId)
+        logger.debug("Deleted user {} and all related data", userId)
+    }
 
     /**
      * Response DTO for verification token lookup.
@@ -79,6 +233,7 @@ class TestController(
      *
      * This endpoint is intended for acceptance testing to allow tests to
      * clean up users before recreating them with specific credentials.
+     * Performs comprehensive cleanup of all related data.
      *
      * @param email The email address of the user to delete.
      * @return 204 No Content on success, 404 if user not found.
@@ -91,10 +246,10 @@ class TestController(
         val user = userRepository.findByEmail(email.lowercase())
 
         return if (user != null) {
-            // Delete verification tokens first (foreign key constraint)
-            verificationTokenRepository.deleteByUserId(user.id)
-            // Delete the user
-            userRepository.delete(user)
+            // Delete all related data
+            deleteUserData(user.id)
+            // Also clean up resend requests
+            resendRequestRepository.deleteByEmail(email.lowercase())
             logger.info("Deleted user {} with email {}", user.id, email)
             ResponseEntity.noContent().build()
         } else {
