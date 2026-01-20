@@ -120,6 +120,7 @@ class AuthenticateUserUseCase(
     private val userEventPublisher: UserEventPublisher,
     private val passwordHasher: PasswordHasher,
     private val mfaChallengeService: MfaChallengeService,
+    private val smsMfaService: SmsMfaService,
     private val meterRegistry: MeterRegistry,
     @Value("\${identity.authentication.max-failed-attempts:5}")
     private val maxFailedAttempts: Int = 5,
@@ -338,17 +339,43 @@ class AuthenticateUserUseCase(
                 logger.info("User {} authenticated successfully", user.id)
 
                 // Build response based on MFA status
-                if (user.mfaEnabled && user.totpEnabled) {
-                    // Create MFA challenge using the shared service
-                    val challenge = mfaChallengeService.createChallenge(
-                        userId = user.id,
-                        method = MfaMethod.TOTP,
-                        correlationId = context.correlationId
-                    )
-                    SigninResponse.mfaRequired(
-                        mfaToken = challenge.token,
-                        mfaMethods = getMfaMethods(user)
-                    )
+                if (user.mfaEnabled) {
+                    when {
+                        user.totpEnabled -> {
+                            // TOTP is the primary MFA method
+                            val challenge = mfaChallengeService.createChallenge(
+                                userId = user.id,
+                                method = MfaMethod.TOTP,
+                                correlationId = context.correlationId
+                            )
+                            SigninResponse.mfaRequired(
+                                mfaToken = challenge.token,
+                                mfaMethods = getMfaMethods(user)
+                            )
+                        }
+                        user.smsMfaEnabled -> {
+                            // SMS MFA enabled (without TOTP)
+                            smsMfaService.createChallenge(user, context.correlationId).fold(
+                                ifLeft = { error ->
+                                    logger.error("Failed to create SMS MFA challenge for user {}: {}", user.id, error)
+                                    // Fall back to success if SMS challenge fails
+                                    incrementAuthenticationCounter("sms_mfa_challenge_failed")
+                                    SigninResponse.success(userId = user.id)
+                                },
+                                ifRight = { result ->
+                                    SigninResponse.mfaRequired(
+                                        mfaToken = result.mfaToken,
+                                        mfaMethods = getMfaMethods(user)
+                                    )
+                                }
+                            )
+                        }
+                        else -> {
+                            // MFA enabled but no method configured - treat as no MFA
+                            logger.warn("User {} has MFA enabled but no method configured", user.id)
+                            SigninResponse.success(userId = user.id)
+                        }
+                    }
                 } else {
                     SigninResponse.success(userId = user.id)
                 }
@@ -462,7 +489,10 @@ class AuthenticateUserUseCase(
         if (user.totpEnabled) {
             methods.add(com.acme.identity.api.v1.dto.MfaMethod.TOTP)
         }
-        // Future: Add SMS, EMAIL methods when implemented
+        if (user.smsMfaEnabled) {
+            methods.add(com.acme.identity.api.v1.dto.MfaMethod.SMS)
+        }
+        // Future: Add EMAIL method when implemented
         return methods
     }
 

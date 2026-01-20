@@ -288,6 +288,34 @@ export interface MfaVerifyErrorResponse {
 }
 
 /**
+ * Request type for MFA resend (SMS only).
+ */
+export interface MfaResendRequest {
+  mfaToken: string;
+  method: string;
+}
+
+/**
+ * Response type for successful MFA resend.
+ */
+export interface MfaResendResponse {
+  status: string;
+  maskedPhone: string;
+  expiresIn: number;
+  resendAvailableIn: number;
+}
+
+/**
+ * Error response from MFA resend API.
+ */
+export interface MfaResendErrorResponse {
+  error: string;
+  message: string;
+  resendAvailableIn?: number;
+  retryAfter?: number;
+}
+
+/**
  * Identity Service API client.
  */
 export const identityApi = {
@@ -318,6 +346,23 @@ export const identityApi = {
   async verifyMfa(request: MfaVerifyRequest): Promise<MfaVerifyResponse> {
     return apiRequest<MfaVerifyResponse>(
       `${IDENTITY_SERVICE_URL}/api/v1/auth/mfa/verify`,
+      {
+        method: "POST",
+        body: JSON.stringify(request),
+      }
+    );
+  },
+
+  /**
+   * Resends an MFA code (SMS only).
+   *
+   * @param request - The MFA resend request.
+   * @returns The resend response on success.
+   * @throws ApiError on resend failure (rate limit, cooldown, etc.).
+   */
+  async resendMfaCode(request: MfaResendRequest): Promise<MfaResendResponse> {
+    return apiRequest<MfaResendResponse>(
+      `${IDENTITY_SERVICE_URL}/api/v1/auth/mfa/resend`,
       {
         method: "POST",
         body: JSON.stringify(request),

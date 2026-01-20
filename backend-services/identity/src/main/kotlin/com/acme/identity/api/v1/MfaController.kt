@@ -1,11 +1,16 @@
 package com.acme.identity.api.v1
 
+import com.acme.identity.api.v1.dto.MfaResendErrorResponse
+import com.acme.identity.api.v1.dto.MfaResendRequest
+import com.acme.identity.api.v1.dto.MfaResendResponse
 import com.acme.identity.api.v1.dto.MfaVerifyErrorResponse
 import com.acme.identity.api.v1.dto.MfaVerifyRequest
 import com.acme.identity.api.v1.dto.MfaVerifyResponse
 import com.acme.identity.application.MfaVerificationContext
 import com.acme.identity.application.MfaVerificationError
 import com.acme.identity.application.MfaVerificationRequest
+import com.acme.identity.application.SmsMfaError
+import com.acme.identity.application.SmsMfaService
 import com.acme.identity.application.VerifyMfaUseCase
 import com.acme.identity.domain.MfaMethod
 import jakarta.servlet.http.HttpServletRequest
@@ -23,19 +28,21 @@ import java.util.UUID
  * Provides the public API for MFA verification operations.
  * All endpoints are versioned under `/api/v1/auth/mfa`.
  *
- * @property verifyMfaUseCase The use case for MFA verification.
+ * @property verifyMfaUseCase The use case for TOTP MFA verification.
+ * @property smsMfaService The service for SMS MFA operations.
  */
 @RestController
 @RequestMapping("/api/v1/auth/mfa")
 class MfaController(
-    private val verifyMfaUseCase: VerifyMfaUseCase
+    private val verifyMfaUseCase: VerifyMfaUseCase,
+    private val smsMfaService: SmsMfaService
 ) {
     private val logger = LoggerFactory.getLogger(MfaController::class.java)
 
     /**
      * Verifies an MFA code for a pending authentication challenge.
      *
-     * This endpoint validates a TOTP code against an active MFA challenge.
+     * This endpoint validates a TOTP or SMS code against an active MFA challenge.
      * On success, the user is fully authenticated.
      * On failure, an error response indicates the reason and remaining attempts.
      *
@@ -67,21 +74,42 @@ class MfaController(
             return ResponseEntity.badRequest().body(
                 MfaVerifyErrorResponse(
                     error = "INVALID_METHOD",
-                    message = "Invalid MFA method. Supported methods: TOTP"
+                    message = "Invalid MFA method. Supported methods: TOTP, SMS"
                 )
             )
         }
 
+        // Route to appropriate verification service based on method
+        return when (mfaMethod) {
+            MfaMethod.SMS -> verifySms(request, context)
+            MfaMethod.TOTP -> verifyTotp(request, mfaMethod, context)
+            MfaMethod.EMAIL -> ResponseEntity.badRequest().body(
+                MfaVerifyErrorResponse(
+                    error = "UNSUPPORTED_METHOD",
+                    message = "Email MFA is not yet supported"
+                )
+            )
+        }
+    }
+
+    /**
+     * Verifies a TOTP code.
+     */
+    private fun verifyTotp(
+        request: MfaVerifyRequest,
+        method: MfaMethod,
+        context: MfaVerificationContext
+    ): ResponseEntity<Any> {
         val verificationRequest = MfaVerificationRequest(
             mfaToken = request.mfaToken,
             code = request.code,
-            method = mfaMethod,
+            method = method,
             rememberDevice = request.rememberDevice
         )
 
         return verifyMfaUseCase.execute(verificationRequest, context).fold(
             ifLeft = { error ->
-                mapErrorToResponse(error)
+                mapTotpErrorToResponse(error)
             },
             ifRight = { result ->
                 ResponseEntity.ok(
@@ -98,9 +126,82 @@ class MfaController(
     }
 
     /**
-     * Maps an MFA verification error to the appropriate HTTP response.
+     * Verifies an SMS code.
      */
-    private fun mapErrorToResponse(error: MfaVerificationError): ResponseEntity<Any> {
+    private fun verifySms(
+        request: MfaVerifyRequest,
+        context: MfaVerificationContext
+    ): ResponseEntity<Any> {
+        return smsMfaService.verifyCode(
+            mfaToken = request.mfaToken,
+            code = request.code,
+            rememberDevice = request.rememberDevice,
+            context = context
+        ).fold(
+            ifLeft = { error ->
+                mapSmsErrorToResponse(error)
+            },
+            ifRight = { result ->
+                ResponseEntity.ok(
+                    MfaVerifyResponse(
+                        userId = result.userId,
+                        email = result.email,
+                        firstName = result.firstName,
+                        lastName = result.lastName,
+                        deviceTrusted = result.deviceRemembered
+                    )
+                )
+            }
+        )
+    }
+
+    /**
+     * Resends an SMS verification code.
+     *
+     * This endpoint generates a new code and sends it via SMS.
+     * Subject to rate limiting (max 3 SMS per hour) and cooldown (60 seconds between resends).
+     *
+     * @param request The resend request containing the MFA token.
+     * @param correlationId Optional correlation ID for distributed tracing.
+     * @return 200 OK with resend result on success,
+     *         429 Too Many Requests if rate limited or cooldown active.
+     */
+    @PostMapping("/resend")
+    fun resend(
+        @Valid @RequestBody request: MfaResendRequest,
+        @RequestHeader("X-Correlation-ID", required = false) correlationId: String?
+    ): ResponseEntity<Any> {
+        val correlationUuid = correlationId?.let { UUID.fromString(it) } ?: UUID.randomUUID()
+
+        if (request.method.uppercase() != "SMS") {
+            return ResponseEntity.badRequest().body(
+                MfaResendErrorResponse(
+                    error = "INVALID_METHOD",
+                    message = "Resend is only supported for SMS method"
+                )
+            )
+        }
+
+        return smsMfaService.resendCode(request.mfaToken, correlationUuid).fold(
+            ifLeft = { error ->
+                mapSmsResendErrorToResponse(error)
+            },
+            ifRight = { result ->
+                ResponseEntity.ok(
+                    MfaResendResponse(
+                        maskedPhone = result.maskedPhone,
+                        expiresIn = result.expiresIn,
+                        resendAvailableIn = result.resendAvailableIn
+                    )
+                )
+            }
+        )
+    }
+
+    /**
+     * Maps a TOTP MFA verification error to the appropriate HTTP response.
+     */
+    private fun mapTotpErrorToResponse(error: MfaVerificationError): ResponseEntity<Any> {
         return when (error) {
             is MfaVerificationError.InvalidToken -> {
                 ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
@@ -133,6 +234,138 @@ class MfaController(
                         error = "INVALID_MFA_CODE",
                         message = "This code has already been used. Please wait for a new code.",
                         remainingAttempts = error.remainingAttempts
+                    )
+                )
+            }
+        }
+    }
+
+    /**
+     * Maps an SMS MFA verification error to the appropriate HTTP response.
+     */
+    private fun mapSmsErrorToResponse(error: SmsMfaError): ResponseEntity<Any> {
+        return when (error) {
+            is SmsMfaError.InvalidToken -> {
+                ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
+                    MfaVerifyErrorResponse(
+                        error = "INVALID_MFA_TOKEN",
+                        message = "Invalid or expired MFA token. Please sign in again."
+                    )
+                )
+            }
+            is SmsMfaError.Expired -> {
+                ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
+                    MfaVerifyErrorResponse(
+                        error = "MFA_EXPIRED",
+                        message = "MFA challenge has expired. Please sign in again."
+                    )
+                )
+            }
+            is SmsMfaError.InvalidCode -> {
+                ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
+                    MfaVerifyErrorResponse(
+                        error = "INVALID_MFA_CODE",
+                        message = "Invalid verification code",
+                        remainingAttempts = error.remainingAttempts
+                    )
+                )
+            }
+            is SmsMfaError.SmsNotConfigured, is SmsMfaError.PhoneNotVerified -> {
+                ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
+                    MfaVerifyErrorResponse(
+                        error = "SMS_NOT_CONFIGURED",
+                        message = "SMS MFA is not configured for this account."
+                    )
+                )
+            }
+            is SmsMfaError.RateLimited -> {
+                ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(
+                    MfaVerifyErrorResponse(
+                        error = "SMS_RATE_LIMITED",
+                        message = "Too many SMS requests. Please try again later."
+                    )
+                )
+            }
+            is SmsMfaError.CooldownActive -> {
+                ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(
+                    MfaVerifyErrorResponse(
+                        error = "COOLDOWN_ACTIVE",
+                        message = "Please wait before requesting another code."
+                    )
+                )
+            }
+            is SmsMfaError.SendFailed -> {
+                ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(
+                    MfaVerifyErrorResponse(
+                        error = "SMS_SEND_FAILED",
+                        message = "Failed to send SMS. Please try again."
+                    )
+                )
+            }
+        }
+    }
+
+    /**
+     * Maps an SMS resend error to the appropriate HTTP response.
+     */
+    private fun mapSmsResendErrorToResponse(error: SmsMfaError): ResponseEntity<Any> {
+        return when (error) {
+            is SmsMfaError.InvalidToken -> {
+                ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
+                    MfaResendErrorResponse(
+                        error = "INVALID_MFA_TOKEN",
+                        message = "Invalid or expired MFA token. Please sign in again."
+                    )
+                )
+            }
+            is SmsMfaError.Expired -> {
+                ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
+                    MfaResendErrorResponse(
+                        error = "MFA_EXPIRED",
+                        message = "MFA challenge has expired. Please sign in again."
+                    )
+                )
+            }
+            is SmsMfaError.RateLimited -> {
+                ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(
+                    MfaResendErrorResponse(
+                        error = "SMS_RATE_LIMITED",
+                        message = "Too many SMS requests. Please try again later.",
+                        retryAfter = error.retryAfterSeconds
+                    )
+                )
+            }
+            is SmsMfaError.CooldownActive -> {
+                ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(
+                    MfaResendErrorResponse(
+                        error = "COOLDOWN_ACTIVE",
+                        message = "Please wait before requesting another code.",
+                        resendAvailableIn = error.waitSeconds
+                    )
+                )
+            }
+            is SmsMfaError.SendFailed -> {
+                ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(
+                    MfaResendErrorResponse(
+                        error = "SMS_SEND_FAILED",
+                        message = "Failed to send SMS. Please try again."
+                    )
+                )
+            }
+            is SmsMfaError.SmsNotConfigured, is SmsMfaError.PhoneNotVerified -> {
+                ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+                    MfaResendErrorResponse(
+                        error = "SMS_NOT_CONFIGURED",
+                        message = "SMS MFA is not configured for this account."
+                    )
+                )
+            }
+            is SmsMfaError.InvalidCode -> {
+                // This shouldn't happen for resend, but handle it
+                ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+                    MfaResendErrorResponse(
+                        error = "INVALID_REQUEST",
+                        message = "Invalid resend request."
                     )
                 )
             }

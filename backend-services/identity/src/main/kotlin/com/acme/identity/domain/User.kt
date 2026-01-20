@@ -87,6 +87,15 @@ class User(
     @Column(name = "totp_enabled", nullable = false)
     var totpEnabled: Boolean = false,
 
+    @Column(name = "phone_number", length = 20)
+    var phoneNumber: String? = null,
+
+    @Column(name = "phone_verified", nullable = false)
+    var phoneVerified: Boolean = false,
+
+    @Column(name = "sms_mfa_enabled", nullable = false)
+    var smsMfaEnabled: Boolean = false,
+
     @Column(name = "last_login_at")
     var lastLoginAt: Instant? = null,
 
@@ -144,6 +153,9 @@ class User(
             mfaEnabled = mfaEnabled,
             totpSecret = totpSecret,
             totpEnabled = totpEnabled,
+            phoneNumber = phoneNumber,
+            phoneVerified = phoneVerified,
+            smsMfaEnabled = smsMfaEnabled,
             lastLoginAt = lastLoginAt,
             lastDeviceFingerprint = lastDeviceFingerprint,
             createdAt = createdAt,

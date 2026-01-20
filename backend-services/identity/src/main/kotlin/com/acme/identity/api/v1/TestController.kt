@@ -2,6 +2,7 @@ package com.acme.identity.api.v1
 
 import com.acme.identity.infrastructure.persistence.MfaChallengeRepository
 import com.acme.identity.infrastructure.persistence.ResendRequestRepository
+import com.acme.identity.infrastructure.persistence.SmsRateLimitRepository
 import com.acme.identity.infrastructure.persistence.UsedTotpCodeRepository
 import com.acme.identity.infrastructure.persistence.UserRepository
 import com.acme.identity.infrastructure.persistence.VerificationTokenRepository
@@ -37,7 +38,8 @@ class TestController(
     private val userRepository: UserRepository,
     private val mfaChallengeRepository: MfaChallengeRepository,
     private val usedTotpCodeRepository: UsedTotpCodeRepository,
-    private val resendRequestRepository: ResendRequestRepository
+    private val resendRequestRepository: ResendRequestRepository,
+    private val smsRateLimitRepository: SmsRateLimitRepository
 ) {
     private val logger = LoggerFactory.getLogger(TestController::class.java)
 
@@ -185,6 +187,7 @@ class TestController(
         // Delete in order of dependencies (children first)
         mfaChallengeRepository.deleteByUserId(userId)
         usedTotpCodeRepository.deleteByUserId(userId)
+        smsRateLimitRepository.deleteByUserId(userId)
         verificationTokenRepository.deleteByUserId(userId)
         userRepository.deleteById(userId)
         logger.debug("Deleted user {} and all related data", userId)
@@ -332,6 +335,107 @@ class TestController(
             logger.debug("No user found with id {}", userId)
             ResponseEntity.notFound().build()
         }
+    }
+
+    /**
+     * Request DTO for enabling SMS MFA.
+     */
+    data class EnableSmsMfaRequest(
+        val phoneNumber: String
+    )
+
+    /**
+     * Response DTO for SMS MFA enablement.
+     */
+    data class EnableSmsMfaResponse(
+        val userId: String,
+        val mfaEnabled: Boolean,
+        val smsMfaEnabled: Boolean,
+        val maskedPhone: String
+    )
+
+    /**
+     * Enables SMS MFA for a user.
+     *
+     * This endpoint is intended for acceptance testing to enable SMS MFA
+     * for test users without going through the full phone verification flow.
+     *
+     * @param userId The UUID of the user.
+     * @param request The request containing the phone number.
+     * @return The MFA status if successful, or a 404 response.
+     */
+    @PostMapping("/users/{userId}/enable-sms-mfa")
+    @Transactional
+    fun enableSmsMfa(
+        @PathVariable userId: UUID,
+        @RequestBody request: EnableSmsMfaRequest
+    ): ResponseEntity<Any> {
+        logger.debug("Test endpoint: Enabling SMS MFA for user {}", userId)
+
+        // Validate phone number format (basic E.164 validation)
+        val validationError = validatePhoneNumber(request.phoneNumber)
+        if (validationError != null) {
+            logger.warn("Invalid phone number for user {}: {}", userId, validationError)
+            return ResponseEntity.badRequest().body(
+                ValidationErrorResponse(
+                    error = "INVALID_PHONE_NUMBER",
+                    message = validationError
+                )
+            )
+        }
+
+        val user = userRepository.findById(userId).orElse(null)
+
+        return if (user != null) {
+            user.mfaEnabled = true
+            user.smsMfaEnabled = true
+            user.phoneNumber = request.phoneNumber
+            user.phoneVerified = true
+            userRepository.save(user)
+
+            logger.info("Enabled SMS MFA for user {} with phone {}", userId, maskPhoneNumber(request.phoneNumber))
+            ResponseEntity.ok(
+                EnableSmsMfaResponse(
+                    userId = userId.toString(),
+                    mfaEnabled = true,
+                    smsMfaEnabled = true,
+                    maskedPhone = maskPhoneNumber(request.phoneNumber)
+                )
+            )
+        } else {
+            logger.debug("No user found with id {}", userId)
+            ResponseEntity.notFound().build()
+        }
+    }
+
+    /**
+     * Validates that a phone number is in E.164 format.
+     *
+     * @param phoneNumber The phone number to validate.
+     * @return An error message if invalid, or null if valid.
+     */
+    private fun validatePhoneNumber(phoneNumber: String): String? {
+        if (phoneNumber.isBlank()) {
+            return "Phone number cannot be empty"
+        }
+
+        // E.164 format: + followed by country code and number (max 15 digits)
+        val e164Regex = Regex("^\\+[1-9]\\d{1,14}$")
+        if (!e164Regex.matches(phoneNumber)) {
+            return "Phone number must be in E.164 format (e.g., +15551234567)"
+        }
+
+        return null
+    }
+
+    /**
+     * Masks a phone number for display.
+     * E.g., +15551234567 -> ***-***-4567
+     */
+    private fun maskPhoneNumber(phone: String): String {
+        val digits = phone.filter { it.isDigit() }
+        val lastFour = digits.takeLast(4)
+        return "***-***-$lastFour"
     }
 
     /**

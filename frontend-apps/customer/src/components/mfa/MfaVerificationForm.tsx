@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Loader2, Smartphone } from "lucide-react";
+import { Loader2, MessageSquare, Smartphone } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
 import {
@@ -24,6 +24,14 @@ export interface MfaVerificationFormProps {
   remainingAttempts?: number;
   /** Whether the form is disabled */
   disabled?: boolean;
+  /** MFA method being used (TOTP or SMS) */
+  method?: "TOTP" | "SMS";
+  /** Description text override */
+  description?: string;
+  /** Help text override */
+  helpText?: string;
+  /** Additional footer content (e.g., resend button for SMS) */
+  footerExtra?: React.ReactNode;
 }
 
 /**
@@ -41,6 +49,10 @@ export function MfaVerificationForm({
   error,
   remainingAttempts,
   disabled = false,
+  method = "TOTP",
+  description,
+  helpText,
+  footerExtra,
 }: MfaVerificationFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [rememberDevice, setRememberDevice] = useState(false);
@@ -54,15 +66,25 @@ export function MfaVerificationForm({
     }
   };
 
+  // Method-specific defaults
+  const isSms = method === "SMS";
+  const Icon = isSms ? MessageSquare : Smartphone;
+  const defaultDescription = isSms
+    ? "Enter the 6-digit code sent to your phone"
+    : "Enter the 6-digit code from your authenticator app";
+  const defaultHelpText = isSms
+    ? "Check your text messages for the verification code."
+    : "Open your authenticator app (Google Authenticator, Authy, etc.) to view your verification code.";
+
   return (
     <Card className="w-full max-w-md mx-auto">
       <CardHeader className="text-center">
         <div className="mx-auto mb-4 w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
-          <Smartphone className="w-6 h-6 text-primary" />
+          <Icon className="w-6 h-6 text-primary" />
         </div>
         <CardTitle>Two-Factor Authentication</CardTitle>
         <CardDescription>
-          Enter the 6-digit code from your authenticator app
+          {description || defaultDescription}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -121,9 +143,9 @@ export function MfaVerificationForm({
         </div>
       </CardContent>
       <CardFooter className="flex flex-col gap-4">
+        {footerExtra}
         <p className="text-sm text-muted-foreground text-center">
-          Open your authenticator app (Google Authenticator, Authy, etc.) to view
-          your verification code.
+          {helpText || defaultHelpText}
         </p>
         <div className="text-center">
           <Link

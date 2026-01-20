@@ -77,6 +77,9 @@ dependencies {
     // TOTP (Time-based One-Time Password) for MFA
     implementation("dev.samstevens.totp:totp:1.7.1")
 
+    // Twilio SDK for SMS MFA
+    implementation("com.twilio.sdk:twilio:10.7.0")
+
     // Testing - JUnit 6
     testImplementation(platform("org.junit:junit-bom:6.0.1"))
     testImplementation("org.junit.jupiter:junit-jupiter")
