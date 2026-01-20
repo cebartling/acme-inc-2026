@@ -15,10 +15,14 @@ import com.acme.identity.domain.events.AccountUnlockReason
 import com.acme.identity.domain.events.AuthenticationFailed
 import com.acme.identity.domain.events.AuthenticationFailureReason
 import com.acme.identity.domain.events.AuthenticationSucceeded
+import com.acme.identity.domain.events.MFAChallengeInitiated
+import com.acme.identity.domain.MfaChallenge
 import java.time.Duration
 import java.time.Instant
 import com.acme.identity.infrastructure.messaging.UserEventPublisher
+import com.acme.identity.domain.MfaMethod
 import com.acme.identity.infrastructure.persistence.EventStoreRepository
+import com.acme.identity.infrastructure.persistence.MfaChallengeRepository
 import com.acme.identity.infrastructure.persistence.UserRepository
 import com.acme.identity.infrastructure.security.PasswordHasher
 import io.micrometer.core.instrument.MeterRegistry
@@ -119,6 +123,7 @@ class AuthenticateUserUseCase(
     private val eventStoreRepository: EventStoreRepository,
     private val userEventPublisher: UserEventPublisher,
     private val passwordHasher: PasswordHasher,
+    private val mfaChallengeRepository: MfaChallengeRepository,
     private val meterRegistry: MeterRegistry,
     @Value("\${identity.authentication.max-failed-attempts:5}")
     private val maxFailedAttempts: Int = 5,
@@ -337,11 +342,11 @@ class AuthenticateUserUseCase(
                 logger.info("User {} authenticated successfully", user.id)
 
                 // Build response based on MFA status
-                if (user.mfaEnabled) {
-                    // Generate MFA token (placeholder - would be implemented in MFA story)
-                    val mfaToken = generateMfaToken(user)
+                if (user.mfaEnabled && user.totpEnabled) {
+                    // Create MFA challenge
+                    val challenge = createMfaChallenge(user, context)
                     SigninResponse.mfaRequired(
-                        mfaToken = mfaToken,
+                        mfaToken = challenge.token,
                         mfaMethods = getMfaMethods(user)
                     )
                 } else {
@@ -448,24 +453,51 @@ class AuthenticateUserUseCase(
     }
 
     /**
-     * Generates an MFA token for the user.
+     * Creates an MFA challenge for the user and publishes the challenge initiated event.
      *
-     * This is a placeholder implementation. The actual MFA token generation
-     * would be implemented in the MFA user story.
+     * @param user The user to create a challenge for.
+     * @param context The authentication context.
+     * @return The created MFA challenge.
      */
-    private fun generateMfaToken(user: User): String {
-        return "mfa_${UUID.randomUUID()}"
+    private fun createMfaChallenge(user: User, context: AuthenticationContext): MfaChallenge {
+        // Delete any existing challenges for this user
+        mfaChallengeRepository.deleteByUserId(user.id)
+
+        // Determine MFA method (currently only TOTP supported)
+        val method = MfaMethod.TOTP
+
+        // Create new challenge
+        val challenge = MfaChallenge.create(userId = user.id, method = method)
+        mfaChallengeRepository.save(challenge)
+
+        // Publish MFA challenge initiated event
+        val event = MFAChallengeInitiated.create(
+            userId = user.id,
+            mfaToken = challenge.token,
+            method = method.name,
+            expiresAt = challenge.expiresAt,
+            correlationId = context.correlationId
+        )
+        eventStoreRepository.append(event)
+        userEventPublisher.publishMFAChallengeInitiated(event)
+
+        logger.info("Created MFA challenge for user {} with method {}", user.id, method)
+
+        return challenge
     }
 
     /**
      * Gets the available MFA methods for the user.
      *
-     * This is a placeholder implementation. The actual MFA methods would
-     * be retrieved from the user's MFA configuration.
+     * Returns the list of MFA methods configured for the user.
      */
-    private fun getMfaMethods(user: User): List<MfaMethod> {
-        // Placeholder - would be retrieved from user's MFA configuration
-        return listOf(MfaMethod.TOTP)
+    private fun getMfaMethods(user: User): List<com.acme.identity.api.v1.dto.MfaMethod> {
+        val methods = mutableListOf<com.acme.identity.api.v1.dto.MfaMethod>()
+        if (user.totpEnabled) {
+            methods.add(com.acme.identity.api.v1.dto.MfaMethod.TOTP)
+        }
+        // Future: Add SMS, EMAIL methods when implemented
+        return methods
     }
 
     /**

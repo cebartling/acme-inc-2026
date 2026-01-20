@@ -256,6 +256,35 @@ export interface SigninErrorResponse {
 }
 
 /**
+ * Request type for MFA verification.
+ */
+export interface MfaVerifyRequest {
+  mfaToken: string;
+  code: string;
+  method: string;
+  rememberDevice?: boolean;
+}
+
+/**
+ * Response type for successful MFA verification.
+ */
+export interface MfaVerifyResponse {
+  status: string;
+  userId: string;
+  deviceTrusted: boolean;
+  expiresIn: number;
+}
+
+/**
+ * Error response from MFA verify API.
+ */
+export interface MfaVerifyErrorResponse {
+  error: string;
+  message: string;
+  remainingAttempts?: number;
+}
+
+/**
  * Identity Service API client.
  */
 export const identityApi = {
@@ -272,6 +301,23 @@ export const identityApi = {
       {
         method: "POST",
         body: JSON.stringify(credentials),
+      }
+    );
+  },
+
+  /**
+   * Verifies MFA code for a pending authentication.
+   *
+   * @param request - The MFA verification request.
+   * @returns The verification response on success.
+   * @throws ApiError on verification failure.
+   */
+  async verifyMfa(request: MfaVerifyRequest): Promise<MfaVerifyResponse> {
+    return apiRequest<MfaVerifyResponse>(
+      `${IDENTITY_SERVICE_URL}/api/v1/auth/mfa/verify`,
+      {
+        method: "POST",
+        body: JSON.stringify(request),
       }
     );
   },

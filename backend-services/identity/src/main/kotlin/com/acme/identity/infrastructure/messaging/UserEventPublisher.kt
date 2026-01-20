@@ -5,6 +5,9 @@ import com.acme.identity.domain.events.AccountUnlocked
 import com.acme.identity.domain.events.AuthenticationFailed
 import com.acme.identity.domain.events.AuthenticationSucceeded
 import com.acme.identity.domain.events.EmailVerified
+import com.acme.identity.domain.events.MFAChallengeInitiated
+import com.acme.identity.domain.events.MFAVerificationFailed
+import com.acme.identity.domain.events.MFAVerificationSucceeded
 import com.acme.identity.domain.events.UserActivated
 import com.acme.identity.domain.events.UserRegistered
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -298,6 +301,120 @@ class UserEventPublisher(
             .exceptionally { ex ->
                 logger.error(
                     "Failed to publish AccountUnlocked event for user {}. " +
+                    "Event is persisted in event store but not published to Kafka. " +
+                    "Manual intervention may be required.",
+                    event.payload.userId,
+                    ex
+                )
+                null
+            }
+    }
+
+    /**
+     * Publishes an [MFAChallengeInitiated] event to Kafka.
+     *
+     * The publish operation is asynchronous. The returned future completes
+     * when Kafka acknowledges receipt of the message. Failures are logged
+     * but not rethrown to avoid blocking the authentication response.
+     *
+     * @param event The MFA challenge initiated event to publish.
+     * @return A [CompletableFuture] that completes when publishing succeeds.
+     */
+    fun publishMFAChallengeInitiated(event: MFAChallengeInitiated): CompletableFuture<Void> {
+        val key = event.aggregateId.toString()
+        val value = objectMapper.writeValueAsString(event)
+
+        logger.debug("Publishing MFAChallengeInitiated event for user: {}", event.payload.userId)
+
+        return kafkaTemplate.send(MFAChallengeInitiated.TOPIC, key, value)
+            .thenAccept { result ->
+                logger.info(
+                    "Published MFAChallengeInitiated event for user {} to topic {} partition {} offset {}",
+                    event.payload.userId,
+                    result.recordMetadata.topic(),
+                    result.recordMetadata.partition(),
+                    result.recordMetadata.offset()
+                )
+            }
+            .exceptionally { ex ->
+                logger.error(
+                    "Failed to publish MFAChallengeInitiated event for user {}. " +
+                    "Event is persisted in event store but not published to Kafka. " +
+                    "Manual intervention may be required.",
+                    event.payload.userId,
+                    ex
+                )
+                null
+            }
+    }
+
+    /**
+     * Publishes an [MFAVerificationSucceeded] event to Kafka.
+     *
+     * The publish operation is asynchronous. The returned future completes
+     * when Kafka acknowledges receipt of the message. Failures are logged
+     * but not rethrown to avoid blocking the verification response.
+     *
+     * @param event The MFA verification succeeded event to publish.
+     * @return A [CompletableFuture] that completes when publishing succeeds.
+     */
+    fun publishMFAVerificationSucceeded(event: MFAVerificationSucceeded): CompletableFuture<Void> {
+        val key = event.aggregateId.toString()
+        val value = objectMapper.writeValueAsString(event)
+
+        logger.debug("Publishing MFAVerificationSucceeded event for user: {}", event.payload.userId)
+
+        return kafkaTemplate.send(MFAVerificationSucceeded.TOPIC, key, value)
+            .thenAccept { result ->
+                logger.info(
+                    "Published MFAVerificationSucceeded event for user {} to topic {} partition {} offset {}",
+                    event.payload.userId,
+                    result.recordMetadata.topic(),
+                    result.recordMetadata.partition(),
+                    result.recordMetadata.offset()
+                )
+            }
+            .exceptionally { ex ->
+                logger.error(
+                    "Failed to publish MFAVerificationSucceeded event for user {}. " +
+                    "Event is persisted in event store but not published to Kafka. " +
+                    "Manual intervention may be required.",
+                    event.payload.userId,
+                    ex
+                )
+                null
+            }
+    }
+
+    /**
+     * Publishes an [MFAVerificationFailed] event to Kafka.
+     *
+     * The publish operation is asynchronous. The returned future completes
+     * when Kafka acknowledges receipt of the message. Failures are logged
+     * but not rethrown to avoid blocking the verification response.
+     *
+     * @param event The MFA verification failed event to publish.
+     * @return A [CompletableFuture] that completes when publishing succeeds.
+     */
+    fun publishMFAVerificationFailed(event: MFAVerificationFailed): CompletableFuture<Void> {
+        val key = event.aggregateId.toString()
+        val value = objectMapper.writeValueAsString(event)
+
+        logger.debug("Publishing MFAVerificationFailed event for user: {}", event.payload.userId)
+
+        return kafkaTemplate.send(MFAVerificationFailed.TOPIC, key, value)
+            .thenAccept { result ->
+                logger.info(
+                    "Published MFAVerificationFailed event for user {} to topic {} partition {} offset {}",
+                    event.payload.userId,
+                    result.recordMetadata.topic(),
+                    result.recordMetadata.partition(),
+                    result.recordMetadata.offset()
+                )
+            }
+            .exceptionally { ex ->
+                logger.error(
+                    "Failed to publish MFAVerificationFailed event for user {}. " +
                     "Event is persisted in event store but not published to Kafka. " +
                     "Manual intervention may be required.",
                     event.payload.userId,

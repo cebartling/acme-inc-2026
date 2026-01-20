@@ -118,9 +118,18 @@ function SigninPage() {
       });
 
       if (response.status === "MFA_REQUIRED") {
-        // TODO: Navigate to MFA verification page
-        // For now, show a message that MFA is not yet implemented
-        setError("MFA verification is required but not yet implemented.");
+        // Store MFA state in session storage for the verification page
+        sessionStorage.setItem(
+          "mfaState",
+          JSON.stringify({
+            mfaToken: response.mfaToken,
+            email: data.email,
+            redirect: search.redirect,
+          })
+        );
+
+        // Navigate to MFA verification page
+        navigate({ to: "/mfa-verify" });
         return;
       }
 

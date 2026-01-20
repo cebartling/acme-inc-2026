@@ -13,6 +13,7 @@ import com.acme.identity.domain.events.AuthenticationSucceeded
 import com.acme.identity.domain.events.DomainEvent
 import com.acme.identity.infrastructure.messaging.UserEventPublisher
 import com.acme.identity.infrastructure.persistence.EventStoreRepository
+import com.acme.identity.infrastructure.persistence.MfaChallengeRepository
 import com.acme.identity.infrastructure.persistence.UserRepository
 import com.acme.identity.infrastructure.security.PasswordHasher
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
@@ -35,6 +36,7 @@ class AuthenticateUserUseCaseTest {
     private lateinit var eventStoreRepository: EventStoreRepository
     private lateinit var userEventPublisher: UserEventPublisher
     private lateinit var passwordHasher: PasswordHasher
+    private lateinit var mfaChallengeRepository: MfaChallengeRepository
     private lateinit var meterRegistry: SimpleMeterRegistry
     private lateinit var authenticateUserUseCase: AuthenticateUserUseCase
 
@@ -49,6 +51,7 @@ class AuthenticateUserUseCaseTest {
         eventStoreRepository = mockk()
         userEventPublisher = mockk()
         passwordHasher = mockk()
+        mfaChallengeRepository = mockk()
         meterRegistry = SimpleMeterRegistry()
 
         authenticateUserUseCase = AuthenticateUserUseCase(
@@ -56,6 +59,7 @@ class AuthenticateUserUseCaseTest {
             eventStoreRepository = eventStoreRepository,
             userEventPublisher = userEventPublisher,
             passwordHasher = passwordHasher,
+            mfaChallengeRepository = mfaChallengeRepository,
             meterRegistry = meterRegistry,
             maxFailedAttempts = 5,
             lockoutDurationMinutes = 15,
