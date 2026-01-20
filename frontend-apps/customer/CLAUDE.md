@@ -8,10 +8,14 @@ Customer-facing web application for the ACME Inc. e-commerce platform built with
 
 ## Node.js Version
 
-This project uses nvm to manage Node.js versions. The required version is specified in `.nvmrc`:
+This project uses nvm to manage Node.js versions. The required version is specified in `.nvmrc`.
+
+**Important:** Always run `nvm use` before any `npm` command to ensure the correct Node.js version is active:
 
 ```bash
-nvm use
+nvm use && npm run dev
+nvm use && npm run test
+nvm use && npm install
 ```
 
 ## Development Commands

@@ -32,7 +32,9 @@ class AuthenticationController(
     private val authenticateUserUseCase: AuthenticateUserUseCase,
     private val rateLimiter: RateLimiter,
     @Value("\${identity.support-url:https://www.acme.com/support}")
-    private val supportUrl: String = "https://www.acme.com/support"
+    private val supportUrl: String = "https://www.acme.com/support",
+    @Value("\${identity.password-reset-url:https://www.acme.com/forgot-password}")
+    private val passwordResetUrl: String = "https://www.acme.com/forgot-password"
 ) {
     private val logger = LoggerFactory.getLogger(AuthenticationController::class.java)
 
@@ -126,7 +128,9 @@ class AuthenticationController(
                         error = "ACCOUNT_LOCKED",
                         message = "Account is locked due to too many failed signin attempts",
                         lockedUntil = error.lockedUntil,
-                        supportUrl = supportUrl
+                        lockoutRemainingSeconds = error.lockoutRemainingSeconds,
+                        supportUrl = supportUrl,
+                        passwordResetUrl = passwordResetUrl
                     )
                 )
             }

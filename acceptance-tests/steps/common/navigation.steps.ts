@@ -2,6 +2,14 @@ import { Given, When, Then } from '@cucumber/cucumber';
 import { expect } from '@playwright/test';
 import { CustomWorld } from '../../support/world.js';
 
+Given('the Customer frontend is available', async function (this: CustomWorld) {
+  // Health check - verify the frontend responds
+  const response = await this.page.goto(this.getCustomerAppUrl());
+  if (!response || response.status() >= 500) {
+    throw new Error('Customer frontend is not available');
+  }
+});
+
 Given('I am on the customer home page', async function (this: CustomWorld) {
   await this.page.goto(this.getCustomerAppUrl());
 });

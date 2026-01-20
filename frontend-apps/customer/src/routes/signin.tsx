@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   createFileRoute,
   useNavigate,
@@ -9,6 +9,16 @@ import { SigninForm } from "@/components/signin";
 import { useAuthStore } from "@/stores/auth.store";
 import { identityApi, ApiError } from "@/services/api";
 import type { SigninFormData } from "@/schemas/signin.schema";
+
+/**
+ * State for account lockout information.
+ */
+interface LockoutState {
+  isLocked: boolean;
+  remainingSeconds: number;
+  lockedUntil: string;
+  passwordResetUrl?: string;
+}
 
 /**
  * Validates that a redirect URL is safe (internal path only).
@@ -54,13 +64,50 @@ function SigninPage() {
   const search = useSearch({ from: "/signin" });
   const setUser = useAuthStore((state) => state.setUser);
   const [error, setError] = useState<string | undefined>(undefined);
+  const [lockout, setLockout] = useState<LockoutState | null>(null);
 
   // Show logout message if redirected after logout
   const logoutMessage =
     search.logout === "true" ? "You have been signed out." : undefined;
 
+  /**
+   * Formats remaining seconds as "Xm Ys" or "Xs" for display.
+   */
+  const formatRemainingTime = useCallback((seconds: number): string => {
+    if (seconds <= 0) return "0s";
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    if (minutes > 0) {
+      return `${minutes}m ${remainingSeconds}s`;
+    }
+    return `${remainingSeconds}s`;
+  }, []);
+
+  // Countdown timer for lockout
+  useEffect(() => {
+    if (!lockout?.isLocked || lockout.remainingSeconds <= 0) {
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setLockout((prev) => {
+        if (!prev || prev.remainingSeconds <= 1) {
+          // Lockout has expired
+          return null;
+        }
+        return {
+          ...prev,
+          remainingSeconds: prev.remainingSeconds - 1,
+        };
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [lockout?.isLocked, lockout?.lockedUntil]);
+
   const handleSubmit = async (data: SigninFormData) => {
     setError(undefined);
+    setLockout(null);
 
     try {
       // Call Identity Service API
@@ -98,8 +145,27 @@ function SigninPage() {
     } catch (err) {
       // Handle API errors
       if (err instanceof ApiError) {
-        // Use the error message from the API response
-        const errorData = err.data as { message?: string; remainingAttempts?: number };
+        const errorData = err.data as {
+          error?: string;
+          message?: string;
+          remainingAttempts?: number;
+          lockoutRemainingSeconds?: number;
+          lockedUntil?: string;
+          passwordResetUrl?: string;
+        };
+
+        // Check for account lockout (HTTP 423)
+        if (err.status === 423 || errorData?.error === "ACCOUNT_LOCKED") {
+          setLockout({
+            isLocked: true,
+            remainingSeconds: errorData?.lockoutRemainingSeconds ?? 0,
+            lockedUntil: errorData?.lockedUntil ?? "",
+            passwordResetUrl: errorData?.passwordResetUrl,
+          });
+          return;
+        }
+
+        // Handle invalid credentials with remaining attempts
         if (errorData?.remainingAttempts !== undefined && errorData.remainingAttempts > 0) {
           setError(`${errorData.message || "Invalid email or password."} (${errorData.remainingAttempts} attempts remaining)`);
         } else {
@@ -130,7 +196,63 @@ function SigninPage() {
           </div>
         )}
 
-        <SigninForm onSubmit={handleSubmit} error={error} />
+        {lockout?.isLocked && (
+          <div
+            className="mb-6 p-4 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 rounded-md"
+            role="alert"
+            aria-live="assertive"
+            data-testid="lockout-message"
+          >
+            <div className="flex items-start">
+              <svg
+                className="h-5 w-5 text-red-400 mt-0.5 mr-3 flex-shrink-0"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z"
+                  clipRule="evenodd"
+                />
+              </svg>
+              <div className="flex-1">
+                <h3 className="text-sm font-medium text-red-800 dark:text-red-200">
+                  Account Locked
+                </h3>
+                <div className="mt-1 text-sm text-red-700 dark:text-red-300">
+                  <p>
+                    Your account has been temporarily locked due to too many failed
+                    signin attempts.
+                  </p>
+                  {lockout.remainingSeconds > 0 && (
+                    <p className="mt-2 font-medium" data-testid="lockout-countdown">
+                      Please try again in{" "}
+                      <span className="tabular-nums">
+                        {formatRemainingTime(lockout.remainingSeconds)}
+                      </span>
+                    </p>
+                  )}
+                  {lockout.passwordResetUrl && (
+                    <p className="mt-3">
+                      <a
+                        href={lockout.passwordResetUrl}
+                        className="font-medium text-red-800 dark:text-red-200 underline hover:text-red-600 dark:hover:text-red-100"
+                        data-testid="password-reset-link"
+                      >
+                        Reset your password
+                      </a>{" "}
+                      to unlock your account immediately.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <SigninForm onSubmit={handleSubmit} error={error} isDisabled={lockout?.isLocked} />
       </div>
     </div>
   );

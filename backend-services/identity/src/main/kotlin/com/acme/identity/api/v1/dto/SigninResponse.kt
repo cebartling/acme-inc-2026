@@ -94,6 +94,8 @@ data class SigninResponse(
  * @property reason Additional reason code for account status errors (optional).
  * @property supportUrl URL for customer support (optional).
  * @property lockedUntil Timestamp when the lockout expires (optional, for 423 responses).
+ * @property lockoutRemainingSeconds Seconds remaining until lockout expires (optional, for 423 responses).
+ * @property passwordResetUrl URL for password reset to bypass lockout (optional, for 423 responses).
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 data class SigninErrorResponse(
@@ -102,5 +104,7 @@ data class SigninErrorResponse(
     val remainingAttempts: Int? = null,
     val reason: String? = null,
     val supportUrl: String? = null,
-    val lockedUntil: String? = null
+    val lockedUntil: String? = null,
+    val lockoutRemainingSeconds: Long? = null,
+    val passwordResetUrl: String? = null
 )
