@@ -3,7 +3,6 @@ package com.acme.identity.application
 import arrow.core.Either
 import arrow.core.raise.either
 import arrow.core.raise.ensure
-import com.acme.identity.api.v1.dto.MfaMethod
 import com.acme.identity.api.v1.dto.SigninRequest
 import com.acme.identity.api.v1.dto.SigninResponse
 import com.acme.identity.domain.User
@@ -82,7 +81,7 @@ data class AuthenticationResult(
     val user: User,
     val mfaRequired: Boolean,
     val mfaToken: String? = null,
-    val mfaMethods: List<MfaMethod> = emptyList()
+    val mfaMethods: List<com.acme.identity.api.v1.dto.MfaMethod> = emptyList()
 )
 
 /**

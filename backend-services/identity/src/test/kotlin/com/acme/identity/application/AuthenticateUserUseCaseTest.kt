@@ -655,13 +655,20 @@ class AuthenticateUserUseCaseTest {
         // Given
         val request = createValidRequest()
         val context = createContext()
-        val user = createActiveUser().apply { mfaEnabled = true }
+        val user = createActiveUser().apply {
+            mfaEnabled = true
+            totpEnabled = true
+            totpSecret = "JBSWY3DPEHPK3PXP"
+        }
 
         every { userRepository.findByEmail(testEmail) } returns user
         every { passwordHasher.verify(testPassword, user.passwordHash) } returns true
         every { userRepository.save(any()) } answers { firstArg() }
         every { eventStoreRepository.append(any()) } just Runs
         every { userEventPublisher.publishAuthenticationSucceeded(any()) } returns CompletableFuture.completedFuture(null)
+        every { mfaChallengeRepository.deleteByUserId(any()) } just Runs
+        every { mfaChallengeRepository.save(any()) } answers { firstArg() }
+        every { userEventPublisher.publishMFAChallengeInitiated(any()) } returns CompletableFuture.completedFuture(null)
 
         // When
         val result = authenticateUserUseCase.execute(request, context)
