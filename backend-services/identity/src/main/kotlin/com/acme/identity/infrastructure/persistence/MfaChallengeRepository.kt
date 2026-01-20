@@ -52,4 +52,16 @@ interface MfaChallengeRepository : JpaRepository<MfaChallenge, UUID> {
     @Modifying
     @Query("DELETE FROM MfaChallenge c WHERE c.expiresAt < :before")
     fun deleteExpiredChallenges(before: Instant): Int
+
+    /**
+     * Expires a challenge immediately by setting its expiry time to the past.
+     * This is used for testing purposes only.
+     *
+     * @param token The challenge token.
+     * @param expiredAt The expiry time to set (should be in the past).
+     * @return Number of updated challenges (0 or 1).
+     */
+    @Modifying
+    @Query("UPDATE MfaChallenge c SET c.expiresAt = :expiredAt WHERE c.token = :token")
+    fun expireByToken(token: String, expiredAt: Instant): Int
 }

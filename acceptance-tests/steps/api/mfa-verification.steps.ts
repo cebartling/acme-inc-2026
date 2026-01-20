@@ -1,5 +1,6 @@
 import { Given, When, Then, DataTable } from '@cucumber/cucumber';
 import { expect } from '@playwright/test';
+import { generateSync } from 'otplib';
 import { CustomWorld } from '../../support/world.js';
 import { ApiResponse } from '../../support/api-client.js';
 
@@ -41,8 +42,8 @@ Given('the user has TOTP MFA enabled with a valid secret', async function (this:
     throw new Error('Test user must be created before enabling MFA');
   }
 
-  // This is a valid base32 encoded secret
-  const totpSecret = 'JBSWY3DPEHPK3PXP';
+  // This is a valid base32 encoded secret (32 chars = 20 bytes, meets minimum requirement)
+  const totpSecret = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
 
   // Enable MFA for the user via the test endpoint
   const response = await this.identityApiClient.post<{ userId: string; mfaEnabled: boolean; totpEnabled: boolean }>(
@@ -115,16 +116,23 @@ Given('I have successfully verified with a TOTP code', async function (this: Cus
 });
 
 Given('I wait for the MFA challenge to expire', async function (this: CustomWorld) {
-  // MFA challenges expire after 5 minutes (300 seconds)
-  // For testing, we would either:
-  // 1. Use a test endpoint to expire the challenge immediately
-  // 2. Wait (not recommended for real tests)
-  // 3. Mock the time
-  // For now, we just flag that we're testing expiry
-  this.setTestData('challengeExpired', true);
+  const mfaToken = this.getTestData<string>('mfaToken');
 
-  // In a real test, you might have a test endpoint like:
-  // await this.identityApiClient.post('/api/v1/test/mfa/expire-challenge', { token: mfaToken });
+  if (!mfaToken) {
+    throw new Error('MFA token must be set before waiting for expiry');
+  }
+
+  // Use the test endpoint to expire the challenge immediately
+  const response = await this.identityApiClient.post<{ mfaToken: string; expired: boolean }>(
+    '/api/v1/test/mfa/expire-challenge',
+    { mfaToken }
+  );
+
+  if (response.status !== 200) {
+    throw new Error(`Failed to expire MFA challenge: ${response.status} - ${JSON.stringify(response.data)}`);
+  }
+
+  this.setTestData('challengeExpired', true);
 });
 
 // ============================================================================
@@ -326,6 +334,22 @@ When('I submit an MFA verification request with rememberDevice=true', async func
 // THEN Steps
 // ============================================================================
 
+Then('I store the MFA token from the response', async function (this: CustomWorld) {
+  const response = this.getTestData<ApiResponse<SigninMfaResponse>>('lastResponse');
+
+  if (!response || response.status !== 200) {
+    throw new Error('Expected successful response with MFA token');
+  }
+
+  const data = response.data as SigninMfaResponse;
+  if (!data.mfaToken) {
+    throw new Error('Response does not contain mfaToken');
+  }
+
+  this.setTestData('mfaToken', data.mfaToken);
+  this.setTestData('mfaMethods', data.mfaMethods);
+});
+
 Then('an MFAChallengeInitiated event should be persisted in the event store', async function (this: CustomWorld) {
   // This would typically query the event store directly
   // For now, we verify the request returned MFA_REQUIRED as expected
@@ -372,31 +396,20 @@ Then('the response should contain {string} with value false', async function (th
 // ============================================================================
 
 /**
- * Generates a TOTP code for testing.
+ * Generates a TOTP code for testing using the otplib library.
  *
- * Note: In a real implementation, you would use a proper TOTP library.
- * This is a placeholder that returns a test code.
+ * Uses the same algorithm as the backend (RFC 6238 with SHA-1, 6 digits, 30 sec step).
  *
- * @param secret - The TOTP secret (base32 encoded)
- * @param offset - Time step offset (0 = current, -1 = previous, 1 = next)
+ * @param secret - The TOTP secret (base32 encoded, must be at least 16 bytes / 26 chars)
+ * @param _offset - Time step offset (currently unused, backend has ±1 step tolerance)
  * @returns A 6-digit TOTP code
  */
-function generateTotpCode(secret: string, offset: number = 0): string {
-  // This is a placeholder implementation.
-  // In real tests, you would use a library like 'otplib' or implement TOTP:
-  //
-  // import { authenticator } from 'otplib';
-  // authenticator.options = { window: 1 };
-  // return authenticator.generate(secret);
-  //
-  // For now, we return a test value that the backend test setup should accept
-  // or the test should be marked as @wip until a proper TOTP library is integrated.
-
+function generateTotpCode(secret: string, _offset: number = 0): string {
   if (!secret) {
-    return '123456';
+    throw new Error('TOTP secret is required');
   }
 
-  // In production tests, implement proper TOTP generation here
-  // For example, using the 'otplib' npm package
-  return '123456';
+  // Generate code for current time using otplib's synchronous function
+  // The backend accepts codes within ±1 time step (30 seconds each)
+  return generateSync({ secret });
 }

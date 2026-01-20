@@ -8,7 +8,7 @@ Feature: MFA TOTP Verification API (US-0003-05)
     Given the Identity Service is available
 
   # AC-0003-05-01: TOTP Code Validation
-  @smoke @wip
+  @smoke
   Scenario: Successfully verify valid TOTP code
     Given an active user exists with email "mfa-user@acme.com" and password "ValidP@ss123!"
     And the user has TOTP MFA enabled with a valid secret
@@ -18,6 +18,7 @@ Feature: MFA TOTP Verification API (US-0003-05)
     Then the API should respond with status 200
     And the response should contain "status" with value "MFA_REQUIRED"
     And the response should contain "mfaToken"
+    And I store the MFA token from the response
     When I submit an MFA verification request with the correct TOTP code
     Then the API should respond with status 200
     And the response should contain "status" with value "SUCCESS"
@@ -47,7 +48,6 @@ Feature: MFA TOTP Verification API (US-0003-05)
     And the response should contain "remainingAttempts"
 
   # AC-0003-05-04: MFA Challenge Expiry
-  @wip @slow
   Scenario: Reject MFA verification after challenge expires
     Given an active user exists with email "expired@acme.com" and password "ValidP@ss123!"
     And the user has TOTP MFA enabled with a valid secret
@@ -59,7 +59,6 @@ Feature: MFA TOTP Verification API (US-0003-05)
     And the response should contain message "MFA challenge has expired. Please sign in again."
 
   # AC-0003-05-05: Maximum 3 Attempts
-  @wip
   Scenario: Expire MFA challenge after 3 failed attempts
     Given an active user exists with email "attempts@acme.com" and password "ValidP@ss123!"
     And the user has TOTP MFA enabled with a valid secret
@@ -69,7 +68,6 @@ Feature: MFA TOTP Verification API (US-0003-05)
     And the response should contain error "MFA_EXPIRED"
     And the response should contain message "MFA challenge has expired. Please sign in again."
 
-  @wip
   Scenario: Show remaining attempts after failed verification
     Given an active user exists with email "remaining@acme.com" and password "ValidP@ss123!"
     And the user has TOTP MFA enabled with a valid secret

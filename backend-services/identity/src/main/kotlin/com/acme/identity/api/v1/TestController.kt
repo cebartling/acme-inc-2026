@@ -1,5 +1,6 @@
 package com.acme.identity.api.v1
 
+import com.acme.identity.infrastructure.persistence.MfaChallengeRepository
 import com.acme.identity.infrastructure.persistence.UserRepository
 import com.acme.identity.infrastructure.persistence.VerificationTokenRepository
 import org.slf4j.LoggerFactory
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
+import java.time.Instant
 import java.util.UUID
 
 /**
@@ -29,7 +31,8 @@ import java.util.UUID
 @Profile("test", "docker")
 class TestController(
     private val verificationTokenRepository: VerificationTokenRepository,
-    private val userRepository: UserRepository
+    private val userRepository: UserRepository,
+    private val mfaChallengeRepository: MfaChallengeRepository
 ) {
     private val logger = LoggerFactory.getLogger(TestController::class.java)
 
@@ -152,6 +155,56 @@ class TestController(
             )
         } else {
             logger.debug("No user found with id {}", userId)
+            ResponseEntity.notFound().build()
+        }
+    }
+
+    /**
+     * Request DTO for expiring an MFA challenge.
+     */
+    data class ExpireMfaChallengeRequest(
+        val mfaToken: String
+    )
+
+    /**
+     * Response DTO for MFA challenge expiration.
+     */
+    data class ExpireMfaChallengeResponse(
+        val mfaToken: String,
+        val expired: Boolean
+    )
+
+    /**
+     * Expires an MFA challenge immediately for testing.
+     *
+     * This endpoint is intended for acceptance testing to test the
+     * challenge expiry behavior without waiting 5 minutes.
+     *
+     * @param request The request containing the MFA token.
+     * @return The expiry status if successful, or a 404 response.
+     */
+    @PostMapping("/mfa/expire-challenge")
+    @Transactional
+    fun expireMfaChallenge(
+        @RequestBody request: ExpireMfaChallengeRequest
+    ): ResponseEntity<ExpireMfaChallengeResponse> {
+        logger.debug("Test endpoint: Expiring MFA challenge with token {}", request.mfaToken.take(20))
+
+        val updatedCount = mfaChallengeRepository.expireByToken(
+            request.mfaToken,
+            Instant.now().minusSeconds(1)
+        )
+
+        return if (updatedCount > 0) {
+            logger.info("Expired MFA challenge for token {}", request.mfaToken.take(20))
+            ResponseEntity.ok(
+                ExpireMfaChallengeResponse(
+                    mfaToken = request.mfaToken,
+                    expired = true
+                )
+            )
+        } else {
+            logger.debug("No MFA challenge found with token {}", request.mfaToken.take(20))
             ResponseEntity.notFound().build()
         }
     }
