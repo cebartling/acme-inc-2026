@@ -74,6 +74,9 @@ dependencies {
     implementation("com.bucket4j:bucket4j_jdk17-core:8.16.0")
     implementation("com.github.ben-manes.caffeine:caffeine:3.1.8")
 
+    // TOTP (Time-based One-Time Password) for MFA
+    implementation("dev.samstevens.totp:totp:1.7.1")
+
     // Testing - JUnit 6
     testImplementation(platform("org.junit:junit-bom:6.0.1"))
     testImplementation("org.junit.jupiter:junit-jupiter")

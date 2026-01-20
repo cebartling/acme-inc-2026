@@ -35,6 +35,7 @@ class AuthenticateUserUseCaseTest {
     private lateinit var eventStoreRepository: EventStoreRepository
     private lateinit var userEventPublisher: UserEventPublisher
     private lateinit var passwordHasher: PasswordHasher
+    private lateinit var mfaChallengeService: MfaChallengeService
     private lateinit var meterRegistry: SimpleMeterRegistry
     private lateinit var authenticateUserUseCase: AuthenticateUserUseCase
 
@@ -49,6 +50,7 @@ class AuthenticateUserUseCaseTest {
         eventStoreRepository = mockk()
         userEventPublisher = mockk()
         passwordHasher = mockk()
+        mfaChallengeService = mockk()
         meterRegistry = SimpleMeterRegistry()
 
         authenticateUserUseCase = AuthenticateUserUseCase(
@@ -56,6 +58,7 @@ class AuthenticateUserUseCaseTest {
             eventStoreRepository = eventStoreRepository,
             userEventPublisher = userEventPublisher,
             passwordHasher = passwordHasher,
+            mfaChallengeService = mfaChallengeService,
             meterRegistry = meterRegistry,
             maxFailedAttempts = 5,
             lockoutDurationMinutes = 15,
@@ -651,13 +654,23 @@ class AuthenticateUserUseCaseTest {
         // Given
         val request = createValidRequest()
         val context = createContext()
-        val user = createActiveUser().apply { mfaEnabled = true }
+        val user = createActiveUser().apply {
+            mfaEnabled = true
+            totpEnabled = true
+            totpSecret = "JBSWY3DPEHPK3PXP"
+        }
 
         every { userRepository.findByEmail(testEmail) } returns user
         every { passwordHasher.verify(testPassword, user.passwordHash) } returns true
         every { userRepository.save(any()) } answers { firstArg() }
         every { eventStoreRepository.append(any()) } just Runs
         every { userEventPublisher.publishAuthenticationSucceeded(any()) } returns CompletableFuture.completedFuture(null)
+        every { mfaChallengeService.createChallenge(any(), any(), any()) } answers {
+            com.acme.identity.domain.MfaChallenge.create(
+                userId = firstArg(),
+                method = secondArg()
+            )
+        }
 
         // When
         val result = authenticateUserUseCase.execute(request, context)

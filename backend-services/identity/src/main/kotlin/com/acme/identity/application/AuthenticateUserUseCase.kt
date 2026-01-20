@@ -3,7 +3,6 @@ package com.acme.identity.application
 import arrow.core.Either
 import arrow.core.raise.either
 import arrow.core.raise.ensure
-import com.acme.identity.api.v1.dto.MfaMethod
 import com.acme.identity.api.v1.dto.SigninRequest
 import com.acme.identity.api.v1.dto.SigninResponse
 import com.acme.identity.domain.User
@@ -18,6 +17,7 @@ import com.acme.identity.domain.events.AuthenticationSucceeded
 import java.time.Duration
 import java.time.Instant
 import com.acme.identity.infrastructure.messaging.UserEventPublisher
+import com.acme.identity.domain.MfaMethod
 import com.acme.identity.infrastructure.persistence.EventStoreRepository
 import com.acme.identity.infrastructure.persistence.UserRepository
 import com.acme.identity.infrastructure.security.PasswordHasher
@@ -78,7 +78,7 @@ data class AuthenticationResult(
     val user: User,
     val mfaRequired: Boolean,
     val mfaToken: String? = null,
-    val mfaMethods: List<MfaMethod> = emptyList()
+    val mfaMethods: List<com.acme.identity.api.v1.dto.MfaMethod> = emptyList()
 )
 
 /**
@@ -119,6 +119,7 @@ class AuthenticateUserUseCase(
     private val eventStoreRepository: EventStoreRepository,
     private val userEventPublisher: UserEventPublisher,
     private val passwordHasher: PasswordHasher,
+    private val mfaChallengeService: MfaChallengeService,
     private val meterRegistry: MeterRegistry,
     @Value("\${identity.authentication.max-failed-attempts:5}")
     private val maxFailedAttempts: Int = 5,
@@ -337,11 +338,15 @@ class AuthenticateUserUseCase(
                 logger.info("User {} authenticated successfully", user.id)
 
                 // Build response based on MFA status
-                if (user.mfaEnabled) {
-                    // Generate MFA token (placeholder - would be implemented in MFA story)
-                    val mfaToken = generateMfaToken(user)
+                if (user.mfaEnabled && user.totpEnabled) {
+                    // Create MFA challenge using the shared service
+                    val challenge = mfaChallengeService.createChallenge(
+                        userId = user.id,
+                        method = MfaMethod.TOTP,
+                        correlationId = context.correlationId
+                    )
                     SigninResponse.mfaRequired(
-                        mfaToken = mfaToken,
+                        mfaToken = challenge.token,
                         mfaMethods = getMfaMethods(user)
                     )
                 } else {
@@ -448,24 +453,17 @@ class AuthenticateUserUseCase(
     }
 
     /**
-     * Generates an MFA token for the user.
-     *
-     * This is a placeholder implementation. The actual MFA token generation
-     * would be implemented in the MFA user story.
-     */
-    private fun generateMfaToken(user: User): String {
-        return "mfa_${UUID.randomUUID()}"
-    }
-
-    /**
      * Gets the available MFA methods for the user.
      *
-     * This is a placeholder implementation. The actual MFA methods would
-     * be retrieved from the user's MFA configuration.
+     * Returns the list of MFA methods configured for the user.
      */
-    private fun getMfaMethods(user: User): List<MfaMethod> {
-        // Placeholder - would be retrieved from user's MFA configuration
-        return listOf(MfaMethod.TOTP)
+    private fun getMfaMethods(user: User): List<com.acme.identity.api.v1.dto.MfaMethod> {
+        val methods = mutableListOf<com.acme.identity.api.v1.dto.MfaMethod>()
+        if (user.totpEnabled) {
+            methods.add(com.acme.identity.api.v1.dto.MfaMethod.TOTP)
+        }
+        // Future: Add SMS, EMAIL methods when implemented
+        return methods
     }
 
     /**

@@ -56,7 +56,11 @@ interface VerificationTokenResponse {
 }
 
 /**
- * Helper to create a user for testing
+ * Helper to create a user for testing.
+ *
+ * Users are registered with the test session for automatic cleanup
+ * when the scenario ends. This eliminates the need for delete-then-recreate
+ * patterns and provides proper test isolation.
  */
 async function createTestUser(
   world: CustomWorld,
@@ -69,7 +73,7 @@ async function createTestUser(
     lockedUntil?: string;
   } = {}
 ): Promise<string> {
-  // First register the user
+  // Register the user
   const registrationRequest: RegistrationRequest = {
     email,
     password,
@@ -85,20 +89,14 @@ async function createTestUser(
     registrationRequest
   );
 
-  // Handle 409 Conflict (user already exists)
-  if (response.status === 409) {
-    // User already exists - store email and password for later use
-    world.setTestData('testUserEmail', email);
-    world.setTestData('testUserPassword', password);
-    // Return empty string as we don't have the userId
-    return '';
-  }
-
   if (response.status !== 201 && response.status !== 200) {
     throw new Error(`Failed to register user: ${response.status} - ${JSON.stringify(response.data)}`);
   }
 
   const userId = response.data.userId;
+
+  // Register user with test session for automatic cleanup
+  await world.registerUserWithSession(userId, email);
 
   // Store for later use
   world.setTestData('testUserId', userId);
@@ -149,17 +147,26 @@ async function deleteUserByEmail(world: CustomWorld, email: string): Promise<voi
 Given(
   'an active user exists with email {string} and password {string}',
   async function (this: CustomWorld, email: string, password: string) {
+    // Ensure API clients are initialized (UI tests may call this before API hooks run)
+    if (!this.identityApiClient) {
+      this.initializeApiClients();
+    }
+
+    // Ensure test session exists for cleanup
+    if (!this.testSessionId) {
+      await this.createTestSession();
+    }
+
     // For UI tests, use the exact email as-is so it matches what's typed in the form
     // For API tests that don't need a specific email, make it unique to avoid conflicts
     const isExactEmailNeeded = email.includes('customer@') || email.includes('user@');
     const targetEmail = isExactEmailNeeded ? email : makeUniqueEmail(email);
 
-    // For exact email matches, delete existing user first to ensure correct password
+    // For exact email matches, delete any existing user first (handles failed cleanup scenarios)
     if (isExactEmailNeeded) {
       await deleteUserByEmail(this, targetEmail);
     }
 
-    // createTestUser handles 409 conflicts internally
     await createTestUser(this, targetEmail, password, { status: 'ACTIVE' });
   }
 );
@@ -167,6 +174,16 @@ Given(
 Given(
   'a user exists with email {string} and status {string}',
   async function (this: CustomWorld, email: string, status: string) {
+    // Ensure API clients are initialized
+    if (!this.identityApiClient) {
+      this.initializeApiClients();
+    }
+
+    // Ensure test session exists for cleanup
+    if (!this.testSessionId) {
+      await this.createTestSession();
+    }
+
     const uniqueEmail = makeUniqueEmail(email);
     await createTestUser(this, uniqueEmail, 'ValidP@ss123!', { status });
     this.setTestData('expectedStatus', status);

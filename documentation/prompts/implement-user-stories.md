@@ -245,3 +245,19 @@ Commit all changes to this feature branch.
 When completed, create a PR for merging this feature branch back into
 the `main` branch on GitHub.
 ```
+
+## MFA TOTP Verification
+
+```
+Implement user story located at @documentation/user-stories/0003-customer-signin/US-0003-05-mfa-totp.md
+Think hard on implementation
+Use context7 mcp for researching library APIs
+Use playwright mcp for interacting with a web browser
+Make sure unit, integration and acceptance tests are created/updated for this functionality.
+Look for opportunities to add acceptance tests and architecture improvements.
+Document any interesting architectural or design decisions in ADRs.
+Create a feature branch from the `main` branch for this work.
+Commit all changes to this feature branch.
+When completed, create a PR for merging this feature branch back into
+the `main` branch on GitHub.
+```

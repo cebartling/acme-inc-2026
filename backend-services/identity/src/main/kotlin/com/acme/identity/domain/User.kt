@@ -26,6 +26,8 @@ import java.util.UUID
  * @property failedAttempts Number of consecutive failed signin attempts.
  * @property lockedUntil Timestamp until which the account is locked, null if not locked.
  * @property mfaEnabled Whether multi-factor authentication is enabled.
+ * @property totpSecret Encrypted TOTP secret for authenticator app. NULL if TOTP not configured.
+ * @property totpEnabled Whether TOTP-based MFA is enabled for this user.
  * @property lastLoginAt Timestamp of the last successful signin.
  * @property lastDeviceFingerprint Device fingerprint from the last signin attempt.
  * @property createdAt Timestamp when the user record was created.
@@ -78,6 +80,12 @@ class User(
 
     @Column(name = "mfa_enabled", nullable = false)
     var mfaEnabled: Boolean = false,
+
+    @Column(name = "totp_secret")
+    var totpSecret: String? = null,
+
+    @Column(name = "totp_enabled", nullable = false)
+    var totpEnabled: Boolean = false,
 
     @Column(name = "last_login_at")
     var lastLoginAt: Instant? = null,
@@ -134,6 +142,8 @@ class User(
             failedAttempts = failedAttempts,
             lockedUntil = lockedUntil,
             mfaEnabled = mfaEnabled,
+            totpSecret = totpSecret,
+            totpEnabled = totpEnabled,
             lastLoginAt = lastLoginAt,
             lastDeviceFingerprint = lastDeviceFingerprint,
             createdAt = createdAt,

@@ -16,9 +16,66 @@ export class CustomWorld extends World<CustomWorldParameters> {
   notificationApiClient!: ApiClient;
 
   private testData: Map<string, unknown> = new Map();
+  private _testSessionId: string | null = null;
 
   constructor(options: IWorldOptions<CustomWorldParameters>) {
     super(options);
+  }
+
+  /**
+   * Gets the current test session ID.
+   */
+  get testSessionId(): string | null {
+    return this._testSessionId;
+  }
+
+  /**
+   * Creates a new test session for tracking test data.
+   * Call this at the start of each scenario.
+   */
+  async createTestSession(): Promise<string> {
+    if (!this.identityApiClient) {
+      this.initializeApiClients();
+    }
+
+    const response = await this.identityApiClient.post<{ sessionId: string }>('/api/v1/test/sessions', {});
+    if (response.status === 200 && response.data.sessionId) {
+      this._testSessionId = response.data.sessionId;
+      return this._testSessionId;
+    }
+    throw new Error(`Failed to create test session: ${response.status}`);
+  }
+
+  /**
+   * Registers a user with the current test session for cleanup.
+   */
+  async registerUserWithSession(userId: string, email: string): Promise<void> {
+    if (!this._testSessionId) {
+      return; // No session, skip registration
+    }
+
+    await this.identityApiClient.post(
+      `/api/v1/test/sessions/${this._testSessionId}/users`,
+      { userId, email }
+    );
+  }
+
+  /**
+   * Cleans up the test session, rolling back all created data.
+   * Call this at the end of each scenario.
+   */
+  async cleanupTestSession(): Promise<void> {
+    if (!this._testSessionId || !this.identityApiClient) {
+      return;
+    }
+
+    try {
+      await this.identityApiClient.delete(`/api/v1/test/sessions/${this._testSessionId}`);
+    } catch (e) {
+      // Ignore cleanup errors
+    } finally {
+      this._testSessionId = null;
+    }
   }
 
   async launchBrowser(): Promise<void> {
