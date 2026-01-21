@@ -94,13 +94,6 @@ function MfaVerifyPage() {
         const parsed = JSON.parse(storedState);
         if (parsed.mfaToken && parsed.email) {
           setMfaState(parsed);
-          // Set initial method based on available methods
-          const methods = parsed.mfaMethods || [];
-          if (methods.includes("TOTP")) {
-            setCurrentMethod("TOTP");
-          } else if (methods.includes("SMS")) {
-            setCurrentMethod("SMS");
-          }
         } else {
           setMissingState(true);
         }
@@ -115,6 +108,18 @@ function MfaVerifyPage() {
     }
     setStateChecked(true);
   }, [search.token, search.email, search.redirect, stateChecked]);
+
+  // Set initial method based on available methods (runs after mfaState is set)
+  useEffect(() => {
+    if (!mfaState) return;
+
+    const methods = mfaState.mfaMethods || [];
+    if (methods.includes("TOTP")) {
+      setCurrentMethod("TOTP");
+    } else if (methods.includes("SMS")) {
+      setCurrentMethod("SMS");
+    }
+  }, [mfaState]);
 
   // Resend cooldown timer
   useEffect(() => {
