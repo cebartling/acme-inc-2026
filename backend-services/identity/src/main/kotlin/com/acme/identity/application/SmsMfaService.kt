@@ -268,12 +268,10 @@ class SmsMfaService(
         val code = generateCode()
         val codeHash = hashCode(code)
 
-        // Update challenge
+        // Update challenge with new code and extend expiry
         challenge.codeHash = codeHash
         challenge.lastSentAt = Instant.now()
-        // Extend expiry from now
-        // Note: We can't directly set expiresAt, so we use reflection or recreate
-        // For simplicity, we'll save the updated hash and rely on the original expiry
+        challenge.extendExpiry(codeExpirySeconds)
         mfaChallengeRepository.save(challenge)
 
         // Send SMS

@@ -54,7 +54,7 @@ class MfaChallenge(
     val method: MfaMethod,
 
     @Column(name = "expires_at", nullable = false)
-    val expiresAt: Instant,
+    var expiresAt: Instant,
 
     @Column(name = "attempts", nullable = false)
     var attempts: Int = 0,
@@ -97,6 +97,17 @@ class MfaChallenge(
      */
     fun incrementAttempts() {
         attempts++
+    }
+
+    /**
+     * Extends the challenge expiry from the current time.
+     *
+     * Used when resending SMS codes to give the user a fresh validity window.
+     *
+     * @param expirySeconds The number of seconds from now until expiry.
+     */
+    fun extendExpiry(expirySeconds: Long) {
+        expiresAt = Instant.now().plusSeconds(expirySeconds)
     }
 
     /**
