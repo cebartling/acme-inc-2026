@@ -94,7 +94,10 @@ export class CustomWorld extends World<CustomWorldParameters> {
   }
 
   initializeApiClients(): void {
-    this.identityApiClient = new ApiClient(config.identityApiUrl);
+    // Identity API client includes test API key for accessing test endpoints
+    this.identityApiClient = new ApiClient(config.identityApiUrl, {
+      'X-Test-Api-Key': config.testApiKey,
+    });
     this.customerApiClient = new ApiClient(config.customerApiUrl);
     this.notificationApiClient = new ApiClient(config.notificationApiUrl);
   }

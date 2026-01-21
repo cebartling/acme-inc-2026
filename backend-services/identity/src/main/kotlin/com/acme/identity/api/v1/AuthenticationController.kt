@@ -142,6 +142,15 @@ class AuthenticationController(
                     )
                 )
             }
+            is AuthenticationError.MfaSystemUnavailable -> {
+                ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(
+                    SigninErrorResponse(
+                        error = "MFA_UNAVAILABLE",
+                        message = error.reason,
+                        supportUrl = supportUrl
+                    )
+                )
+            }
         }
     }
 

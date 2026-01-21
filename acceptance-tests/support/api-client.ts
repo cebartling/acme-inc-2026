@@ -15,12 +15,20 @@ export class ApiClient {
   private defaultHeaders: Record<string, string>;
   private authToken: string | null = null;
 
-  constructor(baseUrl: string) {
+  constructor(baseUrl: string, defaultHeaders?: Record<string, string>) {
     this.baseUrl = baseUrl.replace(/\/$/, ''); // Remove trailing slash
     this.defaultHeaders = {
       'Content-Type': 'application/json',
       Accept: 'application/json',
+      ...defaultHeaders,
     };
+  }
+
+  /**
+   * Sets a default header that will be included in all requests.
+   */
+  setDefaultHeader(name: string, value: string): void {
+    this.defaultHeaders[name] = value;
   }
 
   setAuthToken(token: string): void {

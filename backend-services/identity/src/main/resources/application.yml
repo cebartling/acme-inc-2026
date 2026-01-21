@@ -74,6 +74,19 @@ identity:
   frontend:
     base-url: ${FRONTEND_BASE_URL:https://www.acme.com}
   support-url: ${SUPPORT_URL:https://www.acme.com/support}
+  sms:
+    enabled: ${SMS_MFA_ENABLED:true}
+    provider: ${SMS_PROVIDER:mock}  # mock or twilio
+    twilio:
+      account-sid: ${TWILIO_ACCOUNT_SID:}
+      auth-token: ${TWILIO_AUTH_TOKEN:}
+      from-number: ${TWILIO_FROM_NUMBER:}
+    rate-limiting:
+      max-sms-per-hour: 3
+      resend-cooldown-seconds: 60
+    code:
+      length: 6
+      expiry-seconds: 300
 
 logging:
   level:

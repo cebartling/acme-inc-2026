@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   createFileRoute,
   useNavigate,
@@ -6,7 +6,7 @@ import {
   Link,
 } from "@tanstack/react-router";
 import { z } from "zod";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, MessageSquare, Smartphone } from "lucide-react";
 import { MfaVerificationForm } from "@/components/mfa";
 import { useAuthStore } from "@/stores/auth.store";
 import { identityApi, ApiError } from "@/services/api";
@@ -21,12 +21,18 @@ import {
 } from "@/components/ui/card";
 
 /**
+ * MFA method type.
+ */
+type MfaMethod = "TOTP" | "SMS";
+
+/**
  * State for MFA verification.
  */
 interface MfaState {
   mfaToken: string;
   email: string;
   redirect?: string;
+  mfaMethods?: string[];
 }
 
 const mfaVerifySearchSchema = z.object({
@@ -52,6 +58,19 @@ function MfaVerifyPage() {
   const [mfaState, setMfaState] = useState<MfaState | null>(null);
   const [stateChecked, setStateChecked] = useState(false);
   const [missingState, setMissingState] = useState(false);
+
+  // Current MFA method (default to TOTP, then SMS if TOTP not available)
+  const [currentMethod, setCurrentMethod] = useState<MfaMethod>("TOTP");
+
+  // SMS-specific state
+  const [maskedPhone, setMaskedPhone] = useState<string | undefined>(undefined);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [isResending, setIsResending] = useState(false);
+
+  // Determine available methods from mfaState
+  const availableMethods = mfaState?.mfaMethods || [];
+  const hasTOTP = availableMethods.includes("TOTP");
+  const hasSMS = availableMethods.includes("SMS");
 
   useEffect(() => {
     // Prevent re-checking if already done
@@ -90,6 +109,76 @@ function MfaVerifyPage() {
     setStateChecked(true);
   }, [search.token, search.email, search.redirect, stateChecked]);
 
+  // Set initial method based on available methods (runs after mfaState is set)
+  useEffect(() => {
+    if (!mfaState) return;
+
+    const methods = mfaState.mfaMethods || [];
+    if (methods.includes("TOTP")) {
+      setCurrentMethod("TOTP");
+    } else if (methods.includes("SMS")) {
+      setCurrentMethod("SMS");
+    }
+  }, [mfaState]);
+
+  // Resend cooldown timer
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+
+    const timer = setInterval(() => {
+      setResendCooldown((prev) => Math.max(0, prev - 1));
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
+
+  const handleResendCode = useCallback(async () => {
+    if (!mfaState || isResending || resendCooldown > 0) return;
+
+    setIsResending(true);
+    setError(undefined);
+
+    try {
+      const response = await identityApi.resendMfaCode({
+        mfaToken: mfaState.mfaToken,
+        method: "SMS",
+      });
+
+      setMaskedPhone(response.maskedPhone);
+      setResendCooldown(response.resendAvailableIn);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        const errorData = err.data as {
+          error?: string;
+          message?: string;
+          resendAvailableIn?: number;
+          retryAfter?: number;
+        };
+
+        if (errorData?.error === "MFA_EXPIRED" || errorData?.error === "INVALID_MFA_TOKEN") {
+          setIsExpired(true);
+          setError("Your verification session has expired. Please sign in again.");
+          sessionStorage.removeItem("mfaState");
+          return;
+        }
+
+        if (errorData?.resendAvailableIn) {
+          setResendCooldown(errorData.resendAvailableIn);
+        }
+
+        if (errorData?.retryAfter) {
+          setResendCooldown(errorData.retryAfter);
+        }
+
+        setError(errorData?.message || "Failed to resend code. Please try again.");
+      } else {
+        setError("An unexpected error occurred. Please try again.");
+      }
+    } finally {
+      setIsResending(false);
+    }
+  }, [mfaState, isResending, resendCooldown]);
+
   const handleSubmit = async (code: string, rememberDevice: boolean) => {
     if (!mfaState) return;
 
@@ -100,7 +189,7 @@ function MfaVerifyPage() {
       const response = await identityApi.verifyMfa({
         mfaToken: mfaState.mfaToken,
         code,
-        method: "TOTP",
+        method: currentMethod,
         rememberDevice,
       });
 
@@ -156,6 +245,12 @@ function MfaVerifyPage() {
     }
   };
 
+  const handleSwitchMethod = (method: MfaMethod) => {
+    setCurrentMethod(method);
+    setError(undefined);
+    setRemainingAttempts(undefined);
+  };
+
   // Show loading while checking for MFA state
   if (!stateChecked) {
     return (
@@ -196,6 +291,54 @@ function MfaVerifyPage() {
     );
   }
 
+  // SMS-specific description with masked phone
+  const isSmsMethod = currentMethod === "SMS";
+  const smsDescription = maskedPhone
+    ? `Enter the 6-digit code sent to ${maskedPhone}`
+    : "Enter the 6-digit code sent to your phone";
+
+  // SMS resend button as footer extra
+  const smsFooterExtra = isSmsMethod ? (
+    <div className="text-center">
+      <Button
+        variant="link"
+        onClick={handleResendCode}
+        disabled={isExpired || isResending || resendCooldown > 0}
+        className="text-sm"
+      >
+        {isResending
+          ? "Sending..."
+          : resendCooldown > 0
+          ? `Resend code in ${resendCooldown}s`
+          : "Resend code"}
+      </Button>
+    </div>
+  ) : undefined;
+
+  // Method switcher component (only show if multiple methods available)
+  const methodSwitcher = hasTOTP && hasSMS ? (
+    <div className="flex justify-center gap-2 mb-6">
+      <Button
+        variant={currentMethod === "TOTP" ? "default" : "outline"}
+        size="sm"
+        onClick={() => handleSwitchMethod("TOTP")}
+        disabled={isExpired}
+      >
+        <Smartphone className="w-4 h-4 mr-2" />
+        Authenticator
+      </Button>
+      <Button
+        variant={currentMethod === "SMS" ? "default" : "outline"}
+        size="sm"
+        onClick={() => handleSwitchMethod("SMS")}
+        disabled={isExpired}
+      >
+        <MessageSquare className="w-4 h-4 mr-2" />
+        SMS
+      </Button>
+    </div>
+  ) : null;
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 py-12 px-4">
       <div className="max-w-md mx-auto">
@@ -206,11 +349,16 @@ function MfaVerifyPage() {
           </p>
         </div>
 
+        {methodSwitcher}
+
         <MfaVerificationForm
           onSubmit={handleSubmit}
           error={error}
           remainingAttempts={remainingAttempts}
           disabled={isExpired}
+          method={currentMethod}
+          description={isSmsMethod ? smsDescription : undefined}
+          footerExtra={smsFooterExtra}
         />
       </div>
     </div>

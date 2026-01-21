@@ -147,6 +147,7 @@ function SigninPage() {
             mfaToken: response.mfaToken,
             email: data.email,
             redirect: search.redirect,
+            mfaMethods: response.mfaMethods,
           })
         );
 

@@ -2,6 +2,7 @@ package com.acme.identity
 
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.runApplication
+import org.springframework.scheduling.annotation.EnableScheduling
 
 /**
  * Main application class for the Identity Service.
@@ -15,6 +16,7 @@ import org.springframework.boot.runApplication
  * @see <a href="../../documentation/user-stories/0002-create-customer-profile">User Story US-0002</a>
  */
 @SpringBootApplication
+@EnableScheduling
 class IdentityServiceApplication
 
 /**

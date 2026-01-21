@@ -36,6 +36,7 @@ class AuthenticateUserUseCaseTest {
     private lateinit var userEventPublisher: UserEventPublisher
     private lateinit var passwordHasher: PasswordHasher
     private lateinit var mfaChallengeService: MfaChallengeService
+    private lateinit var smsMfaService: SmsMfaService
     private lateinit var meterRegistry: SimpleMeterRegistry
     private lateinit var authenticateUserUseCase: AuthenticateUserUseCase
 
@@ -51,6 +52,7 @@ class AuthenticateUserUseCaseTest {
         userEventPublisher = mockk()
         passwordHasher = mockk()
         mfaChallengeService = mockk()
+        smsMfaService = mockk()
         meterRegistry = SimpleMeterRegistry()
 
         authenticateUserUseCase = AuthenticateUserUseCase(
@@ -59,6 +61,7 @@ class AuthenticateUserUseCaseTest {
             userEventPublisher = userEventPublisher,
             passwordHasher = passwordHasher,
             mfaChallengeService = mfaChallengeService,
+            smsMfaService = smsMfaService,
             meterRegistry = meterRegistry,
             maxFailedAttempts = 5,
             lockoutDurationMinutes = 15,
