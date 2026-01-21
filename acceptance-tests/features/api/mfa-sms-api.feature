@@ -33,7 +33,6 @@ Feature: MFA SMS Verification API (US-0003-06)
     Then the sent SMS code should be 6 numeric digits
 
   # AC-0003-06-03: Rate Limiting (Max 3 SMS per hour)
-  @wip
   Scenario: Enforce rate limit of 3 SMS per hour
     Given an active user exists with email "rate-limit@acme.com" and password "ValidP@ss123!"
     And the user has SMS MFA enabled with phone number "+15551234569"
@@ -55,7 +54,6 @@ Feature: MFA SMS Verification API (US-0003-06)
     And the response should contain "resendAvailableIn"
 
   # AC-0003-06-05: Single Use Codes
-  @wip
   Scenario: Reject already used SMS code
     Given an active user exists with email "single-use-sms@acme.com" and password "ValidP@ss123!"
     And the user has SMS MFA enabled with phone number "+15551234571"
