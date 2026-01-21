@@ -10,10 +10,12 @@ import java.util.UUID
  * Records each SMS sent to enable sliding window rate limiting
  * (e.g., max 3 SMS per hour per user).
  *
+ * Note: Phone number is intentionally NOT stored here to minimize
+ * data exposure risk. The user_id is sufficient for rate limiting.
+ *
  * @property id Unique identifier for the record.
  * @property userId The ID of the user this SMS was sent to.
  * @property sentAt Timestamp when the SMS was sent.
- * @property phoneNumber The phone number the SMS was sent to (for audit).
  */
 @Entity
 @Table(name = "sms_rate_limits")
@@ -26,10 +28,7 @@ class SmsRateLimit(
     val userId: UUID,
 
     @Column(name = "sent_at", nullable = false)
-    val sentAt: Instant,
-
-    @Column(name = "phone_number", nullable = false, length = 20)
-    val phoneNumber: String
+    val sentAt: Instant
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -44,15 +43,13 @@ class SmsRateLimit(
          * Creates a new SMS rate limit record.
          *
          * @param userId The ID of the user.
-         * @param phoneNumber The phone number the SMS was sent to.
          * @return A new SmsRateLimit instance.
          */
-        fun create(userId: UUID, phoneNumber: String): SmsRateLimit {
+        fun create(userId: UUID): SmsRateLimit {
             return SmsRateLimit(
                 id = UUID.randomUUID(),
                 userId = userId,
-                sentAt = Instant.now(),
-                phoneNumber = phoneNumber
+                sentAt = Instant.now()
             )
         }
     }

@@ -581,7 +581,6 @@ class TestController(
      */
     data class AddSmsRateLimitRequest(
         val userId: String,
-        val phoneNumber: String,
         val count: Int
     )
 
@@ -601,7 +600,7 @@ class TestController(
      * a user who has already sent multiple SMS in the last hour,
      * allowing tests to verify rate limiting behavior.
      *
-     * @param request The request containing userId, phoneNumber, and count.
+     * @param request The request containing userId and count.
      * @return The number of records added.
      */
     @PostMapping("/sms/add-rate-limit-records")
@@ -620,7 +619,6 @@ class TestController(
             val record = SmsRateLimit(
                 id = UUID.randomUUID(),
                 userId = userId,
-                phoneNumber = request.phoneNumber,
                 sentAt = sentAt
             )
             smsRateLimitRepository.save(record)

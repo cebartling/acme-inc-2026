@@ -519,10 +519,9 @@ Given('I have successfully verified with the SMS code', async function (this: Cu
 
 Given('the user has received {int} SMS codes in the last hour', async function (this: CustomWorld, count: number) {
   const userId = this.getTestData<string>('testUserId');
-  const phoneNumber = this.getTestData<string>('phoneNumber');
 
-  if (!userId || !phoneNumber) {
-    throw new Error('User ID and phone number must be set before adding rate limit records');
+  if (!userId) {
+    throw new Error('User ID must be set before adding rate limit records');
   }
 
   // Add rate limit records via test endpoint
@@ -530,7 +529,6 @@ Given('the user has received {int} SMS codes in the last hour', async function (
     '/api/v1/test/sms/add-rate-limit-records',
     {
       userId,
-      phoneNumber,
       count,
     }
   );

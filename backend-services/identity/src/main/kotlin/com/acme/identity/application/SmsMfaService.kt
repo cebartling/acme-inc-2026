@@ -174,7 +174,7 @@ class SmsMfaService(
 
         // Record rate limit BEFORE sending to prevent timing attacks
         // (if SMS send fails repeatedly, attackers can't bypass rate limiting)
-        smsRateLimiter.recordSmsSent(user.id, phoneNumber)
+        smsRateLimiter.recordSmsSent(user.id)
 
         // Send SMS
         val smsMessage = "Your ACME verification code is: $code. Valid for ${codeExpirySeconds / 60} minutes."
@@ -277,7 +277,7 @@ class SmsMfaService(
 
         // Record rate limit BEFORE sending to prevent timing attacks
         // (if SMS send fails repeatedly, attackers can't bypass rate limiting)
-        smsRateLimiter.recordSmsSent(user.id, phoneNumber)
+        smsRateLimiter.recordSmsSent(user.id)
 
         // Send SMS
         val smsMessage = "Your ACME verification code is: $code. Valid for ${codeExpirySeconds / 60} minutes."

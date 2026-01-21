@@ -113,11 +113,10 @@ class SmsRateLimiter(
      * Records that an SMS was sent to the user.
      *
      * @param userId The user ID.
-     * @param phoneNumber The phone number the SMS was sent to.
      */
     @Transactional
-    fun recordSmsSent(userId: UUID, phoneNumber: String) {
-        val record = SmsRateLimit.create(userId, phoneNumber)
+    fun recordSmsSent(userId: UUID) {
+        val record = SmsRateLimit.create(userId)
         smsRateLimitRepository.save(record)
     }
 
