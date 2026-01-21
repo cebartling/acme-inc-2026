@@ -76,4 +76,23 @@ interface MfaChallengeRepository : JpaRepository<MfaChallenge, UUID> {
     @Modifying
     @Query("UPDATE MfaChallenge c SET c.lastSentAt = :lastSentAt WHERE c.token = :token")
     fun resetLastSentAt(token: String, lastSentAt: Instant): Int
+
+    /**
+     * Atomically updates an SMS challenge with a new code hash and extended expiry.
+     * This is used for resending SMS codes and handles race conditions where
+     * the challenge may have been deleted between lookup and update.
+     *
+     * @param token The challenge token.
+     * @param codeHash The new SHA-256 hash of the SMS code.
+     * @param lastSentAt The timestamp when the SMS was sent.
+     * @param expiresAt The new expiry timestamp.
+     * @return Number of updated challenges (0 if challenge was deleted, 1 if updated).
+     */
+    @Modifying
+    @Query("""
+        UPDATE MfaChallenge c
+        SET c.codeHash = :codeHash, c.lastSentAt = :lastSentAt, c.expiresAt = :expiresAt
+        WHERE c.token = :token
+    """)
+    fun updateSmsChallenge(token: String, codeHash: String, lastSentAt: Instant, expiresAt: Instant): Int
 }

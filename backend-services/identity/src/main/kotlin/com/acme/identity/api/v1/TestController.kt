@@ -10,16 +10,21 @@ import com.acme.identity.infrastructure.persistence.VerificationTokenRepository
 import com.acme.identity.infrastructure.sms.MockSmsProvider
 import com.acme.identity.infrastructure.sms.SmsProvider
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Profile
+import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.ModelAttribute
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
+import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.server.ResponseStatusException
 import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -30,6 +35,10 @@ import java.util.concurrent.ConcurrentHashMap
  * This controller is only available when the "test" or "docker" profile is active.
  * It provides endpoints that expose internal data for testing purposes,
  * such as verification tokens and test session management.
+ *
+ * SECURITY: In addition to profile-based activation, all endpoints require
+ * a valid X-Test-Api-Key header matching the configured test API key.
+ * This provides defense-in-depth if the test profile is accidentally enabled.
  *
  * WARNING: This controller should NEVER be enabled in production environments.
  */
@@ -43,9 +52,26 @@ class TestController(
     private val usedTotpCodeRepository: UsedTotpCodeRepository,
     private val resendRequestRepository: ResendRequestRepository,
     private val smsRateLimitRepository: SmsRateLimitRepository,
-    private val smsProvider: SmsProvider
+    private val smsProvider: SmsProvider,
+    @Value("\${identity.test.api-key:test-api-key-for-acceptance-tests}")
+    private val testApiKey: String
 ) {
     private val logger = LoggerFactory.getLogger(TestController::class.java)
+
+    /**
+     * Validates the test API key before processing any request.
+     * This provides defense-in-depth beyond the @Profile annotation.
+     *
+     * @param apiKey The X-Test-Api-Key header value.
+     * @throws ResponseStatusException if the API key is missing or invalid.
+     */
+    @ModelAttribute
+    fun validateApiKey(@RequestHeader(value = "X-Test-Api-Key", required = false) apiKey: String?) {
+        if (apiKey != testApiKey) {
+            logger.warn("Invalid or missing test API key attempted")
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Invalid or missing X-Test-Api-Key header")
+        }
+    }
 
     /**
      * In-memory storage for test sessions.

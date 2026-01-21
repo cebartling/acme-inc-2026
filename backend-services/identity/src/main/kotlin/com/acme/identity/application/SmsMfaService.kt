@@ -269,11 +269,22 @@ class SmsMfaService(
         val code = generateCode()
         val codeHash = hashCode(code)
 
-        // Update challenge with new code and extend expiry
-        challenge.codeHash = codeHash
-        challenge.lastSentAt = Instant.now()
-        challenge.extendExpiry(codeExpirySeconds)
-        mfaChallengeRepository.save(challenge)
+        // Atomically update challenge with new code and extended expiry
+        // This handles race conditions where the challenge may have been deleted
+        val now = Instant.now()
+        val newExpiresAt = now.plusSeconds(codeExpirySeconds)
+        val updatedCount = mfaChallengeRepository.updateSmsChallenge(
+            token = mfaToken,
+            codeHash = codeHash,
+            lastSentAt = now,
+            expiresAt = newExpiresAt
+        )
+
+        // If no rows were updated, the challenge was deleted (race condition)
+        ensure(updatedCount > 0) {
+            logger.warn("Challenge {} was deleted during resend (race condition)", mfaToken.take(20))
+            SmsMfaError.InvalidToken
+        }
 
         // Record rate limit BEFORE sending to prevent timing attacks
         // (if SMS send fails repeatedly, attackers can't bypass rate limiting)
