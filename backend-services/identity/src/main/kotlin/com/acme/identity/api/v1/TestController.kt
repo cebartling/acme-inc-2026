@@ -675,6 +675,9 @@ class TestController(
      * the 60-second resend cooldown, allowing tests to verify
      * resend functionality without waiting.
      *
+     * Updates both the MFA challenge's lastSentAt and the most recent
+     * SMS rate limit record's sentAt to ensure the cooldown check passes.
+     *
      * @param request The request containing the MFA token.
      * @return The reset status.
      */
@@ -685,23 +688,37 @@ class TestController(
     ): ResponseEntity<ResetSmsCooldownResponse> {
         logger.debug("Test endpoint: Resetting SMS cooldown for token {}", request.mfaToken.take(20))
 
-        val updatedCount = mfaChallengeRepository.resetLastSentAt(
+        val twoMinutesAgo = Instant.now().minusSeconds(120) // Well past the 60-second cooldown
+
+        // Update the MFA challenge's lastSentAt
+        val challengeUpdated = mfaChallengeRepository.resetLastSentAt(
             request.mfaToken,
-            Instant.now().minusSeconds(120) // Set to 2 minutes ago, well past the 60-second cooldown
+            twoMinutesAgo
         )
 
-        return if (updatedCount > 0) {
-            logger.info("Reset SMS cooldown for token {}", request.mfaToken.take(20))
-            ResponseEntity.ok(
-                ResetSmsCooldownResponse(
-                    mfaToken = request.mfaToken,
-                    cooldownReset = true
-                )
-            )
-        } else {
+        if (challengeUpdated == 0) {
             logger.debug("No MFA challenge found with token {}", request.mfaToken.take(20))
-            ResponseEntity.notFound().build()
+            return ResponseEntity.notFound().build()
         }
+
+        // Also update the most recent SMS rate limit record for the user
+        // to ensure the SmsRateLimiter.checkResendCooldown() passes
+        val challenge = mfaChallengeRepository.findByToken(request.mfaToken)
+        if (challenge != null) {
+            val rateLimitUpdated = smsRateLimitRepository.updateMostRecentSentAt(
+                challenge.userId,
+                twoMinutesAgo
+            )
+            logger.debug("Updated {} SMS rate limit records for user {}", rateLimitUpdated, challenge.userId)
+        }
+
+        logger.info("Reset SMS cooldown for token {}", request.mfaToken.take(20))
+        return ResponseEntity.ok(
+            ResetSmsCooldownResponse(
+                mfaToken = request.mfaToken,
+                cooldownReset = true
+            )
+        )
     }
 
     /**

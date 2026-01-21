@@ -80,6 +80,15 @@ sealed interface AuthenticationError {
      * @property reason Human-readable explanation of the failure.
      */
     data class MfaSystemUnavailable(val reason: String) : AuthenticationError
+
+    /**
+     * Authentication failed because SMS rate limit has been exceeded.
+     *
+     * The user has sent too many SMS verification codes in the time window.
+     *
+     * @property retryAfterSeconds Seconds until the rate limit resets.
+     */
+    data class SmsRateLimited(val retryAfterSeconds: Long) : AuthenticationError
 }
 
 /**
@@ -377,9 +386,19 @@ class AuthenticateUserUseCase(
                                         user.id, error
                                     )
                                     incrementAuthenticationCounter("sms_mfa_challenge_failed")
-                                    raise(AuthenticationError.MfaSystemUnavailable(
-                                        reason = "Unable to send verification code. Please try again later or contact support."
-                                    ))
+                                    // Map specific SMS errors to appropriate authentication errors
+                                    when (error) {
+                                        is SmsMfaError.RateLimited -> {
+                                            raise(AuthenticationError.SmsRateLimited(
+                                                retryAfterSeconds = error.retryAfterSeconds
+                                            ))
+                                        }
+                                        else -> {
+                                            raise(AuthenticationError.MfaSystemUnavailable(
+                                                reason = "Unable to send verification code. Please try again later or contact support."
+                                            ))
+                                        }
+                                    }
                                 },
                                 ifRight = { result ->
                                     SigninResponse.mfaRequired(
