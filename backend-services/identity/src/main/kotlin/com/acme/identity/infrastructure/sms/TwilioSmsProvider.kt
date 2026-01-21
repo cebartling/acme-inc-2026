@@ -20,7 +20,7 @@ import jakarta.annotation.PostConstruct
  * Thread-safe and suitable for concurrent use.
  */
 @Component
-@ConditionalOnProperty(name = ["identity.sms.provider"], havingValue = "twilio", matchIfMissing = true)
+@ConditionalOnProperty(name = ["identity.sms.provider"], havingValue = "twilio")
 class TwilioSmsProvider(
     @Value("\${identity.sms.twilio.account-sid}")
     private val accountSid: String,
@@ -94,7 +94,8 @@ class TwilioSmsProvider(
     }
 
     private fun maskPhoneNumber(phone: String): String {
-        if (phone.length < 6) return "***"
+        // Need at least 7 chars to show prefix (3) + suffix (4) without overlap
+        if (phone.length < 7) return "***-***-****"
         return "${phone.take(3)}***${phone.takeLast(4)}"
     }
 
