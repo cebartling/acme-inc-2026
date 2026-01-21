@@ -172,6 +172,10 @@ class SmsMfaService(
         )
         mfaChallengeRepository.save(challenge)
 
+        // Record rate limit BEFORE sending to prevent timing attacks
+        // (if SMS send fails repeatedly, attackers can't bypass rate limiting)
+        smsRateLimiter.recordSmsSent(user.id, phoneNumber)
+
         // Send SMS
         val smsMessage = "Your ACME verification code is: $code. Valid for ${codeExpirySeconds / 60} minutes."
         smsProvider.send(phoneNumber, smsMessage).fold(
@@ -185,9 +189,6 @@ class SmsMfaService(
                 logger.info("SMS sent to user {} (message ID: {})", user.id, success.messageId)
             }
         )
-
-        // Record rate limit
-        smsRateLimiter.recordSmsSent(user.id, phoneNumber)
 
         // Publish event
         val event = MFAChallengeInitiated.create(
@@ -274,6 +275,10 @@ class SmsMfaService(
         challenge.extendExpiry(codeExpirySeconds)
         mfaChallengeRepository.save(challenge)
 
+        // Record rate limit BEFORE sending to prevent timing attacks
+        // (if SMS send fails repeatedly, attackers can't bypass rate limiting)
+        smsRateLimiter.recordSmsSent(user.id, phoneNumber)
+
         // Send SMS
         val smsMessage = "Your ACME verification code is: $code. Valid for ${codeExpirySeconds / 60} minutes."
         smsProvider.send(phoneNumber, smsMessage).fold(
@@ -286,9 +291,6 @@ class SmsMfaService(
                 logger.info("SMS resent to user {} (message ID: {})", user.id, success.messageId)
             }
         )
-
-        // Record rate limit
-        smsRateLimiter.recordSmsSent(user.id, phoneNumber)
         incrementCounter("code_resent")
 
         SmsResendResult(
