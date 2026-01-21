@@ -116,10 +116,61 @@ When('I enter the correct SMS code', async function (this: CustomWorld) {
 });
 
 When('I submit the MFA verification form', async function (this: CustomWorld) {
+  // Check if already navigated to dashboard (e.g., auto-submit after entering code)
+  if (this.page.url().includes('/dashboard')) {
+    return; // Already verified and redirected
+  }
+
   const mfaVerifyPage = new MfaVerifyPage(this.page);
-  await mfaVerifyPage.submitForm();
-  // Wait for navigation or response
-  await this.page.waitForTimeout(500);
+
+  // Check if submit button exists before trying to click
+  const submitButtonVisible = await mfaVerifyPage.submitButton.isVisible({ timeout: 2000 }).catch(() => false);
+
+  if (submitButtonVisible) {
+    await mfaVerifyPage.submitButton.click({ timeout: 5000 });
+    // Wait for potential navigation
+    await this.page.waitForTimeout(2000);
+  }
+  // If button not visible, form may have already been submitted
+});
+
+When('I click the resend code button', async function (this: CustomWorld) {
+  const mfaVerifyPage = new MfaVerifyPage(this.page);
+  const phoneNumber = this.getTestData<string>('phoneNumber');
+
+  // Wait for the resend button to be visible and enabled
+  await expect(mfaVerifyPage.resendCodeButton).toBeVisible({ timeout: 5000 });
+  await expect(mfaVerifyPage.resendCodeButton).toBeEnabled({ timeout: 5000 });
+
+  // Click the resend button
+  await mfaVerifyPage.resendCodeButton.click();
+
+  // Wait for the network request to complete (any status)
+  try {
+    await this.page.waitForResponse(
+      (response) => response.url().includes('/api/v1/auth/mfa/resend'),
+      { timeout: 10000 }
+    );
+  } catch {
+    // If no response, wait a bit and continue
+    await this.page.waitForTimeout(2000);
+  }
+
+  // Fetch the new SMS code from the mock provider
+  if (phoneNumber) {
+    // Try a few times in case the SMS hasn't been recorded yet
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const codeResponse = await this.identityApiClient.get<{ code: string }>(
+        `/api/v1/test/sms/last-code?phoneNumber=${encodeURIComponent(phoneNumber)}`
+      );
+      if (codeResponse.status === 200 && codeResponse.data.code) {
+        this.setTestData('lastSmsCode', codeResponse.data.code);
+        return;
+      }
+      await this.page.waitForTimeout(500);
+    }
+    throw new Error('Failed to get SMS code after resend');
+  }
 });
 
 // ============================================================================
@@ -192,6 +243,5 @@ Then('the resend code button should not be visible', async function (this: Custo
   await expect(mfaVerifyPage.resendCodeButton).not.toBeVisible();
 });
 
-Then('I should be redirected to the dashboard page', async function (this: CustomWorld) {
-  await expect(this.page).toHaveURL(/\/dashboard/, { timeout: 10000 });
-});
+// Note: "I should be redirected to the dashboard page" step is defined in signin.steps.ts
+// and can be reused here since both flows end at the dashboard

@@ -142,4 +142,4 @@ Feature: MFA SMS Verification API (US-0003-06)
     And I wait for the resend cooldown to elapse
     When I request to resend the SMS code
     Then the API should respond with status 200
-    And the response should contain "maskedPhone" matching pattern "\\*\\*\\*-\\*\\*\\*-\\d{4}"
+    And the response should contain "maskedPhone" matching pattern "\*\*\*-\*\*\*-\d{4}"

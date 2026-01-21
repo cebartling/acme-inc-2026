@@ -151,6 +151,15 @@ class AuthenticationController(
                     )
                 )
             }
+            is AuthenticationError.SmsRateLimited -> {
+                ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(
+                    SigninErrorResponse(
+                        error = "SMS_RATE_LIMITED",
+                        message = "Too many SMS verification requests. Please try again later.",
+                        retryAfterSeconds = error.retryAfterSeconds
+                    )
+                )
+            }
         }
     }
 

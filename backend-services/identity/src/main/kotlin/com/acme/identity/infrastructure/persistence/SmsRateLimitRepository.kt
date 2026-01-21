@@ -67,4 +67,25 @@ interface SmsRateLimitRepository : JpaRepository<SmsRateLimit, UUID> {
     @Modifying
     @Query("DELETE FROM SmsRateLimit r WHERE r.userId = :userId")
     fun deleteByUserId(userId: UUID)
+
+    /**
+     * Updates the sentAt timestamp of the most recent SMS rate limit record for a user.
+     * Used for testing to reset the resend cooldown.
+     *
+     * @param userId The user ID.
+     * @param newSentAt The new timestamp to set.
+     * @return Number of records updated (0 or 1).
+     */
+    @Modifying
+    @Query("""
+        UPDATE SmsRateLimit r
+        SET r.sentAt = :newSentAt
+        WHERE r.id = (
+            SELECT r2.id FROM SmsRateLimit r2
+            WHERE r2.userId = :userId
+            ORDER BY r2.sentAt DESC
+            LIMIT 1
+        )
+    """)
+    fun updateMostRecentSentAt(userId: UUID, newSentAt: Instant): Int
 }

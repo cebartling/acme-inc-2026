@@ -96,6 +96,7 @@ data class SigninResponse(
  * @property lockedUntil Timestamp when the lockout expires (optional, for 423 responses).
  * @property lockoutRemainingSeconds Seconds remaining until lockout expires (optional, for 423 responses).
  * @property passwordResetUrl URL for password reset to bypass lockout (optional, for 423 responses).
+ * @property retryAfterSeconds Seconds until the rate limit resets (optional, for 429 responses).
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 data class SigninErrorResponse(
@@ -106,5 +107,6 @@ data class SigninErrorResponse(
     val supportUrl: String? = null,
     val lockedUntil: String? = null,
     val lockoutRemainingSeconds: Long? = null,
-    val passwordResetUrl: String? = null
+    val passwordResetUrl: String? = null,
+    val retryAfterSeconds: Long? = null
 )
