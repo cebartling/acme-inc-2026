@@ -69,6 +69,17 @@ sealed interface AuthenticationError {
      * Authentication failed due to rate limiting.
      */
     data object RateLimited : AuthenticationError
+
+    /**
+     * Authentication failed because MFA verification is required but the MFA system
+     * is temporarily unavailable.
+     *
+     * SECURITY: This error prevents MFA bypass when the SMS/MFA service fails.
+     * Users cannot authenticate until the MFA system is available.
+     *
+     * @property reason Human-readable explanation of the failure.
+     */
+    data class MfaSystemUnavailable(val reason: String) : AuthenticationError
 }
 
 /**
@@ -357,10 +368,18 @@ class AuthenticateUserUseCase(
                             // SMS MFA enabled (without TOTP)
                             smsMfaService.createChallenge(user, context.correlationId).fold(
                                 ifLeft = { error ->
-                                    logger.error("Failed to create SMS MFA challenge for user {}: {}", user.id, error)
-                                    // Fall back to success if SMS challenge fails
+                                    // SECURITY: Do NOT fall back to success when MFA fails.
+                                    // Bypassing MFA on failure would allow attackers to exploit
+                                    // SMS service issues to gain unauthorized access.
+                                    logger.error(
+                                        "Failed to create SMS MFA challenge for user {}: {}. " +
+                                        "Authentication blocked to prevent MFA bypass.",
+                                        user.id, error
+                                    )
                                     incrementAuthenticationCounter("sms_mfa_challenge_failed")
-                                    SigninResponse.success(userId = user.id)
+                                    raise(AuthenticationError.MfaSystemUnavailable(
+                                        reason = "Unable to send verification code. Please try again later or contact support."
+                                    ))
                                 },
                                 ifRight = { result ->
                                     SigninResponse.mfaRequired(

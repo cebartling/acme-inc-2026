@@ -64,4 +64,16 @@ interface MfaChallengeRepository : JpaRepository<MfaChallenge, UUID> {
     @Modifying
     @Query("UPDATE MfaChallenge c SET c.expiresAt = :expiredAt WHERE c.token = :token")
     fun expireByToken(token: String, expiredAt: Instant): Int
+
+    /**
+     * Resets the lastSentAt timestamp to bypass the SMS resend cooldown.
+     * This is used for testing purposes only.
+     *
+     * @param token The challenge token.
+     * @param lastSentAt The timestamp to set (should be in the past).
+     * @return Number of updated challenges (0 or 1).
+     */
+    @Modifying
+    @Query("UPDATE MfaChallenge c SET c.lastSentAt = :lastSentAt WHERE c.token = :token")
+    fun resetLastSentAt(token: String, lastSentAt: Instant): Int
 }

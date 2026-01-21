@@ -1,11 +1,14 @@
 package com.acme.identity.api.v1
 
+import com.acme.identity.domain.SmsRateLimit
 import com.acme.identity.infrastructure.persistence.MfaChallengeRepository
 import com.acme.identity.infrastructure.persistence.ResendRequestRepository
 import com.acme.identity.infrastructure.persistence.SmsRateLimitRepository
 import com.acme.identity.infrastructure.persistence.UsedTotpCodeRepository
 import com.acme.identity.infrastructure.persistence.UserRepository
 import com.acme.identity.infrastructure.persistence.VerificationTokenRepository
+import com.acme.identity.infrastructure.sms.MockSmsProvider
+import com.acme.identity.infrastructure.sms.SmsProvider
 import org.slf4j.LoggerFactory
 import org.springframework.context.annotation.Profile
 import org.springframework.http.ResponseEntity
@@ -39,7 +42,8 @@ class TestController(
     private val mfaChallengeRepository: MfaChallengeRepository,
     private val usedTotpCodeRepository: UsedTotpCodeRepository,
     private val resendRequestRepository: ResendRequestRepository,
-    private val smsRateLimitRepository: SmsRateLimitRepository
+    private val smsRateLimitRepository: SmsRateLimitRepository,
+    private val smsProvider: SmsProvider
 ) {
     private val logger = LoggerFactory.getLogger(TestController::class.java)
 
@@ -519,6 +523,189 @@ class TestController(
             logger.debug("No MFA challenge found with token {}", request.mfaToken.take(20))
             ResponseEntity.notFound().build()
         }
+    }
+
+    // =========================================================================
+    // SMS Testing Endpoints
+    // =========================================================================
+
+    /**
+     * Response DTO for getting the last SMS code.
+     */
+    data class LastSmsCodeResponse(
+        val phoneNumber: String,
+        val code: String?,
+        val messageBody: String?
+    )
+
+    /**
+     * Gets the last SMS verification code sent to a phone number.
+     *
+     * This endpoint is only available when using MockSmsProvider.
+     * It allows acceptance tests to retrieve the actual SMS code
+     * without hardcoding test values.
+     *
+     * @param phoneNumber The phone number (URL encoded, e.g., %2B15551234567).
+     * @return The last SMS code if found, or a 404 response.
+     */
+    @GetMapping("/sms/last-code")
+    fun getLastSmsCode(@org.springframework.web.bind.annotation.RequestParam phoneNumber: String): ResponseEntity<LastSmsCodeResponse> {
+        logger.debug("Test endpoint: Getting last SMS code for {}", phoneNumber)
+
+        if (smsProvider !is MockSmsProvider) {
+            logger.warn("getLastSmsCode only works with MockSmsProvider, current provider: {}", smsProvider::class.simpleName)
+            return ResponseEntity.badRequest().build()
+        }
+
+        val mockProvider = smsProvider as MockSmsProvider
+        val code = mockProvider.extractCodeFromLastMessage(phoneNumber)
+        val lastMessage = mockProvider.getLastMessageSentTo(phoneNumber)
+
+        return if (code != null) {
+            logger.debug("Found SMS code {} for phone {}", code, phoneNumber)
+            ResponseEntity.ok(
+                LastSmsCodeResponse(
+                    phoneNumber = phoneNumber,
+                    code = code,
+                    messageBody = lastMessage?.body
+                )
+            )
+        } else {
+            logger.debug("No SMS code found for phone {}", phoneNumber)
+            ResponseEntity.notFound().build()
+        }
+    }
+
+    /**
+     * Request DTO for adding SMS rate limit records.
+     */
+    data class AddSmsRateLimitRequest(
+        val userId: String,
+        val phoneNumber: String,
+        val count: Int
+    )
+
+    /**
+     * Response DTO for adding SMS rate limit records.
+     */
+    data class AddSmsRateLimitResponse(
+        val userId: String,
+        val recordsAdded: Int,
+        val totalRecords: Long
+    )
+
+    /**
+     * Adds SMS rate limit records for a user.
+     *
+     * This endpoint is intended for acceptance testing to simulate
+     * a user who has already sent multiple SMS in the last hour,
+     * allowing tests to verify rate limiting behavior.
+     *
+     * @param request The request containing userId, phoneNumber, and count.
+     * @return The number of records added.
+     */
+    @PostMapping("/sms/add-rate-limit-records")
+    @Transactional
+    fun addSmsRateLimitRecords(
+        @RequestBody request: AddSmsRateLimitRequest
+    ): ResponseEntity<AddSmsRateLimitResponse> {
+        logger.debug("Test endpoint: Adding {} SMS rate limit records for user {}", request.count, request.userId)
+
+        val userId = UUID.fromString(request.userId)
+
+        // Add rate limit records with timestamps spread over the last hour
+        val now = Instant.now()
+        repeat(request.count) { index ->
+            val sentAt = now.minusSeconds((index * 10).toLong()) // Spread them out by 10 seconds each
+            val record = SmsRateLimit(
+                id = UUID.randomUUID(),
+                userId = userId,
+                phoneNumber = request.phoneNumber,
+                sentAt = sentAt
+            )
+            smsRateLimitRepository.save(record)
+        }
+
+        val totalRecords = smsRateLimitRepository.countByUserIdSince(userId, now.minusSeconds(3600))
+
+        logger.info("Added {} SMS rate limit records for user {}, total: {}", request.count, userId, totalRecords)
+        return ResponseEntity.ok(
+            AddSmsRateLimitResponse(
+                userId = request.userId,
+                recordsAdded = request.count,
+                totalRecords = totalRecords
+            )
+        )
+    }
+
+    /**
+     * Request DTO for resetting SMS cooldown.
+     */
+    data class ResetSmsCooldownRequest(
+        val mfaToken: String
+    )
+
+    /**
+     * Response DTO for resetting SMS cooldown.
+     */
+    data class ResetSmsCooldownResponse(
+        val mfaToken: String,
+        val cooldownReset: Boolean
+    )
+
+    /**
+     * Resets the SMS resend cooldown for an MFA challenge.
+     *
+     * This endpoint is intended for acceptance testing to bypass
+     * the 60-second resend cooldown, allowing tests to verify
+     * resend functionality without waiting.
+     *
+     * @param request The request containing the MFA token.
+     * @return The reset status.
+     */
+    @PostMapping("/sms/reset-cooldown")
+    @Transactional
+    fun resetSmsCooldown(
+        @RequestBody request: ResetSmsCooldownRequest
+    ): ResponseEntity<ResetSmsCooldownResponse> {
+        logger.debug("Test endpoint: Resetting SMS cooldown for token {}", request.mfaToken.take(20))
+
+        val updatedCount = mfaChallengeRepository.resetLastSentAt(
+            request.mfaToken,
+            Instant.now().minusSeconds(120) // Set to 2 minutes ago, well past the 60-second cooldown
+        )
+
+        return if (updatedCount > 0) {
+            logger.info("Reset SMS cooldown for token {}", request.mfaToken.take(20))
+            ResponseEntity.ok(
+                ResetSmsCooldownResponse(
+                    mfaToken = request.mfaToken,
+                    cooldownReset = true
+                )
+            )
+        } else {
+            logger.debug("No MFA challenge found with token {}", request.mfaToken.take(20))
+            ResponseEntity.notFound().build()
+        }
+    }
+
+    /**
+     * Clears all mock SMS messages.
+     *
+     * This endpoint is intended for test cleanup between scenarios.
+     */
+    @DeleteMapping("/sms/clear-messages")
+    fun clearSmsMessages(): ResponseEntity<Void> {
+        logger.debug("Test endpoint: Clearing all mock SMS messages")
+
+        if (smsProvider !is MockSmsProvider) {
+            logger.warn("clearSmsMessages only works with MockSmsProvider")
+            return ResponseEntity.badRequest().build()
+        }
+
+        (smsProvider as MockSmsProvider).clearAll()
+        logger.info("Cleared all mock SMS messages")
+        return ResponseEntity.noContent().build()
     }
 
     companion object {

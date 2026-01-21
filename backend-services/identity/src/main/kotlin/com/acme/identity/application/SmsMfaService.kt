@@ -426,6 +426,8 @@ class SmsMfaService(
      */
     private fun maskPhoneNumber(phone: String): String {
         val digits = phone.filter { it.isDigit() }
+        // Handle edge case where phone has fewer than 4 digits
+        if (digits.length < 4) return "***-***-****"
         val lastFour = digits.takeLast(4)
         return "***-***-$lastFour"
     }

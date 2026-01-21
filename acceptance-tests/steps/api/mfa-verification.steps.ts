@@ -441,6 +441,7 @@ Given('the user has SMS MFA enabled with phone number {string}', async function 
 Given('I have completed SMS credential validation and received an MFA token', async function (this: CustomWorld) {
   const email = this.getTestData<string>('testUserEmail');
   const password = this.getTestData<string>('testUserPassword');
+  const phoneNumber = this.getTestData<string>('phoneNumber');
 
   if (!email || !password) {
     throw new Error('Test user email and password must be set before completing credential validation');
@@ -462,6 +463,16 @@ Given('I have completed SMS credential validation and received an MFA token', as
   this.setTestData('mfaToken', response.data.mfaToken);
   this.setTestData('mfaMethods', response.data.mfaMethods);
   this.setTestData('lastSmsSentAt', Date.now());
+
+  // Fetch the SMS code from the MockSmsProvider
+  if (phoneNumber) {
+    const codeResponse = await this.identityApiClient.get<{ code: string }>(
+      `/api/v1/test/sms/last-code?phoneNumber=${encodeURIComponent(phoneNumber)}`
+    );
+    if (codeResponse.status === 200 && codeResponse.data.code) {
+      this.setTestData('lastSmsCode', codeResponse.data.code);
+    }
+  }
 });
 
 Given('I have successfully verified with the SMS code', async function (this: CustomWorld) {
@@ -472,8 +483,21 @@ Given('I have successfully verified with the SMS code', async function (this: Cu
     throw new Error('MFA token must be set before verifying');
   }
 
-  // Get the SMS code from the mock provider (in real tests, this would be retrieved from the mock)
-  const code = this.getTestData<string>('lastSmsCode') || '123456';
+  // Retrieve the actual SMS code from the MockSmsProvider via test endpoint
+  let code = this.getTestData<string>('lastSmsCode');
+  if (!code && phoneNumber) {
+    const codeResponse = await this.identityApiClient.get<{ code: string }>(
+      `/api/v1/test/sms/last-code?phoneNumber=${encodeURIComponent(phoneNumber)}`
+    );
+    if (codeResponse.status === 200 && codeResponse.data.code) {
+      code = codeResponse.data.code;
+      this.setTestData('lastSmsCode', code);
+    }
+  }
+
+  if (!code) {
+    throw new Error('SMS code must be available before verifying');
+  }
 
   const response = await this.identityApiClient.post<MfaVerifyResponse>(
     '/api/v1/auth/mfa/verify',
@@ -493,21 +517,48 @@ Given('I have successfully verified with the SMS code', async function (this: Cu
   this.setTestData('lastMfaVerifyResponse', response);
 });
 
-Given('the user has received {int} SMS codes in the last hour', async function (this: CustomWorld, _count: number) {
-  // This would set up rate limit records in the database via test endpoint
-  // For now, we'll just note this as a precondition that needs implementation
-  this.setTestData('smsRateLimitReached', true);
+Given('the user has received {int} SMS codes in the last hour', async function (this: CustomWorld, count: number) {
+  const userId = this.getTestData<string>('testUserId');
+  const phoneNumber = this.getTestData<string>('phoneNumber');
+
+  if (!userId || !phoneNumber) {
+    throw new Error('User ID and phone number must be set before adding rate limit records');
+  }
+
+  // Add rate limit records via test endpoint
+  const response = await this.identityApiClient.post<{ totalRecords: number }>(
+    '/api/v1/test/sms/add-rate-limit-records',
+    {
+      userId,
+      phoneNumber,
+      count,
+    }
+  );
+
+  if (response.status !== 200) {
+    throw new Error(`Failed to add rate limit records: ${response.status} - ${JSON.stringify(response.data)}`);
+  }
+
+  this.setTestData('smsRateLimitReached', response.data.totalRecords >= 3);
 });
 
 Given('I wait for the resend cooldown to elapse', async function (this: CustomWorld) {
-  // In real tests, we might use a test endpoint to manipulate the cooldown
-  // For now, we'll simulate it passed by waiting a small amount of time
-  // or using a test endpoint to reset the cooldown
-  const lastSmsSentAt = this.getTestData<number>('lastSmsSentAt');
-  const cooldownSeconds = 60;
+  const mfaToken = this.getTestData<string>('mfaToken');
 
-  // If we have a test endpoint to bypass cooldown, use it
-  // Otherwise, the test should set up conditions appropriately
+  if (!mfaToken) {
+    throw new Error('MFA token must be set before waiting for cooldown');
+  }
+
+  // Reset the cooldown via test endpoint (sets lastSentAt to 2 minutes ago)
+  const response = await this.identityApiClient.post<{ cooldownReset: boolean }>(
+    '/api/v1/test/sms/reset-cooldown',
+    { mfaToken }
+  );
+
+  if (response.status !== 200) {
+    throw new Error(`Failed to reset SMS cooldown: ${response.status} - ${JSON.stringify(response.data)}`);
+  }
+
   this.setTestData('cooldownElapsed', true);
 });
 
@@ -519,9 +570,21 @@ When('I submit an MFA verification request with the correct SMS code', async fun
     throw new Error('MFA token must be set before verifying');
   }
 
-  // In a real test, we'd retrieve the code from the mock SMS provider
-  // For now, we'll use a placeholder that the test infrastructure would provide
-  const code = this.getTestData<string>('lastSmsCode') || '123456';
+  // Retrieve the actual SMS code from the MockSmsProvider via test endpoint
+  let code = this.getTestData<string>('lastSmsCode');
+  if (!code && phoneNumber) {
+    const codeResponse = await this.identityApiClient.get<{ code: string }>(
+      `/api/v1/test/sms/last-code?phoneNumber=${encodeURIComponent(phoneNumber)}`
+    );
+    if (codeResponse.status === 200 && codeResponse.data.code) {
+      code = codeResponse.data.code;
+      this.setTestData('lastSmsCode', code);
+    }
+  }
+
+  if (!code) {
+    throw new Error('SMS code must be available before verifying. Ensure SMS was sent.');
+  }
 
   const request: MfaVerifyRequest = {
     mfaToken,
@@ -562,14 +625,28 @@ When('I submit an SMS MFA verification request with an invalid code', async func
 });
 
 When('I submit an SMS MFA verification request with the correct code', async function (this: CustomWorld) {
-  // Alias for the step above
   const mfaToken = this.getTestData<string>('mfaToken');
+  const phoneNumber = this.getTestData<string>('phoneNumber');
 
   if (!mfaToken) {
     throw new Error('MFA token must be set before verifying');
   }
 
-  const code = this.getTestData<string>('lastSmsCode') || '123456';
+  // Retrieve the actual SMS code from the MockSmsProvider via test endpoint
+  let code = this.getTestData<string>('lastSmsCode');
+  if (!code && phoneNumber) {
+    const codeResponse = await this.identityApiClient.get<{ code: string }>(
+      `/api/v1/test/sms/last-code?phoneNumber=${encodeURIComponent(phoneNumber)}`
+    );
+    if (codeResponse.status === 200 && codeResponse.data.code) {
+      code = codeResponse.data.code;
+      this.setTestData('lastSmsCode', code);
+    }
+  }
+
+  if (!code) {
+    throw new Error('SMS code must be available before verifying. Ensure SMS was sent.');
+  }
 
   const request: MfaVerifyRequest = {
     mfaToken,
@@ -718,14 +795,26 @@ When('I request to resend the code with method {string}', async function (this: 
 });
 
 Then('the sent SMS code should be 6 numeric digits', async function (this: CustomWorld) {
-  // This would verify the format of the SMS code sent by the mock provider
-  // In real tests, we'd check the mock provider's sent messages
-  const code = this.getTestData<string>('lastSmsCode');
+  const phoneNumber = this.getTestData<string>('phoneNumber');
 
-  if (code) {
-    expect(code).toMatch(/^\d{6}$/);
+  if (!phoneNumber) {
+    throw new Error('Phone number must be set to verify SMS code format');
   }
-  // If code is not available, we trust the backend implementation
+
+  // Retrieve the actual SMS code from the MockSmsProvider via test endpoint
+  const codeResponse = await this.identityApiClient.get<{ code: string }>(
+    `/api/v1/test/sms/last-code?phoneNumber=${encodeURIComponent(phoneNumber)}`
+  );
+
+  if (codeResponse.status !== 200 || !codeResponse.data.code) {
+    throw new Error(`No SMS code found for phone number ${phoneNumber}`);
+  }
+
+  const code = codeResponse.data.code;
+  this.setTestData('lastSmsCode', code);
+
+  // Verify the code is 6 numeric digits
+  expect(code).toMatch(/^\d{6}$/);
 });
 
 Then('the response should contain {string} with value containing {string}', async function (this: CustomWorld, field: string, value: string) {
