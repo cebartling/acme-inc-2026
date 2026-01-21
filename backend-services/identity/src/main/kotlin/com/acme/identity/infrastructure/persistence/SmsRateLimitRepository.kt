@@ -37,6 +37,17 @@ interface SmsRateLimitRepository : JpaRepository<SmsRateLimit, UUID> {
     fun findMostRecentSentAt(userId: UUID): Instant?
 
     /**
+     * Gets the oldest SMS send time for a user within a time window.
+     * Used to calculate when the rate limit window will reset.
+     *
+     * @param userId The user ID to check.
+     * @param since The start of the time window.
+     * @return The oldest sent_at timestamp in the window, or null if none.
+     */
+    @Query("SELECT MIN(r.sentAt) FROM SmsRateLimit r WHERE r.userId = :userId AND r.sentAt >= :since")
+    fun findOldestSentAtSince(userId: UUID, since: Instant): Instant?
+
+    /**
      * Deletes SMS rate limit records older than the given timestamp.
      * Used for cleanup of stale records (older than 1 hour).
      *

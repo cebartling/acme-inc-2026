@@ -69,15 +69,24 @@ class SmsRateLimiter(
      * @return Allowed with remaining count, or Exceeded with retry time.
      */
     fun checkRateLimit(userId: UUID): SmsRateLimitResult {
-        val oneHourAgo = Instant.now().minus(Duration.ofHours(1))
+        val now = Instant.now()
+        val oneHourAgo = now.minus(Duration.ofHours(1))
         val sentCount = smsRateLimitRepository.countByUserIdSince(userId, oneHourAgo)
 
         return if (sentCount < maxSmsPerHour) {
             SmsRateLimitResult.Allowed(remaining = maxSmsPerHour - sentCount.toInt() - 1)
         } else {
-            // Find when the oldest message in the window expires
-            // This is approximate - we'd need the actual timestamps for precision
-            SmsRateLimitResult.Exceeded(retryAfterSeconds = 3600) // Worst case: 1 hour
+            // Calculate when the oldest message in the window will expire
+            val oldestSentAt = smsRateLimitRepository.findOldestSentAtSince(userId, oneHourAgo)
+            val retryAfterSeconds = if (oldestSentAt != null) {
+                // The oldest message will exit the 1-hour window at oldestSentAt + 1 hour
+                val windowExpiresAt = oldestSentAt.plus(Duration.ofHours(1))
+                Duration.between(now, windowExpiresAt).seconds.coerceAtLeast(1)
+            } else {
+                // Fallback: shouldn't happen if sentCount >= maxSmsPerHour
+                3600L
+            }
+            SmsRateLimitResult.Exceeded(retryAfterSeconds = retryAfterSeconds)
         }
     }
 
