@@ -7,6 +7,7 @@ import com.twilio.Twilio
 import com.twilio.exception.ApiException
 import com.twilio.rest.api.v2010.account.Message
 import com.twilio.type.PhoneNumber
+import com.acme.identity.infrastructure.util.PhoneNumberUtils
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
@@ -70,12 +71,12 @@ class TwilioSmsProvider(
                 message
             ).create()
 
-            logger.info("SMS sent successfully to {} (SID: {})", maskPhoneNumber(to), twilioMessage.sid)
+            logger.info("SMS sent successfully to {} (SID: {})", PhoneNumberUtils.mask(to), twilioMessage.sid)
 
             SmsResult.Success(messageId = twilioMessage.sid).right()
         } catch (e: ApiException) {
             logger.error("Twilio API error sending SMS to {}: {} (code: {})",
-                maskPhoneNumber(to), e.message, e.code)
+                PhoneNumberUtils.mask(to), e.message, e.code)
 
             val isRetryable = e.code in RETRYABLE_ERROR_CODES
             SmsResult.Failure(
@@ -84,19 +85,13 @@ class TwilioSmsProvider(
                 isRetryable = isRetryable
             ).left()
         } catch (e: Exception) {
-            logger.error("Unexpected error sending SMS to {}: {}", maskPhoneNumber(to), e.message, e)
+            logger.error("Unexpected error sending SMS to {}: {}", PhoneNumberUtils.mask(to), e.message, e)
             SmsResult.Failure(
                 code = "SEND_ERROR",
                 message = "Failed to send SMS",
                 isRetryable = true
             ).left()
         }
-    }
-
-    private fun maskPhoneNumber(phone: String): String {
-        // Need at least 7 chars to show prefix (3) + suffix (4) without overlap
-        if (phone.length < 7) return "***-***-****"
-        return "${phone.take(3)}***${phone.takeLast(4)}"
     }
 
     companion object {

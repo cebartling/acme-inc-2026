@@ -2,6 +2,7 @@ package com.acme.identity.api.v1
 
 import com.acme.identity.domain.SmsRateLimit
 import com.acme.identity.infrastructure.persistence.MfaChallengeRepository
+import com.acme.identity.infrastructure.util.PhoneNumberUtils
 import com.acme.identity.infrastructure.persistence.ResendRequestRepository
 import com.acme.identity.infrastructure.persistence.SmsRateLimitRepository
 import com.acme.identity.infrastructure.persistence.UsedTotpCodeRepository
@@ -423,13 +424,13 @@ class TestController(
             user.phoneVerified = true
             userRepository.save(user)
 
-            logger.info("Enabled SMS MFA for user {} with phone {}", userId, maskPhoneNumber(request.phoneNumber))
+            logger.info("Enabled SMS MFA for user {} with phone {}", userId, PhoneNumberUtils.mask(request.phoneNumber))
             ResponseEntity.ok(
                 EnableSmsMfaResponse(
                     userId = userId.toString(),
                     mfaEnabled = true,
                     smsMfaEnabled = true,
-                    maskedPhone = maskPhoneNumber(request.phoneNumber)
+                    maskedPhone = PhoneNumberUtils.mask(request.phoneNumber)
                 )
             )
         } else {
@@ -456,16 +457,6 @@ class TestController(
         }
 
         return null
-    }
-
-    /**
-     * Masks a phone number for display.
-     * E.g., +15551234567 -> ***-***-4567
-     */
-    private fun maskPhoneNumber(phone: String): String {
-        val digits = phone.filter { it.isDigit() }
-        val lastFour = digits.takeLast(4)
-        return "***-***-$lastFour"
     }
 
     /**

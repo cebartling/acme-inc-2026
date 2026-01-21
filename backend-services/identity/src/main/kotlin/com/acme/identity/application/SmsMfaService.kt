@@ -21,7 +21,7 @@ import com.acme.identity.infrastructure.ratelimit.ResendCooldownResult
 import com.acme.identity.infrastructure.ratelimit.SmsRateLimitResult
 import com.acme.identity.infrastructure.ratelimit.SmsRateLimiter
 import com.acme.identity.infrastructure.sms.SmsProvider
-import com.acme.identity.infrastructure.sms.SmsResult
+import com.acme.identity.infrastructure.util.PhoneNumberUtils
 import io.micrometer.core.instrument.MeterRegistry
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
@@ -205,7 +205,7 @@ class SmsMfaService(
 
         SmsChallengeResult(
             mfaToken = challenge.token,
-            maskedPhone = maskPhoneNumber(phoneNumber),
+            maskedPhone = PhoneNumberUtils.mask(phoneNumber),
             expiresIn = codeExpirySeconds,
             resendAvailableIn = smsRateLimiter.getResendAvailableIn(user.id)
         )
@@ -305,7 +305,7 @@ class SmsMfaService(
         incrementCounter("code_resent")
 
         SmsResendResult(
-            maskedPhone = maskPhoneNumber(phoneNumber),
+            maskedPhone = PhoneNumberUtils.mask(phoneNumber),
             expiresIn = codeExpirySeconds,
             resendAvailableIn = smsRateLimiter.getResendAvailableIn(user.id)
         )
@@ -431,18 +431,6 @@ class SmsMfaService(
         val digest = MessageDigest.getInstance("SHA-256")
         val hashBytes = digest.digest(code.toByteArray())
         return hashBytes.joinToString("") { "%02x".format(it) }
-    }
-
-    /**
-     * Masks a phone number for display.
-     * E.g., +15551234567 -> ***-***-4567
-     */
-    private fun maskPhoneNumber(phone: String): String {
-        val digits = phone.filter { it.isDigit() }
-        // Handle edge case where phone has fewer than 4 digits
-        if (digits.length < 4) return "***-***-****"
-        val lastFour = digits.takeLast(4)
-        return "***-***-$lastFour"
     }
 
     private fun publishFailedEvent(
