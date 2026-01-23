@@ -124,24 +124,45 @@ export class CustomWorld extends World<CustomWorldParameters> {
   }
 
   async closeContext(): Promise<void> {
+    // Stop tracing if enabled
     if (config.trace.enabled && this.context) {
-      await this.context.tracing.stop({
-        path: `${config.trace.dir}/trace-${Date.now()}.zip`,
-      });
+      try {
+        await this.context.tracing.stop({
+          path: `${config.trace.dir}/trace-${Date.now()}.zip`,
+        });
+      } catch (error) {
+        console.warn('Failed to stop tracing:', error);
+      }
     }
 
+    // Close page first
     if (this.page) {
-      await this.page.close();
+      try {
+        // Force close without waiting for pending operations
+        await this.page.close({ runBeforeUnload: false });
+        this.page = null;
+      } catch (error) {
+        console.warn('Failed to close page:', error);
+      }
     }
 
+    // Close context
     if (this.context) {
-      await this.context.close();
+      try {
+        await this.context.close();
+        this.context = null;
+      } catch (error) {
+        console.warn('Failed to close context:', error);
+      }
     }
   }
 
   async closeBrowser(): Promise<void> {
+    // Note: We intentionally don't close the browser here
+    // Playwright will clean it up when the process exits
+    // This avoids hanging during cleanup
     if (this.browser) {
-      await this.browser.close();
+      this.browser = null;
     }
   }
 

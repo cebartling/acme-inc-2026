@@ -18,7 +18,7 @@ Feature: Session and Token Creation API (US-0003-07)
     And the access token cookie should have HttpOnly flag
     And the access token cookie should have Secure flag
     And the access token cookie should have SameSite=Strict
-    And the access token cookie should have Path=/
+    And the access token cookie should have Path="/"
     And the access token cookie should have Max-Age=900
 
   # AC-0003-07-02: Refresh Token Generation
@@ -32,7 +32,7 @@ Feature: Session and Token Creation API (US-0003-07)
     And the refresh token cookie should have HttpOnly flag
     And the refresh token cookie should have Secure flag
     And the refresh token cookie should have SameSite=Strict
-    And the refresh token cookie should have Path=/api/v1/auth/refresh
+    And the refresh token cookie should have Path="/api/v1/auth/refresh"
     And the refresh token cookie should have Max-Age=604800
 
   # AC-0003-07-03: Key Rotation Support
@@ -41,7 +41,7 @@ Feature: Session and Token Creation API (US-0003-07)
     And the user has TOTP MFA enabled
     When I complete signin and MFA verification for "keyid@acme.com"
     Then the access token JWT should include a "kid" header
-    And the "kid" header should match pattern "key-\\d{4}-\\d{2}"
+    And the "kid" header should match pattern "key-[0-9]{4}-[0-9]{2}"
     And the refresh token JWT should include a "kid" header
 
   # AC-0003-07-04: Secure Cookie Configuration

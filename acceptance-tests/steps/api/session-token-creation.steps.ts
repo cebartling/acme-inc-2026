@@ -583,7 +583,17 @@ Then('the {word} token JWT should include claim {string} with value {string}', f
   }
 
   const { payload } = decodeJWT(tokenValue);
-  expect(payload[claimName]).toBe(expectedValue);
+
+  // Special handling for email claim - use actual stored email if checking email
+  let actualExpectedValue = expectedValue;
+  if (claimName === 'email') {
+    const storedEmail = this.getTestData<string>('testUserEmail');
+    if (storedEmail) {
+      actualExpectedValue = storedEmail;
+    }
+  }
+
+  expect(payload[claimName]).toBe(actualExpectedValue);
 });
 
 Then('the {word} token JWT should include claim {string} containing {string}', function (this: CustomWorld, tokenType: string, claimName: string, expectedValue: string) {
@@ -614,6 +624,18 @@ Then('the {word} token JWT should not include claim {string}', function (this: C
 
   const { payload } = decodeJWT(tokenValue);
   expect(payload[claimName]).toBeUndefined();
+});
+
+Then('the {word} token JWT should include claim {string}', function (this: CustomWorld, tokenType: string, claimName: string) {
+  const cookieName = `${tokenType.toLowerCase()}_token`;
+  const tokenValue = this.getTestData<string>(`${cookieName}_value`);
+
+  if (!tokenValue) {
+    throw new Error(`Token ${cookieName} not found`);
+  }
+
+  const { payload } = decodeJWT(tokenValue);
+  expect(payload[claimName]).toBeDefined();
 });
 
 Then('the {word} token should expire in {int} seconds', function (this: CustomWorld, tokenType: string, expectedExpiry: number) {
