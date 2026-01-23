@@ -1,5 +1,8 @@
 package com.acme.identity.infrastructure.security
 
+import com.acme.identity.config.JwtConfig
+import io.mockk.every
+import io.mockk.mockk
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import kotlin.test.*
@@ -7,10 +10,13 @@ import kotlin.test.*
 class SigningKeyProviderTest {
 
     private lateinit var signingKeyProvider: SigningKeyProvider
+    private lateinit var jwtConfig: JwtConfig
 
     @BeforeEach
     fun setUp() {
-        signingKeyProvider = SigningKeyProvider()
+        jwtConfig = mockk<JwtConfig>()
+        every { jwtConfig.keyRotationPeriodDays } returns 30
+        signingKeyProvider = SigningKeyProvider(jwtConfig)
     }
 
     @Test

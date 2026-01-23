@@ -23,7 +23,6 @@ class TokenServiceTest {
 
     @BeforeEach
     fun setUp() {
-        signingKeyProvider = SigningKeyProvider()
         jwtConfig = JwtConfig(
             issuer = "https://auth.acme.com",
             audience = "https://api.acme.com",
@@ -31,6 +30,7 @@ class TokenServiceTest {
             refreshTokenExpiryDays = 7,
             keyRotationPeriodDays = 30
         )
+        signingKeyProvider = SigningKeyProvider(jwtConfig)
         tokenService = TokenService(signingKeyProvider, jwtConfig)
     }
 
@@ -156,7 +156,7 @@ class TokenServiceTest {
         val refreshJwt = SignedJWT.parse(tokens.refreshToken)
 
         // Verify signatures with public key
-        val verifier = com.nimbusds.jose.crypto.RSASSAVerifier(signingKey.publicKey)
+        val verifier = com.nimbusds.jose.crypto.RSASSAVerifier(signingKey.publicKey as java.security.interfaces.RSAPublicKey)
         assertTrue(accessJwt.verify(verifier))
         assertTrue(refreshJwt.verify(verifier))
     }
@@ -203,6 +203,8 @@ class TokenServiceTest {
             firstName = "Test",
             lastName = "User",
             status = UserStatus.ACTIVE,
+            tosAcceptedAt = Instant.now(),
+            registrationSource = com.acme.identity.domain.RegistrationSource.WEB,
             emailVerified = true,
             createdAt = Instant.now(),
             updatedAt = Instant.now()

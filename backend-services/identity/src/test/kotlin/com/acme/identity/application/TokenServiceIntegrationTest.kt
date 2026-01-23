@@ -57,7 +57,7 @@ class TokenServiceIntegrationTest {
         val accessJwt = SignedJWT.parse(tokens.accessToken)
         val refreshJwt = SignedJWT.parse(tokens.refreshToken)
 
-        val verifier = RSASSAVerifier(signingKey.publicKey)
+        val verifier = RSASSAVerifier(signingKey.publicKey as java.security.interfaces.RSAPublicKey)
 
         assertTrue(accessJwt.verify(verifier), "Access token signature should be valid")
         assertTrue(refreshJwt.verify(verifier), "Refresh token signature should be valid")
@@ -183,6 +183,8 @@ class TokenServiceIntegrationTest {
             firstName = "Test",
             lastName = "User",
             status = UserStatus.ACTIVE,
+            tosAcceptedAt = Instant.now(),
+            registrationSource = com.acme.identity.domain.RegistrationSource.WEB,
             emailVerified = true,
             createdAt = Instant.now(),
             updatedAt = Instant.now()

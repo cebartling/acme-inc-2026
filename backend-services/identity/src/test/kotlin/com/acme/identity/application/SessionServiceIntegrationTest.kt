@@ -12,7 +12,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
-import org.springframework.boot.test.mock.mockito.MockBean
+import io.mockk.every
 import org.springframework.data.redis.core.RedisTemplate
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.context.DynamicPropertyRegistry
@@ -38,8 +38,7 @@ class SessionServiceIntegrationTest {
     @Autowired
     private lateinit var redisTemplate: RedisTemplate<String, Any>
 
-    @MockBean
-    private lateinit var userEventPublisher: UserEventPublisher
+    private val userEventPublisher: UserEventPublisher = mockk(relaxed = true)
 
     private lateinit var sessionService: SessionService
 
