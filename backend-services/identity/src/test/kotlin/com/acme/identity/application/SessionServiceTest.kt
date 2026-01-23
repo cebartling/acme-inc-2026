@@ -30,7 +30,7 @@ class SessionServiceTest {
     @BeforeEach
     fun setUp() {
         sessionRepository = mockk()
-        userEventPublisher = mockk()
+        userEventPublisher = mockk(relaxed = true)
         sessionConfig = SessionConfig(
             maxPerUser = 5,
             ttlDays = 7
@@ -82,13 +82,13 @@ class SessionServiceTest {
     @Test
     fun `createSession should evict oldest session when limit exceeded`() {
         // Given
-        val oldestSession = createTestSession("sess_oldest", Instant.now().minusSeconds(86400))
+        val oldestSession = createTestSession("sess_${UUID.randomUUID()}", Instant.now().minusSeconds(86400))
         val existingSessions = listOf(
             oldestSession,
-            createTestSession("sess_2", Instant.now().minusSeconds(7200)),
-            createTestSession("sess_3", Instant.now().minusSeconds(3600)),
-            createTestSession("sess_4", Instant.now().minusSeconds(1800)),
-            createTestSession("sess_5", Instant.now().minusSeconds(900))
+            createTestSession("sess_${UUID.randomUUID()}", Instant.now().minusSeconds(7200)),
+            createTestSession("sess_${UUID.randomUUID()}", Instant.now().minusSeconds(3600)),
+            createTestSession("sess_${UUID.randomUUID()}", Instant.now().minusSeconds(1800)),
+            createTestSession("sess_${UUID.randomUUID()}", Instant.now().minusSeconds(900))
         )
 
         val invalidatedEventSlot = slot<SessionInvalidated>()
@@ -96,8 +96,7 @@ class SessionServiceTest {
         every { sessionRepository.findByUserId(testUserId) } returns existingSessions
         every { sessionRepository.delete(oldestSession) } just Runs
         every { sessionRepository.save(any()) } answers { firstArg() }
-        every { userEventPublisher.publish(any<SessionCreated>()) } returns mockk()
-        every { userEventPublisher.publish(capture(invalidatedEventSlot)) } returns mockk()
+        every { userEventPublisher.publish(capture(invalidatedEventSlot)) } answers { mockk() }
 
         // When
         sessionService.createSession(
@@ -146,12 +145,12 @@ class SessionServiceTest {
     @Test
     fun `invalidateSession should delete session and publish event`() {
         // Given
-        val sessionId = "sess_123"
+        val sessionId = "sess_${UUID.randomUUID()}"
         val reason = SessionInvalidated.REASON_LOGOUT
         val eventSlot = slot<SessionInvalidated>()
 
         every { sessionRepository.deleteById(sessionId) } just Runs
-        every { userEventPublisher.publish(capture(eventSlot)) } returns mockk()
+        every { userEventPublisher.publish(capture(eventSlot)) } answers { mockk() }
 
         // When
         sessionService.invalidateSession(sessionId, testUserId, reason)
