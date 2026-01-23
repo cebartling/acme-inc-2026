@@ -5,6 +5,7 @@ import com.acme.identity.domain.Session
 import com.acme.identity.domain.events.SessionCreated
 import com.acme.identity.domain.events.SessionInvalidated
 import com.acme.identity.infrastructure.messaging.UserEventPublisher
+import com.acme.identity.infrastructure.persistence.EventStoreRepository
 import com.acme.identity.infrastructure.persistence.SessionRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
@@ -24,12 +25,14 @@ import java.util.UUID
  * session is automatically evicted to make room for the new one.
  *
  * @property sessionRepository Repository for session storage in Redis.
+ * @property eventStoreRepository Repository for persisting events to the event store.
  * @property eventPublisher Publisher for domain events.
  * @property config Session configuration (max sessions, TTL).
  */
 @Service
 class SessionService(
     private val sessionRepository: SessionRepository,
+    private val eventStoreRepository: EventStoreRepository,
     private val eventPublisher: UserEventPublisher,
     private val config: SessionConfig
 ) {
@@ -76,7 +79,7 @@ class SessionService(
         sessionRepository.save(session)
         logger.info("Created session ${session.id} for user $userId")
 
-        // Publish event
+        // Persist and publish event
         val event = SessionCreated.create(
             sessionId = session.id,
             userId = userId,
@@ -85,6 +88,7 @@ class SessionService(
             userAgent = userAgent,
             expiresAt = session.expiresAt
         )
+        eventStoreRepository.append(event)
         eventPublisher.publish(event)
 
         return session

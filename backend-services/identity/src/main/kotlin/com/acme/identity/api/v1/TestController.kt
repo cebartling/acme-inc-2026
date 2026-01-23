@@ -11,6 +11,7 @@ import com.acme.identity.infrastructure.persistence.VerificationTokenRepository
 import com.acme.identity.infrastructure.sms.MockSmsProvider
 import com.acme.identity.infrastructure.sms.SmsProvider
 import com.acme.identity.infrastructure.util.PhoneNumberUtils
+import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Profile
@@ -60,6 +61,7 @@ class TestController(
     private val eventStoreRepository: EventStoreRepository,
     private val jdbcTemplate: org.springframework.jdbc.core.JdbcTemplate,
     private val redisTemplate: org.springframework.data.redis.core.RedisTemplate<String, Any>,
+    private val objectMapper: ObjectMapper,
     @Value("\${identity.test.api-key:test-api-key-for-acceptance-tests}")
     private val testApiKey: String
 ) {
@@ -814,7 +816,7 @@ class TestController(
      */
     data class CreateSessionsRequest(
         val count: Int,
-        val differentDevices: Boolean = false
+        val differentDevices: Boolean? = null
     )
 
     /**
@@ -846,7 +848,7 @@ class TestController(
         logger.debug("Test endpoint: Creating {} sessions for user {}", request.count, userId)
 
         repeat(request.count) { index ->
-            val deviceId = if (request.differentDevices) {
+            val deviceId = if (request.differentDevices == true) {
                 "test-device-${UUID.randomUUID()}"
             } else {
                 "test-device-single"
@@ -940,14 +942,28 @@ class TestController(
         logger.debug("Test endpoint: Querying events of type {} for user {}", eventType, userId)
 
         val sql = if (userId != null) {
-            """
-            SELECT event_id, event_type, event_version, timestamp,
-                   aggregate_id, aggregate_type, correlation_id, payload
-            FROM event_store
-            WHERE event_type = ? AND aggregate_id = ?
-            ORDER BY timestamp DESC
-            LIMIT ?
-            """.trimIndent()
+            // For SessionCreated events, the userId is in the payload, not the aggregate_id
+            // (aggregate_id is the session ID for Session events)
+            // For UserLoggedIn and other User events, the userId is the aggregate_id
+            if (eventType == "SessionCreated") {
+                """
+                SELECT event_id, event_type, event_version, timestamp,
+                       aggregate_id, aggregate_type, correlation_id, payload
+                FROM event_store
+                WHERE event_type = ? AND payload->>'userId' = ?::text
+                ORDER BY timestamp DESC
+                LIMIT ?
+                """.trimIndent()
+            } else {
+                """
+                SELECT event_id, event_type, event_version, timestamp,
+                       aggregate_id, aggregate_type, correlation_id, payload
+                FROM event_store
+                WHERE event_type = ? AND aggregate_id = ?
+                ORDER BY timestamp DESC
+                LIMIT ?
+                """.trimIndent()
+            }
         } else {
             """
             SELECT event_id, event_type, event_version, timestamp,
@@ -959,13 +975,56 @@ class TestController(
             """.trimIndent()
         }
 
-        val events = if (userId != null) {
-            jdbcTemplate.queryForList(sql, eventType, userId, limit)
+        val rawEvents = if (userId != null) {
+            if (eventType == "SessionCreated") {
+                // Pass userId as String for JSON payload comparison
+                jdbcTemplate.queryForList(sql, eventType, userId.toString(), limit)
+            } else {
+                jdbcTemplate.queryForList(sql, eventType, userId, limit)
+            }
         } else {
             jdbcTemplate.queryForList(sql, eventType, limit)
         }
 
-        logger.debug("Found {} events of type {}", events.size, eventType)
+        // Parse the payload JSON and merge it into each event for easier test access
+        val events = rawEvents.map { event ->
+            val mutableEvent = event.toMutableMap()
+
+            // Extract payload JSON - handle both String and PGobject (JSONB from PostgreSQL)
+            val payload = event["payload"]
+            logger.info("Payload type: {}, class: {}", payload?.javaClass?.simpleName, payload?.javaClass?.name)
+
+            val payloadJson = when (payload) {
+                is String -> payload
+                is Map<*, *> -> payload["value"] as? String  // Jackson serialized PGobject as Map
+                else -> {
+                    // Try reflection as fallback for PGobject
+                    try {
+                        val value = payload?.javaClass?.getMethod("getValue")?.invoke(payload) as? String
+                        logger.debug("Extracted payload via reflection: {}", value?.take(100))
+                        value
+                    } catch (e: Exception) {
+                        logger.warn("Failed to extract payload value from {}: {}", payload?.javaClass?.name, e.message)
+                        null
+                    }
+                }
+            }
+
+            if (payloadJson != null) {
+                try {
+                    @Suppress("UNCHECKED_CAST")
+                    val payload = objectMapper.readValue(payloadJson, Map::class.java) as Map<String, Any?>
+                    // Merge payload fields into the event map
+                    mutableEvent.putAll(payload)
+                } catch (e: Exception) {
+                    logger.warn("Failed to parse payload JSON for event type {}: {}", eventType, e.message)
+                }
+            }
+            mutableEvent as Map<String, Any?>
+        }
+
+        logger.info("Found {} raw events of type {}", rawEvents.size, eventType)
+        logger.info("Processed {} events of type {}", events.size, eventType)
         return ResponseEntity.ok(
             EventsResponse(
                 eventType = eventType,

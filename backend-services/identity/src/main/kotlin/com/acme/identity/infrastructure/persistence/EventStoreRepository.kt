@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Repository
 import java.sql.Timestamp
+import kotlin.reflect.full.memberProperties
 
 /**
  * Repository for persisting domain events to the event store.
@@ -31,10 +32,19 @@ class EventStoreRepository(
      * The event is serialized to JSON and stored with all metadata
      * required for event replay and distributed tracing.
      *
+     * Only the payload property is serialized to JSON, not the entire event.
+     * This ensures the stored data contains only domain-specific information,
+     * with metadata stored in separate columns.
+     *
      * @param event The domain event to persist.
      */
     fun append(event: DomainEvent) {
-        val payloadJson = objectMapper.writeValueAsString(event)
+        // Extract and serialize only the payload property using Kotlin reflection
+        val payloadProperty = event::class.memberProperties.find { it.name == "payload" }
+            ?: throw IllegalArgumentException("Event ${event::class.simpleName} does not have a payload property")
+
+        val payload = payloadProperty.getter.call(event)
+        val payloadJson = objectMapper.writeValueAsString(payload)
 
         jdbcTemplate.update(
             """
