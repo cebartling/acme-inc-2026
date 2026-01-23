@@ -401,16 +401,6 @@ Then(
 );
 
 Then(
-  'the event should contain {string} with value {string}',
-  async function (this: CustomWorld, _field: string, _expectedValue: string) {
-    // Event content verification would require event store access
-    // For now, we trust the implementation
-    const response = this.getTestData<ApiResponse<SigninErrorResponse>>('lastResponse');
-    expect(response).toBeDefined();
-  }
-);
-
-Then(
   "the user's device fingerprint should be {string}",
   async function (this: CustomWorld, _expectedFingerprint: string) {
     // Device fingerprint verification would require database access

@@ -1,7 +1,7 @@
 import { World, IWorldOptions, setWorldConstructor } from '@cucumber/cucumber';
 import { Browser, BrowserContext, Page, chromium, firefox, webkit } from '@playwright/test';
 import { config, browserOptions } from '../playwright.config.js';
-import { ApiClient } from './api-client.js';
+import { ApiClient, ApiResponse } from './api-client.js';
 
 export interface CustomWorldParameters {
   browser?: 'chromium' | 'firefox' | 'webkit';
@@ -163,6 +163,14 @@ export class CustomWorld extends World<CustomWorldParameters> {
 
   clearTestData(): void {
     this.testData.clear();
+  }
+
+  setLastResponse(response: ApiResponse<unknown>): void {
+    this.setTestData('lastResponse', response);
+  }
+
+  getLastResponse<T = unknown>(): ApiResponse<T> | undefined {
+    return this.getTestData<ApiResponse<T>>('lastResponse');
   }
 }
 

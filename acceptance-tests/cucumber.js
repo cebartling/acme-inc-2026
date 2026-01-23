@@ -7,13 +7,22 @@ const common = {
     // Common step definitions
     'steps/common/assertions.steps.ts',
     'steps/common/navigation.steps.ts',
+    'steps/common/api-assertions.steps.ts',
     // Customer step definitions
     'steps/customer/registration.steps.ts',
     // API step definitions
-    'steps/api/registration-api.steps.ts',
+    'steps/api/address-api.steps.ts',
+    'steps/api/authentication-api.steps.ts',
+    'steps/api/consent-api.steps.ts',
+    'steps/api/customer-activation.steps.ts',
     'steps/api/customer-profile.steps.ts',
     'steps/api/email-verification.steps.ts',
-    'steps/api/customer-activation.steps.ts',
+    'steps/api/mfa-verification.steps.ts',
+    'steps/api/preferences-api.steps.ts',
+    'steps/api/profile-completeness.steps.ts',
+    'steps/api/registration-api.steps.ts',
+    'steps/api/session-token-creation.steps.ts',
+    'steps/api/verification-email.steps.ts',
   ],
   format: [
     'json:reports/cucumber-report.json',
