@@ -6,13 +6,14 @@ import com.acme.identity.api.v1.dto.MfaResendResponse
 import com.acme.identity.api.v1.dto.MfaVerifyErrorResponse
 import com.acme.identity.api.v1.dto.MfaVerifyRequest
 import com.acme.identity.api.v1.dto.MfaVerifyResponse
-import com.acme.identity.application.MfaVerificationContext
-import com.acme.identity.application.MfaVerificationError
-import com.acme.identity.application.MfaVerificationRequest
-import com.acme.identity.application.SmsMfaError
-import com.acme.identity.application.SmsMfaService
-import com.acme.identity.application.VerifyMfaUseCase
+import com.acme.identity.application.*
+import com.acme.identity.domain.DeviceInfo
 import com.acme.identity.domain.MfaMethod
+import com.acme.identity.domain.events.UserLoggedIn
+import com.acme.identity.infrastructure.messaging.UserEventPublisher
+import com.acme.identity.infrastructure.persistence.EventStoreRepository
+import com.acme.identity.infrastructure.persistence.UserRepository
+import com.acme.identity.infrastructure.security.AuthCookieBuilder
 import jakarta.servlet.http.HttpServletRequest
 import java.net.InetAddress
 import jakarta.validation.Valid
@@ -35,7 +36,13 @@ import java.util.UUID
 @RequestMapping("/api/v1/auth/mfa")
 class MfaController(
     private val verifyMfaUseCase: VerifyMfaUseCase,
-    private val smsMfaService: SmsMfaService
+    private val smsMfaService: SmsMfaService,
+    private val tokenService: TokenService,
+    private val sessionService: SessionService,
+    private val authCookieBuilder: AuthCookieBuilder,
+    private val userRepository: UserRepository,
+    private val eventStoreRepository: EventStoreRepository,
+    private val userEventPublisher: UserEventPublisher
 ) {
     private val logger = LoggerFactory.getLogger(MfaController::class.java)
 
@@ -112,6 +119,17 @@ class MfaController(
                 mapTotpErrorToResponse(error)
             },
             ifRight = { result ->
+                // Generate tokens and create session
+                createSessionAndGenerateTokens(
+                    userId = result.userId,
+                    ipAddress = context.ipAddress,
+                    userAgent = context.userAgent,
+                    deviceFingerprint = request.deviceFingerprint,
+                    mfaMethod = "TOTP",
+                    correlationId = context.correlationId
+                )
+
+                // Return response
                 ResponseEntity.ok(
                     MfaVerifyResponse(
                         userId = result.userId,
@@ -142,6 +160,17 @@ class MfaController(
                 mapSmsErrorToResponse(error)
             },
             ifRight = { result ->
+                // Generate tokens and create session
+                createSessionAndGenerateTokens(
+                    userId = result.userId,
+                    ipAddress = context.ipAddress,
+                    userAgent = context.userAgent,
+                    deviceFingerprint = request.deviceFingerprint,
+                    mfaMethod = "SMS",
+                    correlationId = context.correlationId
+                )
+
+                // Return response
                 ResponseEntity.ok(
                     MfaVerifyResponse(
                         userId = result.userId,
@@ -370,6 +399,91 @@ class MfaController(
                 )
             }
         }
+    }
+
+    /**
+     * Creates a session and generates JWT tokens after successful MFA verification.
+     *
+     * This method:
+     * 1. Fetches the user from the database
+     * 2. Generates a token family for refresh token rotation
+     * 3. Creates a session in Redis
+     * 4. Generates access and refresh tokens
+     * 5. Sets secure HttpOnly cookies
+     * 6. Publishes UserLoggedIn event
+     *
+     * @param userId The authenticated user's ID.
+     * @param ipAddress The client's IP address.
+     * @param userAgent The client's User-Agent.
+     * @param deviceFingerprint Optional device fingerprint.
+     * @param mfaMethod The MFA method used (TOTP, SMS).
+     * @param correlationId The correlation ID for tracing.
+     * @return ResponseEntity with Set-Cookie headers.
+     */
+    private fun createSessionAndGenerateTokens(
+        userId: UUID,
+        ipAddress: String,
+        userAgent: String,
+        deviceFingerprint: String?,
+        mfaMethod: String,
+        correlationId: UUID
+    ): ResponseEntity.BodyBuilder {
+        // Get the user
+        val user = userRepository.findById(userId).orElseThrow {
+            IllegalStateException("User not found after successful MFA verification: $userId")
+        }
+
+        // Create device info
+        val deviceInfo = DeviceInfo.fromRequest(
+            ipAddress = ipAddress,
+            userAgent = userAgent,
+            fingerprint = deviceFingerprint
+        )
+
+        // Generate token family for refresh token rotation
+        val tokenFamily = "fam_${UUID.randomUUID()}"
+
+        // Create session
+        val session = sessionService.createSession(
+            userId = userId,
+            deviceId = deviceInfo.deviceId,
+            ipAddress = ipAddress,
+            userAgent = userAgent,
+            tokenFamily = tokenFamily
+        )
+
+        // Generate tokens
+        val tokens = tokenService.createTokens(
+            user = user,
+            sessionId = session.id,
+            tokenFamily = tokenFamily
+        )
+
+        // Build cookies
+        val accessTokenCookie = authCookieBuilder.buildAccessTokenCookie(tokens.accessToken)
+        val refreshTokenCookie = authCookieBuilder.buildRefreshTokenCookie(tokens.refreshToken)
+
+        // Publish UserLoggedIn event
+        val event = UserLoggedIn.create(
+            userId = userId,
+            sessionId = session.id,
+            ipAddress = ipAddress,
+            userAgent = userAgent,
+            deviceFingerprint = deviceFingerprint,
+            mfaUsed = true,
+            mfaMethod = mfaMethod,
+            loginSource = "WEB",
+            correlationId = correlationId
+        )
+        eventStoreRepository.append(event)
+        userEventPublisher.publish(event)
+
+        logger.info("Created session {} and generated tokens for user {}", session.id, userId)
+
+        // Return response builder with cookies
+        return ResponseEntity.ok()
+            .header("Set-Cookie", accessTokenCookie.toString())
+            .header("Set-Cookie", refreshTokenCookie.toString())
     }
 
     /**

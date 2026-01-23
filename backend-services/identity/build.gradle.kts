@@ -80,6 +80,13 @@ dependencies {
     // Twilio SDK for SMS MFA
     implementation("com.twilio.sdk:twilio:10.7.0")
 
+    // JWT - Nimbus JOSE JWT for RS256 token generation
+    implementation("com.nimbusds:nimbus-jose-jwt:9.47")
+
+    // Redis for session storage
+    implementation("org.springframework.boot:spring-boot-starter-data-redis")
+    implementation("io.lettuce:lettuce-core")
+
     // Testing - JUnit 6
     testImplementation(platform("org.junit:junit-bom:6.0.1"))
     testImplementation("org.junit.jupiter:junit-jupiter")

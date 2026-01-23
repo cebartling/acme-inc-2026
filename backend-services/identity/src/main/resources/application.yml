@@ -32,6 +32,19 @@ spring:
         max.in.flight.requests.per.connection: 1
         enable.idempotence: true
 
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+          max-wait: -1ms
+
 server:
   port: ${SERVER_PORT:10300}
 
@@ -71,6 +84,15 @@ identity:
     access-token-expiry-seconds: 900
     refresh-token-expiry-seconds: 604800
     mfa-token-expiry-seconds: 300
+  jwt:
+    issuer: ${JWT_ISSUER:https://auth.acme.com}
+    audience: ${JWT_AUDIENCE:https://api.acme.com}
+    access-token-expiry-minutes: 15
+    refresh-token-expiry-days: 7
+    key-rotation-period-days: 30
+  session:
+    max-per-user: 5
+    ttl-days: 7
   frontend:
     base-url: ${FRONTEND_BASE_URL:https://www.acme.com}
   support-url: ${SUPPORT_URL:https://www.acme.com/support}

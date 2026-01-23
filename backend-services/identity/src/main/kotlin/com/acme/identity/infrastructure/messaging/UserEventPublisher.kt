@@ -8,7 +8,10 @@ import com.acme.identity.domain.events.EmailVerified
 import com.acme.identity.domain.events.MFAChallengeInitiated
 import com.acme.identity.domain.events.MFAVerificationFailed
 import com.acme.identity.domain.events.MFAVerificationSucceeded
+import com.acme.identity.domain.events.SessionCreated
+import com.acme.identity.domain.events.SessionInvalidated
 import com.acme.identity.domain.events.UserActivated
+import com.acme.identity.domain.events.UserLoggedIn
 import com.acme.identity.domain.events.UserRegistered
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
@@ -418,6 +421,120 @@ class UserEventPublisher(
                     "Event is persisted in event store but not published to Kafka. " +
                     "Manual intervention may be required.",
                     event.payload.userId,
+                    ex
+                )
+                null
+            }
+    }
+
+    /**
+     * Publishes a [SessionCreated] event to Kafka.
+     *
+     * The publish operation is asynchronous. The returned future completes
+     * when Kafka acknowledges receipt of the message. Failures are logged
+     * but not rethrown to avoid blocking the authentication response.
+     *
+     * @param event The session created event to publish.
+     * @return A [CompletableFuture] that completes when publishing succeeds.
+     */
+    fun publish(event: SessionCreated): CompletableFuture<Void> {
+        val key = event.aggregateId.toString()
+        val value = objectMapper.writeValueAsString(event)
+
+        logger.debug("Publishing SessionCreated event for session: {}", event.payload.sessionId)
+
+        return kafkaTemplate.send(SessionCreated.TOPIC, key, value)
+            .thenAccept { result ->
+                logger.info(
+                    "Published SessionCreated event for session {} to topic {} partition {} offset {}",
+                    event.payload.sessionId,
+                    result.recordMetadata.topic(),
+                    result.recordMetadata.partition(),
+                    result.recordMetadata.offset()
+                )
+            }
+            .exceptionally { ex ->
+                logger.error(
+                    "Failed to publish SessionCreated event for session {}. " +
+                    "Event is persisted in event store but not published to Kafka. " +
+                    "Manual intervention may be required.",
+                    event.payload.sessionId,
+                    ex
+                )
+                null
+            }
+    }
+
+    /**
+     * Publishes a [UserLoggedIn] event to Kafka.
+     *
+     * The publish operation is asynchronous. The returned future completes
+     * when Kafka acknowledges receipt of the message. Failures are logged
+     * but not rethrown to avoid blocking the authentication response.
+     *
+     * @param event The user logged in event to publish.
+     * @return A [CompletableFuture] that completes when publishing succeeds.
+     */
+    fun publish(event: UserLoggedIn): CompletableFuture<Void> {
+        val key = event.aggregateId.toString()
+        val value = objectMapper.writeValueAsString(event)
+
+        logger.debug("Publishing UserLoggedIn event for user: {}", event.payload.userId)
+
+        return kafkaTemplate.send(UserLoggedIn.TOPIC, key, value)
+            .thenAccept { result ->
+                logger.info(
+                    "Published UserLoggedIn event for user {} to topic {} partition {} offset {}",
+                    event.payload.userId,
+                    result.recordMetadata.topic(),
+                    result.recordMetadata.partition(),
+                    result.recordMetadata.offset()
+                )
+            }
+            .exceptionally { ex ->
+                logger.error(
+                    "Failed to publish UserLoggedIn event for user {}. " +
+                    "Event is persisted in event store but not published to Kafka. " +
+                    "Manual intervention may be required.",
+                    event.payload.userId,
+                    ex
+                )
+                null
+            }
+    }
+
+    /**
+     * Publishes a [SessionInvalidated] event to Kafka.
+     *
+     * The publish operation is asynchronous. The returned future completes
+     * when Kafka acknowledges receipt of the message. Failures are logged
+     * but not rethrown to avoid blocking the invalidation response.
+     *
+     * @param event The session invalidated event to publish.
+     * @return A [CompletableFuture] that completes when publishing succeeds.
+     */
+    fun publish(event: SessionInvalidated): CompletableFuture<Void> {
+        val key = event.aggregateId.toString()
+        val value = objectMapper.writeValueAsString(event)
+
+        logger.debug("Publishing SessionInvalidated event for session: {}", event.payload.sessionId)
+
+        return kafkaTemplate.send(SessionInvalidated.TOPIC, key, value)
+            .thenAccept { result ->
+                logger.info(
+                    "Published SessionInvalidated event for session {} to topic {} partition {} offset {}",
+                    event.payload.sessionId,
+                    result.recordMetadata.topic(),
+                    result.recordMetadata.partition(),
+                    result.recordMetadata.offset()
+                )
+            }
+            .exceptionally { ex ->
+                logger.error(
+                    "Failed to publish SessionInvalidated event for session {}. " +
+                    "Event is persisted in event store but not published to Kafka. " +
+                    "Manual intervention may be required.",
+                    event.payload.sessionId,
                     ex
                 )
                 null
