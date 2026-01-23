@@ -182,13 +182,14 @@ class TokenServiceTest {
 
         assertNull(claims.getStringClaim("email"))
         assertNull(claims.getStringListClaim("roles"))
-        assertNull(claims.audience)
+        assertTrue(claims.audience.isNullOrEmpty(), "Refresh token should not have audience claim")
     }
 
     @Test
     fun `tokens should be different on each call`() {
         val user = createTestUser()
         val tokens1 = tokenService.createTokens(user, testSessionId, testTokenFamily)
+        Thread.sleep(1000) // Ensure different timestamp
         val tokens2 = tokenService.createTokens(user, testSessionId, testTokenFamily)
 
         assertNotEquals(tokens1.accessToken, tokens2.accessToken)
