@@ -10,7 +10,7 @@ class SessionCreatedTest {
     @Test
     fun `create should generate event with correct type and version`() {
         val event = SessionCreated.create(
-            sessionId = "sess_123",
+            sessionId = "sess_${UUID.randomUUID()}",
             userId = UUID.randomUUID(),
             deviceId = "dev_123",
             ipAddress = "192.168.1.1",
@@ -25,7 +25,7 @@ class SessionCreatedTest {
 
     @Test
     fun `create should set payload fields correctly`() {
-        val sessionId = "sess_123"
+        val sessionId = "sess_${UUID.randomUUID()}"
         val userId = UUID.randomUUID()
         val deviceId = "dev_123"
         val ipAddress = "192.168.1.1"
@@ -52,7 +52,7 @@ class SessionCreatedTest {
     @Test
     fun `create should generate unique event ID`() {
         val event1 = SessionCreated.create(
-            sessionId = "sess_123",
+            sessionId = "sess_${UUID.randomUUID()}",
             userId = UUID.randomUUID(),
             deviceId = "dev_123",
             ipAddress = "192.168.1.1",
@@ -61,7 +61,7 @@ class SessionCreatedTest {
         )
 
         val event2 = SessionCreated.create(
-            sessionId = "sess_456",
+            sessionId = "sess_${UUID.randomUUID()}",
             userId = UUID.randomUUID(),
             deviceId = "dev_456",
             ipAddress = "192.168.1.2",
@@ -76,7 +76,7 @@ class SessionCreatedTest {
     fun `create should set timestamp to current time`() {
         val before = Instant.now()
         val event = SessionCreated.create(
-            sessionId = "sess_123",
+            sessionId = "sess_${UUID.randomUUID()}",
             userId = UUID.randomUUID(),
             deviceId = "dev_123",
             ipAddress = "192.168.1.1",
@@ -99,7 +99,7 @@ class SessionCreatedTest {
         val correlationId = UUID.randomUUID()
 
         val event = SessionCreated.create(
-            sessionId = "sess_123",
+            sessionId = "sess_${UUID.randomUUID()}",
             userId = UUID.randomUUID(),
             deviceId = "dev_123",
             ipAddress = "192.168.1.1",

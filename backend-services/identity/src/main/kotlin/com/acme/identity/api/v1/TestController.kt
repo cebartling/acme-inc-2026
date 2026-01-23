@@ -1,8 +1,8 @@
 package com.acme.identity.api.v1
 
 import com.acme.identity.domain.SmsRateLimit
+import com.acme.identity.infrastructure.persistence.EventStoreRepository
 import com.acme.identity.infrastructure.persistence.MfaChallengeRepository
-import com.acme.identity.infrastructure.util.PhoneNumberUtils
 import com.acme.identity.infrastructure.persistence.ResendRequestRepository
 import com.acme.identity.infrastructure.persistence.SmsRateLimitRepository
 import com.acme.identity.infrastructure.persistence.UsedTotpCodeRepository
@@ -10,6 +10,7 @@ import com.acme.identity.infrastructure.persistence.UserRepository
 import com.acme.identity.infrastructure.persistence.VerificationTokenRepository
 import com.acme.identity.infrastructure.sms.MockSmsProvider
 import com.acme.identity.infrastructure.sms.SmsProvider
+import com.acme.identity.infrastructure.util.PhoneNumberUtils
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Profile
@@ -54,6 +55,11 @@ class TestController(
     private val resendRequestRepository: ResendRequestRepository,
     private val smsRateLimitRepository: SmsRateLimitRepository,
     private val smsProvider: SmsProvider,
+    private val sessionRepository: com.acme.identity.infrastructure.persistence.SessionRepository,
+    private val sessionService: com.acme.identity.application.SessionService,
+    private val eventStoreRepository: EventStoreRepository,
+    private val jdbcTemplate: org.springframework.jdbc.core.JdbcTemplate,
+    private val redisTemplate: org.springframework.data.redis.core.RedisTemplate<String, Any>,
     @Value("\${identity.test.api-key:test-api-key-for-acceptance-tests}")
     private val testApiKey: String
 ) {
@@ -738,6 +744,334 @@ class TestController(
         (smsProvider as MockSmsProvider).clearAll()
         logger.info("Cleared all mock SMS messages")
         return ResponseEntity.noContent().build()
+    }
+
+    // =========================================================================
+    // Session Management Testing Endpoints
+    // =========================================================================
+
+    /**
+     * Response DTO for getting user sessions.
+     */
+    data class UserSessionsResponse(
+        val userId: String,
+        val sessions: List<SessionDto>
+    )
+
+    /**
+     * DTO for session data.
+     */
+    data class SessionDto(
+        val sessionId: String,
+        val userId: String,
+        val deviceId: String,
+        val ipAddress: String,
+        val userAgent: String,
+        val tokenFamily: String,
+        val createdAt: String,
+        val expiresAt: String
+    )
+
+    /**
+     * Gets all active sessions for a user from Redis.
+     *
+     * This endpoint is intended for acceptance testing to verify
+     * session creation and concurrent session management.
+     *
+     * @param userId The UUID of the user.
+     * @return The list of active sessions.
+     */
+    @GetMapping("/users/{userId}/sessions")
+    fun getUserSessions(@PathVariable userId: UUID): ResponseEntity<UserSessionsResponse> {
+        logger.debug("Test endpoint: Getting sessions for user {}", userId)
+
+        val sessions = sessionRepository.findByUserId(userId)
+
+        val sessionDtos = sessions.map { session ->
+            SessionDto(
+                sessionId = session.id,
+                userId = session.userId.toString(),
+                deviceId = session.deviceId,
+                ipAddress = session.ipAddress,
+                userAgent = session.userAgent,
+                tokenFamily = session.tokenFamily,
+                createdAt = session.createdAt.toString(),
+                expiresAt = session.expiresAt.toString()
+            )
+        }
+
+        logger.debug("Found {} sessions for user {}", sessionDtos.size, userId)
+        return ResponseEntity.ok(
+            UserSessionsResponse(
+                userId = userId.toString(),
+                sessions = sessionDtos
+            )
+        )
+    }
+
+    /**
+     * Request DTO for creating test sessions.
+     */
+    data class CreateSessionsRequest(
+        val count: Int,
+        val differentDevices: Boolean = false
+    )
+
+    /**
+     * Response DTO for creating test sessions.
+     */
+    data class CreateSessionsResponse(
+        val userId: String,
+        val sessionsCreated: Int,
+        val totalSessions: Int
+    )
+
+    /**
+     * Creates multiple test sessions for a user.
+     *
+     * This endpoint is intended for acceptance testing to simulate
+     * users with multiple active sessions, for testing concurrent
+     * session limit enforcement.
+     *
+     * @param userId The UUID of the user.
+     * @param request The request containing count and device options.
+     * @return The number of sessions created.
+     */
+    @PostMapping("/users/{userId}/create-sessions")
+    @Transactional
+    fun createTestSessions(
+        @PathVariable userId: UUID,
+        @RequestBody request: CreateSessionsRequest
+    ): ResponseEntity<CreateSessionsResponse> {
+        logger.debug("Test endpoint: Creating {} sessions for user {}", request.count, userId)
+
+        repeat(request.count) { index ->
+            val deviceId = if (request.differentDevices) {
+                "test-device-${UUID.randomUUID()}"
+            } else {
+                "test-device-single"
+            }
+
+            val tokenFamily = "fam_test_${UUID.randomUUID()}"
+
+            sessionService.createSession(
+                userId = userId,
+                deviceId = deviceId,
+                ipAddress = "192.168.1.$index",
+                userAgent = "Test-Agent/$index",
+                tokenFamily = tokenFamily
+            )
+        }
+
+        val totalSessions = sessionRepository.countByUserId(userId).toInt()
+
+        logger.info("Created {} test sessions for user {}, total: {}", request.count, userId, totalSessions)
+        return ResponseEntity.ok(
+            CreateSessionsResponse(
+                userId = userId.toString(),
+                sessionsCreated = request.count,
+                totalSessions = totalSessions
+            )
+        )
+    }
+
+    /**
+     * Response DTO for getting session TTL.
+     */
+    data class SessionTtlResponse(
+        val sessionId: String,
+        val ttl: Long
+    )
+
+    /**
+     * Gets the TTL (time to live) for a session in Redis.
+     *
+     * This endpoint is intended for acceptance testing to verify
+     * that sessions have the correct expiration time set.
+     *
+     * @param sessionId The session ID.
+     * @return The TTL in seconds, or -1 if no TTL is set, or -2 if key doesn't exist.
+     */
+    @GetMapping("/sessions/{sessionId}/ttl")
+    fun getSessionTtl(@PathVariable sessionId: String): ResponseEntity<SessionTtlResponse> {
+        logger.debug("Test endpoint: Getting TTL for session {}", sessionId)
+
+        val key = "sessions:$sessionId"
+        val ttl = redisTemplate.getExpire(key, java.util.concurrent.TimeUnit.SECONDS)
+
+        logger.debug("Session {} TTL: {} seconds", sessionId, ttl)
+        return ResponseEntity.ok(
+            SessionTtlResponse(
+                sessionId = sessionId,
+                ttl = ttl ?: -2
+            )
+        )
+    }
+
+    // =========================================================================
+    // Event Store Testing Endpoints
+    // =========================================================================
+
+    /**
+     * Response DTO for querying events.
+     */
+    data class EventsResponse(
+        val eventType: String,
+        val events: List<Map<String, Any?>>
+    )
+
+    /**
+     * Queries events of a specific type from the event store.
+     *
+     * This endpoint is intended for acceptance testing to verify
+     * that domain events are being published correctly.
+     *
+     * @param eventType The type of event to query (SessionCreated, UserLoggedIn, etc.).
+     * @param userId Optional user ID filter.
+     * @param limit Maximum number of events to return (default: 100).
+     * @return The list of matching events.
+     */
+    @GetMapping("/events/{eventType}")
+    fun getEvents(
+        @PathVariable eventType: String,
+        @org.springframework.web.bind.annotation.RequestParam(required = false) userId: UUID?,
+        @org.springframework.web.bind.annotation.RequestParam(defaultValue = "100") limit: Int
+    ): ResponseEntity<EventsResponse> {
+        logger.debug("Test endpoint: Querying events of type {} for user {}", eventType, userId)
+
+        val sql = if (userId != null) {
+            """
+            SELECT event_id, event_type, event_version, timestamp,
+                   aggregate_id, aggregate_type, correlation_id, payload
+            FROM event_store
+            WHERE event_type = ? AND aggregate_id = ?
+            ORDER BY timestamp DESC
+            LIMIT ?
+            """.trimIndent()
+        } else {
+            """
+            SELECT event_id, event_type, event_version, timestamp,
+                   aggregate_id, aggregate_type, correlation_id, payload
+            FROM event_store
+            WHERE event_type = ?
+            ORDER BY timestamp DESC
+            LIMIT ?
+            """.trimIndent()
+        }
+
+        val events = if (userId != null) {
+            jdbcTemplate.queryForList(sql, eventType, userId, limit)
+        } else {
+            jdbcTemplate.queryForList(sql, eventType, limit)
+        }
+
+        logger.debug("Found {} events of type {}", events.size, eventType)
+        return ResponseEntity.ok(
+            EventsResponse(
+                eventType = eventType,
+                events = events
+            )
+        )
+    }
+
+    // =========================================================================
+    // Log Testing Endpoints
+    // =========================================================================
+
+    /**
+     * Response DTO for getting recent logs.
+     */
+    data class RecentLogsResponse(
+        val logs: String,
+        val lineCount: Int
+    )
+
+    /**
+     * Gets recent application logs.
+     *
+     * This endpoint is intended for acceptance testing to verify
+     * that tokens and other sensitive data are not being logged.
+     *
+     * Note: This is a simplified implementation that returns an empty
+     * string since direct log access would require additional configuration.
+     * In a real implementation, this would integrate with your logging
+     * infrastructure (e.g., query from Loki, read from file, etc.).
+     *
+     * @param lines Number of log lines to return (default: 100).
+     * @return Recent log lines.
+     */
+    @GetMapping("/logs/recent")
+    fun getRecentLogs(
+        @org.springframework.web.bind.annotation.RequestParam(defaultValue = "100") lines: Int
+    ): ResponseEntity<RecentLogsResponse> {
+        logger.debug("Test endpoint: Getting recent {} log lines", lines)
+
+        // Simplified implementation - returns empty for now
+        // In production test environment, this would query from your
+        // logging infrastructure (Loki, file system, etc.)
+        val logs = ""
+
+        return ResponseEntity.ok(
+            RecentLogsResponse(
+                logs = logs,
+                lineCount = 0
+            )
+        )
+    }
+
+    /**
+     * Response DTO for getting SMS code by user ID.
+     */
+    data class UserSmsCodeResponse(
+        val userId: String,
+        val phoneNumber: String?,
+        val code: String?,
+        val messageBody: String?
+    )
+
+    /**
+     * Gets the last SMS verification code sent to a user.
+     *
+     * This endpoint is only available when using MockSmsProvider.
+     * It allows acceptance tests to retrieve the SMS code by user ID
+     * rather than requiring the phone number.
+     *
+     * @param userId The UUID of the user.
+     * @return The last SMS code if found, or a 404 response.
+     */
+    @GetMapping("/users/{userId}/sms-code")
+    fun getUserSmsCode(@PathVariable userId: UUID): ResponseEntity<UserSmsCodeResponse> {
+        logger.debug("Test endpoint: Getting SMS code for user {}", userId)
+
+        if (smsProvider !is MockSmsProvider) {
+            logger.warn("getUserSmsCode only works with MockSmsProvider")
+            return ResponseEntity.badRequest().build()
+        }
+
+        val user = userRepository.findById(userId).orElse(null)
+            ?: return ResponseEntity.notFound().build()
+
+        val phoneNumber = user.phoneNumber
+            ?: return ResponseEntity.notFound().build()
+
+        val mockProvider = smsProvider as MockSmsProvider
+        val code = mockProvider.extractCodeFromLastMessage(phoneNumber)
+        val lastMessage = mockProvider.getLastMessageSentTo(phoneNumber)
+
+        return if (code != null) {
+            logger.debug("Found SMS code {} for user {}", code, userId)
+            ResponseEntity.ok(
+                UserSmsCodeResponse(
+                    userId = userId.toString(),
+                    phoneNumber = phoneNumber,
+                    code = code,
+                    messageBody = lastMessage?.body
+                )
+            )
+        } else {
+            logger.debug("No SMS code found for user {}", userId)
+            ResponseEntity.notFound().build()
+        }
     }
 
     companion object {

@@ -492,6 +492,14 @@ health_check() {
         all_healthy=false
     fi
 
+    # Check Redis
+    if docker compose -f "$INFRA_COMPOSE" exec -T redis redis-cli ping &>/dev/null; then
+        print_success "Redis: healthy"
+    else
+        print_error "Redis: unhealthy or not running"
+        all_healthy=false
+    fi
+
     # Check Debezium Connect
     local debezium_port="${DEBEZIUM_PORT:-8083}"
     if curl -sf "http://localhost:${debezium_port}/connectors" &>/dev/null; then

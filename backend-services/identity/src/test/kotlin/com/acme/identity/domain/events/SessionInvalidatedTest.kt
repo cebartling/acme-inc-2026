@@ -10,7 +10,7 @@ class SessionInvalidatedTest {
     @Test
     fun `create should generate event with correct type and version`() {
         val event = SessionInvalidated.create(
-            sessionId = "sess_123",
+            sessionId = "sess_${UUID.randomUUID()}",
             userId = UUID.randomUUID(),
             reason = SessionInvalidated.REASON_LOGOUT
         )
@@ -22,7 +22,7 @@ class SessionInvalidatedTest {
 
     @Test
     fun `create should set payload fields correctly`() {
-        val sessionId = "sess_123"
+        val sessionId = "sess_${UUID.randomUUID()}"
         val userId = UUID.randomUUID()
         val reason = SessionInvalidated.REASON_LOGOUT
 
@@ -41,7 +41,7 @@ class SessionInvalidatedTest {
     fun `create should set invalidatedAt to current time`() {
         val before = Instant.now()
         val event = SessionInvalidated.create(
-            sessionId = "sess_123",
+            sessionId = "sess_${UUID.randomUUID()}",
             userId = UUID.randomUUID(),
             reason = SessionInvalidated.REASON_LOGOUT
         )
@@ -69,7 +69,7 @@ class SessionInvalidatedTest {
         val correlationId = UUID.randomUUID()
 
         val event = SessionInvalidated.create(
-            sessionId = "sess_123",
+            sessionId = "sess_${UUID.randomUUID()}",
             userId = UUID.randomUUID(),
             reason = SessionInvalidated.REASON_SECURITY,
             correlationId = correlationId
@@ -90,7 +90,7 @@ class SessionInvalidatedTest {
 
         reasons.forEach { reason ->
             val event = SessionInvalidated.create(
-                sessionId = "sess_123",
+                sessionId = "sess_${UUID.randomUUID()}",
                 userId = userId,
                 reason = reason
             )
