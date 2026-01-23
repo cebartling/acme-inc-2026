@@ -98,13 +98,23 @@ class SessionService(
      *
      * A SessionInvalidated event is published for the evicted session.
      *
+     * Note: This implementation has a known race condition where concurrent
+     * logins may temporarily exceed the session limit. The check-then-act
+     * pattern is not atomic. For production, this should use Redis Lua scripts
+     * or distributed locking to ensure atomicity.
+     *
      * @param userId The user's unique ID.
      */
     private fun evictOldestSessionIfNeeded(userId: UUID) {
         val sessions = sessionRepository.findByUserId(userId)
 
         if (sessions.size >= config.maxPerUser) {
-            val oldest = sessions.minByOrNull { it.createdAt }!!
+            val oldest = sessions.minByOrNull { it.createdAt }
+                ?: run {
+                    logger.error("Session list is not empty but minByOrNull returned null for user $userId")
+                    return
+                }
+
             logger.info("Evicting oldest session ${oldest.id} for user $userId (limit: ${config.maxPerUser})")
 
             // Delete the session

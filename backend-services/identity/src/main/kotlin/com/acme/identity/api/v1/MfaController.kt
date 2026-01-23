@@ -120,7 +120,7 @@ class MfaController(
             },
             ifRight = { result ->
                 // Generate tokens and create session
-                createSessionAndGenerateTokens(
+                val responseWithCookies = createSessionAndGenerateTokens(
                     userId = result.userId,
                     ipAddress = context.ipAddress,
                     userAgent = context.userAgent,
@@ -129,8 +129,8 @@ class MfaController(
                     correlationId = context.correlationId
                 )
 
-                // Return response
-                ResponseEntity.ok(
+                // Return response with cookies set
+                responseWithCookies.body(
                     MfaVerifyResponse(
                         userId = result.userId,
                         email = result.email,
@@ -161,7 +161,7 @@ class MfaController(
             },
             ifRight = { result ->
                 // Generate tokens and create session
-                createSessionAndGenerateTokens(
+                val responseWithCookies = createSessionAndGenerateTokens(
                     userId = result.userId,
                     ipAddress = context.ipAddress,
                     userAgent = context.userAgent,
@@ -170,8 +170,8 @@ class MfaController(
                     correlationId = context.correlationId
                 )
 
-                // Return response
-                ResponseEntity.ok(
+                // Return response with cookies set
+                responseWithCookies.body(
                     MfaVerifyResponse(
                         userId = result.userId,
                         email = result.email,

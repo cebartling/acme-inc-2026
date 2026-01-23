@@ -1,5 +1,7 @@
 package com.acme.identity.domain
 
+import java.security.MessageDigest
+
 /**
  * Represents device information for authentication tracking.
  *
@@ -44,15 +46,17 @@ data class DeviceInfo(
          * Generates a device ID from IP and User-Agent.
          *
          * This is a fallback when no explicit fingerprint is provided.
-         * Uses a simple hash of IP + User-Agent.
+         * Uses SHA-256 hash of IP + User-Agent for cryptographic security.
          *
          * @param ipAddress The client's IP.
          * @param userAgent The client's User-Agent.
-         * @return A device ID string.
+         * @return A device ID string (dev_ prefix + hex hash).
          */
         private fun generateDeviceId(ipAddress: String, userAgent: String): String {
             val combined = "$ipAddress|$userAgent"
-            val hash = combined.hashCode().toString(16)
+            val digest = MessageDigest.getInstance("SHA-256")
+            val hashBytes = digest.digest(combined.toByteArray(Charsets.UTF_8))
+            val hash = hashBytes.joinToString("") { "%02x".format(it) }.take(16)
             return "dev_$hash"
         }
     }

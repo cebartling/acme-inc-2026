@@ -102,7 +102,9 @@ class SessionServiceIntegrationTest {
 
         // Check TTL was set (should be 7 days = 604800 seconds)
         val ttl = redisTemplate.getExpire("sessions:${session.id}")
-        assertTrue(ttl!! > 600000) // At least ~7 days
+        // TTL should be close to 604800 seconds (7 days), allowing a small delta for execution time
+        assertTrue(ttl!! > 604000, "TTL should be approximately 604800 seconds (7 days), was $ttl")
+        assertTrue(ttl < 605000, "TTL should not exceed 7 days plus small delta, was $ttl")
     }
 
     @Test

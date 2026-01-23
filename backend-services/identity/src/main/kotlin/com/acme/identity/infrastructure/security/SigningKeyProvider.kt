@@ -1,11 +1,14 @@
 package com.acme.identity.infrastructure.security
 
+import com.acme.identity.config.JwtConfig
 import org.slf4j.LoggerFactory
+import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 import java.security.KeyPairGenerator
 import java.security.SecureRandom
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import java.util.concurrent.TimeUnit
 
 /**
  * Provides RSA signing keys for JWT token generation.
@@ -20,6 +23,11 @@ import java.time.format.DateTimeFormatter
  * - The current active key is used for signing new tokens
  * - Previously issued tokens remain valid until expiry
  * - Verification supports multiple keys for seamless rotation
+ * - Automatic rotation runs daily based on keyRotationPeriodDays config
+ *
+ * CRITICAL LIMITATION: Keys are regenerated on service restart, invalidating
+ * all existing tokens. For production, integrate with HashiCorp Vault or
+ * database persistence to maintain keys across restarts.
  *
  * Future enhancement: Integration with HashiCorp Vault:
  * - Store private keys securely in Vault
@@ -27,11 +35,14 @@ import java.time.format.DateTimeFormatter
  * - Support for key versioning and audit trails
  */
 @Component
-class SigningKeyProvider {
+class SigningKeyProvider(
+    private val jwtConfig: JwtConfig
+) {
 
     private val logger = LoggerFactory.getLogger(javaClass)
     private val keyPairGenerator: KeyPairGenerator
     private var currentKey: SigningKey
+    private var lastRotationDate: LocalDate
 
     init {
         // Initialize RSA key pair generator with 2048-bit key size
@@ -41,6 +52,8 @@ class SigningKeyProvider {
 
         // Generate initial key
         currentKey = generateKey()
+        lastRotationDate = LocalDate.now()
+        logger.warn("Generated new signing key ${currentKey.keyId} - all existing tokens are now invalid!")
         logger.info("Initialized signing key provider with key ID: ${currentKey.keyId}")
     }
 
@@ -91,7 +104,28 @@ class SigningKeyProvider {
     fun rotateKey() {
         val oldKeyId = currentKey.keyId
         currentKey = generateKey()
+        lastRotationDate = LocalDate.now()
         logger.info("Rotated signing key from $oldKeyId to ${currentKey.keyId}")
+    }
+
+    /**
+     * Automatically rotates signing keys based on the configured rotation period.
+     *
+     * Runs daily at 2 AM. Checks if the key rotation period has elapsed since
+     * the last rotation. Default rotation period is 30 days.
+     *
+     * Note: This scheduled task is disabled by default in tests via @EnableScheduling.
+     */
+    @Scheduled(cron = "0 0 2 * * *") // Daily at 2 AM
+    fun autoRotateKey() {
+        val daysSinceRotation = java.time.temporal.ChronoUnit.DAYS.between(lastRotationDate, LocalDate.now())
+
+        if (daysSinceRotation >= jwtConfig.keyRotationPeriodDays) {
+            logger.info("Auto-rotating signing key (days since last rotation: $daysSinceRotation)")
+            rotateKey()
+        } else {
+            logger.debug("Skipping key rotation (days since last rotation: $daysSinceRotation, threshold: ${jwtConfig.keyRotationPeriodDays})")
+        }
     }
 
     /**
