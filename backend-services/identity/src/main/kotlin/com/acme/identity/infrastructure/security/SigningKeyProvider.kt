@@ -41,7 +41,9 @@ class SigningKeyProvider(
 
     private val logger = LoggerFactory.getLogger(javaClass)
     private val keyPairGenerator: KeyPairGenerator
+    @Volatile
     private var currentKey: SigningKey
+    @Volatile
     private var lastRotationDate: LocalDate
 
     init {

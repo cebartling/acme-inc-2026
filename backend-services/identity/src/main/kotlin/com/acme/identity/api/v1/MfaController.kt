@@ -18,6 +18,7 @@ import jakarta.servlet.http.HttpServletRequest
 import java.net.InetAddress
 import jakarta.validation.Valid
 import org.slf4j.LoggerFactory
+import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
@@ -482,8 +483,8 @@ class MfaController(
 
         // Return response builder with cookies
         return ResponseEntity.ok()
-            .header("Set-Cookie", accessTokenCookie.toString())
-            .header("Set-Cookie", refreshTokenCookie.toString())
+            .header(HttpHeaders.SET_COOKIE, accessTokenCookie.toString())
+            .header(HttpHeaders.SET_COOKIE, refreshTokenCookie.toString())
     }
 
     /**

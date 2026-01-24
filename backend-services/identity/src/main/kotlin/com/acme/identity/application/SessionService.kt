@@ -151,12 +151,13 @@ class SessionService(
         // Delete the session
         sessionRepository.deleteById(sessionId)
 
-        // Publish event
+        // Persist and publish event
         val event = SessionInvalidated.create(
             sessionId = sessionId,
             userId = userId,
             reason = reason
         )
+        eventStoreRepository.append(event)
         eventPublisher.publish(event)
     }
 
