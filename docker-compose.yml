@@ -57,6 +57,24 @@ services:
       retries: 30
       start_period: 10s
 
+  redis:
+    image: redis:7-alpine
+    container_name: acme-redis
+    hostname: redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - acme-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   # =============================================================================
   # MESSAGING & EVENT STREAMING
   # =============================================================================
@@ -296,6 +314,8 @@ volumes:
     name: acme-postgres-data
   mongodb_data:
     name: acme-mongodb-data
+  redis_data:
+    name: acme-redis-data
   kafka_data:
     name: acme-kafka-data
   vault_data:

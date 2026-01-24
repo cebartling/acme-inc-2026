@@ -11,6 +11,7 @@ import jakarta.validation.constraints.Size
  * @property code The 6-digit verification code from authenticator app.
  * @property method The MFA method being used (TOTP, SMS, EMAIL).
  * @property rememberDevice Whether to remember this device for future logins.
+ * @property deviceFingerprint Optional device fingerprint for session tracking.
  */
 data class MfaVerifyRequest(
     @field:NotBlank(message = "MFA token is required")
@@ -24,5 +25,7 @@ data class MfaVerifyRequest(
     @field:NotBlank(message = "MFA method is required")
     val method: String = "TOTP",
 
-    val rememberDevice: Boolean = false
+    val rememberDevice: Boolean = false,
+
+    val deviceFingerprint: String? = null
 )

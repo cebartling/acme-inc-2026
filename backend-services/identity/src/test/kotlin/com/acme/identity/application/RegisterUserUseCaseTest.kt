@@ -79,7 +79,7 @@ class RegisterUserUseCaseTest {
         every { eventStoreRepository.append(any()) } just Runs
         every { userRepository.save(any()) } answers { firstArg() }
         every { verificationTokenRepository.save(any()) } answers { firstArg() }
-        every { userEventPublisher.publish(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publish(any<com.acme.identity.domain.events.UserRegistered>()) } returns CompletableFuture.completedFuture(null as Void?)
 
         // When
         val result = registerUserUseCase.execute(request)
@@ -95,7 +95,7 @@ class RegisterUserUseCaseTest {
         verify(exactly = 1) { eventStoreRepository.append(any()) }
         verify(exactly = 1) { userRepository.save(any()) }
         verify(exactly = 1) { verificationTokenRepository.save(any()) }
-        verify(exactly = 1) { userEventPublisher.publish(any()) }
+        verify(exactly = 1) { userEventPublisher.publish(any<com.acme.identity.domain.events.UserRegistered>()) }
     }
 
     @Test
@@ -136,7 +136,7 @@ class RegisterUserUseCaseTest {
         every { eventStoreRepository.append(any()) } just Runs
         every { userRepository.save(any()) } answers { firstArg() }
         every { verificationTokenRepository.save(any()) } answers { firstArg() }
-        every { userEventPublisher.publish(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publish(any<com.acme.identity.domain.events.UserRegistered>()) } returns CompletableFuture.completedFuture(null as Void?)
 
         // When
         registerUserUseCase.execute(request)
@@ -163,7 +163,7 @@ class RegisterUserUseCaseTest {
         every { eventStoreRepository.append(any()) } just Runs
         every { userRepository.save(any()) } answers { firstArg() }
         every { verificationTokenRepository.save(any()) } answers { firstArg() }
-        every { userEventPublisher.publish(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publish(any<com.acme.identity.domain.events.UserRegistered>()) } returns CompletableFuture.completedFuture(null as Void?)
 
         // When
         val result = registerUserUseCase.execute(request)
@@ -190,7 +190,7 @@ class RegisterUserUseCaseTest {
         every { eventStoreRepository.append(any()) } answers { callOrder.add("eventStore") }
         every { userRepository.save(any()) } answers { callOrder.add("userRepo"); firstArg() }
         every { verificationTokenRepository.save(any()) } answers { firstArg() }
-        every { userEventPublisher.publish(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publish(any<com.acme.identity.domain.events.UserRegistered>()) } returns CompletableFuture.completedFuture(null as Void?)
 
         // When
         registerUserUseCase.execute(request)
@@ -214,7 +214,7 @@ class RegisterUserUseCaseTest {
         every { eventStoreRepository.append(any()) } just Runs
         every { userRepository.save(any()) } answers { firstArg() }
         every { verificationTokenRepository.save(any()) } answers { firstArg() }
-        every { userEventPublisher.publish(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publish(any<com.acme.identity.domain.events.UserRegistered>()) } returns CompletableFuture.completedFuture(null as Void?)
 
         // When
         registerUserUseCase.execute(request)
@@ -240,7 +240,7 @@ class RegisterUserUseCaseTest {
         every { eventStoreRepository.append(any()) } just Runs
         every { userRepository.save(any()) } answers { firstArg() }
         every { verificationTokenRepository.save(any()) } answers { firstArg() }
-        every { userEventPublisher.publish(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publish(any<com.acme.identity.domain.events.UserRegistered>()) } returns CompletableFuture.completedFuture(null as Void?)
 
         // When
         registerUserUseCase.execute(request, RegistrationSource.MOBILE)
@@ -266,7 +266,7 @@ class RegisterUserUseCaseTest {
         every { eventStoreRepository.append(any()) } just Runs
         every { userRepository.save(any()) } answers { firstArg() }
         every { verificationTokenRepository.save(any()) } answers { firstArg() }
-        every { userEventPublisher.publish(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publish(any<com.acme.identity.domain.events.UserRegistered>()) } returns CompletableFuture.completedFuture(null as Void?)
 
         // When
         registerUserUseCase.execute(request)

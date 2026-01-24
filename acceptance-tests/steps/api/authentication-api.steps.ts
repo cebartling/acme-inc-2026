@@ -392,21 +392,23 @@ Then(
 Then(
   'an AuthenticationFailed event should be persisted in the event store',
   async function (this: CustomWorld) {
-    // This would typically query the event store directly
-    // For now, we verify the request failed as expected
-    const response = this.getTestData<ApiResponse<SigninErrorResponse>>('lastResponse');
-    expect(response).toBeDefined();
-    expect(response!.status).toBeGreaterThanOrEqual(400);
-  }
-);
+    const userId = this.getTestData<string>('testUserId');
 
-Then(
-  'the event should contain {string} with value {string}',
-  async function (this: CustomWorld, _field: string, _expectedValue: string) {
-    // Event content verification would require event store access
-    // For now, we trust the implementation
-    const response = this.getTestData<ApiResponse<SigninErrorResponse>>('lastResponse');
-    expect(response).toBeDefined();
+    if (!userId) {
+      throw new Error('User ID not found');
+    }
+
+    // Wait for async event publishing and transaction commit
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    const response = await this.identityApiClient.get(`/api/v1/test/events/AuthenticationFailed?userId=${userId}`);
+
+    expect(response.status).toBe(200);
+    expect(response.data.events).toBeDefined();
+    expect(response.data.events.length).toBeGreaterThan(0);
+
+    const latestEvent = response.data.events[response.data.events.length - 1];
+    this.setTestData('latestAuthenticationFailedEvent', latestEvent);
   }
 );
 

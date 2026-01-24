@@ -1,0 +1,106 @@
+package com.acme.identity.infrastructure.security
+
+import com.acme.identity.config.JwtConfig
+import io.mockk.every
+import io.mockk.mockk
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
+import kotlin.test.*
+
+class SigningKeyProviderTest {
+
+    private lateinit var signingKeyProvider: SigningKeyProvider
+    private lateinit var jwtConfig: JwtConfig
+
+    @BeforeEach
+    fun setUp() {
+        jwtConfig = mockk<JwtConfig>()
+        every { jwtConfig.keyRotationPeriodDays } returns 30
+        signingKeyProvider = SigningKeyProvider(jwtConfig)
+    }
+
+    @Test
+    fun `getCurrentKey should return a valid signing key`() {
+        val key = signingKeyProvider.getCurrentKey()
+
+        assertNotNull(key)
+        assertNotNull(key.keyId)
+        assertNotNull(key.privateKey)
+        assertNotNull(key.publicKey)
+        assertEquals("RS256", key.algorithm)
+    }
+
+    @Test
+    fun `key ID should follow format key-YYYY-MM`() {
+        val key = signingKeyProvider.getCurrentKey()
+
+        assertTrue(key.keyId.matches(Regex("key-\\d{4}-\\d{2}")))
+    }
+
+    @Test
+    fun `private and public keys should be RSA`() {
+        val key = signingKeyProvider.getCurrentKey()
+
+        assertEquals("RSA", key.privateKey.algorithm)
+        assertEquals("RSA", key.publicKey.algorithm)
+    }
+
+    @Test
+    fun `getCurrentKey should return the same key on multiple calls`() {
+        val key1 = signingKeyProvider.getCurrentKey()
+        val key2 = signingKeyProvider.getCurrentKey()
+
+        assertEquals(key1.keyId, key2.keyId)
+        assertEquals(key1.privateKey, key2.privateKey)
+        assertEquals(key1.publicKey, key2.publicKey)
+    }
+
+    @Test
+    fun `getKey should return current key when key ID matches`() {
+        val currentKey = signingKeyProvider.getCurrentKey()
+        val retrievedKey = signingKeyProvider.getKey(currentKey.keyId)
+
+        assertNotNull(retrievedKey)
+        assertEquals(currentKey.keyId, retrievedKey.keyId)
+        assertEquals(currentKey.privateKey, retrievedKey.privateKey)
+    }
+
+    @Test
+    fun `getKey should return null when key ID does not match`() {
+        val retrievedKey = signingKeyProvider.getKey("invalid-key-id")
+
+        assertNull(retrievedKey)
+    }
+
+    @Test
+    fun `rotateKey should generate a new key pair`() {
+        val oldKey = signingKeyProvider.getCurrentKey()
+
+        // Rotate the key
+        signingKeyProvider.rotateKey()
+
+        val newKey = signingKeyProvider.getCurrentKey()
+
+        // Key ID is based on year-month format, so it may be the same if rotation happens in the same month
+        // The important part is that new cryptographic keys are generated
+        assertNotEquals(oldKey.privateKey, newKey.privateKey)
+        assertNotEquals(oldKey.publicKey, newKey.publicKey)
+    }
+
+    @Test
+    fun `rotateKey should maintain RS256 algorithm`() {
+        signingKeyProvider.rotateKey()
+        val newKey = signingKeyProvider.getCurrentKey()
+
+        assertEquals("RS256", newKey.algorithm)
+    }
+
+    @Test
+    fun `RSA key should be 2048 bits`() {
+        val key = signingKeyProvider.getCurrentKey()
+
+        // RSA key modulus length indicates key size
+        val modulus = (key.publicKey as java.security.interfaces.RSAPublicKey).modulus
+        assertTrue(modulus.bitLength() >= 2048)
+    }
+}

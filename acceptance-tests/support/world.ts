@@ -1,7 +1,7 @@
 import { World, IWorldOptions, setWorldConstructor } from '@cucumber/cucumber';
 import { Browser, BrowserContext, Page, chromium, firefox, webkit } from '@playwright/test';
 import { config, browserOptions } from '../playwright.config.js';
-import { ApiClient } from './api-client.js';
+import { ApiClient, ApiResponse } from './api-client.js';
 
 export interface CustomWorldParameters {
   browser?: 'chromium' | 'firefox' | 'webkit';
@@ -124,24 +124,48 @@ export class CustomWorld extends World<CustomWorldParameters> {
   }
 
   async closeContext(): Promise<void> {
+    // Stop tracing if enabled
     if (config.trace.enabled && this.context) {
-      await this.context.tracing.stop({
-        path: `${config.trace.dir}/trace-${Date.now()}.zip`,
-      });
+      try {
+        await this.context.tracing.stop({
+          path: `${config.trace.dir}/trace-${Date.now()}.zip`,
+        });
+      } catch (error) {
+        console.warn('Failed to stop tracing:', error);
+      }
     }
 
+    // Close page first
     if (this.page) {
-      await this.page.close();
+      try {
+        // Force close without waiting for pending operations
+        await this.page.close({ runBeforeUnload: false });
+        this.page = null;
+      } catch (error) {
+        console.warn('Failed to close page:', error);
+      }
     }
 
+    // Close context
     if (this.context) {
-      await this.context.close();
+      try {
+        await this.context.close();
+        this.context = null;
+      } catch (error) {
+        console.warn('Failed to close context:', error);
+      }
     }
   }
 
   async closeBrowser(): Promise<void> {
     if (this.browser) {
-      await this.browser.close();
+      try {
+        await this.browser.close();
+      } catch (error) {
+        console.warn('Failed to close browser:', error);
+      } finally {
+        this.browser = null;
+      }
     }
   }
 
@@ -163,6 +187,14 @@ export class CustomWorld extends World<CustomWorldParameters> {
 
   clearTestData(): void {
     this.testData.clear();
+  }
+
+  setLastResponse(response: ApiResponse<unknown>): void {
+    this.setTestData('lastResponse', response);
+  }
+
+  getLastResponse<T = unknown>(): ApiResponse<T> | undefined {
+    return this.getTestData<ApiResponse<T>>('lastResponse');
   }
 }
 

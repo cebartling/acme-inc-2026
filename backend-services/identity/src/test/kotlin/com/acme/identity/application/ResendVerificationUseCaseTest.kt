@@ -79,7 +79,7 @@ class ResendVerificationUseCaseTest {
         every { verificationTokenGenerator.calculateExpiration() } returns expiration
         every { verificationTokenRepository.save(any()) } answers { firstArg() }
         every { eventStoreRepository.append(any()) } just Runs
-        every { userEventPublisher.publish(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publish(any<com.acme.identity.domain.events.UserRegistered>()) } returns CompletableFuture.completedFuture(null as Void?)
 
         // When
         val result = resendVerificationUseCase.execute(testEmail)
@@ -92,7 +92,7 @@ class ResendVerificationUseCaseTest {
 
         verify(exactly = 1) { verificationTokenRepository.save(any()) }
         verify(exactly = 1) { eventStoreRepository.append(any()) }
-        verify(exactly = 1) { userEventPublisher.publish(any()) }
+        verify(exactly = 1) { userEventPublisher.publish(any<com.acme.identity.domain.events.UserRegistered>()) }
     }
 
     @Test
@@ -191,7 +191,7 @@ class ResendVerificationUseCaseTest {
         every { verificationTokenGenerator.calculateExpiration() } returns expiration
         every { verificationTokenRepository.save(any()) } answers { firstArg() }
         every { eventStoreRepository.append(any()) } just Runs
-        every { userEventPublisher.publish(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publish(any<com.acme.identity.domain.events.UserRegistered>()) } returns CompletableFuture.completedFuture(null as Void?)
 
         // When
         resendVerificationUseCase.execute(testEmail, "192.168.1.1")
@@ -216,7 +216,7 @@ class ResendVerificationUseCaseTest {
         every { verificationTokenGenerator.calculateExpiration() } returns expiration
         every { verificationTokenRepository.save(capture(savedToken)) } answers { firstArg() }
         every { eventStoreRepository.append(any()) } just Runs
-        every { userEventPublisher.publish(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publish(any<com.acme.identity.domain.events.UserRegistered>()) } returns CompletableFuture.completedFuture(null as Void?)
 
         // When
         resendVerificationUseCase.execute(testEmail)
@@ -241,7 +241,7 @@ class ResendVerificationUseCaseTest {
         every { verificationTokenGenerator.calculateExpiration() } returns expiration
         every { verificationTokenRepository.save(any()) } answers { firstArg() }
         every { eventStoreRepository.append(any()) } just Runs
-        every { userEventPublisher.publish(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publish(any<com.acme.identity.domain.events.UserRegistered>()) } returns CompletableFuture.completedFuture(null as Void?)
 
         // When
         resendVerificationUseCase.execute(testEmail)
