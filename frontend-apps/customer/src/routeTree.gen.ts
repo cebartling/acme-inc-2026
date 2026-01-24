@@ -13,6 +13,7 @@ import { Route as SigninRouteImport } from './routes/signin'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as PreferencesRouteImport } from './routes/preferences'
 import { Route as MfaVerifyRouteImport } from './routes/mfa-verify'
+import { Route as DevicesRouteImport } from './routes/devices'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProfileCompleteRouteImport } from './routes/profile/complete'
@@ -43,6 +44,11 @@ const PreferencesRoute = PreferencesRouteImport.update({
 const MfaVerifyRoute = MfaVerifyRouteImport.update({
   id: '/mfa-verify',
   path: '/mfa-verify',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DevicesRoute = DevicesRouteImport.update({
+  id: '/devices',
+  path: '/devices',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardRoute = DashboardRouteImport.update({
@@ -104,6 +110,7 @@ const DemoStartSsrDataOnlyRoute = DemoStartSsrDataOnlyRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
+  '/devices': typeof DevicesRoute
   '/mfa-verify': typeof MfaVerifyRoute
   '/preferences': typeof PreferencesRoute
   '/register': typeof RegisterRoute
@@ -121,6 +128,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
+  '/devices': typeof DevicesRoute
   '/mfa-verify': typeof MfaVerifyRoute
   '/preferences': typeof PreferencesRoute
   '/register': typeof RegisterRoute
@@ -139,6 +147,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
+  '/devices': typeof DevicesRoute
   '/mfa-verify': typeof MfaVerifyRoute
   '/preferences': typeof PreferencesRoute
   '/register': typeof RegisterRoute
@@ -158,6 +167,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/dashboard'
+    | '/devices'
     | '/mfa-verify'
     | '/preferences'
     | '/register'
@@ -175,6 +185,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/dashboard'
+    | '/devices'
     | '/mfa-verify'
     | '/preferences'
     | '/register'
@@ -192,6 +203,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/dashboard'
+    | '/devices'
     | '/mfa-verify'
     | '/preferences'
     | '/register'
@@ -210,6 +222,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DashboardRoute: typeof DashboardRoute
+  DevicesRoute: typeof DevicesRoute
   MfaVerifyRoute: typeof MfaVerifyRoute
   PreferencesRoute: typeof PreferencesRoute
   RegisterRoute: typeof RegisterRoute
@@ -253,6 +266,13 @@ declare module '@tanstack/react-router' {
       path: '/mfa-verify'
       fullPath: '/mfa-verify'
       preLoaderRoute: typeof MfaVerifyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/devices': {
+      id: '/devices'
+      path: '/devices'
+      fullPath: '/devices'
+      preLoaderRoute: typeof DevicesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard': {
@@ -338,6 +358,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardRoute: DashboardRoute,
+  DevicesRoute: DevicesRoute,
   MfaVerifyRoute: MfaVerifyRoute,
   PreferencesRoute: PreferencesRoute,
   RegisterRoute: RegisterRoute,

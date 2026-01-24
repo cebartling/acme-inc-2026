@@ -38,6 +38,7 @@ class SessionServiceTest {
         sessionService = SessionService(
             sessionRepository = sessionRepository,
             eventPublisher = userEventPublisher,
+            eventStoreRepository = mockk(relaxed = true),
             config = sessionConfig
         )
     }

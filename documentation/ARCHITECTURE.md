@@ -92,3 +92,116 @@
 - Expose health endpoints in a standardized format
 - Integrate health status with service discovery for automatic failover
 
+## Authentication & Security
+
+### Multi-Factor Authentication (MFA)
+
+- Support multiple MFA methods (TOTP, SMS) for enhanced account security
+- Challenge-based flow: signin returns MFA token, client submits MFA code
+- Temporary MFA tokens expire after 5 minutes
+- Rate limiting on MFA verification attempts to prevent brute force
+- Event-driven audit trail for all MFA operations (MfaVerified, MfaFailed events)
+
+### Device Trust (Remember Device)
+
+Device trust allows users to bypass MFA for 30 days on trusted devices, improving UX while maintaining security.
+
+**Architecture**:
+
+```
+┌─────────────┐
+│   Browser   │
+└──────┬──────┘
+       │ 1. POST /signin (email, password, deviceFingerprint)
+       │    Cookie: device_trust=trust_abc123
+       ▼
+┌─────────────────────────────────────────────────────────┐
+│           AuthenticateUserUseCase                       │
+│                                                         │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │ 1. Verify email + password                       │  │
+│  │ 2. Check if MFA enabled                          │  │
+│  │ 3. If device_trust cookie present:              │  │
+│  │    - DeviceTrustService.verifyTrust()           │  │
+│  │    - Validate: fingerprint + userAgent + expiry │  │
+│  │    - If valid: BYPASS MFA                       │  │
+│  │    - If invalid: REQUIRE MFA                    │  │
+│  │ 4. If no device trust: REQUIRE MFA              │  │
+│  └──────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────┘
+       │
+       ▼
+┌──────────────────┐         ┌─────────────────┐
+│  Redis           │         │  Kafka          │
+│                  │         │                 │
+│ device_trusts:   │         │ DeviceRemembered│
+│   trust_abc123   │◄────────│ DeviceRevoked   │
+│                  │         │                 │
+│ TTL: 30 days     │         └─────────────────┘
+└──────────────────┘
+```
+
+**Device Trust Creation Flow** (after MFA verification with rememberDevice=true):
+
+1. User completes MFA with `rememberDevice` flag set
+2. `DeviceTrustService.createTrust()` creates Redis entry:
+   - Token ID: UUID (e.g., `trust_abc123`)
+   - Device fingerprint: SHA-256 hashed
+   - User agent: Stored for validation
+   - IP address: Logged but not enforced
+   - TTL: 30 days (auto-expires via Redis `@TimeToLive`)
+3. System sets `device_trust` cookie (HttpOnly, Secure, SameSite=Strict)
+4. Publishes `DeviceRemembered` event to Kafka
+5. Enforces max 10 devices per user (FIFO eviction)
+
+**Device Trust Verification Flow** (signin with device_trust cookie):
+
+1. Extract `device_trust` cookie from request
+2. Look up token in Redis by ID
+3. Validate:
+   - Token exists and not expired
+   - Fingerprint matches (SHA-256 hash comparison)
+   - User agent matches (exact string match)
+   - IP address NOT validated (mobile networks change IPs)
+4. If all valid: Update `lastUsedAt` timestamp and bypass MFA
+5. If any invalid: Silently fail and require MFA
+
+**Device Management API**:
+
+- `GET /api/v1/auth/devices` - List all trusted devices for user
+- `DELETE /api/v1/auth/devices/{id}` - Revoke single device
+- `DELETE /api/v1/auth/devices` - Revoke all devices
+- Authentication: JWT from `access_token` cookie
+- Authorization: Users can only manage their own devices
+
+**Security Considerations**:
+
+- **HttpOnly cookies**: Prevent XSS attacks by blocking JavaScript access
+- **Fingerprint + User agent validation**: Prevent token theft across devices
+- **SHA-256 hashing**: Protect fingerprints if Redis is compromised
+- **30-day expiry**: Limit exposure window for compromised tokens
+- **Max 10 devices**: Prevent unbounded token accumulation
+- **Browser updates invalidate trust**: User agent changes force re-authentication
+- **IP not enforced**: Mobile-friendly (VPNs, cell towers change IPs)
+- **Password change revokes all**: Future integration (password change not yet implemented)
+- **Event-driven audit**: Complete history for compliance and forensics
+
+**Related ADRs**: See [ADR-0039](adrs/0039-device-trust-implementation.md) for detailed design decisions.
+
+### Session Management
+
+- JWT-based access tokens (15-minute expiry) and refresh tokens (7-day expiry)
+- Tokens delivered via HttpOnly cookies to prevent XSS attacks
+- Redis-backed session storage with automatic TTL expiration
+- Maximum 5 concurrent sessions per user (oldest evicted when limit exceeded)
+- Session invalidation on signout and password change
+- Session metadata tracks: IP address, user agent, created/last accessed timestamps
+
+### Token Security
+
+- RSA-2048 asymmetric key pairs for JWT signing and verification
+- Key rotation support through versioned key storage
+- Tokens include: issuer, subject (userId), expiration, issued-at claims
+- Refresh token rotation on use (single-use tokens)
+- Token revocation through Redis blacklist for compromised tokens
+

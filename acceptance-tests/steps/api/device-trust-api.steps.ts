@@ -81,34 +81,15 @@ Given('the user {string} has TOTP MFA enabled', async function (this: CustomWorl
   await this.attach(`Enabled TOTP MFA for user ${email}`, 'text/plain');
 });
 
-Given('the user has TOTP MFA enabled', async function (this: CustomWorld) {
-  const userId = this.getTestData<string>('testUserId');
-
-  if (!userId) {
-    throw new Error('Test user not found. User must be created first.');
-  }
-
-  // Actually enable TOTP MFA via test API
-  const totpSecret = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
-  const response = await this.identityApiClient.post(
-    `/api/v1/test/users/${userId}/enable-mfa`,
-    { totpSecret }
-  );
-
-  expect(response.status).toBe(200);
-  this.setTestData('totpEnabled', true);
-  this.setTestData('totpSecret', totpSecret);
-
-  await this.attach('Enabled TOTP MFA for user', 'text/plain');
-});
-
 Given('I have an active session for {string}', async function (this: CustomWorld, email: string) {
+  const actualEmail = this.getTestData<string>('testUserEmail') || email;
   const password = this.getTestData<string>('userPassword') || 'ValidP@ss123!';
 
   // Sign in
   const signinResponse = await this.identityApiClient.post('/api/v1/auth/signin', {
-    email,
+    email: actualEmail,
     password,
+    rememberMe: false,
     deviceFingerprint: 'fp_test_session',
   });
 
@@ -118,7 +99,7 @@ Given('I have an active session for {string}', async function (this: CustomWorld
   if (signinResponse.data.status === 'MFA_REQUIRED') {
     const mfaToken = signinResponse.data.mfaToken;
     const totpSecret = this.getTestData<string>('totpSecret') || 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
-    const totpCode = generateSync(totpSecret);
+    const totpCode = generateSync({ secret: totpSecret });
 
     const mfaResponse = await this.identityApiClient.post('/api/v1/auth/mfa/verify', {
       mfaToken,
@@ -357,10 +338,13 @@ Given('I have an active session for {string} with device trust {string}', async 
   // First create a regular session
   await this.attach(`Creating session for ${email}`, 'text/plain');
 
+  const actualEmail = this.getTestData<string>('testUserEmail') || email;
+
   // Sign in and complete MFA
   const signinResponse = await this.identityApiClient.post('/api/v1/auth/signin', {
-    email,
+    email: actualEmail,
     password: this.getTestData('userPassword') || 'ValidP@ss123!',
+    rememberMe: false,
     deviceFingerprint: 'fp_test',
   });
 
@@ -369,7 +353,7 @@ Given('I have an active session for {string} with device trust {string}', async 
   if (signinResponse.data.status === 'MFA_REQUIRED') {
     const mfaToken = signinResponse.data.mfaToken;
     const totpSecret = this.getTestData<string>('totpSecret') || 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
-    const totpCode = generateSync(totpSecret);
+    const totpCode = generateSync({ secret: totpSecret });
 
     const mfaResponse = await this.identityApiClient.post('/api/v1/auth/mfa/verify', {
       mfaToken,
@@ -399,7 +383,7 @@ When('I verify MFA with the correct TOTP code and rememberDevice set to true', a
     throw new Error('MFA token not found. Did you call signin first?');
   }
 
-  const totpCode = generateSync(totpSecret);
+  const totpCode = generateSync({ secret: totpSecret });
 
   const response = await this.identityApiClient.post(
     '/api/v1/auth/mfa/verify',
@@ -431,7 +415,7 @@ When('I verify MFA with the correct TOTP code and rememberDevice set to false', 
     throw new Error('MFA token not found. Did you call signin first?');
   }
 
-  const totpCode = generateSync(totpSecret);
+  const totpCode = generateSync({ secret: totpSecret });
 
   const response = await this.identityApiClient.post(
     '/api/v1/auth/mfa/verify',
@@ -457,11 +441,14 @@ When('I signin with email {string} and password {string} with the device trust c
     {
       email: actualEmail,
       password,
+      rememberMe: false,
       deviceFingerprint,
     },
     {
-      'User-Agent': userAgent || 'Mozilla/5.0 (Test)',
-      'Cookie': `device_trust=${deviceTrustId}`,
+      headers: {
+        'User-Agent': userAgent || 'Mozilla/5.0 (Test)',
+        'Cookie': `device_trust=${deviceTrustId}`,
+      }
     }
   );
 
@@ -486,10 +473,13 @@ When('I signin with email {string} and password {string} with the expired device
     {
       email: actualEmail,
       password,
+      rememberMe: false,
       deviceFingerprint,
     },
     {
-      'Cookie': `device_trust=${deviceTrustId}`,
+      headers: {
+        'Cookie': `device_trust=${deviceTrustId}`,
+      }
     }
   );
 
@@ -508,6 +498,7 @@ When('I signin with email {string} and password {string} from a new device', asy
     {
       email: actualEmail,
       password,
+      rememberMe: false,
       deviceFingerprint: `fp_new_device_${Date.now()}`,
     }
   );
@@ -528,10 +519,13 @@ When('I signin with email {string} and password {string} with fingerprint {strin
     {
       email: actualEmail,
       password,
+      rememberMe: false,
       deviceFingerprint: fingerprint,
     },
     {
-      'Cookie': `device_trust=${deviceTrustId}`,
+      headers: {
+        'Cookie': `device_trust=${deviceTrustId}`,
+      }
     }
   );
 
@@ -545,22 +539,29 @@ When('I signin with email {string} and password {string} with fingerprint {strin
 When('I signin with email {string} and password {string} with user agent {string}', async function (this: CustomWorld, email: string, password: string, userAgent: string) {
   const actualEmail = this.getTestData<string>('testUserEmail') || email;
   const deviceTrustId = this.getTestData<string>('deviceTrustId');
-  const deviceFingerprint = this.getTestData<string>('deviceFingerprint');
+  const deviceFingerprint = this.getTestData<string>('deviceFingerprint') || `fp_${Date.now()}`;
+
+  const headers: Record<string, string> = {
+    'User-Agent': userAgent,
+  };
+
+  if (deviceTrustId) {
+    headers['Cookie'] = `device_trust=${deviceTrustId}`;
+  }
 
   const response = await this.identityApiClient.post(
     '/api/v1/auth/signin',
     {
       email: actualEmail,
       password,
+      rememberMe: false,
       deviceFingerprint,
     },
-    {
-      'User-Agent': userAgent,
-      'Cookie': `device_trust=${deviceTrustId}`,
-    }
+    { headers }
   );
 
   this.setTestData('lastResponse', response);
+  this.setTestData('deviceFingerprint', deviceFingerprint);
 
   if (response.data.status === 'MFA_REQUIRED') {
     this.setTestData('mfaToken', response.data.mfaToken);
@@ -578,12 +579,15 @@ When('I signin with email {string} and password {string} from IP {string}', asyn
     {
       email: actualEmail,
       password,
+      rememberMe: false,
       deviceFingerprint,
     },
     {
-      'User-Agent': userAgent,
-      'Cookie': `device_trust=${deviceTrustId}`,
-      'X-Forwarded-For': ipAddress,
+      headers: {
+        'User-Agent': userAgent,
+        'Cookie': `device_trust=${deviceTrustId}`,
+        'X-Forwarded-For': ipAddress,
+      }
     }
   );
 

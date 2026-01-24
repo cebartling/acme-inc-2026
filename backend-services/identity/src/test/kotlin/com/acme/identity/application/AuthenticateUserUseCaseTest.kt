@@ -62,6 +62,7 @@ class AuthenticateUserUseCaseTest {
             passwordHasher = passwordHasher,
             mfaChallengeService = mfaChallengeService,
             smsMfaService = smsMfaService,
+            deviceTrustService = mockk(relaxed = true),
             meterRegistry = meterRegistry,
             maxFailedAttempts = 5,
             lockoutDurationMinutes = 15,

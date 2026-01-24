@@ -141,6 +141,7 @@ class AuthenticateUserUseCase(
     private val passwordHasher: PasswordHasher,
     private val mfaChallengeService: MfaChallengeService,
     private val smsMfaService: SmsMfaService,
+    private val deviceTrustService: DeviceTrustService,
     private val meterRegistry: MeterRegistry,
     @Value("\${identity.authentication.max-failed-attempts:5}")
     private val maxFailedAttempts: Int = 5,
@@ -360,6 +361,27 @@ class AuthenticateUserUseCase(
 
                 // Build response based on MFA status
                 if (user.mfaEnabled) {
+                    // Check for device trust BEFORE creating MFA challenge
+                    if (request.deviceTrustToken != null && request.deviceFingerprint != null) {
+                        val trustedDevice = deviceTrustService.verifyTrust(
+                            deviceTrustToken = request.deviceTrustToken,
+                            userId = user.id,
+                            deviceFingerprint = request.deviceFingerprint,
+                            userAgent = context.userAgent
+                        )
+
+                        if (trustedDevice != null) {
+                            // Device trust verified - bypass MFA
+                            logger.info("Device trust verified for user {}, bypassing MFA", user.id)
+                            incrementAuthenticationCounter("device_trust_bypass")
+
+                            // Return success response
+                            // Note: Session and token creation will be handled by the controller
+                            return@either SigninResponse.success(userId = user.id)
+                        }
+                    }
+
+                    // Device trust not verified or not available - require MFA
                     when {
                         user.totpEnabled -> {
                             // TOTP is the primary MFA method

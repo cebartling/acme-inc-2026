@@ -95,4 +95,45 @@ class AuthCookieBuilder(private val config: JwtConfig) {
                 .build()
         )
     }
+
+    /**
+     * Builds a secure cookie for the device trust token.
+     *
+     * The device trust cookie is:
+     * - Available on all paths (Path=/)
+     * - Long-lived (30 days)
+     * - HttpOnly, Secure, SameSite=Strict
+     *
+     * This cookie enables MFA bypass on trusted devices for 30 days.
+     *
+     * @param token The device trust token (UUID).
+     * @return A configured [ResponseCookie] for the device trust token.
+     */
+    fun buildDeviceTrustCookie(token: String): ResponseCookie {
+        return ResponseCookie.from("device_trust", token)
+            .httpOnly(true)
+            .secure(true)
+            .sameSite("Strict")
+            .path("/")
+            .maxAge(2592000L) // 30 days
+            .build()
+    }
+
+    /**
+     * Builds a cookie to clear the device trust token.
+     *
+     * Used during device trust revocation or logout. Sets the cookie
+     * with an empty value and Max-Age=0 to immediately expire it.
+     *
+     * @return A [ResponseCookie] instance to clear the device trust cookie.
+     */
+    fun buildClearDeviceTrustCookie(): ResponseCookie {
+        return ResponseCookie.from("device_trust", "")
+            .httpOnly(true)
+            .secure(true)
+            .sameSite("Strict")
+            .path("/")
+            .maxAge(0)
+            .build()
+    }
 }

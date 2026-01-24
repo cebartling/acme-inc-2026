@@ -40,6 +40,7 @@ class MfaController(
     private val smsMfaService: SmsMfaService,
     private val tokenService: TokenService,
     private val sessionService: SessionService,
+    private val deviceTrustService: DeviceTrustService,
     private val authCookieBuilder: AuthCookieBuilder,
     private val userRepository: UserRepository,
     private val eventStoreRepository: EventStoreRepository,
@@ -126,6 +127,7 @@ class MfaController(
                     ipAddress = context.ipAddress,
                     userAgent = context.userAgent,
                     deviceFingerprint = request.deviceFingerprint,
+                    rememberDevice = request.rememberDevice,
                     mfaMethod = "TOTP",
                     correlationId = context.correlationId
                 )
@@ -167,6 +169,7 @@ class MfaController(
                     ipAddress = context.ipAddress,
                     userAgent = context.userAgent,
                     deviceFingerprint = request.deviceFingerprint,
+                    rememberDevice = request.rememberDevice,
                     mfaMethod = "SMS",
                     correlationId = context.correlationId
                 )
@@ -410,13 +413,15 @@ class MfaController(
      * 2. Generates a token family for refresh token rotation
      * 3. Creates a session in Redis
      * 4. Generates access and refresh tokens
-     * 5. Sets secure HttpOnly cookies
-     * 6. Publishes UserLoggedIn event
+     * 5. Creates device trust if rememberDevice is true
+     * 6. Sets secure HttpOnly cookies (including device_trust if applicable)
+     * 7. Publishes UserLoggedIn event
      *
      * @param userId The authenticated user's ID.
      * @param ipAddress The client's IP address.
      * @param userAgent The client's User-Agent.
      * @param deviceFingerprint Optional device fingerprint.
+     * @param rememberDevice Whether to create a device trust for MFA bypass.
      * @param mfaMethod The MFA method used (TOTP, SMS).
      * @param correlationId The correlation ID for tracing.
      * @return ResponseEntity with Set-Cookie headers.
@@ -426,6 +431,7 @@ class MfaController(
         ipAddress: String,
         userAgent: String,
         deviceFingerprint: String?,
+        rememberDevice: Boolean,
         mfaMethod: String,
         correlationId: UUID
     ): ResponseEntity.BodyBuilder {
@@ -464,6 +470,21 @@ class MfaController(
         val accessTokenCookie = authCookieBuilder.buildAccessTokenCookie(tokens.accessToken)
         val refreshTokenCookie = authCookieBuilder.buildRefreshTokenCookie(tokens.refreshToken)
 
+        // Create device trust if requested and device fingerprint is available
+        val deviceTrustCookie = if (rememberDevice && deviceFingerprint != null) {
+            val deviceTrust = deviceTrustService.createTrust(
+                userId = userId,
+                deviceFingerprint = deviceFingerprint,
+                userAgent = userAgent,
+                ipAddress = ipAddress,
+                correlationId = correlationId
+            )
+            logger.info("Created device trust {} for user {}", deviceTrust.id, userId)
+            authCookieBuilder.buildDeviceTrustCookie(deviceTrust.id)
+        } else {
+            null
+        }
+
         // Publish UserLoggedIn event
         val event = UserLoggedIn.create(
             userId = userId,
@@ -482,9 +503,16 @@ class MfaController(
         logger.info("Created session {} and generated tokens for user {}", session.id, userId)
 
         // Return response builder with cookies
-        return ResponseEntity.ok()
+        val response = ResponseEntity.ok()
             .header(HttpHeaders.SET_COOKIE, accessTokenCookie.toString())
             .header(HttpHeaders.SET_COOKIE, refreshTokenCookie.toString())
+
+        // Add device trust cookie if created
+        if (deviceTrustCookie != null) {
+            response.header(HttpHeaders.SET_COOKIE, deviceTrustCookie.toString())
+        }
+
+        return response
     }
 
     /**

@@ -85,4 +85,28 @@ class EventStoreRepository(
             aggregateId
         )
     }
+
+    /**
+     * Retrieves all events of a specific type for a specific aggregate.
+     *
+     * This is primarily used for testing to verify that specific events
+     * were published for a given user/aggregate.
+     *
+     * @param eventType The type of event to query (e.g., "DeviceRemembered").
+     * @param aggregateId The ID of the aggregate to query.
+     * @return List of event records as maps, ordered by timestamp.
+     */
+    fun findByEventTypeAndAggregateId(eventType: String, aggregateId: java.util.UUID): List<Map<String, Any?>> {
+        return jdbcTemplate.queryForList(
+            """
+            SELECT event_id, event_type, event_version, timestamp,
+                   aggregate_id, aggregate_type, correlation_id, payload
+            FROM event_store
+            WHERE event_type = ? AND aggregate_id = ?
+            ORDER BY timestamp ASC
+            """.trimIndent(),
+            eventType,
+            aggregateId
+        )
+    }
 }

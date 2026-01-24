@@ -316,6 +316,26 @@ export interface MfaResendErrorResponse {
 }
 
 /**
+ * Trusted device information.
+ */
+export interface TrustedDevice {
+  id: string;
+  deviceName: string;
+  createdAt: string;
+  lastUsedAt: string;
+  expiresAt: string;
+  ipAddress: string;
+  isCurrent: boolean;
+}
+
+/**
+ * Response type for trusted devices list.
+ */
+export interface DevicesResponse {
+  devices: TrustedDevice[];
+}
+
+/**
  * Identity Service API client.
  */
 export const identityApi = {
@@ -332,6 +352,7 @@ export const identityApi = {
       {
         method: "POST",
         body: JSON.stringify(credentials),
+        credentials: "include", // Include cookies for device trust
       }
     );
   },
@@ -349,6 +370,7 @@ export const identityApi = {
       {
         method: "POST",
         body: JSON.stringify(request),
+        credentials: "include", // Include cookies for device trust
       }
     );
   },
@@ -366,6 +388,53 @@ export const identityApi = {
       {
         method: "POST",
         body: JSON.stringify(request),
+      }
+    );
+  },
+
+  /**
+   * Gets all trusted devices for the authenticated user.
+   *
+   * @returns List of trusted devices.
+   * @throws ApiError on failure (401 if not authenticated).
+   */
+  async getTrustedDevices(): Promise<DevicesResponse> {
+    return apiRequest<DevicesResponse>(
+      `${IDENTITY_SERVICE_URL}/api/v1/auth/devices`,
+      {
+        method: "GET",
+        credentials: "include", // Include cookies for authentication
+      }
+    );
+  },
+
+  /**
+   * Revokes a single trusted device.
+   *
+   * @param deviceId - The device trust ID to revoke.
+   * @throws ApiError on failure (401 if not authenticated, 404 if device not found).
+   */
+  async revokeDevice(deviceId: string): Promise<void> {
+    return apiRequest<void>(
+      `${IDENTITY_SERVICE_URL}/api/v1/auth/devices/${deviceId}`,
+      {
+        method: "DELETE",
+        credentials: "include", // Include cookies for authentication
+      }
+    );
+  },
+
+  /**
+   * Revokes all trusted devices for the authenticated user.
+   *
+   * @throws ApiError on failure (401 if not authenticated).
+   */
+  async revokeAllDevices(): Promise<void> {
+    return apiRequest<void>(
+      `${IDENTITY_SERVICE_URL}/api/v1/auth/devices`,
+      {
+        method: "DELETE",
+        credentials: "include", // Include cookies for authentication
       }
     );
   },

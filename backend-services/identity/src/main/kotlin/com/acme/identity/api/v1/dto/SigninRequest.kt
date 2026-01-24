@@ -13,7 +13,8 @@ import jakarta.validation.constraints.Size
  * @property email The user's email address used for authentication.
  * @property password The user's password.
  * @property rememberMe Whether to create a long-lived session. Defaults to `false`.
- * @property deviceFingerprint Optional device fingerprint for fraud detection.
+ * @property deviceFingerprint Optional device fingerprint for fraud detection and device trust.
+ * @property deviceTrustToken Optional device trust token from cookie for MFA bypass.
  */
 data class SigninRequest(
     @field:NotBlank(message = "Email is required")
@@ -28,5 +29,8 @@ data class SigninRequest(
     val rememberMe: Boolean = false,
 
     @field:Size(max = 255, message = "Device fingerprint must not exceed 255 characters")
-    val deviceFingerprint: String? = null
+    val deviceFingerprint: String? = null,
+
+    @field:Size(max = 255, message = "Device trust token must not exceed 255 characters")
+    val deviceTrustToken: String? = null
 )

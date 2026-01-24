@@ -48,9 +48,12 @@ class AuthenticationController(
      *
      * Rate limiting: Applied per IP address + email combination.
      *
+     * Device trust: If a valid device_trust cookie is present, MFA may be bypassed.
+     *
      * @param request The signin request containing credentials.
-     * @param httpRequest The HTTP servlet request (for IP extraction).
+     * @param httpRequest The HTTP servlet request (for IP extraction and cookies).
      * @param correlationId Optional correlation ID for distributed tracing.
+     * @param deviceTrustCookie Optional device trust token from cookie.
      * @return 200 OK with signin response on success or MFA required,
      *         401 Unauthorized for invalid credentials,
      *         403 Forbidden for inactive accounts,
@@ -61,7 +64,8 @@ class AuthenticationController(
     fun signin(
         @Valid @RequestBody request: SigninRequest,
         httpRequest: HttpServletRequest,
-        @RequestHeader("X-Correlation-ID", required = false) correlationId: String?
+        @RequestHeader("X-Correlation-ID", required = false) correlationId: String?,
+        @CookieValue(value = "device_trust", required = false) deviceTrustCookie: String?
     ): ResponseEntity<Any> {
         val clientIp = getClientIp(httpRequest)
         val userAgent = httpRequest.getHeader("User-Agent") ?: "unknown"
@@ -79,13 +83,16 @@ class AuthenticationController(
                 )
         }
 
+        // Create request with device trust token from cookie
+        val requestWithDeviceTrust = request.copy(deviceTrustToken = deviceTrustCookie)
+
         val context = AuthenticationContext(
             ipAddress = clientIp,
             userAgent = userAgent,
             correlationId = correlationId?.let { UUID.fromString(it) } ?: UUID.randomUUID()
         )
 
-        return authenticateUserUseCase.execute(request, context).fold(
+        return authenticateUserUseCase.execute(requestWithDeviceTrust, context).fold(
             ifLeft = { error ->
                 mapErrorToResponse(error)
             },

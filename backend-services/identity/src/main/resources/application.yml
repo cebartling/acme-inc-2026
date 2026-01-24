@@ -93,6 +93,9 @@ identity:
   session:
     max-per-user: 5
     ttl-days: 7
+  device-trust:
+    max-devices-per-user: 10
+    ttl-days: 30
   frontend:
     base-url: ${FRONTEND_BASE_URL:https://www.acme.com}
   support-url: ${SUPPORT_URL:https://www.acme.com/support}
@@ -109,6 +112,10 @@ identity:
     code:
       length: 6
       expiry-seconds: 300
+
+acme:
+  test-api:
+    enabled: ${TEST_API_ENABLED:false}
 
 logging:
   level:

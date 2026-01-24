@@ -7,10 +7,12 @@ import com.nimbusds.jose.JOSEObjectType
 import com.nimbusds.jose.JWSAlgorithm
 import com.nimbusds.jose.JWSHeader
 import com.nimbusds.jose.crypto.RSASSASigner
+import com.nimbusds.jose.crypto.RSASSAVerifier
 import com.nimbusds.jwt.JWTClaimsSet
 import com.nimbusds.jwt.SignedJWT
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
+import java.security.interfaces.RSAPublicKey
 import java.time.Instant
 import java.util.*
 
@@ -183,5 +185,57 @@ class TokenService(
         jwt.sign(RSASSASigner(key.privateKey))
 
         return jwt.serialize()
+    }
+
+    /**
+     * Parses and validates a JWT access token.
+     *
+     * Verifies:
+     * - JWT signature using the signing key
+     * - Token expiration
+     * - Token issuer matches configuration
+     *
+     * @param token The JWT token string.
+     * @return The user ID from the token subject, or null if invalid.
+     */
+    fun parseAccessToken(token: String): UUID? {
+        return try {
+            val jwt = SignedJWT.parse(token)
+            val signingKey = keyProvider.getCurrentKey()
+
+            // Verify signature
+            val verifier = RSASSAVerifier(signingKey.publicKey as RSAPublicKey)
+            if (!jwt.verify(verifier)) {
+                logger.warn("JWT signature verification failed")
+                return null
+            }
+
+            val claims = jwt.jwtClaimsSet
+
+            // Verify expiration
+            val expiration = claims.expirationTime
+            if (expiration == null || expiration.before(Date())) {
+                logger.debug("JWT token expired")
+                return null
+            }
+
+            // Verify issuer
+            if (claims.issuer != config.issuer) {
+                logger.warn("JWT issuer mismatch: expected ${config.issuer}, got ${claims.issuer}")
+                return null
+            }
+
+            // Extract user ID from subject
+            val subject = claims.subject
+            if (subject == null) {
+                logger.warn("JWT token missing subject claim")
+                return null
+            }
+
+            UUID.fromString(subject)
+        } catch (e: Exception) {
+            logger.warn("Failed to parse JWT token: ${e.message}")
+            null
+        }
     }
 }
