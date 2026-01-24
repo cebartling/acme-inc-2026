@@ -33,6 +33,12 @@ An Architecture Decision Record documents a significant architectural decision, 
 | [ADR-0010](0010-kotlin-spring-boot-backend.md) | Kotlin with Spring Boot for Backend Services | Accepted |
 | [ADR-0017](0017-sendgrid-transactional-email.md) | SendGrid for Transactional Email | Accepted |
 
+### Security & Authentication
+
+| ADR | Title | Status |
+|-----|-------|--------|
+| [ADR-0032](0032-sms-mfa-implementation.md) | SMS MFA Implementation Design | Accepted |
+
 ### Observability
 
 | ADR | Title | Status |
@@ -57,6 +63,7 @@ An Architecture Decision Record documents a significant architectural decision, 
 | [ADR-0025](0025-multi-step-wizard-pattern.md) | Multi-Step Wizard Pattern for Profile Completion | Accepted |
 | [ADR-0026](0026-phone-number-validation.md) | Phone Number Validation | Accepted |
 | [ADR-0030](0030-signin-form-reusable-patterns.md) | Signin Form Reusable Component Patterns | Accepted |
+| [ADR-0031](0031-profile-completeness-design.md) | Profile Completeness Tracking Design | Accepted |
 
 ## ADR Status Definitions
 
