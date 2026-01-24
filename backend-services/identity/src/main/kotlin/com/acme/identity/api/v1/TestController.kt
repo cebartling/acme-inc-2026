@@ -942,10 +942,10 @@ class TestController(
         logger.debug("Test endpoint: Querying events of type {} for user {}", eventType, userId)
 
         val sql = if (userId != null) {
-            // For SessionCreated events, the userId is in the payload, not the aggregate_id
+            // For SessionCreated and SessionInvalidated events, the userId is in the payload, not the aggregate_id
             // (aggregate_id is the session ID for Session events)
             // For UserLoggedIn and other User events, the userId is the aggregate_id
-            if (eventType == "SessionCreated") {
+            if (eventType == "SessionCreated" || eventType == "SessionInvalidated") {
                 """
                 SELECT event_id, event_type, event_version, timestamp,
                        aggregate_id, aggregate_type, correlation_id, payload
@@ -976,7 +976,7 @@ class TestController(
         }
 
         val rawEvents = if (userId != null) {
-            if (eventType == "SessionCreated") {
+            if (eventType == "SessionCreated" || eventType == "SessionInvalidated") {
                 // Pass userId as String for JSON payload comparison
                 jdbcTemplate.queryForList(sql, eventType, userId.toString(), limit)
             } else {

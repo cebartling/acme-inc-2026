@@ -220,6 +220,8 @@ When('I complete signin and MFA verification for {string}', async function (this
 });
 
 When('I complete signin and MFA verification for {string} from a new device', async function (this: CustomWorld, email: string) {
+  // Use the actual email that was created (may be unique)
+  const actualEmail = this.getTestData<string>('testUserEmail') || email;
   const password = this.getTestData<string>('testUserPassword') || 'ValidP@ss123!';
   const totpSecret = this.getTestData<string>('totpSecret');
 
@@ -227,15 +229,15 @@ When('I complete signin and MFA verification for {string} from a new device', as
     throw new Error('TOTP secret must be set before MFA verification');
   }
 
-  // Generate a unique device ID
-  const deviceId = `device_${Date.now()}`;
+  // Generate a unique device fingerprint
+  const deviceFingerprint = `fp_${Date.now()}`;
 
-  // Step 1: Signin with device ID
+  // Step 1: Signin with device fingerprint
   const signinResponse = await this.identityApiClient.post('/api/v1/auth/signin', {
-    email,
+    email: actualEmail,
     password,
     rememberMe: false,
-    deviceId,
+    deviceFingerprint,
   });
 
   const mfaToken = signinResponse.data.mfaToken;
@@ -248,7 +250,7 @@ When('I complete signin and MFA verification for {string} from a new device', as
     code: totpCode,
     method: 'TOTP',
     rememberDevice: false,
-    deviceId,
+    deviceFingerprint,
   });
 
   this.setLastResponse(verifyResponse);
@@ -274,6 +276,8 @@ When('I complete signin and MFA verification for {string} from a new device', as
 });
 
 When('I complete signin and MFA verification for {string} with device fingerprint {string}', async function (this: CustomWorld, email: string, deviceFingerprint: string) {
+  // Use the actual email that was created (may be unique)
+  const actualEmail = this.getTestData<string>('testUserEmail') || email;
   const password = this.getTestData<string>('testUserPassword') || 'ValidP@ss123!';
   const totpSecret = this.getTestData<string>('totpSecret');
 
@@ -283,7 +287,7 @@ When('I complete signin and MFA verification for {string} with device fingerprin
 
   // Step 1: Signin with device fingerprint
   const signinResponse = await this.identityApiClient.post('/api/v1/auth/signin', {
-    email,
+    email: actualEmail,
     password,
     rememberMe: false,
     deviceFingerprint,
@@ -798,8 +802,8 @@ Then('a UserLoggedIn event should be published', async function (this: CustomWor
     throw new Error('User ID not found');
   }
 
-  // Wait for async event publishing
-  await new Promise(resolve => setTimeout(resolve, 500));
+  // Wait for async event publishing and transaction commit
+  await new Promise(resolve => setTimeout(resolve, 1000));
 
   const response = await this.identityApiClient.get(`/api/v1/test/events/UserLoggedIn?userId=${userId}`);
 
@@ -818,8 +822,8 @@ Then('a SessionInvalidated event should be published', async function (this: Cus
     throw new Error('User ID not found');
   }
 
-  // Wait for async event publishing
-  await new Promise(resolve => setTimeout(resolve, 500));
+  // Wait for async event publishing and transaction commit
+  await new Promise(resolve => setTimeout(resolve, 1000));
 
   const response = await this.identityApiClient.get(`/api/v1/test/events/SessionInvalidated?userId=${userId}`);
 
