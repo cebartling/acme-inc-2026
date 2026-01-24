@@ -870,7 +870,8 @@ Then('the event should contain {word}', function (this: CustomWorld, fieldName: 
 Then('the event should contain {string} with value {string}', function (this: CustomWorld, fieldName: string, expectedValue: string) {
   const event = this.getTestData('latestSessionCreatedEvent') ||
                 this.getTestData('latestUserLoggedInEvent') ||
-                this.getTestData('latestSessionInvalidatedEvent');
+                this.getTestData('latestSessionInvalidatedEvent') ||
+                this.getTestData('latestAuthenticationFailedEvent');
 
   if (!event) {
     throw new Error('No event data found');
