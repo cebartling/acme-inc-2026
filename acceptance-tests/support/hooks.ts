@@ -20,7 +20,6 @@ async function withTimeout<T>(
 ): Promise<T | null> {
   const timeoutPromise = new Promise<null>((resolve) => {
     setTimeout(() => {
-      console.warn(`⚠️  Timeout after ${timeoutMs}ms: ${operation}`);
       resolve(null);
     }, timeoutMs);
   });
