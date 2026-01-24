@@ -102,6 +102,9 @@ async function createTestUser(
   world.setTestData('testUserId', userId);
   world.setTestData('testUserEmail', email);
   world.setTestData('testUserPassword', password);
+  // Also store with email as key to support multiple users in same scenario
+  world.setTestData(`testUserId_${email}`, userId);
+  world.setTestData('userPassword', password);
 
   // If the user needs to be ACTIVE, verify their email using the test endpoint
   if (options.status === 'ACTIVE' || options.status === undefined) {
@@ -167,7 +170,14 @@ Given(
       await deleteUserByEmail(this, targetEmail);
     }
 
-    await createTestUser(this, targetEmail, password, { status: 'ACTIVE' });
+    const userId = await createTestUser(this, targetEmail, password, { status: 'ACTIVE' });
+
+    // Also store with the original email as key to support multiple users in same scenario
+    // This allows steps like "the user "owner@acme.com" has TOTP MFA enabled" to work
+    // even though the actual email has a timestamp suffix
+    if (targetEmail !== email) {
+      this.setTestData(`testUserId_${email}`, userId);
+    }
   }
 );
 

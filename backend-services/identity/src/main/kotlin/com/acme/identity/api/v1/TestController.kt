@@ -1,6 +1,7 @@
 package com.acme.identity.api.v1
 
 import com.acme.identity.domain.SmsRateLimit
+import com.acme.identity.infrastructure.persistence.DeviceTrustRepository
 import com.acme.identity.infrastructure.persistence.EventStoreRepository
 import com.acme.identity.infrastructure.persistence.MfaChallengeRepository
 import com.acme.identity.infrastructure.persistence.ResendRequestRepository
@@ -61,6 +62,7 @@ class TestController(
     private val eventStoreRepository: EventStoreRepository,
     private val jdbcTemplate: org.springframework.jdbc.core.JdbcTemplate,
     private val redisTemplate: org.springframework.data.redis.core.RedisTemplate<String, Any>,
+    private val deviceTrustRepository: DeviceTrustRepository,
     private val objectMapper: ObjectMapper,
     @Value("\${identity.test.api-key:test-api-key-for-acceptance-tests}")
     private val testApiKey: String
@@ -228,8 +230,15 @@ class TestController(
         usedTotpCodeRepository.deleteByUserId(userId)
         smsRateLimitRepository.deleteByUserId(userId)
         verificationTokenRepository.deleteByUserId(userId)
+
+        // Delete device trusts from Redis
+        val deviceTrusts = deviceTrustRepository.findByUserId(userId)
+        deviceTrusts.forEach { deviceTrust ->
+            deviceTrustRepository.delete(deviceTrust)
+        }
+
         userRepository.deleteById(userId)
-        logger.debug("Deleted user {} and all related data", userId)
+        logger.debug("Deleted user {} and all related data (including {} device trusts)", userId, deviceTrusts.size)
     }
 
     /**

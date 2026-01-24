@@ -70,6 +70,9 @@ services:
       # Observability
       OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4317
       OTEL_SERVICE_NAME: identity-service
+
+      # Test API (enabled for acceptance tests)
+      TEST_API_ENABLED: "true"
     networks:
       - acme-network
     healthcheck:
