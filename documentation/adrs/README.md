@@ -38,6 +38,8 @@ An Architecture Decision Record documents a significant architectural decision, 
 | ADR | Title | Status |
 |-----|-------|--------|
 | [ADR-0032](0032-sms-mfa-implementation.md) | SMS MFA Implementation Design | Accepted |
+| [ADR-0035](0035-jwt-token-implementation.md) | JWT Token Implementation with RS256 | Accepted |
+| [ADR-0036](0036-session-management-redis.md) | Session Management with Redis | Accepted |
 
 ### Observability
 
