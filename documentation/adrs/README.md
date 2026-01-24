@@ -37,9 +37,11 @@ An Architecture Decision Record documents a significant architectural decision, 
 
 | ADR | Title | Status |
 |-----|-------|--------|
-| [ADR-0032](0032-sms-mfa-implementation.md) | SMS MFA Implementation Design | Accepted |
+| [ADR-0031](0031-credential-validation-security.md) | Credential Validation Security Patterns | Accepted |
+| [ADR-0032](0032-account-lockout-mechanism.md) | Account Lockout Mechanism | Accepted |
 | [ADR-0035](0035-jwt-token-implementation.md) | JWT Token Implementation with RS256 | Accepted |
 | [ADR-0036](0036-session-management-redis.md) | Session Management with Redis | Accepted |
+| [ADR-0038](0038-sms-mfa-implementation.md) | SMS MFA Implementation Design | Accepted |
 
 ### Observability
 
@@ -65,7 +67,7 @@ An Architecture Decision Record documents a significant architectural decision, 
 | [ADR-0025](0025-multi-step-wizard-pattern.md) | Multi-Step Wizard Pattern for Profile Completion | Accepted |
 | [ADR-0026](0026-phone-number-validation.md) | Phone Number Validation | Accepted |
 | [ADR-0030](0030-signin-form-reusable-patterns.md) | Signin Form Reusable Component Patterns | Accepted |
-| [ADR-0031](0031-profile-completeness-design.md) | Profile Completeness Tracking Design | Accepted |
+| [ADR-0037](0037-profile-completeness-design.md) | Profile Completeness Tracking Design | Accepted |
 
 ## ADR Status Definitions
 
