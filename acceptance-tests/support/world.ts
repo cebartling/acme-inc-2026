@@ -158,11 +158,14 @@ export class CustomWorld extends World<CustomWorldParameters> {
   }
 
   async closeBrowser(): Promise<void> {
-    // Note: We intentionally don't close the browser here
-    // Playwright will clean it up when the process exits
-    // This avoids hanging during cleanup
     if (this.browser) {
-      this.browser = null;
+      try {
+        await this.browser.close();
+      } catch (error) {
+        console.warn('Failed to close browser:', error);
+      } finally {
+        this.browser = null;
+      }
     }
   }
 
