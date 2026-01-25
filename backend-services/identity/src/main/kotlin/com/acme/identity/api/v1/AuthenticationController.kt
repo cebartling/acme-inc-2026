@@ -2,9 +2,11 @@ package com.acme.identity.api.v1
 
 import com.acme.identity.api.v1.dto.SigninErrorResponse
 import com.acme.identity.api.v1.dto.SigninRequest
+import com.acme.identity.api.v1.dto.SigninStatus
 import com.acme.identity.application.AuthenticateUserUseCase
 import com.acme.identity.application.AuthenticationContext
 import com.acme.identity.application.AuthenticationError
+import com.acme.identity.application.AuthenticationSessionService
 import com.acme.identity.domain.UserStatus
 import com.acme.identity.infrastructure.security.RateLimiter
 import jakarta.servlet.http.HttpServletRequest
@@ -31,6 +33,7 @@ import java.util.UUID
 class AuthenticationController(
     private val authenticateUserUseCase: AuthenticateUserUseCase,
     private val rateLimiter: RateLimiter,
+    private val authenticationSessionService: AuthenticationSessionService,
     @Value("\${identity.support-url:https://www.acme.com/support}")
     private val supportUrl: String = "https://www.acme.com/support",
     @Value("\${identity.password-reset-url:https://www.acme.com/forgot-password}")
@@ -97,7 +100,28 @@ class AuthenticationController(
                 mapErrorToResponse(error)
             },
             ifRight = { response ->
-                ResponseEntity.ok(response)
+                when (response.status) {
+                    SigninStatus.SUCCESS -> {
+                        // SUCCESS - create session, tokens, and cookies
+                        val userId = response.userId
+                            ?: throw IllegalStateException("userId is null in SUCCESS response")
+
+                        authenticationSessionService.createAuthenticatedSession(
+                            userId = userId,
+                            ipAddress = context.ipAddress,
+                            userAgent = context.userAgent,
+                            deviceFingerprint = request.deviceFingerprint,
+                            rememberDevice = request.rememberMe,
+                            mfaUsed = false,
+                            mfaMethod = null,
+                            correlationId = context.correlationId
+                        ).body(response)
+                    }
+                    SigninStatus.MFA_REQUIRED -> {
+                        // MFA required - return response as-is (no session yet)
+                        ResponseEntity.ok(response)
+                    }
+                }
             }
         )
     }

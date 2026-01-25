@@ -1,7 +1,10 @@
 export interface ApiResponse<T = unknown> {
   status: number;
   data: T;
-  headers: Headers;
+  headers: {
+    'set-cookie'?: string[];
+    [key: string]: string | string[] | undefined;
+  };
 }
 
 export interface RequestOptions {
@@ -113,10 +116,26 @@ export class ApiClient {
         data = (await response.text()) as unknown as T;
       }
 
+      // Convert Headers to plain object with set-cookie as array
+      const headersObj: { 'set-cookie'?: string[]; [key: string]: string | string[] | undefined } = {};
+
+      // Get all Set-Cookie headers (there can be multiple)
+      const setCookies = response.headers.getSetCookie?.() || [];
+      if (setCookies.length > 0) {
+        headersObj['set-cookie'] = setCookies;
+      }
+
+      // Get other headers
+      response.headers.forEach((value, key) => {
+        if (key.toLowerCase() !== 'set-cookie') {
+          headersObj[key] = value;
+        }
+      });
+
       return {
         status: response.status,
         data,
-        headers: response.headers,
+        headers: headersObj,
       };
     } catch (error) {
       clearTimeout(timeoutId);
