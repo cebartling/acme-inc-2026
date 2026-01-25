@@ -640,7 +640,7 @@ When('I request GET {string}', async function (this: CustomWorld, path: string) 
       : `device_trust=${deviceTrustId}`;
   }
 
-  const response = await this.identityApiClient.get(path, headers);
+  const response = await this.identityApiClient.get(path, { headers });
 
   this.setTestData('lastResponse', response);
 });
@@ -668,7 +668,7 @@ When('I request DELETE {string}', async function (this: CustomWorld, path: strin
   }
 
   try {
-    const response = await this.identityApiClient.delete(path, headers);
+    const response = await this.identityApiClient.delete(path, { headers });
     this.setTestData('lastResponse', response);
   } catch (error: unknown) {
     // Axios throws on non-2xx status codes
@@ -695,7 +695,7 @@ When('I change my password from {string} to {string}', async function (this: Cus
         currentPassword: oldPassword,
         newPassword,
       },
-      headers
+      { headers }
     );
 
     this.setTestData('lastResponse', response);
