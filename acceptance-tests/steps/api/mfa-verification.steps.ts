@@ -68,13 +68,16 @@ Given('the user has TOTP MFA enabled with a valid secret', async function (this:
   const totpSecret = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
 
   // Enable MFA for the user via the test endpoint
-  const response = await this.identityApiClient.post<{ userId: string; mfaEnabled: boolean; totpEnabled: boolean }>(
-    `/api/v1/test/users/${userId}/enable-mfa`,
-    { totpSecret }
-  );
+  const response = await this.identityApiClient.post<{
+    userId: string;
+    mfaEnabled: boolean;
+    totpEnabled: boolean;
+  }>(`/api/v1/test/users/${userId}/enable-mfa`, { totpSecret });
 
   if (response.status !== 200) {
-    throw new Error(`Failed to enable MFA for user: ${response.status} - ${JSON.stringify(response.data)}`);
+    throw new Error(
+      `Failed to enable MFA for user: ${response.status} - ${JSON.stringify(response.data)}`
+    );
   }
 
   // Store the TOTP secret for generating codes later
@@ -82,30 +85,34 @@ Given('the user has TOTP MFA enabled with a valid secret', async function (this:
   this.setTestData('totpSecret', totpSecret);
 });
 
-Given('I have completed credential validation and received an MFA token', async function (this: CustomWorld) {
-  const email = this.getTestData<string>('testUserEmail');
-  const password = this.getTestData<string>('testUserPassword');
+Given(
+  'I have completed credential validation and received an MFA token',
+  async function (this: CustomWorld) {
+    const email = this.getTestData<string>('testUserEmail');
+    const password = this.getTestData<string>('testUserPassword');
 
-  if (!email || !password) {
-    throw new Error('Test user email and password must be set before completing credential validation');
-  }
+    if (!email || !password) {
+      throw new Error(
+        'Test user email and password must be set before completing credential validation'
+      );
+    }
 
-  const response = await this.identityApiClient.post<SigninMfaResponse>(
-    '/api/v1/auth/signin',
-    {
+    const response = await this.identityApiClient.post<SigninMfaResponse>('/api/v1/auth/signin', {
       email,
       password,
       rememberMe: false,
+    });
+
+    if (response.status !== 200 || response.data.status !== 'MFA_REQUIRED') {
+      throw new Error(
+        `Expected MFA_REQUIRED response, got: ${response.status} - ${JSON.stringify(response.data)}`
+      );
     }
-  );
 
-  if (response.status !== 200 || response.data.status !== 'MFA_REQUIRED') {
-    throw new Error(`Expected MFA_REQUIRED response, got: ${response.status} - ${JSON.stringify(response.data)}`);
+    this.setTestData('mfaToken', response.data.mfaToken);
+    this.setTestData('mfaMethods', response.data.mfaMethods);
   }
-
-  this.setTestData('mfaToken', response.data.mfaToken);
-  this.setTestData('mfaMethods', response.data.mfaMethods);
-});
+);
 
 Given('I have successfully verified with a TOTP code', async function (this: CustomWorld) {
   const mfaToken = this.getTestData<string>('mfaToken');
@@ -119,15 +126,12 @@ Given('I have successfully verified with a TOTP code', async function (this: Cus
   // For now, we use a placeholder - in real tests, you'd use a TOTP library
   const code = generateTotpCode(totpSecret || '');
 
-  const response = await this.identityApiClient.post<MfaVerifyResponse>(
-    '/api/v1/auth/mfa/verify',
-    {
-      mfaToken,
-      code,
-      method: 'TOTP',
-      rememberDevice: false,
-    }
-  );
+  const response = await this.identityApiClient.post<MfaVerifyResponse>('/api/v1/auth/mfa/verify', {
+    mfaToken,
+    code,
+    method: 'TOTP',
+    rememberDevice: false,
+  });
 
   if (response.status !== 200) {
     throw new Error(`Expected successful MFA verification, got: ${response.status}`);
@@ -151,7 +155,9 @@ Given('I wait for the MFA challenge to expire', async function (this: CustomWorl
   );
 
   if (response.status !== 200) {
-    throw new Error(`Failed to expire MFA challenge: ${response.status} - ${JSON.stringify(response.data)}`);
+    throw new Error(
+      `Failed to expire MFA challenge: ${response.status} - ${JSON.stringify(response.data)}`
+    );
   }
 
   this.setTestData('challengeExpired', true);
@@ -161,58 +167,64 @@ Given('I wait for the MFA challenge to expire', async function (this: CustomWorl
 // WHEN Steps
 // ============================================================================
 
-When('I submit an MFA verification request with the correct TOTP code', async function (this: CustomWorld) {
-  const mfaToken = this.getTestData<string>('mfaToken');
-  const totpSecret = this.getTestData<string>('totpSecret');
+When(
+  'I submit an MFA verification request with the correct TOTP code',
+  async function (this: CustomWorld) {
+    const mfaToken = this.getTestData<string>('mfaToken');
+    const totpSecret = this.getTestData<string>('totpSecret');
 
-  if (!mfaToken) {
-    throw new Error('MFA token must be set before verifying');
+    if (!mfaToken) {
+      throw new Error('MFA token must be set before verifying');
+    }
+
+    // Generate a valid TOTP code
+    const code = generateTotpCode(totpSecret || '');
+
+    const request: MfaVerifyRequest = {
+      mfaToken,
+      code,
+      method: 'TOTP',
+      rememberDevice: false,
+    };
+
+    const response = await this.identityApiClient.post<MfaVerifyResponse | MfaVerifyErrorResponse>(
+      '/api/v1/auth/mfa/verify',
+      request
+    );
+
+    this.setTestData('lastResponse', response);
+    this.setTestData('lastMfaRequest', request);
   }
+);
 
-  // Generate a valid TOTP code
-  const code = generateTotpCode(totpSecret || '');
+When(
+  'I submit an MFA verification request with a code from the previous time step',
+  async function (this: CustomWorld) {
+    const mfaToken = this.getTestData<string>('mfaToken');
+    const totpSecret = this.getTestData<string>('totpSecret');
 
-  const request: MfaVerifyRequest = {
-    mfaToken,
-    code,
-    method: 'TOTP',
-    rememberDevice: false,
-  };
+    if (!mfaToken) {
+      throw new Error('MFA token must be set before verifying');
+    }
 
-  const response = await this.identityApiClient.post<MfaVerifyResponse | MfaVerifyErrorResponse>(
-    '/api/v1/auth/mfa/verify',
-    request
-  );
+    // Generate a code from the previous time step
+    const code = generateTotpCode(totpSecret || '', -1);
 
-  this.setTestData('lastResponse', response);
-  this.setTestData('lastMfaRequest', request);
-});
+    const request: MfaVerifyRequest = {
+      mfaToken,
+      code,
+      method: 'TOTP',
+      rememberDevice: false,
+    };
 
-When('I submit an MFA verification request with a code from the previous time step', async function (this: CustomWorld) {
-  const mfaToken = this.getTestData<string>('mfaToken');
-  const totpSecret = this.getTestData<string>('totpSecret');
+    const response = await this.identityApiClient.post<MfaVerifyResponse | MfaVerifyErrorResponse>(
+      '/api/v1/auth/mfa/verify',
+      request
+    );
 
-  if (!mfaToken) {
-    throw new Error('MFA token must be set before verifying');
+    this.setTestData('lastResponse', response);
   }
-
-  // Generate a code from the previous time step
-  const code = generateTotpCode(totpSecret || '', -1);
-
-  const request: MfaVerifyRequest = {
-    mfaToken,
-    code,
-    method: 'TOTP',
-    rememberDevice: false,
-  };
-
-  const response = await this.identityApiClient.post<MfaVerifyResponse | MfaVerifyErrorResponse>(
-    '/api/v1/auth/mfa/verify',
-    request
-  );
-
-  this.setTestData('lastResponse', response);
-});
+);
 
 When('I create a new MFA challenge for the same user', async function (this: CustomWorld) {
   const email = this.getTestData<string>('testUserEmail');
@@ -222,135 +234,147 @@ When('I create a new MFA challenge for the same user', async function (this: Cus
     throw new Error('Test user credentials must be set');
   }
 
-  const response = await this.identityApiClient.post<SigninMfaResponse>(
-    '/api/v1/auth/signin',
-    {
-      email,
-      password,
-      rememberMe: false,
-    }
-  );
+  const response = await this.identityApiClient.post<SigninMfaResponse>('/api/v1/auth/signin', {
+    email,
+    password,
+    rememberMe: false,
+  });
 
   if (response.status === 200 && response.data.status === 'MFA_REQUIRED') {
     this.setTestData('mfaToken', response.data.mfaToken);
   }
 });
 
-When('I submit an MFA verification request with the same TOTP code', async function (this: CustomWorld) {
-  const mfaToken = this.getTestData<string>('mfaToken');
-  const lastUsedCode = this.getTestData<string>('lastUsedCode');
+When(
+  'I submit an MFA verification request with the same TOTP code',
+  async function (this: CustomWorld) {
+    const mfaToken = this.getTestData<string>('mfaToken');
+    const lastUsedCode = this.getTestData<string>('lastUsedCode');
 
-  if (!mfaToken || !lastUsedCode) {
-    throw new Error('MFA token and previously used code must be set');
-  }
+    if (!mfaToken || !lastUsedCode) {
+      throw new Error('MFA token and previously used code must be set');
+    }
 
-  const request: MfaVerifyRequest = {
-    mfaToken,
-    code: lastUsedCode,
-    method: 'TOTP',
-    rememberDevice: false,
-  };
-
-  const response = await this.identityApiClient.post<MfaVerifyResponse | MfaVerifyErrorResponse>(
-    '/api/v1/auth/mfa/verify',
-    request
-  );
-
-  this.setTestData('lastResponse', response);
-});
-
-When('I submit an MFA verification request with an invalid code', async function (this: CustomWorld) {
-  const mfaToken = this.getTestData<string>('mfaToken');
-
-  if (!mfaToken) {
-    throw new Error('MFA token must be set before verifying');
-  }
-
-  const request: MfaVerifyRequest = {
-    mfaToken,
-    code: '000000', // Invalid code
-    method: 'TOTP',
-    rememberDevice: false,
-  };
-
-  const response = await this.identityApiClient.post<MfaVerifyResponse | MfaVerifyErrorResponse>(
-    '/api/v1/auth/mfa/verify',
-    request
-  );
-
-  this.setTestData('lastResponse', response);
-});
-
-When('I submit {int} MFA verification requests with wrong codes', async function (this: CustomWorld, count: number) {
-  const mfaToken = this.getTestData<string>('mfaToken');
-
-  if (!mfaToken) {
-    throw new Error('MFA token must be set before verifying');
-  }
-
-  let lastResponse: ApiResponse<MfaVerifyResponse | MfaVerifyErrorResponse> | undefined;
-
-  for (let i = 0; i < count; i++) {
     const request: MfaVerifyRequest = {
       mfaToken,
-      code: String(100000 + i).padStart(6, '0'), // Different invalid codes
+      code: lastUsedCode,
       method: 'TOTP',
       rememberDevice: false,
     };
 
-    lastResponse = await this.identityApiClient.post<MfaVerifyResponse | MfaVerifyErrorResponse>(
+    const response = await this.identityApiClient.post<MfaVerifyResponse | MfaVerifyErrorResponse>(
       '/api/v1/auth/mfa/verify',
       request
     );
+
+    this.setTestData('lastResponse', response);
   }
+);
 
-  this.setTestData('lastResponse', lastResponse);
-});
+When(
+  'I submit an MFA verification request with an invalid code',
+  async function (this: CustomWorld) {
+    const mfaToken = this.getTestData<string>('mfaToken');
 
-When('I submit an MFA verification request with:', async function (this: CustomWorld, dataTable: DataTable) {
-  const data = dataTable.rowsHash();
-  const mfaToken = this.getTestData<string>('mfaToken') || data.mfaToken;
+    if (!mfaToken) {
+      throw new Error('MFA token must be set before verifying');
+    }
 
-  const request: MfaVerifyRequest = {
-    mfaToken,
-    code: data.code,
-    method: data.method || 'TOTP',
-    rememberDevice: data.rememberDevice === 'true',
-  };
+    const request: MfaVerifyRequest = {
+      mfaToken,
+      code: '000000', // Invalid code
+      method: 'TOTP',
+      rememberDevice: false,
+    };
 
-  const response = await this.identityApiClient.post<MfaVerifyResponse | MfaVerifyErrorResponse>(
-    '/api/v1/auth/mfa/verify',
-    request
-  );
+    const response = await this.identityApiClient.post<MfaVerifyResponse | MfaVerifyErrorResponse>(
+      '/api/v1/auth/mfa/verify',
+      request
+    );
 
-  this.setTestData('lastResponse', response);
-  this.setTestData('lastMfaRequest', request);
-});
-
-When('I submit an MFA verification request with rememberDevice=true', async function (this: CustomWorld) {
-  const mfaToken = this.getTestData<string>('mfaToken');
-  const totpSecret = this.getTestData<string>('totpSecret');
-
-  if (!mfaToken) {
-    throw new Error('MFA token must be set before verifying');
+    this.setTestData('lastResponse', response);
   }
+);
 
-  const code = generateTotpCode(totpSecret || '');
+When(
+  'I submit {int} MFA verification requests with wrong codes',
+  async function (this: CustomWorld, count: number) {
+    const mfaToken = this.getTestData<string>('mfaToken');
 
-  const request: MfaVerifyRequest = {
-    mfaToken,
-    code,
-    method: 'TOTP',
-    rememberDevice: true,
-  };
+    if (!mfaToken) {
+      throw new Error('MFA token must be set before verifying');
+    }
 
-  const response = await this.identityApiClient.post<MfaVerifyResponse | MfaVerifyErrorResponse>(
-    '/api/v1/auth/mfa/verify',
-    request
-  );
+    let lastResponse: ApiResponse<MfaVerifyResponse | MfaVerifyErrorResponse> | undefined;
 
-  this.setTestData('lastResponse', response);
-});
+    for (let i = 0; i < count; i++) {
+      const request: MfaVerifyRequest = {
+        mfaToken,
+        code: String(100000 + i).padStart(6, '0'), // Different invalid codes
+        method: 'TOTP',
+        rememberDevice: false,
+      };
+
+      lastResponse = await this.identityApiClient.post<MfaVerifyResponse | MfaVerifyErrorResponse>(
+        '/api/v1/auth/mfa/verify',
+        request
+      );
+    }
+
+    this.setTestData('lastResponse', lastResponse);
+  }
+);
+
+When(
+  'I submit an MFA verification request with:',
+  async function (this: CustomWorld, dataTable: DataTable) {
+    const data = dataTable.rowsHash();
+    const mfaToken = this.getTestData<string>('mfaToken') || data.mfaToken;
+
+    const request: MfaVerifyRequest = {
+      mfaToken,
+      code: data.code,
+      method: data.method || 'TOTP',
+      rememberDevice: data.rememberDevice === 'true',
+    };
+
+    const response = await this.identityApiClient.post<MfaVerifyResponse | MfaVerifyErrorResponse>(
+      '/api/v1/auth/mfa/verify',
+      request
+    );
+
+    this.setTestData('lastResponse', response);
+    this.setTestData('lastMfaRequest', request);
+  }
+);
+
+When(
+  'I submit an MFA verification request with rememberDevice=true',
+  async function (this: CustomWorld) {
+    const mfaToken = this.getTestData<string>('mfaToken');
+    const totpSecret = this.getTestData<string>('totpSecret');
+
+    if (!mfaToken) {
+      throw new Error('MFA token must be set before verifying');
+    }
+
+    const code = generateTotpCode(totpSecret || '');
+
+    const request: MfaVerifyRequest = {
+      mfaToken,
+      code,
+      method: 'TOTP',
+      rememberDevice: true,
+    };
+
+    const response = await this.identityApiClient.post<MfaVerifyResponse | MfaVerifyErrorResponse>(
+      '/api/v1/auth/mfa/verify',
+      request
+    );
+
+    this.setTestData('lastResponse', response);
+  }
+);
 
 // ============================================================================
 // THEN Steps
@@ -372,108 +396,134 @@ Then('I store the MFA token from the response', async function (this: CustomWorl
   this.setTestData('mfaMethods', data.mfaMethods);
 });
 
-Then('an MFAChallengeInitiated event should be persisted in the event store', async function (this: CustomWorld) {
-  // This would typically query the event store directly
-  // For now, we verify the request returned MFA_REQUIRED as expected
-  const response = this.getTestData<ApiResponse<SigninMfaResponse>>('lastResponse');
-  expect(response).toBeDefined();
-  expect(response!.status).toBe(200);
-  expect((response!.data as SigninMfaResponse).status).toBe('MFA_REQUIRED');
-});
+Then(
+  'an MFAChallengeInitiated event should be persisted in the event store',
+  async function (this: CustomWorld) {
+    // This would typically query the event store directly
+    // For now, we verify the request returned MFA_REQUIRED as expected
+    const response = this.getTestData<ApiResponse<SigninMfaResponse>>('lastResponse');
+    expect(response).toBeDefined();
+    expect(response!.status).toBe(200);
+    expect((response!.data as SigninMfaResponse).status).toBe('MFA_REQUIRED');
+  }
+);
 
-Then('an MFAVerificationSucceeded event should be persisted in the event store', async function (this: CustomWorld) {
-  // This would typically query the event store directly
-  // For now, we verify the request succeeded
-  const response = this.getTestData<ApiResponse<MfaVerifyResponse>>('lastResponse');
-  expect(response).toBeDefined();
-  expect(response!.status).toBe(200);
-});
+Then(
+  'an MFAVerificationSucceeded event should be persisted in the event store',
+  async function (this: CustomWorld) {
+    // This would typically query the event store directly
+    // For now, we verify the request succeeded
+    const response = this.getTestData<ApiResponse<MfaVerifyResponse>>('lastResponse');
+    expect(response).toBeDefined();
+    expect(response!.status).toBe(200);
+  }
+);
 
-Then('an MFAVerificationFailed event should be persisted in the event store', async function (this: CustomWorld) {
-  // This would typically query the event store directly
-  // For now, we verify the request failed as expected
-  const response = this.getTestData<ApiResponse<MfaVerifyErrorResponse>>('lastResponse');
-  expect(response).toBeDefined();
-  expect(response!.status).toBe(401);
-});
+Then(
+  'an MFAVerificationFailed event should be persisted in the event store',
+  async function (this: CustomWorld) {
+    // This would typically query the event store directly
+    // For now, we verify the request failed as expected
+    const response = this.getTestData<ApiResponse<MfaVerifyErrorResponse>>('lastResponse');
+    expect(response).toBeDefined();
+    expect(response!.status).toBe(401);
+  }
+);
 
-Then('the response should contain {string} with value true', async function (this: CustomWorld, field: string) {
-  const response = this.getTestData<ApiResponse<MfaVerifyResponse>>('lastResponse');
-  expect(response).toBeDefined();
+Then(
+  'the response should contain {string} with value true',
+  async function (this: CustomWorld, field: string) {
+    const response = this.getTestData<ApiResponse<MfaVerifyResponse>>('lastResponse');
+    expect(response).toBeDefined();
 
-  const data = response!.data as Record<string, unknown>;
-  expect(data[field]).toBe(true);
-});
+    const data = response!.data as Record<string, unknown>;
+    expect(data[field]).toBe(true);
+  }
+);
 
-Then('the response should contain {string} with value false', async function (this: CustomWorld, field: string) {
-  const response = this.getTestData<ApiResponse<MfaVerifyResponse>>('lastResponse');
-  expect(response).toBeDefined();
+Then(
+  'the response should contain {string} with value false',
+  async function (this: CustomWorld, field: string) {
+    const response = this.getTestData<ApiResponse<MfaVerifyResponse>>('lastResponse');
+    expect(response).toBeDefined();
 
-  const data = response!.data as Record<string, unknown>;
-  expect(data[field]).toBe(false);
-});
+    const data = response!.data as Record<string, unknown>;
+    expect(data[field]).toBe(false);
+  }
+);
 
 // ============================================================================
 // SMS MFA Steps
 // ============================================================================
 
-Given('the user has SMS MFA enabled with phone number {string}', async function (this: CustomWorld, phoneNumber: string) {
-  const userId = this.getTestData<string>('testUserId');
+Given(
+  'the user has SMS MFA enabled with phone number {string}',
+  async function (this: CustomWorld, phoneNumber: string) {
+    const userId = this.getTestData<string>('testUserId');
 
-  if (!userId) {
-    throw new Error('Test user must be created before enabling SMS MFA');
+    if (!userId) {
+      throw new Error('Test user must be created before enabling SMS MFA');
+    }
+
+    // Enable SMS MFA for the user via the test endpoint
+    const response = await this.identityApiClient.post<{
+      userId: string;
+      mfaEnabled: boolean;
+      smsMfaEnabled: boolean;
+      maskedPhone: string;
+    }>(`/api/v1/test/users/${userId}/enable-sms-mfa`, { phoneNumber });
+
+    if (response.status !== 200) {
+      throw new Error(
+        `Failed to enable SMS MFA for user: ${response.status} - ${JSON.stringify(response.data)}`
+      );
+    }
+
+    this.setTestData('smsMfaEnabled', true);
+    this.setTestData('phoneNumber', phoneNumber);
   }
+);
 
-  // Enable SMS MFA for the user via the test endpoint
-  const response = await this.identityApiClient.post<{ userId: string; mfaEnabled: boolean; smsMfaEnabled: boolean; maskedPhone: string }>(
-    `/api/v1/test/users/${userId}/enable-sms-mfa`,
-    { phoneNumber }
-  );
+Given(
+  'I have completed SMS credential validation and received an MFA token',
+  async function (this: CustomWorld) {
+    const email = this.getTestData<string>('testUserEmail');
+    const password = this.getTestData<string>('testUserPassword');
+    const phoneNumber = this.getTestData<string>('phoneNumber');
 
-  if (response.status !== 200) {
-    throw new Error(`Failed to enable SMS MFA for user: ${response.status} - ${JSON.stringify(response.data)}`);
-  }
+    if (!email || !password) {
+      throw new Error(
+        'Test user email and password must be set before completing credential validation'
+      );
+    }
 
-  this.setTestData('smsMfaEnabled', true);
-  this.setTestData('phoneNumber', phoneNumber);
-});
-
-Given('I have completed SMS credential validation and received an MFA token', async function (this: CustomWorld) {
-  const email = this.getTestData<string>('testUserEmail');
-  const password = this.getTestData<string>('testUserPassword');
-  const phoneNumber = this.getTestData<string>('phoneNumber');
-
-  if (!email || !password) {
-    throw new Error('Test user email and password must be set before completing credential validation');
-  }
-
-  const response = await this.identityApiClient.post<SigninMfaResponse>(
-    '/api/v1/auth/signin',
-    {
+    const response = await this.identityApiClient.post<SigninMfaResponse>('/api/v1/auth/signin', {
       email,
       password,
       rememberMe: false,
+    });
+
+    if (response.status !== 200 || response.data.status !== 'MFA_REQUIRED') {
+      throw new Error(
+        `Expected MFA_REQUIRED response, got: ${response.status} - ${JSON.stringify(response.data)}`
+      );
     }
-  );
 
-  if (response.status !== 200 || response.data.status !== 'MFA_REQUIRED') {
-    throw new Error(`Expected MFA_REQUIRED response, got: ${response.status} - ${JSON.stringify(response.data)}`);
-  }
+    this.setTestData('mfaToken', response.data.mfaToken);
+    this.setTestData('mfaMethods', response.data.mfaMethods);
+    this.setTestData('lastSmsSentAt', Date.now());
 
-  this.setTestData('mfaToken', response.data.mfaToken);
-  this.setTestData('mfaMethods', response.data.mfaMethods);
-  this.setTestData('lastSmsSentAt', Date.now());
-
-  // Fetch the SMS code from the MockSmsProvider
-  if (phoneNumber) {
-    const codeResponse = await this.identityApiClient.get<{ code: string }>(
-      `/api/v1/test/sms/last-code?phoneNumber=${encodeURIComponent(phoneNumber)}`
-    );
-    if (codeResponse.status === 200 && codeResponse.data.code) {
-      this.setTestData('lastSmsCode', codeResponse.data.code);
+    // Fetch the SMS code from the MockSmsProvider
+    if (phoneNumber) {
+      const codeResponse = await this.identityApiClient.get<{ code: string }>(
+        `/api/v1/test/sms/last-code?phoneNumber=${encodeURIComponent(phoneNumber)}`
+      );
+      if (codeResponse.status === 200 && codeResponse.data.code) {
+        this.setTestData('lastSmsCode', codeResponse.data.code);
+      }
     }
   }
-});
+);
 
 Given('I have successfully verified with the SMS code', async function (this: CustomWorld) {
   const mfaToken = this.getTestData<string>('mfaToken');
@@ -499,15 +549,12 @@ Given('I have successfully verified with the SMS code', async function (this: Cu
     throw new Error('SMS code must be available before verifying');
   }
 
-  const response = await this.identityApiClient.post<MfaVerifyResponse>(
-    '/api/v1/auth/mfa/verify',
-    {
-      mfaToken,
-      code,
-      method: 'SMS',
-      rememberDevice: false,
-    }
-  );
+  const response = await this.identityApiClient.post<MfaVerifyResponse>('/api/v1/auth/mfa/verify', {
+    mfaToken,
+    code,
+    method: 'SMS',
+    rememberDevice: false,
+  });
 
   if (response.status !== 200) {
     throw new Error(`Expected successful SMS MFA verification, got: ${response.status}`);
@@ -517,28 +564,33 @@ Given('I have successfully verified with the SMS code', async function (this: Cu
   this.setTestData('lastMfaVerifyResponse', response);
 });
 
-Given('the user has received {int} SMS codes in the last hour', async function (this: CustomWorld, count: number) {
-  const userId = this.getTestData<string>('testUserId');
+Given(
+  'the user has received {int} SMS codes in the last hour',
+  async function (this: CustomWorld, count: number) {
+    const userId = this.getTestData<string>('testUserId');
 
-  if (!userId) {
-    throw new Error('User ID must be set before adding rate limit records');
-  }
-
-  // Add rate limit records via test endpoint
-  const response = await this.identityApiClient.post<{ totalRecords: number }>(
-    '/api/v1/test/sms/add-rate-limit-records',
-    {
-      userId,
-      count,
+    if (!userId) {
+      throw new Error('User ID must be set before adding rate limit records');
     }
-  );
 
-  if (response.status !== 200) {
-    throw new Error(`Failed to add rate limit records: ${response.status} - ${JSON.stringify(response.data)}`);
+    // Add rate limit records via test endpoint
+    const response = await this.identityApiClient.post<{ totalRecords: number }>(
+      '/api/v1/test/sms/add-rate-limit-records',
+      {
+        userId,
+        count,
+      }
+    );
+
+    if (response.status !== 200) {
+      throw new Error(
+        `Failed to add rate limit records: ${response.status} - ${JSON.stringify(response.data)}`
+      );
+    }
+
+    this.setTestData('smsRateLimitReached', response.data.totalRecords >= 3);
   }
-
-  this.setTestData('smsRateLimitReached', response.data.totalRecords >= 3);
-});
+);
 
 Given('I wait for the resend cooldown to elapse', async function (this: CustomWorld) {
   const mfaToken = this.getTestData<string>('mfaToken');
@@ -554,181 +606,201 @@ Given('I wait for the resend cooldown to elapse', async function (this: CustomWo
   );
 
   if (response.status !== 200) {
-    throw new Error(`Failed to reset SMS cooldown: ${response.status} - ${JSON.stringify(response.data)}`);
+    throw new Error(
+      `Failed to reset SMS cooldown: ${response.status} - ${JSON.stringify(response.data)}`
+    );
   }
 
   this.setTestData('cooldownElapsed', true);
 });
 
-When('I submit an MFA verification request with the correct SMS code', async function (this: CustomWorld) {
-  const mfaToken = this.getTestData<string>('mfaToken');
-  const phoneNumber = this.getTestData<string>('phoneNumber');
+When(
+  'I submit an MFA verification request with the correct SMS code',
+  async function (this: CustomWorld) {
+    const mfaToken = this.getTestData<string>('mfaToken');
+    const phoneNumber = this.getTestData<string>('phoneNumber');
 
-  if (!mfaToken) {
-    throw new Error('MFA token must be set before verifying');
-  }
-
-  // Retrieve the actual SMS code from the MockSmsProvider via test endpoint
-  let code = this.getTestData<string>('lastSmsCode');
-  if (!code && phoneNumber) {
-    const codeResponse = await this.identityApiClient.get<{ code: string }>(
-      `/api/v1/test/sms/last-code?phoneNumber=${encodeURIComponent(phoneNumber)}`
-    );
-    if (codeResponse.status === 200 && codeResponse.data.code) {
-      code = codeResponse.data.code;
-      this.setTestData('lastSmsCode', code);
+    if (!mfaToken) {
+      throw new Error('MFA token must be set before verifying');
     }
-  }
 
-  if (!code) {
-    throw new Error('SMS code must be available before verifying. Ensure SMS was sent.');
-  }
-
-  const request: MfaVerifyRequest = {
-    mfaToken,
-    code,
-    method: 'SMS',
-    rememberDevice: false,
-  };
-
-  const response = await this.identityApiClient.post<MfaVerifyResponse | MfaVerifyErrorResponse>(
-    '/api/v1/auth/mfa/verify',
-    request
-  );
-
-  this.setTestData('lastResponse', response);
-  this.setTestData('lastMfaRequest', request);
-});
-
-When('I submit an SMS MFA verification request with an invalid code', async function (this: CustomWorld) {
-  const mfaToken = this.getTestData<string>('mfaToken');
-
-  if (!mfaToken) {
-    throw new Error('MFA token must be set before verifying');
-  }
-
-  const request: MfaVerifyRequest = {
-    mfaToken,
-    code: '000000', // Invalid code
-    method: 'SMS',
-    rememberDevice: false,
-  };
-
-  const response = await this.identityApiClient.post<MfaVerifyResponse | MfaVerifyErrorResponse>(
-    '/api/v1/auth/mfa/verify',
-    request
-  );
-
-  this.setTestData('lastResponse', response);
-});
-
-When('I submit an SMS MFA verification request with the correct code', async function (this: CustomWorld) {
-  const mfaToken = this.getTestData<string>('mfaToken');
-  const phoneNumber = this.getTestData<string>('phoneNumber');
-
-  if (!mfaToken) {
-    throw new Error('MFA token must be set before verifying');
-  }
-
-  // Retrieve the actual SMS code from the MockSmsProvider via test endpoint
-  let code = this.getTestData<string>('lastSmsCode');
-  if (!code && phoneNumber) {
-    const codeResponse = await this.identityApiClient.get<{ code: string }>(
-      `/api/v1/test/sms/last-code?phoneNumber=${encodeURIComponent(phoneNumber)}`
-    );
-    if (codeResponse.status === 200 && codeResponse.data.code) {
-      code = codeResponse.data.code;
-      this.setTestData('lastSmsCode', code);
+    // Retrieve the actual SMS code from the MockSmsProvider via test endpoint
+    let code = this.getTestData<string>('lastSmsCode');
+    if (!code && phoneNumber) {
+      const codeResponse = await this.identityApiClient.get<{ code: string }>(
+        `/api/v1/test/sms/last-code?phoneNumber=${encodeURIComponent(phoneNumber)}`
+      );
+      if (codeResponse.status === 200 && codeResponse.data.code) {
+        code = codeResponse.data.code;
+        this.setTestData('lastSmsCode', code);
+      }
     }
-  }
 
-  if (!code) {
-    throw new Error('SMS code must be available before verifying. Ensure SMS was sent.');
-  }
+    if (!code) {
+      throw new Error('SMS code must be available before verifying. Ensure SMS was sent.');
+    }
 
-  const request: MfaVerifyRequest = {
-    mfaToken,
-    code,
-    method: 'SMS',
-    rememberDevice: false,
-  };
-
-  const response = await this.identityApiClient.post<MfaVerifyResponse | MfaVerifyErrorResponse>(
-    '/api/v1/auth/mfa/verify',
-    request
-  );
-
-  this.setTestData('lastResponse', response);
-});
-
-When('I submit {int} SMS MFA verification requests with wrong codes', async function (this: CustomWorld, count: number) {
-  const mfaToken = this.getTestData<string>('mfaToken');
-
-  if (!mfaToken) {
-    throw new Error('MFA token must be set before verifying');
-  }
-
-  let lastResponse: ApiResponse<MfaVerifyResponse | MfaVerifyErrorResponse> | undefined;
-
-  for (let i = 0; i < count; i++) {
     const request: MfaVerifyRequest = {
       mfaToken,
-      code: String(100000 + i).padStart(6, '0'), // Different invalid codes
+      code,
       method: 'SMS',
       rememberDevice: false,
     };
 
-    lastResponse = await this.identityApiClient.post<MfaVerifyResponse | MfaVerifyErrorResponse>(
+    const response = await this.identityApiClient.post<MfaVerifyResponse | MfaVerifyErrorResponse>(
       '/api/v1/auth/mfa/verify',
       request
     );
+
+    this.setTestData('lastResponse', response);
+    this.setTestData('lastMfaRequest', request);
   }
+);
 
-  this.setTestData('lastResponse', lastResponse);
-});
+When(
+  'I submit an SMS MFA verification request with an invalid code',
+  async function (this: CustomWorld) {
+    const mfaToken = this.getTestData<string>('mfaToken');
 
-When('I submit an MFA verification request with the same SMS code', async function (this: CustomWorld) {
-  const mfaToken = this.getTestData<string>('mfaToken');
-  const lastUsedCode = this.getTestData<string>('lastUsedSmsCode');
+    if (!mfaToken) {
+      throw new Error('MFA token must be set before verifying');
+    }
 
-  if (!mfaToken || !lastUsedCode) {
-    throw new Error('MFA token and previously used code must be set');
+    const request: MfaVerifyRequest = {
+      mfaToken,
+      code: '000000', // Invalid code
+      method: 'SMS',
+      rememberDevice: false,
+    };
+
+    const response = await this.identityApiClient.post<MfaVerifyResponse | MfaVerifyErrorResponse>(
+      '/api/v1/auth/mfa/verify',
+      request
+    );
+
+    this.setTestData('lastResponse', response);
   }
+);
 
-  const request: MfaVerifyRequest = {
-    mfaToken,
-    code: lastUsedCode,
-    method: 'SMS',
-    rememberDevice: false,
-  };
+When(
+  'I submit an SMS MFA verification request with the correct code',
+  async function (this: CustomWorld) {
+    const mfaToken = this.getTestData<string>('mfaToken');
+    const phoneNumber = this.getTestData<string>('phoneNumber');
 
-  const response = await this.identityApiClient.post<MfaVerifyResponse | MfaVerifyErrorResponse>(
-    '/api/v1/auth/mfa/verify',
-    request
-  );
+    if (!mfaToken) {
+      throw new Error('MFA token must be set before verifying');
+    }
 
-  this.setTestData('lastResponse', response);
-});
+    // Retrieve the actual SMS code from the MockSmsProvider via test endpoint
+    let code = this.getTestData<string>('lastSmsCode');
+    if (!code && phoneNumber) {
+      const codeResponse = await this.identityApiClient.get<{ code: string }>(
+        `/api/v1/test/sms/last-code?phoneNumber=${encodeURIComponent(phoneNumber)}`
+      );
+      if (codeResponse.status === 200 && codeResponse.data.code) {
+        code = codeResponse.data.code;
+        this.setTestData('lastSmsCode', code);
+      }
+    }
 
-When('I submit an SMS MFA verification request with:', async function (this: CustomWorld, dataTable: DataTable) {
-  const data = dataTable.rowsHash();
-  const mfaToken = this.getTestData<string>('mfaToken') || data.mfaToken;
+    if (!code) {
+      throw new Error('SMS code must be available before verifying. Ensure SMS was sent.');
+    }
 
-  const request: MfaVerifyRequest = {
-    mfaToken,
-    code: data.code,
-    method: data.method || 'SMS',
-    rememberDevice: data.rememberDevice === 'true',
-  };
+    const request: MfaVerifyRequest = {
+      mfaToken,
+      code,
+      method: 'SMS',
+      rememberDevice: false,
+    };
 
-  const response = await this.identityApiClient.post<MfaVerifyResponse | MfaVerifyErrorResponse>(
-    '/api/v1/auth/mfa/verify',
-    request
-  );
+    const response = await this.identityApiClient.post<MfaVerifyResponse | MfaVerifyErrorResponse>(
+      '/api/v1/auth/mfa/verify',
+      request
+    );
 
-  this.setTestData('lastResponse', response);
-  this.setTestData('lastMfaRequest', request);
-});
+    this.setTestData('lastResponse', response);
+  }
+);
+
+When(
+  'I submit {int} SMS MFA verification requests with wrong codes',
+  async function (this: CustomWorld, count: number) {
+    const mfaToken = this.getTestData<string>('mfaToken');
+
+    if (!mfaToken) {
+      throw new Error('MFA token must be set before verifying');
+    }
+
+    let lastResponse: ApiResponse<MfaVerifyResponse | MfaVerifyErrorResponse> | undefined;
+
+    for (let i = 0; i < count; i++) {
+      const request: MfaVerifyRequest = {
+        mfaToken,
+        code: String(100000 + i).padStart(6, '0'), // Different invalid codes
+        method: 'SMS',
+        rememberDevice: false,
+      };
+
+      lastResponse = await this.identityApiClient.post<MfaVerifyResponse | MfaVerifyErrorResponse>(
+        '/api/v1/auth/mfa/verify',
+        request
+      );
+    }
+
+    this.setTestData('lastResponse', lastResponse);
+  }
+);
+
+When(
+  'I submit an MFA verification request with the same SMS code',
+  async function (this: CustomWorld) {
+    const mfaToken = this.getTestData<string>('mfaToken');
+    const lastUsedCode = this.getTestData<string>('lastUsedSmsCode');
+
+    if (!mfaToken || !lastUsedCode) {
+      throw new Error('MFA token and previously used code must be set');
+    }
+
+    const request: MfaVerifyRequest = {
+      mfaToken,
+      code: lastUsedCode,
+      method: 'SMS',
+      rememberDevice: false,
+    };
+
+    const response = await this.identityApiClient.post<MfaVerifyResponse | MfaVerifyErrorResponse>(
+      '/api/v1/auth/mfa/verify',
+      request
+    );
+
+    this.setTestData('lastResponse', response);
+  }
+);
+
+When(
+  'I submit an SMS MFA verification request with:',
+  async function (this: CustomWorld, dataTable: DataTable) {
+    const data = dataTable.rowsHash();
+    const mfaToken = this.getTestData<string>('mfaToken') || data.mfaToken;
+
+    const request: MfaVerifyRequest = {
+      mfaToken,
+      code: data.code,
+      method: data.method || 'SMS',
+      rememberDevice: data.rememberDevice === 'true',
+    };
+
+    const response = await this.identityApiClient.post<MfaVerifyResponse | MfaVerifyErrorResponse>(
+      '/api/v1/auth/mfa/verify',
+      request
+    );
+
+    this.setTestData('lastResponse', response);
+    this.setTestData('lastMfaRequest', request);
+  }
+);
 
 When('I request to resend the SMS code', async function (this: CustomWorld) {
   const mfaToken = this.getTestData<string>('mfaToken');
@@ -772,25 +844,28 @@ When('I request to resend the SMS code immediately', async function (this: Custo
   this.setTestData('lastResponse', response);
 });
 
-When('I request to resend the code with method {string}', async function (this: CustomWorld, method: string) {
-  const mfaToken = this.getTestData<string>('mfaToken');
+When(
+  'I request to resend the code with method {string}',
+  async function (this: CustomWorld, method: string) {
+    const mfaToken = this.getTestData<string>('mfaToken');
 
-  if (!mfaToken) {
-    throw new Error('MFA token must be set before requesting resend');
+    if (!mfaToken) {
+      throw new Error('MFA token must be set before requesting resend');
+    }
+
+    const request: MfaResendRequest = {
+      mfaToken,
+      method,
+    };
+
+    const response = await this.identityApiClient.post<MfaResendResponse | MfaResendErrorResponse>(
+      '/api/v1/auth/mfa/resend',
+      request
+    );
+
+    this.setTestData('lastResponse', response);
   }
-
-  const request: MfaResendRequest = {
-    mfaToken,
-    method,
-  };
-
-  const response = await this.identityApiClient.post<MfaResendResponse | MfaResendErrorResponse>(
-    '/api/v1/auth/mfa/resend',
-    request
-  );
-
-  this.setTestData('lastResponse', response);
-});
+);
 
 Then('the sent SMS code should be 6 numeric digits', async function (this: CustomWorld) {
   const phoneNumber = this.getTestData<string>('phoneNumber');
@@ -815,32 +890,38 @@ Then('the sent SMS code should be 6 numeric digits', async function (this: Custo
   expect(code).toMatch(/^\d{6}$/);
 });
 
-Then('the response should contain {string} with value containing {string}', async function (this: CustomWorld, field: string, value: string) {
-  const response = this.getTestData<ApiResponse<Record<string, unknown>>>('lastResponse');
-  expect(response).toBeDefined();
+Then(
+  'the response should contain {string} with value containing {string}',
+  async function (this: CustomWorld, field: string, value: string) {
+    const response = this.getTestData<ApiResponse<Record<string, unknown>>>('lastResponse');
+    expect(response).toBeDefined();
 
-  const data = response!.data;
-  const fieldValue = data[field];
+    const data = response!.data;
+    const fieldValue = data[field];
 
-  if (Array.isArray(fieldValue)) {
-    expect(fieldValue).toContain(value);
-  } else if (typeof fieldValue === 'string') {
-    expect(fieldValue).toContain(value);
-  } else {
-    throw new Error(`Field ${field} is not an array or string`);
+    if (Array.isArray(fieldValue)) {
+      expect(fieldValue).toContain(value);
+    } else if (typeof fieldValue === 'string') {
+      expect(fieldValue).toContain(value);
+    } else {
+      throw new Error(`Field ${field} is not an array or string`);
+    }
   }
-});
+);
 
-Then('the response should contain {string} matching pattern {string}', async function (this: CustomWorld, field: string, pattern: string) {
-  const response = this.getTestData<ApiResponse<Record<string, unknown>>>('lastResponse');
-  expect(response).toBeDefined();
+Then(
+  'the response should contain {string} matching pattern {string}',
+  async function (this: CustomWorld, field: string, pattern: string) {
+    const response = this.getTestData<ApiResponse<Record<string, unknown>>>('lastResponse');
+    expect(response).toBeDefined();
 
-  const data = response!.data;
-  const fieldValue = data[field];
+    const data = response!.data;
+    const fieldValue = data[field];
 
-  expect(typeof fieldValue).toBe('string');
-  expect(fieldValue).toMatch(new RegExp(pattern));
-});
+    expect(typeof fieldValue).toBe('string');
+    expect(fieldValue).toMatch(new RegExp(pattern));
+  }
+);
 
 // ============================================================================
 // Helper Functions
@@ -861,7 +942,7 @@ function generateTotpCode(secret: string, offset: number = 0): string {
   }
 
   const period = 30; // TOTP time step in seconds
-  const epoch = Math.floor(Date.now() / 1000) + (offset * period);
+  const epoch = Math.floor(Date.now() / 1000) + offset * period;
 
   return generateSync({ secret, epoch });
 }

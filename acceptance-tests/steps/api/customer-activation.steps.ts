@@ -82,117 +82,106 @@ Given(
   }
 );
 
-Given(
-  'the customer profile has been created',
-  async function (this: CustomWorld) {
-    const email = this.getTestData<string>('registeredEmail');
-    expect(email).toBeDefined();
+Given('the customer profile has been created', async function (this: CustomWorld) {
+  const email = this.getTestData<string>('registeredEmail');
+  expect(email).toBeDefined();
 
-    // Wait for customer profile to be created
-    let customerProfile: CustomerResponse | undefined;
-    const found = await waitFor(async () => {
-      try {
-        const response = await this.customerApiClient.get<CustomerResponse>(
-          `/api/v1/customers/by-email/${encodeURIComponent(email!)}`
-        );
-        if (response.status === 200) {
-          customerProfile = response.data;
-          return true;
-        }
-        return false;
-      } catch {
-        return false;
-      }
-    }, 10000);
-
-    expect(found).toBe(true);
-    expect(customerProfile).toBeDefined();
-    this.setTestData('customerProfile', customerProfile);
-    this.setTestData('customerId', customerProfile!.customerId);
-  }
-);
-
-Given(
-  'the user has verified their email',
-  async function (this: CustomWorld) {
-    const userId = this.getTestData<string>('registeredUserId');
-    expect(userId).toBeDefined();
-
-    // Get the verification token from Identity Service (test-only endpoint)
-    // Note: In real tests, we'd need a test endpoint or database access to get the token
-    // For now, we'll call a test helper endpoint if available, or simulate verification
-    const tokenResponse = await this.identityApiClient.get<{ token: string }>(
-      `/api/v1/test/users/${userId}/verification-token`
-    );
-
-    if (tokenResponse.status === 200) {
-      // Verify using the token
-      await this.identityApiClient.get(
-        `/api/v1/users/verify?token=${tokenResponse.data.token}`,
-        { redirect: 'manual' }
+  // Wait for customer profile to be created
+  let customerProfile: CustomerResponse | undefined;
+  const found = await waitFor(async () => {
+    try {
+      const response = await this.customerApiClient.get<CustomerResponse>(
+        `/api/v1/customers/by-email/${encodeURIComponent(email!)}`
       );
-    }
-
-    this.setTestData('userVerified', true);
-  }
-);
-
-Given(
-  'the customer has been activated',
-  async function (this: CustomWorld) {
-    const email = this.getTestData<string>('registeredEmail');
-    const userId = this.getTestData<string>('registeredUserId');
-    expect(email).toBeDefined();
-    expect(userId).toBeDefined();
-
-    // First, wait for the customer profile to be created
-    const profileCreated = await waitFor(async () => {
-      try {
-        const response = await this.customerApiClient.get<CustomerResponse>(
-          `/api/v1/customers/by-email/${encodeURIComponent(email!)}`
-        );
-        return response.status === 200;
-      } catch {
-        return false;
+      if (response.status === 200) {
+        customerProfile = response.data;
+        return true;
       }
-    }, 10000);
-    expect(profileCreated).toBe(true);
+      return false;
+    } catch {
+      return false;
+    }
+  }, 10000);
 
-    // Then verify the email to trigger activation
-    const tokenResponse = await this.identityApiClient.get<{ token: string }>(
-      `/api/v1/test/users/${userId}/verification-token`
-    );
+  expect(found).toBe(true);
+  expect(customerProfile).toBeDefined();
+  this.setTestData('customerProfile', customerProfile);
+  this.setTestData('customerId', customerProfile!.customerId);
+});
 
-    if (tokenResponse.status === 200) {
-      await this.identityApiClient.get(
-        `/api/v1/users/verify?token=${tokenResponse.data.token}`,
-        { redirect: 'manual' }
+Given('the user has verified their email', async function (this: CustomWorld) {
+  const userId = this.getTestData<string>('registeredUserId');
+  expect(userId).toBeDefined();
+
+  // Get the verification token from Identity Service (test-only endpoint)
+  // Note: In real tests, we'd need a test endpoint or database access to get the token
+  // For now, we'll call a test helper endpoint if available, or simulate verification
+  const tokenResponse = await this.identityApiClient.get<{ token: string }>(
+    `/api/v1/test/users/${userId}/verification-token`
+  );
+
+  if (tokenResponse.status === 200) {
+    // Verify using the token
+    await this.identityApiClient.get(`/api/v1/users/verify?token=${tokenResponse.data.token}`, {
+      redirect: 'manual',
+    });
+  }
+
+  this.setTestData('userVerified', true);
+});
+
+Given('the customer has been activated', async function (this: CustomWorld) {
+  const email = this.getTestData<string>('registeredEmail');
+  const userId = this.getTestData<string>('registeredUserId');
+  expect(email).toBeDefined();
+  expect(userId).toBeDefined();
+
+  // First, wait for the customer profile to be created
+  const profileCreated = await waitFor(async () => {
+    try {
+      const response = await this.customerApiClient.get<CustomerResponse>(
+        `/api/v1/customers/by-email/${encodeURIComponent(email!)}`
       );
+      return response.status === 200;
+    } catch {
+      return false;
     }
+  }, 10000);
+  expect(profileCreated).toBe(true);
 
-    // Wait for customer to be activated
-    let customerProfile: CustomerResponse | undefined;
-    const activated = await waitFor(async () => {
-      try {
-        const response = await this.customerApiClient.get<CustomerResponse>(
-          `/api/v1/customers/by-email/${encodeURIComponent(email!)}`
-        );
-        if (response.status === 200 && response.data.status === 'ACTIVE') {
-          customerProfile = response.data;
-          return true;
-        }
-        return false;
-      } catch {
-        return false;
-      }
-    }, 10000);
+  // Then verify the email to trigger activation
+  const tokenResponse = await this.identityApiClient.get<{ token: string }>(
+    `/api/v1/test/users/${userId}/verification-token`
+  );
 
-    expect(activated).toBe(true);
-    expect(customerProfile).toBeDefined();
-    this.setTestData('customerProfile', customerProfile);
-    this.setTestData('customerActivated', true);
+  if (tokenResponse.status === 200) {
+    await this.identityApiClient.get(`/api/v1/users/verify?token=${tokenResponse.data.token}`, {
+      redirect: 'manual',
+    });
   }
-);
+
+  // Wait for customer to be activated
+  let customerProfile: CustomerResponse | undefined;
+  const activated = await waitFor(async () => {
+    try {
+      const response = await this.customerApiClient.get<CustomerResponse>(
+        `/api/v1/customers/by-email/${encodeURIComponent(email!)}`
+      );
+      if (response.status === 200 && response.data.status === 'ACTIVE') {
+        customerProfile = response.data;
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  }, 10000);
+
+  expect(activated).toBe(true);
+  expect(customerProfile).toBeDefined();
+  this.setTestData('customerProfile', customerProfile);
+  this.setTestData('customerActivated', true);
+});
 
 When('the user verifies their email', async function (this: CustomWorld) {
   const userId = this.getTestData<string>('registeredUserId');
@@ -243,14 +232,11 @@ When('the customer profile is activated', async function (this: CustomWorld) {
   this.setTestData('customerProfile', customerProfile);
 });
 
-When(
-  'the same UserActivated event is received again',
-  async function (this: CustomWorld) {
-    // This simulates a duplicate event - we just note it for the Then step
-    // In reality, Kafka would handle this via consumer group offsets
-    this.setTestData('duplicateEventSent', true);
-  }
-);
+When('the same UserActivated event is received again', async function (this: CustomWorld) {
+  // This simulates a duplicate event - we just note it for the Then step
+  // In reality, Kafka would handle this via consumer group offsets
+  this.setTestData('duplicateEventSent', true);
+});
 
 Then(
   'the customer status should transition to {string} within {int} seconds',

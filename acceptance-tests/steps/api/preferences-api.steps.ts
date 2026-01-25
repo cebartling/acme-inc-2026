@@ -1,6 +1,6 @@
-import { Given, When, Then, DataTable } from "@cucumber/cucumber";
-import { expect } from "@playwright/test";
-import { CustomWorld } from "../../support/world.js";
+import { Given, When, Then, DataTable } from '@cucumber/cucumber';
+import { expect } from '@playwright/test';
+import { CustomWorld } from '../../support/world.js';
 
 interface PreferencesRequest {
   communication?: {
@@ -62,25 +62,23 @@ function tableToPreferencesRequest(table: DataTable): PreferencesRequest {
   for (const row of rows) {
     const path = row.path;
     const value = row.value;
-    const parts = path.split(".");
+    const parts = path.split('.');
 
-    if (parts[0] === "communication") {
+    if (parts[0] === 'communication') {
       if (!request.communication) request.communication = {};
-      const key = parts[1] as keyof NonNullable<
-        PreferencesRequest["communication"]
-      >;
-      if (key === "frequency") {
+      const key = parts[1] as keyof NonNullable<PreferencesRequest['communication']>;
+      if (key === 'frequency') {
         request.communication[key] = value;
       } else {
-        request.communication[key] = value === "true";
+        request.communication[key] = value === 'true';
       }
-    } else if (parts[0] === "privacy") {
+    } else if (parts[0] === 'privacy') {
       if (!request.privacy) request.privacy = {};
-      const key = parts[1] as keyof NonNullable<PreferencesRequest["privacy"]>;
-      request.privacy[key] = value === "true";
-    } else if (parts[0] === "display") {
+      const key = parts[1] as keyof NonNullable<PreferencesRequest['privacy']>;
+      request.privacy[key] = value === 'true';
+    } else if (parts[0] === 'display') {
       if (!request.display) request.display = {};
-      const key = parts[1] as keyof NonNullable<PreferencesRequest["display"]>;
+      const key = parts[1] as keyof NonNullable<PreferencesRequest['display']>;
       request.display[key] = value;
     }
   }
@@ -92,7 +90,7 @@ function tableToPreferencesRequest(table: DataTable): PreferencesRequest {
  * Helper function to get nested value from response by dot-notation path.
  */
 function getNestedValue(obj: unknown, path: string): unknown {
-  const parts = path.split(".");
+  const parts = path.split('.');
   let current = obj as Record<string, unknown>;
 
   for (const part of parts) {
@@ -113,26 +111,21 @@ async function ensureTestCustomerWithPhoneStatus(
   world: CustomWorld,
   phoneVerified: boolean
 ): Promise<void> {
-  const customerId = world.getTestData<string>("customerId");
-  const userId = world.getTestData<string>("userId");
+  const customerId = world.getTestData<string>('customerId');
+  const userId = world.getTestData<string>('userId');
 
   // First, ensure the test customer exists
   try {
-    await world.customerApiClient.post("/api/v1/test/customers", {
+    await world.customerApiClient.post('/api/v1/test/customers', {
       customerId,
       userId,
-      phoneNumber: phoneVerified ? "5551234567" : null,
-      phoneCountryCode: phoneVerified ? "+1" : null,
+      phoneNumber: phoneVerified ? '5551234567' : null,
+      phoneCountryCode: phoneVerified ? '+1' : null,
       phoneVerified,
     });
   } catch (error: unknown) {
     // Customer might already exist, that's okay
-    if (
-      error &&
-      typeof error === "object" &&
-      "response" in error &&
-      error.response
-    ) {
+    if (error && typeof error === 'object' && 'response' in error && error.response) {
       const err = error as { response: { status: number } };
       if (err.response.status !== 200 && err.response.status !== 409) {
         throw error;
@@ -142,14 +135,11 @@ async function ensureTestCustomerWithPhoneStatus(
 
   // Update phone verification status
   try {
-    await world.customerApiClient.put(
-      `/api/v1/test/customers/${customerId}/phone-verification`,
-      {
-        verified: phoneVerified,
-        phoneNumber: phoneVerified ? "5551234567" : null,
-        phoneCountryCode: phoneVerified ? "+1" : null,
-      }
-    );
+    await world.customerApiClient.put(`/api/v1/test/customers/${customerId}/phone-verification`, {
+      verified: phoneVerified,
+      phoneNumber: phoneVerified ? '5551234567' : null,
+      phoneCountryCode: phoneVerified ? '+1' : null,
+    });
   } catch (error: unknown) {
     // Log but don't fail - the test helper might not be available
     console.warn(
@@ -158,63 +148,53 @@ async function ensureTestCustomerWithPhoneStatus(
     );
   }
 
-  world.setTestData("phoneVerified", phoneVerified);
+  world.setTestData('phoneVerified', phoneVerified);
 }
 
-Given("my phone number is not verified", async function (this: CustomWorld) {
+Given('my phone number is not verified', async function (this: CustomWorld) {
   await ensureTestCustomerWithPhoneStatus(this, false);
 });
 
-Given("my phone number is verified", async function (this: CustomWorld) {
+Given('my phone number is verified', async function (this: CustomWorld) {
   await ensureTestCustomerWithPhoneStatus(this, true);
 });
 
-Given(
-  "my current preferences are:",
-  async function (this: CustomWorld, table: DataTable) {
-    const customerId = this.getTestData<string>("customerId");
-    const userId = this.getTestData<string>("userId");
-    const prefs = tableToPreferencesRequest(table);
+Given('my current preferences are:', async function (this: CustomWorld, table: DataTable) {
+  const customerId = this.getTestData<string>('customerId');
+  const userId = this.getTestData<string>('userId');
+  const prefs = tableToPreferencesRequest(table);
 
-    // Set up initial preferences via API
-    try {
-      const response = await this.customerApiClient.put<PreferencesResponse>(
-        `/api/v1/customers/${customerId}/preferences`,
-        prefs,
-        { headers: { "X-User-Id": userId! } }
-      );
+  // Set up initial preferences via API
+  try {
+    const response = await this.customerApiClient.put<PreferencesResponse>(
+      `/api/v1/customers/${customerId}/preferences`,
+      prefs,
+      { headers: { 'X-User-Id': userId! } }
+    );
 
-      if (response.status !== 200) {
-        throw new Error(
-          `Failed to set initial preferences: ${response.status}`
-        );
-      }
-
-      this.setTestData("initialPreferences", prefs);
-    } catch (error: unknown) {
-      if (
-        error &&
-        typeof error === "object" &&
-        "response" in error &&
-        error.response
-      ) {
-        const err = error as {
-          response: { status: number; data: ErrorResponse };
-        };
-        throw new Error(
-          `Failed to set initial preferences: ${err.response.status} - ${JSON.stringify(err.response.data)}`
-        );
-      }
-      throw error;
+    if (response.status !== 200) {
+      throw new Error(`Failed to set initial preferences: ${response.status}`);
     }
+
+    this.setTestData('initialPreferences', prefs);
+  } catch (error: unknown) {
+    if (error && typeof error === 'object' && 'response' in error && error.response) {
+      const err = error as {
+        response: { status: number; data: ErrorResponse };
+      };
+      throw new Error(
+        `Failed to set initial preferences: ${err.response.status} - ${JSON.stringify(err.response.data)}`
+      );
+    }
+    throw error;
   }
-);
+});
 
 Given(
-  "my current preferences have {string} set to {string}",
+  'my current preferences have {string} set to {string}',
   async function (this: CustomWorld, path: string, value: string) {
-    const customerId = this.getTestData<string>("customerId");
-    const userId = this.getTestData<string>("userId");
+    const customerId = this.getTestData<string>('customerId');
+    const userId = this.getTestData<string>('userId');
 
     // Build a preferences request with just this one field
     const mockTable = {
@@ -227,7 +207,7 @@ Given(
       await this.customerApiClient.put<PreferencesResponse>(
         `/api/v1/customers/${customerId}/preferences`,
         prefs,
-        { headers: { "X-User-Id": userId! } }
+        { headers: { 'X-User-Id': userId! } }
       );
 
       // Store the current value for later verification
@@ -241,19 +221,19 @@ Given(
 );
 
 Given(
-  "another customer exists with id {string}",
+  'another customer exists with id {string}',
   async function (this: CustomWorld, customerId: string) {
     // Normalize the customer ID to a valid UUID if it's a placeholder
     const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     const normalizedCustomerId = uuidPattern.test(customerId)
       ? customerId
-      : "00000000-0000-0000-0000-000000000099";
+      : '00000000-0000-0000-0000-000000000099';
 
     // Generate a different user ID for this customer (not the current user)
-    const otherUserId = "00000000-0000-0000-0000-000000000098";
+    const otherUserId = '00000000-0000-0000-0000-000000000098';
 
     // Create the other customer in the database
-    const response = await this.customerApiClient.post("/api/v1/test/customers", {
+    const response = await this.customerApiClient.post('/api/v1/test/customers', {
       customerId: normalizedCustomerId,
       userId: otherUserId,
       phoneNumber: null,
@@ -265,76 +245,63 @@ Given(
     if (response.status !== 200 && response.status !== 201 && response.status !== 409) {
       console.warn(
         `Warning: Could not create other test customer. Status: ${response.status}. ` +
-        `Response: ${JSON.stringify(response.data)}`
+          `Response: ${JSON.stringify(response.data)}`
       );
     }
 
-    this.setTestData("otherCustomerId", normalizedCustomerId);
-    this.setTestData("otherUserId", otherUserId);
+    this.setTestData('otherCustomerId', normalizedCustomerId);
+    this.setTestData('otherUserId', otherUserId);
   }
 );
 
-When(
-  "I update my preferences with:",
-  async function (this: CustomWorld, table: DataTable) {
-    const customerId = this.getTestData<string>("customerId");
-    const userId = this.getTestData<string>("userId");
-    const request = tableToPreferencesRequest(table);
+When('I update my preferences with:', async function (this: CustomWorld, table: DataTable) {
+  const customerId = this.getTestData<string>('customerId');
+  const userId = this.getTestData<string>('userId');
+  const request = tableToPreferencesRequest(table);
 
-    try {
-      const response = await this.customerApiClient.put<PreferencesResponse>(
-        `/api/v1/customers/${customerId}/preferences`,
-        request,
-        { headers: { "X-User-Id": userId! } }
-      );
+  try {
+    const response = await this.customerApiClient.put<PreferencesResponse>(
+      `/api/v1/customers/${customerId}/preferences`,
+      request,
+      { headers: { 'X-User-Id': userId! } }
+    );
 
-      this.setTestData("lastResponse", response);
-      this.setTestData("lastResponseStatus", response.status);
-      this.setTestData("lastResponseData", response.data);
-    } catch (error: unknown) {
-      // Handle error responses
-      if (
-        error &&
-        typeof error === "object" &&
-        "response" in error &&
-        error.response
-      ) {
-        const err = error as {
-          response: { status: number; data: ErrorResponse };
-        };
-        this.setTestData("lastResponseStatus", err.response.status);
-        this.setTestData("lastResponseData", err.response.data);
-      } else {
-        throw error;
-      }
+    this.setTestData('lastResponse', response);
+    this.setTestData('lastResponseStatus', response.status);
+    this.setTestData('lastResponseData', response.data);
+  } catch (error: unknown) {
+    // Handle error responses
+    if (error && typeof error === 'object' && 'response' in error && error.response) {
+      const err = error as {
+        response: { status: number; data: ErrorResponse };
+      };
+      this.setTestData('lastResponseStatus', err.response.status);
+      this.setTestData('lastResponseData', err.response.data);
+    } else {
+      throw error;
     }
   }
-);
+});
 
-When("I request my preferences", async function (this: CustomWorld) {
-  const customerId = this.getTestData<string>("customerId");
-  const userId = this.getTestData<string>("userId");
+When('I request my preferences', async function (this: CustomWorld) {
+  const customerId = this.getTestData<string>('customerId');
+  const userId = this.getTestData<string>('userId');
 
   try {
     const response = await this.customerApiClient.get<PreferencesResponse>(
       `/api/v1/customers/${customerId}/preferences`,
-      { headers: { "X-User-Id": userId! } }
+      { headers: { 'X-User-Id': userId! } }
     );
 
-    this.setTestData("lastResponseStatus", response.status);
-    this.setTestData("lastResponseData", response.data);
+    this.setTestData('lastResponseStatus', response.status);
+    this.setTestData('lastResponseData', response.data);
   } catch (error: unknown) {
-    if (
-      error &&
-      typeof error === "object" &&
-      "response" in error &&
-      error.response
-    ) {
+    if (error && typeof error === 'object' && 'response' in error && error.response) {
       const err = error as {
         response: { status: number; data: ErrorResponse };
       };
-      this.setTestData("lastResponseStatus", err.response.status);
-      this.setTestData("lastResponseData", err.response.data);
+      this.setTestData('lastResponseStatus', err.response.status);
+      this.setTestData('lastResponseData', err.response.data);
     } else {
       throw error;
     }
@@ -342,30 +309,25 @@ When("I request my preferences", async function (this: CustomWorld) {
 });
 
 When(
-  "I try to get preferences for customer {string}",
+  'I try to get preferences for customer {string}',
   async function (this: CustomWorld, customerId: string) {
-    const userId = this.getTestData<string>("userId");
+    const userId = this.getTestData<string>('userId');
 
     try {
       const response = await this.customerApiClient.get<PreferencesResponse>(
         `/api/v1/customers/${customerId}/preferences`,
-        { headers: { "X-User-Id": userId! } }
+        { headers: { 'X-User-Id': userId! } }
       );
 
-      this.setTestData("lastResponseStatus", response.status);
-      this.setTestData("lastResponseData", response.data);
+      this.setTestData('lastResponseStatus', response.status);
+      this.setTestData('lastResponseData', response.data);
     } catch (error: unknown) {
-      if (
-        error &&
-        typeof error === "object" &&
-        "response" in error &&
-        error.response
-      ) {
+      if (error && typeof error === 'object' && 'response' in error && error.response) {
         const err = error as {
           response: { status: number; data: ErrorResponse };
         };
-        this.setTestData("lastResponseStatus", err.response.status);
-        this.setTestData("lastResponseData", err.response.data);
+        this.setTestData('lastResponseStatus', err.response.status);
+        this.setTestData('lastResponseData', err.response.data);
       } else {
         throw error;
       }
@@ -374,32 +336,27 @@ When(
 );
 
 When(
-  "I try to update preferences for customer {string} with:",
+  'I try to update preferences for customer {string} with:',
   async function (this: CustomWorld, customerId: string, table: DataTable) {
-    const userId = this.getTestData<string>("userId");
+    const userId = this.getTestData<string>('userId');
     const request = tableToPreferencesRequest(table);
 
     try {
       const response = await this.customerApiClient.put<PreferencesResponse>(
         `/api/v1/customers/${customerId}/preferences`,
         request,
-        { headers: { "X-User-Id": userId! } }
+        { headers: { 'X-User-Id': userId! } }
       );
 
-      this.setTestData("lastResponseStatus", response.status);
-      this.setTestData("lastResponseData", response.data);
+      this.setTestData('lastResponseStatus', response.status);
+      this.setTestData('lastResponseData', response.data);
     } catch (error: unknown) {
-      if (
-        error &&
-        typeof error === "object" &&
-        "response" in error &&
-        error.response
-      ) {
+      if (error && typeof error === 'object' && 'response' in error && error.response) {
         const err = error as {
           response: { status: number; data: ErrorResponse };
         };
-        this.setTestData("lastResponseStatus", err.response.status);
-        this.setTestData("lastResponseData", err.response.data);
+        this.setTestData('lastResponseStatus', err.response.status);
+        this.setTestData('lastResponseData', err.response.data);
       } else {
         throw error;
       }
@@ -407,51 +364,43 @@ When(
   }
 );
 
-When(
-  "I send an empty preferences update request",
-  async function (this: CustomWorld) {
-    const customerId = this.getTestData<string>("customerId");
-    const userId = this.getTestData<string>("userId");
+When('I send an empty preferences update request', async function (this: CustomWorld) {
+  const customerId = this.getTestData<string>('customerId');
+  const userId = this.getTestData<string>('userId');
 
-    try {
-      const response = await this.customerApiClient.put<PreferencesResponse>(
-        `/api/v1/customers/${customerId}/preferences`,
-        {},
-        { headers: { "X-User-Id": userId! } }
-      );
+  try {
+    const response = await this.customerApiClient.put<PreferencesResponse>(
+      `/api/v1/customers/${customerId}/preferences`,
+      {},
+      { headers: { 'X-User-Id': userId! } }
+    );
 
-      this.setTestData("lastResponseStatus", response.status);
-      this.setTestData("lastResponseData", response.data);
-    } catch (error: unknown) {
-      if (
-        error &&
-        typeof error === "object" &&
-        "response" in error &&
-        error.response
-      ) {
-        const err = error as {
-          response: { status: number; data: ErrorResponse };
-        };
-        this.setTestData("lastResponseStatus", err.response.status);
-        this.setTestData("lastResponseData", err.response.data);
-      } else {
-        throw error;
-      }
+    this.setTestData('lastResponseStatus', response.status);
+    this.setTestData('lastResponseData', response.data);
+  } catch (error: unknown) {
+    if (error && typeof error === 'object' && 'response' in error && error.response) {
+      const err = error as {
+        response: { status: number; data: ErrorResponse };
+      };
+      this.setTestData('lastResponseStatus', err.response.status);
+      this.setTestData('lastResponseData', err.response.data);
+    } else {
+      throw error;
     }
   }
-);
+});
 
 Then(
-  "the preferences response should have {string} set to {string}",
+  'the preferences response should have {string} set to {string}',
   async function (this: CustomWorld, path: string, expectedValue: string) {
-    const data = this.getTestData<unknown>("lastResponseData");
+    const data = this.getTestData<unknown>('lastResponseData');
 
     // Handle nested paths like "communication.email" -> "preferences.communication.email"
     let fullPath = path;
     if (
-      path.startsWith("communication.") ||
-      path.startsWith("privacy.") ||
-      path.startsWith("display.")
+      path.startsWith('communication.') ||
+      path.startsWith('privacy.') ||
+      path.startsWith('display.')
     ) {
       fullPath = `preferences.${path}`;
     }
@@ -460,17 +409,17 @@ Then(
 
     // Convert expected value for comparison
     let expected: unknown = expectedValue;
-    if (expectedValue === "true") expected = true;
-    if (expectedValue === "false") expected = false;
+    if (expectedValue === 'true') expected = true;
+    if (expectedValue === 'false') expected = false;
 
     expect(String(actualValue)).toBe(String(expected));
   }
 );
 
 Then(
-  "the preferences response should include {string}",
+  'the preferences response should include {string}',
   async function (this: CustomWorld, path: string) {
-    const data = this.getTestData<unknown>("lastResponseData");
+    const data = this.getTestData<unknown>('lastResponseData');
     const value = getNestedValue(data, path);
     expect(value).toBeDefined();
   }

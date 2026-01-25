@@ -27,9 +27,7 @@ Given('I am on the admin login page', async function (this: CustomWorld) {
 });
 
 When('I navigate to {string}', async function (this: CustomWorld, path: string) {
-  const baseUrl = path.startsWith('/admin')
-    ? this.getAdminAppUrl()
-    : this.getCustomerAppUrl();
+  const baseUrl = path.startsWith('/admin') ? this.getAdminAppUrl() : this.getCustomerAppUrl();
   await this.page.goto(`${baseUrl}${path}`);
 });
 
@@ -89,5 +87,7 @@ Then('the URL should contain {string}', async function (this: CustomWorld, urlPa
 });
 
 Then('I should be redirected to the home page', async function (this: CustomWorld) {
-  await expect(this.page).toHaveURL(new RegExp(`${this.getCustomerAppUrl()}/?$`), { timeout: 10000 });
+  await expect(this.page).toHaveURL(new RegExp(`${this.getCustomerAppUrl()}/?$`), {
+    timeout: 10000,
+  });
 });

@@ -10,6 +10,7 @@ import com.acme.identity.infrastructure.persistence.DeviceTrustRepository
 import com.acme.identity.infrastructure.persistence.EventStoreRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
+import java.time.Instant
 import java.util.UUID
 
 /**
@@ -148,12 +149,22 @@ class DeviceTrustService(
             return null
         }
 
-        // Update last used timestamp
-        deviceTrust.touch()
-        deviceTrustRepository.save(deviceTrust)
+        // Update last used timestamp by creating new instance (required for Spring Data Redis)
+        val updatedTrust = DeviceTrust(
+            id = deviceTrust.id,
+            userId = deviceTrust.userId,
+            deviceFingerprint = deviceTrust.deviceFingerprint,
+            userAgent = deviceTrust.userAgent,
+            ipAddress = deviceTrust.ipAddress,
+            createdAt = deviceTrust.createdAt,
+            expiresAt = deviceTrust.expiresAt,
+            lastUsedAt = Instant.now(),
+            ttl = deviceTrust.ttl
+        )
+        deviceTrustRepository.save(updatedTrust)
 
-        logger.info("Device trust verified successfully for user $userId")
-        return deviceTrust
+        logger.info("Device trust verified successfully for user $userId, lastUsedAt updated to {}", updatedTrust.lastUsedAt)
+        return updatedTrust
     }
 
     /**
@@ -197,9 +208,16 @@ class DeviceTrustService(
         logger.info("Revoking device trust $deviceTrustId for user $userId (reason: $reason)")
 
         // Find and verify ownership
-        val deviceTrust = deviceTrustRepository.findByIdAndUserId(deviceTrustId, userId)
+        // Note: findByIdAndUserId() is not supported by Spring Data Redis, so we use findById and verify userId
+        val deviceTrust = deviceTrustRepository.findById(deviceTrustId).orElse(null)
         if (deviceTrust == null) {
-            logger.warn("Device trust not found or not owned by user: $deviceTrustId")
+            logger.warn("Device trust not found: $deviceTrustId")
+            return false
+        }
+
+        // Verify ownership
+        if (deviceTrust.userId != userId) {
+            logger.warn("Device trust $deviceTrustId does not belong to user $userId (belongs to ${deviceTrust.userId})")
             return false
         }
 

@@ -35,7 +35,9 @@ export class DashboardPage extends BasePage {
 
     // Widget header - CardTitle uses data-slot, not heading role
     this.widgetTitle = this.profileCompletenessWidget.locator('[data-slot="card-title"]');
-    this.widgetDescription = this.profileCompletenessWidget.locator('[data-slot="card-description"]');
+    this.widgetDescription = this.profileCompletenessWidget.locator(
+      '[data-slot="card-description"]'
+    );
 
     // Progress ring
     this.progressRing = this.profileCompletenessWidget.locator('.relative.inline-flex');
@@ -50,10 +52,14 @@ export class DashboardPage extends BasePage {
     this.completeNowButton = this.nextActionBanner.getByRole('link', { name: 'Complete Now' });
 
     // Complete profile button
-    this.completeProfileButton = this.profileCompletenessWidget.getByRole('link', { name: 'Complete Your Profile' });
+    this.completeProfileButton = this.profileCompletenessWidget.getByRole('link', {
+      name: 'Complete Your Profile',
+    });
 
     // Section breakdown - look for container with section buttons
-    this.sectionBreakdown = this.profileCompletenessWidget.locator('div:has(button[type="button"][aria-expanded])');
+    this.sectionBreakdown = this.profileCompletenessWidget.locator(
+      'div:has(button[type="button"][aria-expanded])'
+    );
 
     // Loading and error states
     this.loadingSkeleton = this.profileCompletenessWidget.locator('.animate-pulse');

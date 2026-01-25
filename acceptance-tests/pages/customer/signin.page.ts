@@ -118,7 +118,11 @@ export class SigninPage extends BasePage {
     await this.click(this.registrationLink);
   }
 
-  async fillSigninForm(data: { email: string; password: string; rememberMe?: boolean }): Promise<void> {
+  async fillSigninForm(data: {
+    email: string;
+    password: string;
+    rememberMe?: boolean;
+  }): Promise<void> {
     await this.fillEmail(data.email);
     await this.fillPassword(data.password);
 

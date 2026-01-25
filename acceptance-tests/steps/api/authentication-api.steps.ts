@@ -90,7 +90,9 @@ async function createTestUser(
   );
 
   if (response.status !== 201 && response.status !== 200) {
-    throw new Error(`Failed to register user: ${response.status} - ${JSON.stringify(response.data)}`);
+    throw new Error(
+      `Failed to register user: ${response.status} - ${JSON.stringify(response.data)}`
+    );
   }
 
   const userId = response.data.userId;
@@ -200,13 +202,10 @@ Given(
   }
 );
 
-Given(
-  'the user has password {string}',
-  async function (this: CustomWorld, password: string) {
-    // Store the password for later use - user was already created in previous step
-    this.setTestData('testUserPassword', password);
-  }
-);
+Given('the user has password {string}', async function (this: CustomWorld, password: string) {
+  // Store the password for later use - user was already created in previous step
+  this.setTestData('testUserPassword', password);
+});
 
 Given(
   'the user has {int} failed signin attempts',
@@ -233,13 +232,10 @@ Given('the user has MFA enabled', async function (this: CustomWorld) {
   this.setTestData('mfaEnabled', true);
 });
 
-Given(
-  'the user is locked until {string}',
-  async function (this: CustomWorld, lockedUntil: string) {
-    // In a real implementation, we would lock the user's account
-    this.setTestData('lockedUntil', lockedUntil);
-  }
-);
+Given('the user is locked until {string}', async function (this: CustomWorld, lockedUntil: string) {
+  // In a real implementation, we would lock the user's account
+  this.setTestData('lockedUntil', lockedUntil);
+});
 
 Given(
   'I have made {int} signin requests from the same IP for the same email',
@@ -261,40 +257,37 @@ Given(
 // WHEN Steps
 // ============================================================================
 
-When(
-  'I submit a signin request with:',
-  async function (this: CustomWorld, dataTable: DataTable) {
-    const data = dataTable.rowsHash();
+When('I submit a signin request with:', async function (this: CustomWorld, dataTable: DataTable) {
+  const data = dataTable.rowsHash();
 
-    // Check if we should use the test user's email (for tests that set up a user first)
-    let email = data.email;
-    const testUserEmail = this.getTestData<string>('testUserEmail');
-    if (testUserEmail && email.toLowerCase().includes('@acme.com')) {
-      // Check if the test is for case normalization (feature email is all uppercase)
-      if (email === email.toUpperCase() && email !== email.toLowerCase()) {
-        // Preserve uppercase for normalization testing
-        email = testUserEmail.toUpperCase();
-      } else {
-        email = testUserEmail;
-      }
+  // Check if we should use the test user's email (for tests that set up a user first)
+  let email = data.email;
+  const testUserEmail = this.getTestData<string>('testUserEmail');
+  if (testUserEmail && email.toLowerCase().includes('@acme.com')) {
+    // Check if the test is for case normalization (feature email is all uppercase)
+    if (email === email.toUpperCase() && email !== email.toLowerCase()) {
+      // Preserve uppercase for normalization testing
+      email = testUserEmail.toUpperCase();
+    } else {
+      email = testUserEmail;
     }
-
-    const request: SigninRequest = {
-      email,
-      password: data.password,
-      rememberMe: data.rememberMe === 'true',
-      deviceFingerprint: data.deviceFingerprint || undefined,
-    };
-
-    const response = await this.identityApiClient.post<SigninResponse | SigninErrorResponse>(
-      '/api/v1/auth/signin',
-      request
-    );
-
-    this.setTestData('lastResponse', response);
-    this.setTestData('lastRequest', request);
   }
-);
+
+  const request: SigninRequest = {
+    email,
+    password: data.password,
+    rememberMe: data.rememberMe === 'true',
+    deviceFingerprint: data.deviceFingerprint || undefined,
+  };
+
+  const response = await this.identityApiClient.post<SigninResponse | SigninErrorResponse>(
+    '/api/v1/auth/signin',
+    request
+  );
+
+  this.setTestData('lastResponse', response);
+  this.setTestData('lastRequest', request);
+});
 
 When('I submit another signin request', async function (this: CustomWorld) {
   const email = this.getTestData<string>('rateLimitEmail') || `overflow-${Date.now()}@example.com`;
@@ -321,40 +314,37 @@ When(
   }
 );
 
-When(
-  'the request includes:',
-  async function (this: CustomWorld, dataTable: DataTable) {
-    const data = dataTable.rowsHash();
-    const correlationId = this.getTestData<string>('correlationId');
+When('the request includes:', async function (this: CustomWorld, dataTable: DataTable) {
+  const data = dataTable.rowsHash();
+  const correlationId = this.getTestData<string>('correlationId');
 
-    // Use the test user's email if available
-    let email = data.email;
-    const testUserEmail = this.getTestData<string>('testUserEmail');
-    if (testUserEmail && email.toLowerCase().includes('@acme.com')) {
-      email = testUserEmail;
-    }
-
-    const request: SigninRequest = {
-      email,
-      password: data.password,
-      rememberMe: false,
-    };
-
-    const headers: Record<string, string> = {};
-    if (correlationId) {
-      headers['X-Correlation-ID'] = correlationId;
-    }
-
-    const response = await this.identityApiClient.post<SigninResponse | SigninErrorResponse>(
-      '/api/v1/auth/signin',
-      request,
-      { headers }
-    );
-
-    this.setTestData('lastResponse', response);
-    this.setTestData('lastRequest', request);
+  // Use the test user's email if available
+  let email = data.email;
+  const testUserEmail = this.getTestData<string>('testUserEmail');
+  if (testUserEmail && email.toLowerCase().includes('@acme.com')) {
+    email = testUserEmail;
   }
-);
+
+  const request: SigninRequest = {
+    email,
+    password: data.password,
+    rememberMe: false,
+  };
+
+  const headers: Record<string, string> = {};
+  if (correlationId) {
+    headers['X-Correlation-ID'] = correlationId;
+  }
+
+  const response = await this.identityApiClient.post<SigninResponse | SigninErrorResponse>(
+    '/api/v1/auth/signin',
+    request,
+    { headers }
+  );
+
+  this.setTestData('lastResponse', response);
+  this.setTestData('lastRequest', request);
+});
 
 // ============================================================================
 // THEN Steps
@@ -368,9 +358,8 @@ When(
 Then(
   'the response should contain {string} with value {int}',
   async function (this: CustomWorld, field: string, expectedValue: number) {
-    const response = this.getTestData<ApiResponse<SigninResponse | SigninErrorResponse>>(
-      'lastResponse'
-    );
+    const response =
+      this.getTestData<ApiResponse<SigninResponse | SigninErrorResponse>>('lastResponse');
     expect(response).toBeDefined();
 
     const data = response!.data as Record<string, unknown>;
@@ -409,9 +398,11 @@ Then(
     }
 
     // Wait for async event publishing and transaction commit
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise((resolve) => setTimeout(resolve, 1000));
 
-    const response = await this.identityApiClient.get(`/api/v1/test/events/AuthenticationFailed?userId=${userId}`);
+    const response = await this.identityApiClient.get(
+      `/api/v1/test/events/AuthenticationFailed?userId=${userId}`
+    );
 
     expect(response.status).toBe(200);
     expect(response.data.events).toBeDefined();
@@ -473,29 +464,23 @@ When(
   }
 );
 
-Given(
-  'the user account is locked',
-  async function (this: CustomWorld) {
-    // Trigger lockout by making 5 failed attempts
-    const testUserEmail = this.getTestData<string>('testUserEmail');
-    if (!testUserEmail) {
-      throw new Error('No test user email found - create a user first');
-    }
-
-    for (let i = 0; i < 5; i++) {
-      await this.identityApiClient.post<SigninErrorResponse>(
-        '/api/v1/auth/signin',
-        {
-          email: testUserEmail,
-          password: `WrongPassword${i}!`,
-          rememberMe: false,
-        }
-      );
-    }
-
-    this.setTestData('accountLocked', true);
+Given('the user account is locked', async function (this: CustomWorld) {
+  // Trigger lockout by making 5 failed attempts
+  const testUserEmail = this.getTestData<string>('testUserEmail');
+  if (!testUserEmail) {
+    throw new Error('No test user email found - create a user first');
   }
-);
+
+  for (let i = 0; i < 5; i++) {
+    await this.identityApiClient.post<SigninErrorResponse>('/api/v1/auth/signin', {
+      email: testUserEmail,
+      password: `WrongPassword${i}!`,
+      rememberMe: false,
+    });
+  }
+
+  this.setTestData('accountLocked', true);
+});
 
 Then(
   'the response should contain {string} greater than {int}',
@@ -537,26 +522,20 @@ Then(
 // Lockout Countdown Steps
 // ============================================================================
 
-Then(
-  'I store the {string} value',
-  async function (this: CustomWorld, fieldName: string) {
-    const response = this.getTestData<ApiResponse<SigninErrorResponse>>('lastResponse');
-    expect(response).toBeDefined();
+Then('I store the {string} value', async function (this: CustomWorld, fieldName: string) {
+  const response = this.getTestData<ApiResponse<SigninErrorResponse>>('lastResponse');
+  expect(response).toBeDefined();
 
-    const data = response!.data as Record<string, unknown>;
-    const value = data[fieldName];
-    expect(value).toBeDefined();
+  const data = response!.data as Record<string, unknown>;
+  const value = data[fieldName];
+  expect(value).toBeDefined();
 
-    this.setTestData(`stored_${fieldName}`, value);
-  }
-);
+  this.setTestData(`stored_${fieldName}`, value);
+});
 
-When(
-  'I wait {int} seconds',
-  async function (this: CustomWorld, seconds: number) {
-    await new Promise((resolve) => setTimeout(resolve, seconds * 1000));
-  }
-);
+When('I wait {int} seconds', async function (this: CustomWorld, seconds: number) {
+  await new Promise((resolve) => setTimeout(resolve, seconds * 1000));
+});
 
 Then(
   'the {string} should be less than the stored value',

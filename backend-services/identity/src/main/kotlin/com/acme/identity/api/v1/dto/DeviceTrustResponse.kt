@@ -1,6 +1,7 @@
 package com.acme.identity.api.v1.dto
 
 import com.fasterxml.jackson.annotation.JsonInclude
+import com.fasterxml.jackson.annotation.JsonProperty
 import java.time.Instant
 
 /**
@@ -22,6 +23,7 @@ data class DeviceTrustInfo(
     val lastUsedAt: Instant,
     val expiresAt: Instant,
     val ipAddress: String,
+    @field:JsonProperty("isCurrent")
     val isCurrent: Boolean
 )
 

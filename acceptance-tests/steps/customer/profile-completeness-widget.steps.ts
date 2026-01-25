@@ -28,12 +28,7 @@ async function setupAuthenticatedCustomer(world: CustomWorld): Promise<void> {
     });
   } catch (error: unknown) {
     // Customer might already exist, that's okay
-    if (
-      error &&
-      typeof error === 'object' &&
-      'response' in error &&
-      error.response
-    ) {
+    if (error && typeof error === 'object' && 'response' in error && error.response) {
       const err = error as { response: { status: number } };
       if (err.response.status !== 409 && err.response.status !== 200) {
         console.warn('Warning: Could not create test customer:', err.response.status);
@@ -42,22 +37,28 @@ async function setupAuthenticatedCustomer(world: CustomWorld): Promise<void> {
   }
 
   // Inject auth state into localStorage before navigation
-  await world.page.addInitScript((authData) => {
-    localStorage.setItem('auth-storage', JSON.stringify({
-      state: {
-        user: {
-          userId: authData.userId,
-          customerId: authData.customerId,
-          email: 'test@example.com',
-          firstName: 'Test',
-          lastName: 'User',
-        },
-        isAuthenticated: true,
-        isLoading: false,
-      },
-      version: 0,
-    }));
-  }, { customerId, userId });
+  await world.page.addInitScript(
+    (authData) => {
+      localStorage.setItem(
+        'auth-storage',
+        JSON.stringify({
+          state: {
+            user: {
+              userId: authData.userId,
+              customerId: authData.customerId,
+              email: 'test@example.com',
+              firstName: 'Test',
+              lastName: 'User',
+            },
+            isAuthenticated: true,
+            isLoading: false,
+          },
+          version: 0,
+        })
+      );
+    },
+    { customerId, userId }
+  );
 }
 
 // ============================================================================
@@ -109,11 +110,14 @@ Then('the widget should show the completeness percentage', async function (this:
   expect(score).toBeLessThanOrEqual(100);
 });
 
-Then('the widget should display {string} as the title', async function (this: CustomWorld, expectedTitle: string) {
-  const dashboardPage = new DashboardPage(this.page);
-  const title = await dashboardPage.getWidgetTitle();
-  expect(title).toBe(expectedTitle);
-});
+Then(
+  'the widget should display {string} as the title',
+  async function (this: CustomWorld, expectedTitle: string) {
+    const dashboardPage = new DashboardPage(this.page);
+    const title = await dashboardPage.getWidgetTitle();
+    expect(title).toBe(expectedTitle);
+  }
+);
 
 // ============================================================================
 // Profile State Setup Steps
@@ -351,13 +355,16 @@ Then('I should see the {string} button', async function (this: CustomWorld, butt
   }
 });
 
-Then('I should not see the {string} button', async function (this: CustomWorld, buttonName: string) {
-  const dashboardPage = new DashboardPage(this.page);
-  if (buttonName === 'Complete Your Profile') {
-    const isVisible = await dashboardPage.isCompleteProfileButtonVisible();
-    expect(isVisible).toBe(false);
+Then(
+  'I should not see the {string} button',
+  async function (this: CustomWorld, buttonName: string) {
+    const dashboardPage = new DashboardPage(this.page);
+    if (buttonName === 'Complete Your Profile') {
+      const isVisible = await dashboardPage.isCompleteProfileButtonVisible();
+      expect(isVisible).toBe(false);
+    }
   }
-});
+);
 
 Then('I should see {string} message', async function (this: CustomWorld, expectedMessage: string) {
   const dashboardPage = new DashboardPage(this.page);
@@ -370,16 +377,19 @@ Then('I should see {string} message', async function (this: CustomWorld, expecte
 // Section Breakdown Steps
 // ============================================================================
 
-Then('I should see the following sections in the widget:', async function (this: CustomWorld, dataTable: DataTable) {
-  const dashboardPage = new DashboardPage(this.page);
-  await dashboardPage.waitForSuccessfulLoad();
-  const expectedSections = dataTable.hashes().map((row) => row.section);
-  const actualSections = await dashboardPage.getSectionNames();
+Then(
+  'I should see the following sections in the widget:',
+  async function (this: CustomWorld, dataTable: DataTable) {
+    const dashboardPage = new DashboardPage(this.page);
+    await dashboardPage.waitForSuccessfulLoad();
+    const expectedSections = dataTable.hashes().map((row) => row.section);
+    const actualSections = await dashboardPage.getSectionNames();
 
-  for (const expected of expectedSections) {
-    expect(actualSections).toContain(expected);
+    for (const expected of expectedSections) {
+      expect(actualSections).toContain(expected);
+    }
   }
-});
+);
 
 When('I click on the {string} section', async function (this: CustomWorld, sectionName: string) {
   const dashboardPage = new DashboardPage(this.page);
@@ -398,30 +408,39 @@ Then('I should see the following items:', async function (this: CustomWorld, dat
   const actualItems = await dashboardPage.getExpandedSectionItems('Basic Information');
 
   for (const expected of expectedItems) {
-    expect(actualItems.some(item => item.includes(expected))).toBe(true);
+    expect(actualItems.some((item) => item.includes(expected))).toBe(true);
   }
 });
 
-Then('the {string} section should show a checkmark', async function (this: CustomWorld, sectionName: string) {
-  const dashboardPage = new DashboardPage(this.page);
-  await dashboardPage.waitForSuccessfulLoad();
-  const isComplete = await dashboardPage.isSectionComplete(sectionName);
-  expect(isComplete).toBe(true);
-});
+Then(
+  'the {string} section should show a checkmark',
+  async function (this: CustomWorld, sectionName: string) {
+    const dashboardPage = new DashboardPage(this.page);
+    await dashboardPage.waitForSuccessfulLoad();
+    const isComplete = await dashboardPage.isSectionComplete(sectionName);
+    expect(isComplete).toBe(true);
+  }
+);
 
-Then('the {string} section should show an empty circle', async function (this: CustomWorld, sectionName: string) {
-  const dashboardPage = new DashboardPage(this.page);
-  await dashboardPage.waitForSuccessfulLoad();
-  const isComplete = await dashboardPage.isSectionComplete(sectionName);
-  expect(isComplete).toBe(false);
-});
+Then(
+  'the {string} section should show an empty circle',
+  async function (this: CustomWorld, sectionName: string) {
+    const dashboardPage = new DashboardPage(this.page);
+    await dashboardPage.waitForSuccessfulLoad();
+    const isComplete = await dashboardPage.isSectionComplete(sectionName);
+    expect(isComplete).toBe(false);
+  }
+);
 
-Then('the {string} section should show {string} score', async function (this: CustomWorld, sectionName: string, expectedScore: string) {
-  const dashboardPage = new DashboardPage(this.page);
-  await dashboardPage.waitForSuccessfulLoad();
-  const score = await dashboardPage.getSectionScore(sectionName);
-  expect(score).toContain(expectedScore);
-});
+Then(
+  'the {string} section should show {string} score',
+  async function (this: CustomWorld, sectionName: string, expectedScore: string) {
+    const dashboardPage = new DashboardPage(this.page);
+    await dashboardPage.waitForSuccessfulLoad();
+    const score = await dashboardPage.getSectionScore(sectionName);
+    expect(score).toContain(expectedScore);
+  }
+);
 
 // ============================================================================
 // Next Action Steps

@@ -167,8 +167,11 @@ Then('a verification email should be sent', async function (this: CustomWorld) {
         `/api/v1/notifications/by-email/${encodeURIComponent(email!)}`
       );
       if (response.status === 200 && response.data.length > 0) {
-        notification = response.data.find(n => n.notificationType === 'EMAIL_VERIFICATION');
-        return notification !== undefined && (notification.status === 'SENT' || notification.status === 'DELIVERED');
+        notification = response.data.find((n) => n.notificationType === 'EMAIL_VERIFICATION');
+        return (
+          notification !== undefined &&
+          (notification.status === 'SENT' || notification.status === 'DELIVERED')
+        );
       }
       return false;
     } catch {
@@ -226,18 +229,15 @@ Then(
   }
 );
 
-Then(
-  'the email should state {string}',
-  async function (this: CustomWorld, expectedText: string) {
-    // Email content verification - the template includes expiration notice
-    // Since we're in sandbox mode, we verify the notification metadata
-    const notification = this.getTestData<NotificationStatusResponse>('verificationNotification');
-    expect(notification).toBeDefined();
-    // The expiration notice is in the template - verify notification was sent
-    expect(notification!.status).toMatch(/SENT|DELIVERED/);
-    expect(expectedText).toContain('expires');
-  }
-);
+Then('the email should state {string}', async function (this: CustomWorld, expectedText: string) {
+  // Email content verification - the template includes expiration notice
+  // Since we're in sandbox mode, we verify the notification metadata
+  const notification = this.getTestData<NotificationStatusResponse>('verificationNotification');
+  expect(notification).toBeDefined();
+  // The expiration notice is in the template - verify notification was sent
+  expect(notification!.status).toMatch(/SENT|DELIVERED/);
+  expect(expectedText).toContain('expires');
+});
 
 Then(
   'the delivery status should be recorded as {string}',
@@ -318,27 +318,24 @@ Then('a NotificationSent event should be published', async function (this: Custo
   expect(notification!.status).toMatch(/SENT|DELIVERED/);
 });
 
-Then(
-  'the event should contain:',
-  async function (this: CustomWorld, dataTable: DataTable) {
-    const data = dataTable.rowsHash();
-    const notification = this.getTestData<NotificationStatusResponse>('verificationNotification');
-    const registeredEmail = this.getTestData<string>('registeredEmail');
+Then('the event should contain:', async function (this: CustomWorld, dataTable: DataTable) {
+  const data = dataTable.rowsHash();
+  const notification = this.getTestData<NotificationStatusResponse>('verificationNotification');
+  const registeredEmail = this.getTestData<string>('registeredEmail');
 
-    expect(notification).toBeDefined();
+  expect(notification).toBeDefined();
 
-    if (data.notificationType) {
-      expect(notification!.notificationType).toBe(data.notificationType);
-    }
-    if (data.recipientEmail) {
-      // The actual email has a timestamp suffix
-      expect(notification!.recipientEmail).toBe(registeredEmail);
-    }
-    if (data.status) {
-      expect(notification!.status).toBe(data.status);
-    }
+  if (data.notificationType) {
+    expect(notification!.notificationType).toBe(data.notificationType);
   }
-);
+  if (data.recipientEmail) {
+    // The actual email has a timestamp suffix
+    expect(notification!.recipientEmail).toBe(registeredEmail);
+  }
+  if (data.status) {
+    expect(notification!.status).toBe(data.status);
+  }
+});
 
 Then('no additional verification email should be sent', async function (this: CustomWorld) {
   const email = this.getTestData<string>('idempotentEmail');

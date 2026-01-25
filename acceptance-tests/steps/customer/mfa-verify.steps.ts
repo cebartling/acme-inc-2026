@@ -16,53 +16,58 @@ import { generateSync } from 'otplib';
 // WHEN Steps
 // ============================================================================
 
-When('I complete credential validation and navigate to MFA verification page', async function (this: CustomWorld) {
-  const email = this.getTestData<string>('testUserEmail');
-  const password = this.getTestData<string>('testUserPassword');
+When(
+  'I complete credential validation and navigate to MFA verification page',
+  async function (this: CustomWorld) {
+    const email = this.getTestData<string>('testUserEmail');
+    const password = this.getTestData<string>('testUserPassword');
 
-  if (!email || !password) {
-    throw new Error('Test user email and password must be set');
-  }
-
-  // Perform signin via API to get MFA token
-  const response = await this.identityApiClient.post<{
-    status: string;
-    mfaToken: string;
-    mfaMethods: string[];
-    expiresIn: number;
-  }>('/api/v1/auth/signin', {
-    email,
-    password,
-    rememberMe: false,
-  });
-
-  if (response.status !== 200 || response.data.status !== 'MFA_REQUIRED') {
-    throw new Error(`Expected MFA_REQUIRED response, got: ${response.status} - ${JSON.stringify(response.data)}`);
-  }
-
-  const { mfaToken, mfaMethods } = response.data;
-
-  this.setTestData('mfaToken', mfaToken);
-  this.setTestData('mfaMethods', mfaMethods);
-
-  // If SMS is in the methods, fetch the SMS code for later use
-  const phoneNumber = this.getTestData<string>('phoneNumber');
-  if (mfaMethods.includes('SMS') && phoneNumber) {
-    const codeResponse = await this.identityApiClient.get<{ code: string }>(
-      `/api/v1/test/sms/last-code?phoneNumber=${encodeURIComponent(phoneNumber)}`
-    );
-    if (codeResponse.status === 200 && codeResponse.data.code) {
-      this.setTestData('lastSmsCode', codeResponse.data.code);
+    if (!email || !password) {
+      throw new Error('Test user email and password must be set');
     }
+
+    // Perform signin via API to get MFA token
+    const response = await this.identityApiClient.post<{
+      status: string;
+      mfaToken: string;
+      mfaMethods: string[];
+      expiresIn: number;
+    }>('/api/v1/auth/signin', {
+      email,
+      password,
+      rememberMe: false,
+    });
+
+    if (response.status !== 200 || response.data.status !== 'MFA_REQUIRED') {
+      throw new Error(
+        `Expected MFA_REQUIRED response, got: ${response.status} - ${JSON.stringify(response.data)}`
+      );
+    }
+
+    const { mfaToken, mfaMethods } = response.data;
+
+    this.setTestData('mfaToken', mfaToken);
+    this.setTestData('mfaMethods', mfaMethods);
+
+    // If SMS is in the methods, fetch the SMS code for later use
+    const phoneNumber = this.getTestData<string>('phoneNumber');
+    if (mfaMethods.includes('SMS') && phoneNumber) {
+      const codeResponse = await this.identityApiClient.get<{ code: string }>(
+        `/api/v1/test/sms/last-code?phoneNumber=${encodeURIComponent(phoneNumber)}`
+      );
+      if (codeResponse.status === 200 && codeResponse.data.code) {
+        this.setTestData('lastSmsCode', codeResponse.data.code);
+      }
+    }
+
+    // Navigate to MFA verify page with state in session storage
+    const mfaVerifyPage = new MfaVerifyPage(this.page);
+    await mfaVerifyPage.navigateWithMfaState(mfaToken, email, mfaMethods);
+
+    // Wait for page to be ready
+    await this.page.waitForLoadState('networkidle');
   }
-
-  // Navigate to MFA verify page with state in session storage
-  const mfaVerifyPage = new MfaVerifyPage(this.page);
-  await mfaVerifyPage.navigateWithMfaState(mfaToken, email, mfaMethods);
-
-  // Wait for page to be ready
-  await this.page.waitForLoadState('networkidle');
-});
+);
 
 When('I click the SMS method button', async function (this: CustomWorld) {
   const mfaVerifyPage = new MfaVerifyPage(this.page);
@@ -124,7 +129,9 @@ When('I submit the MFA verification form', async function (this: CustomWorld) {
   const mfaVerifyPage = new MfaVerifyPage(this.page);
 
   // Check if submit button exists before trying to click
-  const submitButtonVisible = await mfaVerifyPage.submitButton.isVisible({ timeout: 2000 }).catch(() => false);
+  const submitButtonVisible = await mfaVerifyPage.submitButton
+    .isVisible({ timeout: 2000 })
+    .catch(() => false);
 
   if (submitButtonVisible) {
     await mfaVerifyPage.submitButton.click({ timeout: 5000 });

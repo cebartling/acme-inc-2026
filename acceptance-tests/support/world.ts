@@ -38,7 +38,10 @@ export class CustomWorld extends World<CustomWorldParameters> {
       this.initializeApiClients();
     }
 
-    const response = await this.identityApiClient.post<{ sessionId: string }>('/api/v1/test/sessions', {});
+    const response = await this.identityApiClient.post<{ sessionId: string }>(
+      '/api/v1/test/sessions',
+      {}
+    );
     if (response.status === 200 && response.data.sessionId) {
       this._testSessionId = response.data.sessionId;
       return this._testSessionId;
@@ -54,10 +57,10 @@ export class CustomWorld extends World<CustomWorldParameters> {
       return; // No session, skip registration
     }
 
-    await this.identityApiClient.post(
-      `/api/v1/test/sessions/${this._testSessionId}/users`,
-      { userId, email }
-    );
+    await this.identityApiClient.post(`/api/v1/test/sessions/${this._testSessionId}/users`, {
+      userId,
+      email,
+    });
   }
 
   /**

@@ -1,5 +1,8 @@
 package com.acme.identity.api.v1
 
+import com.acme.identity.api.v1.dto.ChangePasswordRequest
+import com.acme.identity.api.v1.dto.ChangePasswordResponse
+import com.acme.identity.api.v1.dto.ErrorResponse
 import com.acme.identity.api.v1.dto.SigninErrorResponse
 import com.acme.identity.api.v1.dto.SigninRequest
 import com.acme.identity.api.v1.dto.SigninStatus
@@ -7,6 +10,9 @@ import com.acme.identity.application.AuthenticateUserUseCase
 import com.acme.identity.application.AuthenticationContext
 import com.acme.identity.application.AuthenticationError
 import com.acme.identity.application.AuthenticationSessionService
+import com.acme.identity.application.ChangePasswordResult
+import com.acme.identity.application.ChangePasswordUseCase
+import com.acme.identity.application.TokenService
 import com.acme.identity.domain.UserStatus
 import com.acme.identity.infrastructure.security.RateLimiter
 import jakarta.servlet.http.HttpServletRequest
@@ -32,6 +38,8 @@ import java.util.UUID
 @RequestMapping("/api/v1/auth")
 class AuthenticationController(
     private val authenticateUserUseCase: AuthenticateUserUseCase,
+    private val changePasswordUseCase: ChangePasswordUseCase,
+    private val tokenService: TokenService,
     private val rateLimiter: RateLimiter,
     private val authenticationSessionService: AuthenticationSessionService,
     @Value("\${identity.support-url:https://www.acme.com/support}")
@@ -124,6 +132,82 @@ class AuthenticationController(
                 }
             }
         )
+    }
+
+    /**
+     * Changes a user's password.
+     *
+     * This endpoint requires authentication via access_token cookie.
+     * After a successful password change, all device trusts are revoked for security.
+     *
+     * @param request The password change request.
+     * @param accessToken The access token from the cookie.
+     * @param correlationId Optional correlation ID for distributed tracing.
+     * @return 200 OK on success,
+     *         401 Unauthorized if not authenticated or current password is wrong,
+     *         400 Bad Request if new password is weak.
+     */
+    @PostMapping("/change-password")
+    fun changePassword(
+        @Valid @RequestBody request: ChangePasswordRequest,
+        @CookieValue(value = "access_token", required = false) accessToken: String?,
+        @RequestHeader("X-Correlation-ID", required = false) correlationId: String?
+    ): ResponseEntity<Any> {
+        // Authenticate user from access_token cookie
+        if (accessToken.isNullOrBlank()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
+                ErrorResponse(
+                    error = "UNAUTHORIZED",
+                    message = "Authentication required"
+                )
+            )
+        }
+
+        val userId = tokenService.parseAccessToken(accessToken)
+            ?: return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
+                ErrorResponse(
+                    error = "UNAUTHORIZED",
+                    message = "Invalid or expired access token"
+                )
+            )
+
+        val corrId = correlationId?.let { UUID.fromString(it) } ?: UUID.randomUUID()
+
+        // Execute password change
+        return when (val result = changePasswordUseCase.execute(
+            userId = userId,
+            currentPassword = request.currentPassword,
+            newPassword = request.newPassword,
+            correlationId = corrId
+        )) {
+            is ChangePasswordResult.Success -> {
+                ResponseEntity.ok(ChangePasswordResponse())
+            }
+            is ChangePasswordResult.InvalidCurrentPassword -> {
+                ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
+                    ErrorResponse(
+                        error = "INVALID_PASSWORD",
+                        message = result.message
+                    )
+                )
+            }
+            is ChangePasswordResult.WeakPassword -> {
+                ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+                    ErrorResponse(
+                        error = "WEAK_PASSWORD",
+                        message = result.message
+                    )
+                )
+            }
+            is ChangePasswordResult.InternalError -> {
+                ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+                    ErrorResponse(
+                        error = "INTERNAL_ERROR",
+                        message = result.message
+                    )
+                )
+            }
+        }
     }
 
     /**

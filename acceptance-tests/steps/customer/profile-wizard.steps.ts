@@ -16,22 +16,28 @@ async function setupAuthState(world: CustomWorld): Promise<void> {
   world.setTestData('userId', userId);
 
   // Inject auth state into localStorage before navigation
-  await world.page.addInitScript((authData) => {
-    localStorage.setItem('auth-storage', JSON.stringify({
-      state: {
-        user: {
-          userId: authData.userId,
-          customerId: authData.customerId,
-          email: 'test@example.com',
-          firstName: 'Test',
-          lastName: 'User',
-        },
-        isAuthenticated: true,
-        isLoading: false,
-      },
-      version: 0,
-    }));
-  }, { customerId, userId });
+  await world.page.addInitScript(
+    (authData) => {
+      localStorage.setItem(
+        'auth-storage',
+        JSON.stringify({
+          state: {
+            user: {
+              userId: authData.userId,
+              customerId: authData.customerId,
+              email: 'test@example.com',
+              firstName: 'Test',
+              lastName: 'User',
+            },
+            isAuthenticated: true,
+            isLoading: false,
+          },
+          version: 0,
+        })
+      );
+    },
+    { customerId, userId }
+  );
 }
 
 Given('I am on the profile completion wizard', async function (this: CustomWorld) {
@@ -83,10 +89,13 @@ Given('I am on the review step', async function (this: CustomWorld) {
 });
 
 // Phone Number Steps
-When('I enter a phone number with country code {string} and number {string}', async function (this: CustomWorld, countryCode: string, number: string) {
-  const wizardPage = new ProfileWizardPage(this.page);
-  await wizardPage.fillPhoneNumber(countryCode, number);
-});
+When(
+  'I enter a phone number with country code {string} and number {string}',
+  async function (this: CustomWorld, countryCode: string, number: string) {
+    const wizardPage = new ProfileWizardPage(this.page);
+    await wizardPage.fillPhoneNumber(countryCode, number);
+  }
+);
 
 Then('I should see a phone number validation error', async function (this: CustomWorld) {
   const wizardPage = new ProfileWizardPage(this.page);
@@ -112,9 +121,14 @@ When('I enter a date of birth {string}', async function (this: CustomWorld, date
   await wizardPage.fillDateOfBirth(date);
 });
 
-Then('I should see the date of birth error {string}', async function (this: CustomWorld, errorMessage: string) {
-  await expect(this.page.getByRole('alert').filter({ hasText: errorMessage })).toBeVisible({ timeout: 5000 });
-});
+Then(
+  'I should see the date of birth error {string}',
+  async function (this: CustomWorld, errorMessage: string) {
+    await expect(this.page.getByRole('alert').filter({ hasText: errorMessage })).toBeVisible({
+      timeout: 5000,
+    });
+  }
+);
 
 Then('I should not see a date of birth validation error', async function (this: CustomWorld) {
   const wizardPage = new ProfileWizardPage(this.page);
@@ -164,11 +178,14 @@ When('I click the skip profile completion link', async function (this: CustomWor
   await this.page.waitForTimeout(500);
 });
 
-When('I click on the personal details step in the progress indicator', async function (this: CustomWorld) {
-  const wizardPage = new ProfileWizardPage(this.page);
-  await wizardPage.goToPersonalDetailsStep();
-  await this.page.waitForTimeout(500);
-});
+When(
+  'I click on the personal details step in the progress indicator',
+  async function (this: CustomWorld) {
+    const wizardPage = new ProfileWizardPage(this.page);
+    await wizardPage.goToPersonalDetailsStep();
+    await this.page.waitForTimeout(500);
+  }
+);
 
 // Step Verification
 Then('I should be on the address step', async function (this: CustomWorld) {
@@ -212,24 +229,42 @@ Then('the gender {string} should be saved', async function (this: CustomWorld, _
 });
 
 // Address Step Actions
-When('I click the continue button without filling required fields', async function (this: CustomWorld) {
-  const wizardPage = new ProfileWizardPage(this.page);
-  // Clear any pre-filled values and try to continue
-  await wizardPage.clickContinue();
-  await this.page.waitForTimeout(500);
-});
+When(
+  'I click the continue button without filling required fields',
+  async function (this: CustomWorld) {
+    const wizardPage = new ProfileWizardPage(this.page);
+    // Clear any pre-filled values and try to continue
+    await wizardPage.clickContinue();
+    await this.page.waitForTimeout(500);
+  }
+);
 
-Then('I should see the street address error {string}', async function (this: CustomWorld, errorMessage: string) {
-  await expect(this.page.getByRole('alert').filter({ hasText: errorMessage })).toBeVisible({ timeout: 5000 });
-});
+Then(
+  'I should see the street address error {string}',
+  async function (this: CustomWorld, errorMessage: string) {
+    await expect(this.page.getByRole('alert').filter({ hasText: errorMessage })).toBeVisible({
+      timeout: 5000,
+    });
+  }
+);
 
-Then('I should see the city error {string}', async function (this: CustomWorld, errorMessage: string) {
-  await expect(this.page.getByRole('alert').filter({ hasText: errorMessage })).toBeVisible({ timeout: 5000 });
-});
+Then(
+  'I should see the city error {string}',
+  async function (this: CustomWorld, errorMessage: string) {
+    await expect(this.page.getByRole('alert').filter({ hasText: errorMessage })).toBeVisible({
+      timeout: 5000,
+    });
+  }
+);
 
-Then('I should see the postal code error {string}', async function (this: CustomWorld, errorMessage: string) {
-  await expect(this.page.getByRole('alert').filter({ hasText: errorMessage })).toBeVisible({ timeout: 5000 });
-});
+Then(
+  'I should see the postal code error {string}',
+  async function (this: CustomWorld, errorMessage: string) {
+    await expect(this.page.getByRole('alert').filter({ hasText: errorMessage })).toBeVisible({
+      timeout: 5000,
+    });
+  }
+);
 
 When('I fill in the address form with:', async function (this: CustomWorld, dataTable: DataTable) {
   const wizardPage = new ProfileWizardPage(this.page);
@@ -257,22 +292,38 @@ When('I toggle SMS notifications on', async function (this: CustomWorld) {
   await wizardPage.toggleSmsNotifications();
 });
 
-When('I select notification frequency {string}', async function (this: CustomWorld, frequency: string) {
-  const wizardPage = new ProfileWizardPage(this.page);
-  await wizardPage.selectNotificationFrequency(frequency);
-});
+When(
+  'I select notification frequency {string}',
+  async function (this: CustomWorld, frequency: string) {
+    const wizardPage = new ProfileWizardPage(this.page);
+    await wizardPage.selectNotificationFrequency(frequency);
+  }
+);
 
-Then('email notifications should show as {string}', async function (this: CustomWorld, status: string) {
-  await expect(this.page.getByText(`Email Notifications`).locator('..').getByText(status)).toBeVisible();
-});
+Then(
+  'email notifications should show as {string}',
+  async function (this: CustomWorld, status: string) {
+    await expect(
+      this.page.getByText(`Email Notifications`).locator('..').getByText(status)
+    ).toBeVisible();
+  }
+);
 
-Then('SMS notifications should show as {string}', async function (this: CustomWorld, status: string) {
-  await expect(this.page.getByText(`SMS Notifications`).locator('..').getByText(status)).toBeVisible();
-});
+Then(
+  'SMS notifications should show as {string}',
+  async function (this: CustomWorld, status: string) {
+    await expect(
+      this.page.getByText(`SMS Notifications`).locator('..').getByText(status)
+    ).toBeVisible();
+  }
+);
 
-Then('notification frequency should show as {string}', async function (this: CustomWorld, frequency: string) {
-  await expect(this.page.getByText(frequency)).toBeVisible();
-});
+Then(
+  'notification frequency should show as {string}',
+  async function (this: CustomWorld, frequency: string) {
+    await expect(this.page.getByText(frequency)).toBeVisible();
+  }
+);
 
 // Review Step Actions
 When('I click edit on the personal details section', async function (this: CustomWorld) {
@@ -306,26 +357,35 @@ When('I complete the address step', async function (this: CustomWorld) {
   await this.page.waitForTimeout(500);
 });
 
-Given('I have completed all wizard steps with:', async function (this: CustomWorld, _dataTable: DataTable) {
-  await setupAuthState(this);
-  const wizardPage = new ProfileWizardPage(this.page);
-  await wizardPage.navigate();
-  await this.page.waitForLoadState('networkidle');
-  // Skip through to review for now
-  await wizardPage.clickSkipThisStep();
-  await this.page.waitForTimeout(500);
-  await wizardPage.clickSkip();
-  await this.page.waitForTimeout(500);
-  await wizardPage.clickReview();
-  await this.page.waitForTimeout(500);
-});
+Given(
+  'I have completed all wizard steps with:',
+  async function (this: CustomWorld, _dataTable: DataTable) {
+    await setupAuthState(this);
+    const wizardPage = new ProfileWizardPage(this.page);
+    await wizardPage.navigate();
+    await this.page.waitForLoadState('networkidle');
+    // Skip through to review for now
+    await wizardPage.clickSkipThisStep();
+    await this.page.waitForTimeout(500);
+    await wizardPage.clickSkip();
+    await this.page.waitForTimeout(500);
+    await wizardPage.clickReview();
+    await this.page.waitForTimeout(500);
+  }
+);
 
 Then('I should see all my entered information displayed', async function (this: CustomWorld) {
   // Verify we're on review step and key sections are visible
   // Use card-title selectors to avoid matching wizard step indicators
-  await expect(this.page.locator('[data-slot="card-title"]', { hasText: 'Personal Details' })).toBeVisible();
-  await expect(this.page.locator('[data-slot="card-title"]', { hasText: /^Address$/ })).toBeVisible();
-  await expect(this.page.locator('[data-slot="card-title"]', { hasText: 'Communication Preferences' })).toBeVisible();
+  await expect(
+    this.page.locator('[data-slot="card-title"]', { hasText: 'Personal Details' })
+  ).toBeVisible();
+  await expect(
+    this.page.locator('[data-slot="card-title"]', { hasText: /^Address$/ })
+  ).toBeVisible();
+  await expect(
+    this.page.locator('[data-slot="card-title"]', { hasText: 'Communication Preferences' })
+  ).toBeVisible();
 });
 
 When('I fill in my personal details:', async function (this: CustomWorld, dataTable: DataTable) {
