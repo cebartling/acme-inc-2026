@@ -2,54 +2,18 @@
 
 ## Summary
 
-3 acceptance test scenarios are failing in the Device Trust API:
-- **Device Trust API**: 3 failures (backend business logic and authentication issues)
+2 acceptance test scenarios are failing in the Device Trust API:
+- **Device Trust API**: 2 failures (backend business logic and authentication issues)
 
 The root causes are:
-1. **Business Logic - Password Change**: Password change endpoint not revoking device trusts
-2. **Business Logic - lastUsedAt**: Device trust lastUsedAt not updating when used for MFA bypass
-3. **Authentication Flow**: 401 error when creating session after MFA verification with rememberDevice
+1. **Business Logic - lastUsedAt**: Device trust lastUsedAt not updating when used for MFA bypass
+2. **Authentication Flow**: 401 error when creating session after MFA verification with rememberDevice
 
 ---
 
 ## Remaining Issues
 
-### Issue 1: Device Trust Not Revoked on Password Change
-
-**Scenario:** All device trusts are revoked when user changes password
-**Location:** `features/api/device-trust-api.feature:142`
-
-**Problem:**
-When a user changes their password, the system should revoke all device trusts for security, but this is not happening.
-
-**Expected Behavior:**
-After password change, user should have 0 device trusts in Redis.
-
-**Actual Behavior:**
-User still has 3 device trusts after password change.
-
-**Error:**
-```
-Expected length: 0
-Received length: 3
-Received array: [3 device trust objects still exist]
-```
-
-**Fix Location:**
-Backend password change endpoint (`ChangePasswordUseCase` or equivalent)
-
-**Fix Requirements:**
-1. After successfully changing password
-2. Call `deviceTrustService.revokeAllDevices(userId, DeviceRevocationReason.PASSWORD_CHANGED)`
-3. This will delete all device trusts from Redis
-4. Publish `DeviceRevoked` events for each device
-
-**Implementation Notes:**
-The `DeviceTrustService.revokeAllDevices()` method already exists and works correctly. It just needs to be called from the password change endpoint.
-
----
-
-### Issue 2: Device Trust lastUsedAt Not Updated
+### Issue 1: Device Trust lastUsedAt Not Updated
 
 **Scenario:** Update lastUsedAt when device trust is used for MFA bypass
 **Location:** `features/api/device-trust-api.feature:168`
@@ -91,7 +55,7 @@ However, the test is still failing after this fix was deployed (commit dbe52a6).
 
 ---
 
-### Issue 3: 401 Unauthorized After MFA Verification with rememberDevice
+### Issue 2: 401 Unauthorized After MFA Verification with rememberDevice
 
 **Scenario:** Parse human-readable device name from user agent
 **Location:** `features/api/device-trust-api.feature:187`
@@ -137,17 +101,12 @@ Backend MFA verification endpoint when `rememberDevice: true`
 
 ### Verification Commands
 
-**Issue 1 - Password change:**
-```bash
-npm run test -- features/api/device-trust-api.feature:142
-```
-
-**Issue 2 - lastUsedAt update:**
+**Issue 1 - lastUsedAt update:**
 ```bash
 npm run test -- features/api/device-trust-api.feature:168
 ```
 
-**Issue 3 - Auth after MFA with rememberDevice:**
+**Issue 2 - Auth after MFA with rememberDevice:**
 ```bash
 npm run test -- features/api/device-trust-api.feature:187
 ```
@@ -162,8 +121,8 @@ Expected: 18 scenarios (18 passed)
 
 ## Success Criteria
 
-- [ ] All 3 failing scenarios pass
-- [ ] No regression in currently passing scenarios (15 scenarios)
+- [ ] All 2 failing scenarios pass
+- [ ] No regression in currently passing scenarios (16 scenarios)
 - [ ] Total device trust test run shows: 18 scenarios (18 passed)
 
 ---
@@ -181,4 +140,12 @@ Expected: 18 scenarios (18 passed)
    - Jackson was auto-stripping "is" prefix from boolean field names
    - Fixed 2 scenarios (lines 84, 208)
 
-**Current Status:** 15 of 18 scenarios passing (83% pass rate)
+3. **Password Change Not Revoking Device Trusts** (commit 6a3ddd2)
+   - Implemented POST /api/v1/auth/change-password endpoint
+   - Implemented ChangePasswordUseCase with password verification and device trust revocation
+   - Added User.updatePassword() method for immutable password updates
+   - Created ChangePasswordRequest and ChangePasswordResponse DTOs
+   - After successful password change, all device trusts are revoked using DeviceTrustService.revokeAllDevices()
+   - Fixed 1 scenario (line 142)
+
+**Current Status:** 16 of 18 scenarios passing (89% pass rate)
