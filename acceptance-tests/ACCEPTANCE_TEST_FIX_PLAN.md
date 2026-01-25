@@ -2,60 +2,17 @@
 
 ## Summary
 
-2 acceptance test scenarios are failing in the Device Trust API:
-- **Device Trust API**: 2 failures (backend business logic and authentication issues)
+1 acceptance test scenario is failing in the Device Trust API:
+- **Device Trust API**: 1 failure (authentication flow issue)
 
-The root causes are:
-1. **Business Logic - lastUsedAt**: Device trust lastUsedAt not updating when used for MFA bypass
-2. **Authentication Flow**: 401 error when creating session after MFA verification with rememberDevice
+The root cause is:
+1. **Authentication Flow**: 401 error when creating session after MFA verification with rememberDevice
 
 ---
 
 ## Remaining Issues
 
-### Issue 1: Device Trust lastUsedAt Not Updated
-
-**Scenario:** Update lastUsedAt when device trust is used for MFA bypass
-**Location:** `features/api/device-trust-api.feature:168`
-
-**Problem:**
-When a device trust is used to bypass MFA, the `lastUsedAt` timestamp should be updated to the current time, but it remains at the original creation time.
-
-**Expected Behavior:**
-lastUsedAt should be within 5 seconds of current time when device trust is used.
-
-**Actual Behavior:**
-lastUsedAt remains at creation time (5 days ago = 432,000 seconds difference).
-
-**Error:**
-```
-Expected: < 5
-Received: 432000.084
-```
-
-**Fix Location:**
-Backend signin/MFA flow where device trust cookie is verified
-
-**Fix Requirements:**
-The `DeviceTrustService.verifyTrust()` method (lines 119-158) already updates lastUsedAt using the `.copy()` pattern:
-```kotlin
-val updatedDeviceTrust = deviceTrust.copy(lastUsedAt = Instant.now())
-deviceTrustRepository.save(updatedDeviceTrust)
-```
-
-However, the test is still failing after this fix was deployed (commit dbe52a6). This suggests:
-1. The fix may not have been deployed correctly
-2. The `verifyTrust()` method is not being called in the signin flow
-3. There's a different code path being used for MFA bypass
-
-**Investigation Needed:**
-- Verify the signin flow calls `verifyTrust()` when device_trust cookie is present
-- Check if MFA bypass is using a different code path
-- Add logging to confirm `verifyTrust()` is being called during signin
-
----
-
-### Issue 2: 401 Unauthorized After MFA Verification with rememberDevice
+### Issue 1: 401 Unauthorized After MFA Verification with rememberDevice
 
 **Scenario:** Parse human-readable device name from user agent
 **Location:** `features/api/device-trust-api.feature:187`
@@ -101,12 +58,7 @@ Backend MFA verification endpoint when `rememberDevice: true`
 
 ### Verification Commands
 
-**Issue 1 - lastUsedAt update:**
-```bash
-npm run test -- features/api/device-trust-api.feature:168
-```
-
-**Issue 2 - Auth after MFA with rememberDevice:**
+**Issue 1 - Auth after MFA with rememberDevice:**
 ```bash
 npm run test -- features/api/device-trust-api.feature:187
 ```
@@ -121,8 +73,8 @@ Expected: 18 scenarios (18 passed)
 
 ## Success Criteria
 
-- [ ] All 2 failing scenarios pass
-- [ ] No regression in currently passing scenarios (16 scenarios)
+- [ ] The 1 failing scenario passes
+- [ ] No regression in currently passing scenarios (17 scenarios)
 - [ ] Total device trust test run shows: 18 scenarios (18 passed)
 
 ---
@@ -148,4 +100,12 @@ Expected: 18 scenarios (18 passed)
    - After successful password change, all device trusts are revoked using DeviceTrustService.revokeAllDevices()
    - Fixed 1 scenario (line 142)
 
-**Current Status:** 16 of 18 scenarios passing (89% pass rate)
+4. **Device Trust lastUsedAt Not Updated** (commit c558b84)
+   - Root cause: Two issues prevented lastUsedAt from updating
+     1. Spring Data Redis not detecting changes when using .copy() on data classes
+     2. Test step not storing userAgent, causing verification to fail due to mismatch
+   - Fixed DeviceTrustService.verifyTrust() to create new DeviceTrust instance instead of using .copy()
+   - Fixed test step to store deviceUserAgent when creating test device trust
+   - Fixed 1 scenario (line 168)
+
+**Current Status:** 17 of 18 scenarios passing (94% pass rate)
