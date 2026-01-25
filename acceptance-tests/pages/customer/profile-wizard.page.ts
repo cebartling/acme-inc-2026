@@ -69,7 +69,9 @@ export class ProfileWizardPage extends BasePage {
 
     // Progress indicator
     this.progressIndicator = page.locator('nav[aria-label="Progress"]');
-    this.personalDetailsStepIndicator = page.getByRole('button', { name: /Step 1: Personal Details/i });
+    this.personalDetailsStepIndicator = page.getByRole('button', {
+      name: /Step 1: Personal Details/i,
+    });
     this.addressStepIndicator = page.getByRole('button', { name: /Step 2: Address/i });
     this.preferencesStepIndicator = page.getByRole('button', { name: /Step 3: Preferences/i });
     this.reviewStepIndicator = page.getByRole('button', { name: /Step 4: Review/i });
@@ -78,20 +80,41 @@ export class ProfileWizardPage extends BasePage {
     this.phoneCountryCodeSelect = page.locator('button').filter({ hasText: /\+\d/ }).first();
     this.phoneNumberInput = page.getByPlaceholder('555-123-4567');
     this.dateOfBirthInput = page.locator('input[type="date"]');
-    this.genderSelect = page.getByRole('combobox').filter({ hasText: /Select gender|Male|Female|Non-binary|Prefer not to say/i }).first();
-    this.languageSelect = page.getByRole('combobox').filter({ hasText: /Select language|English|Spanish|French|German/i }).first();
-    this.timezoneSelect = page.getByRole('combobox').filter({ hasText: /Select timezone|UTC|Eastern|Central|Mountain|Pacific/i }).first();
+    this.genderSelect = page
+      .getByRole('combobox')
+      .filter({ hasText: /Select gender|Male|Female|Non-binary|Prefer not to say/i })
+      .first();
+    this.languageSelect = page
+      .getByRole('combobox')
+      .filter({ hasText: /Select language|English|Spanish|French|German/i })
+      .first();
+    this.timezoneSelect = page
+      .getByRole('combobox')
+      .filter({ hasText: /Select timezone|UTC|Eastern|Central|Mountain|Pacific/i })
+      .first();
 
     // Address Step Fields
-    this.addressTypeSelect = page.getByRole('combobox').filter({ hasText: /Shipping|Billing|Both/ }).first();
+    this.addressTypeSelect = page
+      .getByRole('combobox')
+      .filter({ hasText: /Shipping|Billing|Both/ })
+      .first();
     this.addressLabelInput = page.getByPlaceholder('e.g., Home, Office');
     this.streetLine1Input = page.getByPlaceholder('123 Main St');
     this.streetLine2Input = page.getByPlaceholder('Apt 4B');
     this.cityInput = page.getByPlaceholder('City');
-    this.stateSelect = page.getByRole('combobox').filter({ hasText: /Select state|Alabama|Alaska|Arizona|California|Colorado|Florida|Georgia|Illinois|New York|Texas|Washington/i }).first();
+    this.stateSelect = page
+      .getByRole('combobox')
+      .filter({
+        hasText:
+          /Select state|Alabama|Alaska|Arizona|California|Colorado|Florida|Georgia|Illinois|New York|Texas|Washington/i,
+      })
+      .first();
     this.stateInput = page.getByPlaceholder('State/Province');
     this.postalCodeInput = page.getByPlaceholder('12345');
-    this.countrySelect = page.getByRole('combobox').filter({ hasText: /Select country|United States|Canada|United Kingdom/i }).first();
+    this.countrySelect = page
+      .getByRole('combobox')
+      .filter({ hasText: /Select country|United States|Canada|United Kingdom/i })
+      .first();
     this.defaultAddressCheckbox = page.getByLabel('Set as default address');
 
     // Preferences Step Fields
@@ -99,7 +122,10 @@ export class ProfileWizardPage extends BasePage {
     this.smsNotificationsSwitch = page.getByRole('switch', { name: 'SMS notifications' });
     this.pushNotificationsSwitch = page.getByRole('switch', { name: 'Push notifications' });
     this.marketingSwitch = page.getByRole('switch', { name: 'Marketing communications' });
-    this.notificationFrequencySelect = page.getByRole('combobox').filter({ hasText: /Select frequency|Immediate|Daily|Weekly/i }).first();
+    this.notificationFrequencySelect = page
+      .getByRole('combobox')
+      .filter({ hasText: /Select frequency|Immediate|Daily|Weekly/i })
+      .first();
 
     // Navigation Buttons
     this.continueButton = page.getByRole('button', { name: 'Continue' });
@@ -112,10 +138,18 @@ export class ProfileWizardPage extends BasePage {
 
     // Review Step Sections - find Edit button by navigating from the card-title
     // Using locator chain: find card-title -> go to parent card-header -> find Edit button
-    this.personalDetailsSection = page.locator('[data-slot="card-title"]', { hasText: 'Personal Details' }).locator('..'); // parent card-header
-    this.addressSection = page.locator('[data-slot="card-title"]', { hasText: /^Address$/ }).locator('..');
-    this.preferencesSection = page.locator('[data-slot="card-title"]', { hasText: 'Communication Preferences' }).locator('..');
-    this.editPersonalDetailsButton = this.personalDetailsSection.getByRole('button', { name: 'Edit' });
+    this.personalDetailsSection = page
+      .locator('[data-slot="card-title"]', { hasText: 'Personal Details' })
+      .locator('..'); // parent card-header
+    this.addressSection = page
+      .locator('[data-slot="card-title"]', { hasText: /^Address$/ })
+      .locator('..');
+    this.preferencesSection = page
+      .locator('[data-slot="card-title"]', { hasText: 'Communication Preferences' })
+      .locator('..');
+    this.editPersonalDetailsButton = this.personalDetailsSection.getByRole('button', {
+      name: 'Edit',
+    });
     this.editAddressButton = this.addressSection.getByRole('button', { name: 'Edit' });
     this.editPreferencesButton = this.preferencesSection.getByRole('button', { name: 'Edit' });
 
@@ -137,7 +171,10 @@ export class ProfileWizardPage extends BasePage {
   // Personal Details Step Methods
   async fillPhoneNumber(countryCode: string, number: string): Promise<void> {
     await this.phoneCountryCodeSelect.click();
-    await this.page.getByRole('option', { name: new RegExp(countryCode.replace('+', '\\+')) }).first().click();
+    await this.page
+      .getByRole('option', { name: new RegExp(countryCode.replace('+', '\\+')) })
+      .first()
+      .click();
     await this.fill(this.phoneNumberInput, number);
   }
 
@@ -304,7 +341,9 @@ export class ProfileWizardPage extends BasePage {
 
   async isOnPersonalDetailsStep(): Promise<boolean> {
     try {
-      await this.page.locator('h2', { hasText: 'Personal Details' }).waitFor({ state: 'visible', timeout: 3000 });
+      await this.page
+        .locator('h2', { hasText: 'Personal Details' })
+        .waitFor({ state: 'visible', timeout: 3000 });
       return true;
     } catch {
       return false;
@@ -313,7 +352,9 @@ export class ProfileWizardPage extends BasePage {
 
   async isOnAddressStep(): Promise<boolean> {
     try {
-      await this.page.locator('h2', { hasText: 'Address' }).waitFor({ state: 'visible', timeout: 3000 });
+      await this.page
+        .locator('h2', { hasText: 'Address' })
+        .waitFor({ state: 'visible', timeout: 3000 });
       return true;
     } catch {
       return false;
@@ -322,7 +363,9 @@ export class ProfileWizardPage extends BasePage {
 
   async isOnPreferencesStep(): Promise<boolean> {
     try {
-      await this.page.locator('h2', { hasText: 'Preferences' }).waitFor({ state: 'visible', timeout: 3000 });
+      await this.page
+        .locator('h2', { hasText: 'Preferences' })
+        .waitFor({ state: 'visible', timeout: 3000 });
       return true;
     } catch {
       return false;
@@ -331,7 +374,9 @@ export class ProfileWizardPage extends BasePage {
 
   async isOnReviewStep(): Promise<boolean> {
     try {
-      await this.page.locator('h2', { hasText: 'Review' }).waitFor({ state: 'visible', timeout: 3000 });
+      await this.page
+        .locator('h2', { hasText: 'Review' })
+        .waitFor({ state: 'visible', timeout: 3000 });
       return true;
     } catch {
       return false;

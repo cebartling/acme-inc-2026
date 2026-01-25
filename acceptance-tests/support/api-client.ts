@@ -117,7 +117,8 @@ export class ApiClient {
       }
 
       // Convert Headers to plain object with set-cookie as array
-      const headersObj: { 'set-cookie'?: string[]; [key: string]: string | string[] | undefined } = {};
+      const headersObj: { 'set-cookie'?: string[]; [key: string]: string | string[] | undefined } =
+        {};
 
       // Get all Set-Cookie headers (there can be multiple)
       const setCookies = response.headers.getSetCookie?.() || [];

@@ -30,17 +30,25 @@ When('I move focus away from the signin email field', async function (this: Cust
   await signinPage.blurEmail();
 });
 
-Then('I should see the signin email error {string}', async function (this: CustomWorld, errorMessage: string) {
-  await expect(this.page.getByRole('alert').filter({ hasText: errorMessage })).toBeVisible({ timeout: 10000 });
-});
+Then(
+  'I should see the signin email error {string}',
+  async function (this: CustomWorld, errorMessage: string) {
+    await expect(this.page.getByRole('alert').filter({ hasText: errorMessage })).toBeVisible({
+      timeout: 10000,
+    });
+  }
+);
 
 Then('the signin email error should not be visible', async function (this: CustomWorld) {
   await expect(this.page.getByRole('alert').filter({ hasText: /email/i })).not.toBeVisible();
 });
 
-Then('I should see a success indicator on the signin email field', async function (this: CustomWorld) {
-  await expect(this.page.getByLabel('Valid').first()).toBeVisible();
-});
+Then(
+  'I should see a success indicator on the signin email field',
+  async function (this: CustomWorld) {
+    await expect(this.page.getByLabel('Valid').first()).toBeVisible();
+  }
+);
 
 // Password validation steps
 When('I enter signin password {string}', async function (this: CustomWorld, password: string) {
@@ -60,9 +68,14 @@ When('I move focus away from the signin password field', async function (this: C
   await signinPage.blurPassword();
 });
 
-Then('I should see the signin password error {string}', async function (this: CustomWorld, errorMessage: string) {
-  await expect(this.page.getByRole('alert').filter({ hasText: errorMessage })).toBeVisible({ timeout: 10000 });
-});
+Then(
+  'I should see the signin password error {string}',
+  async function (this: CustomWorld, errorMessage: string) {
+    await expect(this.page.getByRole('alert').filter({ hasText: errorMessage })).toBeVisible({
+      timeout: 10000,
+    });
+  }
+);
 
 Then('the signin password error should not be visible', async function (this: CustomWorld) {
   await expect(this.page.getByRole('alert').filter({ hasText: /password/i })).not.toBeVisible();
@@ -148,15 +161,17 @@ Given('the signin API will return an error', async function (this: CustomWorld) 
 When('I submit the signin form', async function (this: CustomWorld) {
   const signinPage = new SigninPage(this.page);
   // Wait for submit button to be enabled (form validation complete)
-  await this.page.waitForFunction(
-    () => {
-      const btn = document.querySelector('button[type="submit"], button:has-text("Sign In")');
-      return btn && !btn.hasAttribute('disabled');
-    },
-    { timeout: 5000 }
-  ).catch(() => {
-    // Button might still be disabled, try anyway
-  });
+  await this.page
+    .waitForFunction(
+      () => {
+        const btn = document.querySelector('button[type="submit"], button:has-text("Sign In")');
+        return btn && !btn.hasAttribute('disabled');
+      },
+      { timeout: 5000 }
+    )
+    .catch(() => {
+      // Button might still be disabled, try anyway
+    });
   await signinPage.submitForm();
 });
 
@@ -197,16 +212,18 @@ When(
 
       // Wait for submit button to be enabled
       await signinPage.submitButton.waitFor({ state: 'attached', timeout: 5000 });
-      await this.page.waitForFunction(
-        (selector) => {
-          const btn = document.querySelector(selector);
-          return btn && !btn.hasAttribute('disabled');
-        },
-        'button:has-text("Sign In")',
-        { timeout: 5000 }
-      ).catch(() => {
-        // Button might already be enabled or we hit lockout
-      });
+      await this.page
+        .waitForFunction(
+          (selector) => {
+            const btn = document.querySelector(selector);
+            return btn && !btn.hasAttribute('disabled');
+          },
+          'button:has-text("Sign In")',
+          { timeout: 5000 }
+        )
+        .catch(() => {
+          // Button might already be enabled or we hit lockout
+        });
 
       // Check if we got locked out
       const lockoutMessage = this.page.getByTestId('lockout-message');
@@ -252,16 +269,19 @@ Then('the lockout countdown should show minutes remaining', async function (this
   await expect(countdown).toContainText(/\d+m/);
 });
 
-When('I fill in the signin form with:', async function (this: CustomWorld, dataTable: { rowsHash: () => Record<string, string> }) {
-  const data = dataTable.rowsHash();
-  const signinPage = new SigninPage(this.page);
+When(
+  'I fill in the signin form with:',
+  async function (this: CustomWorld, dataTable: { rowsHash: () => Record<string, string> }) {
+    const data = dataTable.rowsHash();
+    const signinPage = new SigninPage(this.page);
 
-  // Get test user email if available
-  const testUserEmail = this.getTestData<string>('testUserEmail');
-  const email = testUserEmail || data.email;
+    // Get test user email if available
+    const testUserEmail = this.getTestData<string>('testUserEmail');
+    const email = testUserEmail || data.email;
 
-  await signinPage.fillEmail(email);
-  await signinPage.fillPassword(data.password);
-  // Blur to trigger form validation
-  await signinPage.passwordInput.blur();
-});
+    await signinPage.fillEmail(email);
+    await signinPage.fillPassword(data.password);
+    // Blur to trigger form validation
+    await signinPage.passwordInput.blur();
+  }
+);

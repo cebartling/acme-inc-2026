@@ -28,14 +28,22 @@ When('I move focus away from the email field', async function (this: CustomWorld
   await registerPage.blurEmail();
 });
 
-Then('I should see the email error {string}', async function (this: CustomWorld, errorMessage: string) {
-  await expect(this.page.getByRole('alert').filter({ hasText: errorMessage })).toBeVisible({ timeout: 10000 });
-});
+Then(
+  'I should see the email error {string}',
+  async function (this: CustomWorld, errorMessage: string) {
+    await expect(this.page.getByRole('alert').filter({ hasText: errorMessage })).toBeVisible({
+      timeout: 10000,
+    });
+  }
+);
 
-Then('the email field should be highlighted with an error state', async function (this: CustomWorld) {
-  const emailInput = this.page.getByRole('textbox', { name: 'Email' });
-  await expect(emailInput).toHaveClass(/border-red-500/);
-});
+Then(
+  'the email field should be highlighted with an error state',
+  async function (this: CustomWorld) {
+    const emailInput = this.page.getByRole('textbox', { name: 'Email' });
+    await expect(emailInput).toHaveClass(/border-red-500/);
+  }
+);
 
 Then('the email error should not be visible', async function (this: CustomWorld) {
   await expect(this.page.getByRole('alert').filter({ hasText: /email/i })).not.toBeVisible();
@@ -61,36 +69,52 @@ When('I move focus away from the confirm password field', async function (this: 
   await registerPage.blurConfirmPassword();
 });
 
-Then('I should see the password strength indicator showing {string}', async function (this: CustomWorld, strength: string) {
-  await expect(this.page.getByText(strength, { exact: true })).toBeVisible({ timeout: 10000 });
-});
+Then(
+  'I should see the password strength indicator showing {string}',
+  async function (this: CustomWorld, strength: string) {
+    await expect(this.page.getByText(strength, { exact: true })).toBeVisible({ timeout: 10000 });
+  }
+);
 
 Then('all password requirements should be marked as complete', async function (this: CustomWorld) {
   // All 5 check icons should be visible (green checkmarks)
-  const checkIcons = this.page.locator('ul li').filter({ has: this.page.locator('svg[class*="text-green"]') });
+  const checkIcons = this.page
+    .locator('ul li')
+    .filter({ has: this.page.locator('svg[class*="text-green"]') });
   await expect(checkIcons).toHaveCount(5);
 });
 
-Then('I should see the following password requirements:', async function (this: CustomWorld, dataTable: DataTable) {
-  const requirements = dataTable.raw().flat();
-  for (const requirement of requirements) {
-    await expect(this.page.getByText(requirement, { exact: false })).toBeVisible();
+Then(
+  'I should see the following password requirements:',
+  async function (this: CustomWorld, dataTable: DataTable) {
+    const requirements = dataTable.raw().flat();
+    for (const requirement of requirements) {
+      await expect(this.page.getByText(requirement, { exact: false })).toBeVisible();
+    }
   }
-});
+);
 
-Then('I should see the confirm password error {string}', async function (this: CustomWorld, errorMessage: string) {
-  await expect(this.page.getByRole('alert').filter({ hasText: errorMessage })).toBeVisible();
-});
+Then(
+  'I should see the confirm password error {string}',
+  async function (this: CustomWorld, errorMessage: string) {
+    await expect(this.page.getByRole('alert').filter({ hasText: errorMessage })).toBeVisible();
+  }
+);
 
 Then('the confirm password error should not be visible', async function (this: CustomWorld) {
   await expect(this.page.getByRole('alert').filter({ hasText: /match/i })).not.toBeVisible();
 });
 
-Then('I should see a success indicator on the confirm password field', async function (this: CustomWorld) {
-  // Look for Valid label in the confirm password section
-  const confirmPasswordSection = this.page.locator('div').filter({ hasText: /^Confirm Password/ });
-  await expect(confirmPasswordSection.getByLabel('Valid')).toBeVisible();
-});
+Then(
+  'I should see a success indicator on the confirm password field',
+  async function (this: CustomWorld) {
+    // Look for Valid label in the confirm password section
+    const confirmPasswordSection = this.page
+      .locator('div')
+      .filter({ hasText: /^Confirm Password/ });
+    await expect(confirmPasswordSection.getByLabel('Valid')).toBeVisible();
+  }
+);
 
 // Name field steps
 When('I leave the first name field empty', async function (this: CustomWorld) {
@@ -119,13 +143,19 @@ When('I enter a first name with more than 50 characters', async function (this: 
   await registerPage.fillFirstName(longName);
 });
 
-Then('I should see the first name error {string}', async function (this: CustomWorld, errorMessage: string) {
-  await expect(this.page.getByRole('alert').filter({ hasText: errorMessage })).toBeVisible();
-});
+Then(
+  'I should see the first name error {string}',
+  async function (this: CustomWorld, errorMessage: string) {
+    await expect(this.page.getByRole('alert').filter({ hasText: errorMessage })).toBeVisible();
+  }
+);
 
-Then('I should see the last name error {string}', async function (this: CustomWorld, errorMessage: string) {
-  await expect(this.page.getByRole('alert').filter({ hasText: errorMessage })).toBeVisible();
-});
+Then(
+  'I should see the last name error {string}',
+  async function (this: CustomWorld, errorMessage: string) {
+    await expect(this.page.getByRole('alert').filter({ hasText: errorMessage })).toBeVisible();
+  }
+);
 
 Then('the first name should be truncated to 50 characters', async function (this: CustomWorld) {
   const registerPage = new RegisterPage(this.page);
@@ -133,21 +163,27 @@ Then('the first name should be truncated to 50 characters', async function (this
   expect(value.length).toBe(50);
 });
 
-Then('the character counter should show {string}', async function (this: CustomWorld, counter: string) {
-  await expect(this.page.getByText(counter)).toBeVisible();
-});
+Then(
+  'the character counter should show {string}',
+  async function (this: CustomWorld, counter: string) {
+    await expect(this.page.getByText(counter)).toBeVisible();
+  }
+);
 
 // Terms of Service steps
-When('I fill in the registration form with valid data but without accepting Terms of Service', async function (this: CustomWorld) {
-  const registerPage = new RegisterPage(this.page);
-  await registerPage.fillEmail('test@example.com');
-  await registerPage.fillPassword('Test@123!');
-  await registerPage.fillConfirmPassword('Test@123!');
-  await registerPage.fillFirstName('John');
-  await registerPage.fillLastName('Doe');
-  await registerPage.acceptPrivacyPolicy();
-  // Note: Not accepting Terms of Service
-});
+When(
+  'I fill in the registration form with valid data but without accepting Terms of Service',
+  async function (this: CustomWorld) {
+    const registerPage = new RegisterPage(this.page);
+    await registerPage.fillEmail('test@example.com');
+    await registerPage.fillPassword('Test@123!');
+    await registerPage.fillConfirmPassword('Test@123!');
+    await registerPage.fillFirstName('John');
+    await registerPage.fillLastName('Doe');
+    await registerPage.acceptPrivacyPolicy();
+    // Note: Not accepting Terms of Service
+  }
+);
 
 When('I attempt to submit the form', async function (this: CustomWorld) {
   // The button should be disabled, but we verify the state
@@ -199,29 +235,35 @@ When('I click the password visibility toggle', async function (this: CustomWorld
 });
 
 // Complete form steps
-When('I fill in the complete registration form with valid data', async function (this: CustomWorld) {
-  const registerPage = new RegisterPage(this.page);
-  await registerPage.fillRegistrationForm({
-    email: 'newuser@example.com',
-    password: 'Test@123!',
-    confirmPassword: 'Test@123!',
-    firstName: 'John',
-    lastName: 'Doe',
-    acceptTos: true,
-    acceptPrivacy: true,
-  });
-});
+When(
+  'I fill in the complete registration form with valid data',
+  async function (this: CustomWorld) {
+    const registerPage = new RegisterPage(this.page);
+    await registerPage.fillRegistrationForm({
+      email: 'newuser@example.com',
+      password: 'Test@123!',
+      confirmPassword: 'Test@123!',
+      firstName: 'John',
+      lastName: 'Doe',
+      acceptTos: true,
+      acceptPrivacy: true,
+    });
+  }
+);
 
-When('I fill in the registration form with:', async function (this: CustomWorld, dataTable: DataTable) {
-  const registerPage = new RegisterPage(this.page);
-  const data = dataTable.rowsHash();
+When(
+  'I fill in the registration form with:',
+  async function (this: CustomWorld, dataTable: DataTable) {
+    const registerPage = new RegisterPage(this.page);
+    const data = dataTable.rowsHash();
 
-  await registerPage.fillEmail(data['Email']);
-  await registerPage.fillPassword(data['Password']);
-  await registerPage.fillConfirmPassword(data['Confirm Password']);
-  await registerPage.fillFirstName(data['First Name']);
-  await registerPage.fillLastName(data['Last Name']);
-});
+    await registerPage.fillEmail(data['Email']);
+    await registerPage.fillPassword(data['Password']);
+    await registerPage.fillConfirmPassword(data['Confirm Password']);
+    await registerPage.fillFirstName(data['First Name']);
+    await registerPage.fillLastName(data['Last Name']);
+  }
+);
 
 When('I accept the Terms of Service', async function (this: CustomWorld) {
   const registerPage = new RegisterPage(this.page);

@@ -132,39 +132,33 @@ Given(
   }
 );
 
-Given(
-  'customers were created in the previous month',
-  async function (this: CustomWorld) {
-    // This is a setup step - we just note that we need to verify monthly reset
-    // In a real implementation, we'd seed the database or mock the clock
-    this.setTestData('checkMonthlyReset', true);
-  }
-);
+Given('customers were created in the previous month', async function (this: CustomWorld) {
+  // This is a setup step - we just note that we need to verify monthly reset
+  // In a real implementation, we'd seed the database or mock the clock
+  this.setTestData('checkMonthlyReset', true);
+});
 
-When(
-  'a user registers with email {string}',
-  async function (this: CustomWorld, email: string) {
-    const uniqueEmail = makeUniqueEmail(email);
-    const request: RegistrationRequest = {
-      email: uniqueEmail,
-      password: 'SecureP@ss123',
-      firstName: 'Test',
-      lastName: 'User',
-      tosAccepted: true,
-      tosAcceptedAt: new Date().toISOString(),
-      marketingOptIn: false,
-    };
+When('a user registers with email {string}', async function (this: CustomWorld, email: string) {
+  const uniqueEmail = makeUniqueEmail(email);
+  const request: RegistrationRequest = {
+    email: uniqueEmail,
+    password: 'SecureP@ss123',
+    firstName: 'Test',
+    lastName: 'User',
+    tosAccepted: true,
+    tosAcceptedAt: new Date().toISOString(),
+    marketingOptIn: false,
+  };
 
-    const response = await this.identityApiClient.post<RegistrationResponse>(
-      '/api/v1/users/register',
-      request
-    );
+  const response = await this.identityApiClient.post<RegistrationResponse>(
+    '/api/v1/users/register',
+    request
+  );
 
-    this.setTestData('registrationResponse', response);
-    this.setTestData('registeredEmail', uniqueEmail);
-    this.setTestData('registeredUserId', response.data?.userId);
-  }
-);
+  this.setTestData('registrationResponse', response);
+  this.setTestData('registeredEmail', uniqueEmail);
+  this.setTestData('registeredUserId', response.data?.userId);
+});
 
 When(
   'a user registers with email {string} and marketing opt-in {string}',
@@ -191,20 +185,44 @@ When(
   }
 );
 
-When(
-  'a user registers with:',
-  async function (this: CustomWorld, dataTable: DataTable) {
-    const data = dataTable.rowsHash();
-    const uniqueEmail = makeUniqueEmail(data.email);
+When('a user registers with:', async function (this: CustomWorld, dataTable: DataTable) {
+  const data = dataTable.rowsHash();
+  const uniqueEmail = makeUniqueEmail(data.email);
 
+  const request: RegistrationRequest = {
+    email: uniqueEmail,
+    password: 'SecureP@ss123',
+    firstName: data.firstName || 'Test',
+    lastName: data.lastName || 'User',
+    tosAccepted: true,
+    tosAcceptedAt: new Date().toISOString(),
+    marketingOptIn: data.marketingOptIn === 'true',
+  };
+
+  const response = await this.identityApiClient.post<RegistrationResponse>(
+    '/api/v1/users/register',
+    request
+  );
+
+  this.setTestData('registrationResponse', response);
+  this.setTestData('registeredEmail', uniqueEmail);
+  this.setTestData('registeredFirstName', request.firstName);
+  this.setTestData('registeredLastName', request.lastName);
+});
+
+When('{int} users register in the same month', async function (this: CustomWorld, count: number) {
+  const registrations: Array<{ email: string; userId: string }> = [];
+
+  for (let i = 0; i < count; i++) {
+    const email = makeUniqueEmail(`sequential${i}@example.com`);
     const request: RegistrationRequest = {
-      email: uniqueEmail,
+      email,
       password: 'SecureP@ss123',
-      firstName: data.firstName || 'Test',
-      lastName: data.lastName || 'User',
+      firstName: `User${i}`,
+      lastName: 'Sequential',
       tosAccepted: true,
       tosAcceptedAt: new Date().toISOString(),
-      marketingOptIn: data.marketingOptIn === 'true',
+      marketingOptIn: false,
     };
 
     const response = await this.identityApiClient.post<RegistrationResponse>(
@@ -212,55 +230,22 @@ When(
       request
     );
 
-    this.setTestData('registrationResponse', response);
-    this.setTestData('registeredEmail', uniqueEmail);
-    this.setTestData('registeredFirstName', request.firstName);
-    this.setTestData('registeredLastName', request.lastName);
-  }
-);
-
-When(
-  '{int} users register in the same month',
-  async function (this: CustomWorld, count: number) {
-    const registrations: Array<{ email: string; userId: string }> = [];
-
-    for (let i = 0; i < count; i++) {
-      const email = makeUniqueEmail(`sequential${i}@example.com`);
-      const request: RegistrationRequest = {
-        email,
-        password: 'SecureP@ss123',
-        firstName: `User${i}`,
-        lastName: 'Sequential',
-        tosAccepted: true,
-        tosAcceptedAt: new Date().toISOString(),
-        marketingOptIn: false,
-      };
-
-      const response = await this.identityApiClient.post<RegistrationResponse>(
-        '/api/v1/users/register',
-        request
-      );
-
-      if (response.status === 201) {
-        registrations.push({ email, userId: response.data.userId });
-      }
-
-      // Small delay to ensure sequential processing
-      await new Promise((resolve) => setTimeout(resolve, 100));
+    if (response.status === 201) {
+      registrations.push({ email, userId: response.data.userId });
     }
 
-    this.setTestData('sequentialRegistrations', registrations);
+    // Small delay to ensure sequential processing
+    await new Promise((resolve) => setTimeout(resolve, 100));
   }
-);
 
-When(
-  'the same UserRegistered event is received again',
-  async function (this: CustomWorld) {
-    // The event has already been processed - this step simulates a retry
-    // We just verify that re-processing doesn't create duplicates
-    this.setTestData('duplicateEventSent', true);
-  }
-);
+  this.setTestData('sequentialRegistrations', registrations);
+});
+
+When('the same UserRegistered event is received again', async function (this: CustomWorld) {
+  // The event has already been processed - this step simulates a retry
+  // We just verify that re-processing doesn't create duplicates
+  this.setTestData('duplicateEventSent', true);
+});
 
 When('a user registers in a new month', async function (this: CustomWorld) {
   // Register a new user to check monthly reset
@@ -384,54 +369,48 @@ Then('the customer ID should be a valid UUID v7', async function (this: CustomWo
   expect(customerProfile!.customerId).toMatch(UUID_V7_REGEX);
 });
 
-Then(
-  'the customer ID should be distinct from the user ID',
-  async function (this: CustomWorld) {
-    const customerProfile = this.getTestData<CustomerResponse>('customerProfile');
-    const userId = this.getTestData<string>('registeredUserId');
+Then('the customer ID should be distinct from the user ID', async function (this: CustomWorld) {
+  const customerProfile = this.getTestData<CustomerResponse>('customerProfile');
+  const userId = this.getTestData<string>('registeredUserId');
 
-    expect(customerProfile).toBeDefined();
-    expect(userId).toBeDefined();
-    expect(customerProfile!.customerId).not.toBe(userId);
-    expect(customerProfile!.userId).toBe(userId);
-  }
-);
+  expect(customerProfile).toBeDefined();
+  expect(userId).toBeDefined();
+  expect(customerProfile!.customerId).not.toBe(userId);
+  expect(customerProfile!.userId).toBe(userId);
+});
 
-Then(
-  'each customer should have a unique customer number',
-  async function (this: CustomWorld) {
-    const registrations =
-      this.getTestData<Array<{ email: string; userId: string }>>('sequentialRegistrations');
-    expect(registrations).toBeDefined();
+Then('each customer should have a unique customer number', async function (this: CustomWorld) {
+  const registrations =
+    this.getTestData<Array<{ email: string; userId: string }>>('sequentialRegistrations');
+  expect(registrations).toBeDefined();
 
-    const customerNumbers: string[] = [];
+  const customerNumbers: string[] = [];
 
-    for (const reg of registrations!) {
-      const found = await waitFor(async () => {
-        try {
-          const response = await this.customerApiClient.get<CustomerResponse>(
-            `/api/v1/customers/by-email/${encodeURIComponent(reg.email)}`
-          );
-          if (response.status === 200) {
-            customerNumbers.push(response.data.customerNumber);
-            return true;
-          }
-          return false;
-        } catch {
-          return false;
+  for (const reg of registrations!) {
+    const found = await waitFor(async () => {
+      try {
+        const response = await this.customerApiClient.get<CustomerResponse>(
+          `/api/v1/customers/by-email/${encodeURIComponent(reg.email)}`
+        );
+        if (response.status === 200) {
+          customerNumbers.push(response.data.customerNumber);
+          return true;
         }
-      }, 10000);
+        return false;
+      } catch {
+        return false;
+      }
+    }, 10000);
 
-      expect(found).toBe(true);
-    }
-
-    // Verify all customer numbers are unique
-    const uniqueNumbers = new Set(customerNumbers);
-    expect(uniqueNumbers.size).toBe(customerNumbers.length);
-
-    this.setTestData('customerNumbers', customerNumbers);
+    expect(found).toBe(true);
   }
-);
+
+  // Verify all customer numbers are unique
+  const uniqueNumbers = new Set(customerNumbers);
+  expect(uniqueNumbers.size).toBe(customerNumbers.length);
+
+  this.setTestData('customerNumbers', customerNumbers);
+});
 
 Then(
   'the customer numbers should follow format {string}',
@@ -477,38 +456,35 @@ Then('both should be in the same transaction', async function (this: CustomWorld
   expect(customerProfile).toBeDefined();
 });
 
-Then(
-  'the customer profile should be created in PostgreSQL',
-  async function (this: CustomWorld) {
-    // PostgreSQL is the primary store - if we can fetch the customer, it's in PostgreSQL
-    let customerProfile = this.getTestData<CustomerResponse>('customerProfile');
+Then('the customer profile should be created in PostgreSQL', async function (this: CustomWorld) {
+  // PostgreSQL is the primary store - if we can fetch the customer, it's in PostgreSQL
+  let customerProfile = this.getTestData<CustomerResponse>('customerProfile');
 
-    if (!customerProfile) {
-      const email = this.getTestData<string>('registeredEmail');
-      expect(email).toBeDefined();
+  if (!customerProfile) {
+    const email = this.getTestData<string>('registeredEmail');
+    expect(email).toBeDefined();
 
-      const found = await waitFor(async () => {
-        try {
-          const response = await this.customerApiClient.get<CustomerResponse>(
-            `/api/v1/customers/by-email/${encodeURIComponent(email!)}`
-          );
-          if (response.status === 200) {
-            customerProfile = response.data;
-            return true;
-          }
-          return false;
-        } catch {
-          return false;
+    const found = await waitFor(async () => {
+      try {
+        const response = await this.customerApiClient.get<CustomerResponse>(
+          `/api/v1/customers/by-email/${encodeURIComponent(email!)}`
+        );
+        if (response.status === 200) {
+          customerProfile = response.data;
+          return true;
         }
-      }, 10000);
+        return false;
+      } catch {
+        return false;
+      }
+    }, 10000);
 
-      expect(found).toBe(true);
-      this.setTestData('customerProfile', customerProfile);
-    }
-
-    expect(customerProfile).toBeDefined();
+    expect(found).toBe(true);
+    this.setTestData('customerProfile', customerProfile);
   }
-);
+
+  expect(customerProfile).toBeDefined();
+});
 
 Then(
   'the customer should appear in MongoDB within {int} seconds',
@@ -536,50 +512,44 @@ Then(
   }
 );
 
-Then(
-  'a CustomerRegistered event should be published',
-  async function (this: CustomWorld) {
-    // Event publishing is verified by the customer profile existing
-    // First ensure we have the customer profile by waiting for it
-    let customerProfile = this.getTestData<CustomerResponse>('customerProfile');
+Then('a CustomerRegistered event should be published', async function (this: CustomWorld) {
+  // Event publishing is verified by the customer profile existing
+  // First ensure we have the customer profile by waiting for it
+  let customerProfile = this.getTestData<CustomerResponse>('customerProfile');
 
-    if (!customerProfile) {
-      const email = this.getTestData<string>('registeredEmail');
-      expect(email).toBeDefined();
+  if (!customerProfile) {
+    const email = this.getTestData<string>('registeredEmail');
+    expect(email).toBeDefined();
 
-      const found = await waitFor(async () => {
-        try {
-          const response = await this.customerApiClient.get<CustomerResponse>(
-            `/api/v1/customers/by-email/${encodeURIComponent(email!)}`
-          );
-          if (response.status === 200) {
-            customerProfile = response.data;
-            return true;
-          }
-          return false;
-        } catch {
-          return false;
+    const found = await waitFor(async () => {
+      try {
+        const response = await this.customerApiClient.get<CustomerResponse>(
+          `/api/v1/customers/by-email/${encodeURIComponent(email!)}`
+        );
+        if (response.status === 200) {
+          customerProfile = response.data;
+          return true;
         }
-      }, 10000);
+        return false;
+      } catch {
+        return false;
+      }
+    }, 10000);
 
-      expect(found).toBe(true);
-      this.setTestData('customerProfile', customerProfile);
-    }
-
-    expect(customerProfile).toBeDefined();
+    expect(found).toBe(true);
+    this.setTestData('customerProfile', customerProfile);
   }
-);
 
-Then(
-  'the causationId should match the UserRegistered eventId',
-  async function (this: CustomWorld) {
-    // Causation linking would require reading the event store directly
-    // For acceptance testing, we verify the relationship exists via customer creation
-    const customerProfile = this.getTestData<CustomerResponse>('customerProfile');
-    expect(customerProfile).toBeDefined();
-    expect(customerProfile!.userId).toBeDefined();
-  }
-);
+  expect(customerProfile).toBeDefined();
+});
+
+Then('the causationId should match the UserRegistered eventId', async function (this: CustomWorld) {
+  // Causation linking would require reading the event store directly
+  // For acceptance testing, we verify the relationship exists via customer creation
+  const customerProfile = this.getTestData<CustomerResponse>('customerProfile');
+  expect(customerProfile).toBeDefined();
+  expect(customerProfile!.userId).toBeDefined();
+});
 
 Then(
   'the correlationId should be propagated from the registration',
@@ -621,49 +591,43 @@ Then('only one customer profile should exist', async function (this: CustomWorld
   expect(response.data).toBeDefined();
 });
 
-Then(
-  'no error should be logged for the duplicate event',
-  async function (this: CustomWorld) {
-    // Error logging verification would require log inspection
-    // For acceptance testing, we verify the system handled it gracefully
-    const email = this.getTestData<string>('firstRegistrationEmail');
-    const response = await this.customerApiClient.get<CustomerResponse>(
-      `/api/v1/customers/by-email/${encodeURIComponent(email!)}`
-    );
+Then('no error should be logged for the duplicate event', async function (this: CustomWorld) {
+  // Error logging verification would require log inspection
+  // For acceptance testing, we verify the system handled it gracefully
+  const email = this.getTestData<string>('firstRegistrationEmail');
+  const response = await this.customerApiClient.get<CustomerResponse>(
+    `/api/v1/customers/by-email/${encodeURIComponent(email!)}`
+  );
 
-    expect(response.status).toBe(200);
-  }
-);
+  expect(response.status).toBe(200);
+});
 
-Then(
-  'the customer number sequence should start from 000001',
-  async function (this: CustomWorld) {
-    // Monthly reset verification would require controlling the system clock
-    // For acceptance testing, we verify the customer number format
-    const email = this.getTestData<string>('registeredEmail');
-    expect(email).toBeDefined();
+Then('the customer number sequence should start from 000001', async function (this: CustomWorld) {
+  // Monthly reset verification would require controlling the system clock
+  // For acceptance testing, we verify the customer number format
+  const email = this.getTestData<string>('registeredEmail');
+  expect(email).toBeDefined();
 
-    const found = await waitFor(async () => {
-      try {
-        const response = await this.customerApiClient.get<CustomerResponse>(
-          `/api/v1/customers/by-email/${encodeURIComponent(email!)}`
-        );
-        if (response.status === 200) {
-          this.setTestData('customerProfile', response.data);
-          return true;
-        }
-        return false;
-      } catch {
-        return false;
+  const found = await waitFor(async () => {
+    try {
+      const response = await this.customerApiClient.get<CustomerResponse>(
+        `/api/v1/customers/by-email/${encodeURIComponent(email!)}`
+      );
+      if (response.status === 200) {
+        this.setTestData('customerProfile', response.data);
+        return true;
       }
-    }, 10000);
+      return false;
+    } catch {
+      return false;
+    }
+  }, 10000);
 
-    expect(found).toBe(true);
+  expect(found).toBe(true);
 
-    const customerProfile = this.getTestData<CustomerResponse>('customerProfile');
-    expect(customerProfile!.customerNumber).toMatch(CUSTOMER_NUMBER_REGEX);
-  }
-);
+  const customerProfile = this.getTestData<CustomerResponse>('customerProfile');
+  expect(customerProfile!.customerNumber).toMatch(CUSTOMER_NUMBER_REGEX);
+});
 
 Then(
   'the customer status should be {string}',

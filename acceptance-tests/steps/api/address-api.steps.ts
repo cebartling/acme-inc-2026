@@ -69,12 +69,7 @@ Given('I have an authenticated customer', async function (this: CustomWorld) {
     });
   } catch (error: unknown) {
     // Customer might already exist, that's okay
-    if (
-      error &&
-      typeof error === 'object' &&
-      'response' in error &&
-      error.response
-    ) {
+    if (error && typeof error === 'object' && 'response' in error && error.response) {
       const err = error as { response: { status: number } };
       if (err.response.status !== 409) {
         console.warn('Warning: Could not create test customer:', err.response.status);
@@ -134,21 +129,45 @@ Given('I already have {int} shipping addresses', async function (this: CustomWor
   }
 });
 
-Given(
-  'I have an address labeled {string}',
-  async function (this: CustomWorld, label: string) {
-    const customerId = this.getTestData<string>('customerId');
-    const userId = this.getTestData<string>('userId');
+Given('I have an address labeled {string}', async function (this: CustomWorld, label: string) {
+  const customerId = this.getTestData<string>('customerId');
+  const userId = this.getTestData<string>('userId');
 
+  const request: AddAddressRequest = {
+    type: 'SHIPPING',
+    label,
+    street: { line1: '200 Test Street' },
+    city: 'Test City',
+    state: 'TX',
+    postalCode: '75001',
+    country: 'US',
+    isDefault: false,
+  };
+
+  const response = await this.customerApiClient.post<AddressResponse>(
+    `/api/v1/customers/${customerId}/addresses`,
+    request,
+    { headers: { 'X-User-Id': userId! } }
+  );
+
+  this.setTestData(`address-${label}`, response.data);
+});
+
+Given('I have the following addresses:', async function (this: CustomWorld, dataTable: DataTable) {
+  const customerId = this.getTestData<string>('customerId');
+  const userId = this.getTestData<string>('userId');
+  const addresses = dataTable.hashes();
+
+  for (const addr of addresses) {
     const request: AddAddressRequest = {
-      type: 'SHIPPING',
-      label,
-      street: { line1: '200 Test Street' },
+      type: addr.type,
+      label: addr.label,
+      street: { line1: `${Math.floor(Math.random() * 1000)} Test Street` },
       city: 'Test City',
       state: 'TX',
       postalCode: '75001',
       country: 'US',
-      isDefault: false,
+      isDefault: addr.isDefault === 'true',
     };
 
     const response = await this.customerApiClient.post<AddressResponse>(
@@ -157,39 +176,9 @@ Given(
       { headers: { 'X-User-Id': userId! } }
     );
 
-    this.setTestData(`address-${label}`, response.data);
+    this.setTestData(`address-${addr.label}`, response.data);
   }
-);
-
-Given(
-  'I have the following addresses:',
-  async function (this: CustomWorld, dataTable: DataTable) {
-    const customerId = this.getTestData<string>('customerId');
-    const userId = this.getTestData<string>('userId');
-    const addresses = dataTable.hashes();
-
-    for (const addr of addresses) {
-      const request: AddAddressRequest = {
-        type: addr.type,
-        label: addr.label,
-        street: { line1: `${Math.floor(Math.random() * 1000)} Test Street` },
-        city: 'Test City',
-        state: 'TX',
-        postalCode: '75001',
-        country: 'US',
-        isDefault: addr.isDefault === 'true',
-      };
-
-      const response = await this.customerApiClient.post<AddressResponse>(
-        `/api/v1/customers/${customerId}/addresses`,
-        request,
-        { headers: { 'X-User-Id': userId! } }
-      );
-
-      this.setTestData(`address-${addr.label}`, response.data);
-    }
-  }
-);
+});
 
 Given(
   'another customer has an address with id {string}',
@@ -198,25 +187,15 @@ Given(
   }
 );
 
-When(
-  'I add a shipping address with:',
-  async function (this: CustomWorld, dataTable: DataTable) {
-    await addAddress(this, 'SHIPPING', dataTable);
-  }
-);
+When('I add a shipping address with:', async function (this: CustomWorld, dataTable: DataTable) {
+  await addAddress(this, 'SHIPPING', dataTable);
+});
 
-When(
-  'I add a billing address with:',
-  async function (this: CustomWorld, dataTable: DataTable) {
-    await addAddress(this, 'BILLING', dataTable);
-  }
-);
+When('I add a billing address with:', async function (this: CustomWorld, dataTable: DataTable) {
+  await addAddress(this, 'BILLING', dataTable);
+});
 
-async function addAddress(
-  world: CustomWorld,
-  type: string,
-  dataTable: DataTable
-): Promise<void> {
+async function addAddress(world: CustomWorld, type: string, dataTable: DataTable): Promise<void> {
   const customerId = world.getTestData<string>('customerId');
   const userId = world.getTestData<string>('userId');
   const data = dataTable.rowsHash();
@@ -352,14 +331,11 @@ When('I try to access that address', async function (this: CustomWorld) {
   this.setTestData('lastResponse', response);
 });
 
-Then(
-  'the new address should be the default shipping address',
-  async function (this: CustomWorld) {
-    const response = this.getTestData<ApiResponse<AddressResponse>>('lastResponse');
-    expect(response).toBeDefined();
-    expect(response!.data.isDefault).toBe(true);
-  }
-);
+Then('the new address should be the default shipping address', async function (this: CustomWorld) {
+  const response = this.getTestData<ApiResponse<AddressResponse>>('lastResponse');
+  expect(response).toBeDefined();
+  expect(response!.data.isDefault).toBe(true);
+});
 
 Then(
   'the previous {string} address should no longer be default',
@@ -402,15 +378,12 @@ Then(
   }
 );
 
-Then(
-  'all addresses should have type {string}',
-  async function (this: CustomWorld, type: string) {
-    const response = this.getTestData<ApiResponse<AddressResponse[]>>('lastResponse');
-    expect(response).toBeDefined();
-    for (const address of response!.data) {
-      expect(address.type).toBe(type);
-    }
+Then('all addresses should have type {string}', async function (this: CustomWorld, type: string) {
+  const response = this.getTestData<ApiResponse<AddressResponse[]>>('lastResponse');
+  expect(response).toBeDefined();
+  for (const address of response!.data) {
+    expect(address.type).toBe(type);
   }
-);
+});
 
 // Note: 'the response should contain {string} with value {string}' step is defined in registration-api.steps.ts

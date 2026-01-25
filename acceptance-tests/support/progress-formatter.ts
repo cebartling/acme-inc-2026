@@ -105,9 +105,7 @@ export default class ProgressFormatter extends Formatter {
     } else {
       this.failedScenarios++;
       const statusName = messages.TestStepResultStatus[worstResult.status];
-      this.stdout(
-        `        ${this.colors.red}\u2717 ${statusName}${this.colors.reset}\n`
-      );
+      this.stdout(`        ${this.colors.red}\u2717 ${statusName}${this.colors.reset}\n`);
     }
   }
 
@@ -120,9 +118,7 @@ export default class ProgressFormatter extends Formatter {
     this.stdout(
       `${this.colors.bold}${this.colors.blue}═══════════════════════════════════════════════════════════════${this.colors.reset}\n`
     );
-    this.stdout(
-      `${this.colors.bold}  Test Run Summary${this.colors.reset}\n`
-    );
+    this.stdout(`${this.colors.bold}  Test Run Summary${this.colors.reset}\n`);
     this.stdout(
       `${this.colors.blue}═══════════════════════════════════════════════════════════════${this.colors.reset}\n`
     );
@@ -138,9 +134,7 @@ export default class ProgressFormatter extends Formatter {
         `  ${this.colors.red}Failed:${this.colors.reset}   ${this.failedScenarios} scenarios\n`
       );
     }
-    this.stdout(
-      `  ${this.colors.dim}Duration:${this.colors.reset} ${minutes}m ${seconds}s\n`
-    );
+    this.stdout(`  ${this.colors.dim}Duration:${this.colors.reset} ${minutes}m ${seconds}s\n`);
     this.stdout('\n');
 
     if (this.failedScenarios === 0) {

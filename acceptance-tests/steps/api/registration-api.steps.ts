@@ -285,15 +285,12 @@ Then(
   }
 );
 
-Then(
-  'a verification token should be created for the user',
-  async function (this: CustomWorld) {
-    // Verification token creation is internal; success of registration implies it was created
-    const response = this.getTestData<ApiResponse<RegistrationResponse>>('lastResponse');
-    expect(response).toBeDefined();
-    expect(response!.status).toBe(201);
-  }
-);
+Then('a verification token should be created for the user', async function (this: CustomWorld) {
+  // Verification token creation is internal; success of registration implies it was created
+  const response = this.getTestData<ApiResponse<RegistrationResponse>>('lastResponse');
+  expect(response).toBeDefined();
+  expect(response!.status).toBe(201);
+});
 
 Then(
   'the verification token should expire in {int} hours',

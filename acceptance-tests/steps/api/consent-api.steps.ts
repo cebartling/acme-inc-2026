@@ -1,6 +1,6 @@
-import { Given, When, Then } from "@cucumber/cucumber";
-import { expect } from "@playwright/test";
-import { CustomWorld } from "../../support/world.js";
+import { Given, When, Then } from '@cucumber/cucumber';
+import { expect } from '@playwright/test';
+import { CustomWorld } from '../../support/world.js';
 
 interface ConsentRequest {
   consentType: string;
@@ -56,10 +56,10 @@ interface ErrorResponse {
   message?: string;
 }
 
-const DEFAULT_IP = "192.168.1.1";
-const DEFAULT_USER_AGENT = "Cucumber-Test-Agent/1.0";
+const DEFAULT_IP = '192.168.1.1';
+const DEFAULT_USER_AGENT = 'Cucumber-Test-Agent/1.0';
 // A valid UUID that represents a non-existent customer for authorization tests
-const OTHER_CUSTOMER_UUID = "00000000-0000-0000-0000-000000000099";
+const OTHER_CUSTOMER_UUID = '00000000-0000-0000-0000-000000000099';
 
 /**
  * Converts a customer ID string to a valid UUID.
@@ -81,10 +81,10 @@ function normalizeCustomerId(customerId: string): string {
  * Uses the test helper API (only available in test profile).
  */
 async function ensureTestCustomerExists(world: CustomWorld): Promise<void> {
-  const customerId = world.getTestData<string>("customerId");
-  const userId = world.getTestData<string>("userId");
+  const customerId = world.getTestData<string>('customerId');
+  const userId = world.getTestData<string>('userId');
 
-  const response = await world.customerApiClient.post("/api/v1/test/customers", {
+  const response = await world.customerApiClient.post('/api/v1/test/customers', {
     customerId,
     userId,
     phoneNumber: null,
@@ -97,8 +97,8 @@ async function ensureTestCustomerExists(world: CustomWorld): Promise<void> {
     // Log warning but don't fail - the test helper might not be available
     console.warn(
       `Warning: Could not create test customer. Status: ${response.status}. ` +
-      `Ensure the backend is running with the 'test' profile. ` +
-      `Response: ${JSON.stringify(response.data)}`
+        `Ensure the backend is running with the 'test' profile. ` +
+        `Response: ${JSON.stringify(response.data)}`
     );
   }
 }
@@ -117,8 +117,8 @@ async function grantConsent(
     await ensureTestCustomerExists(world);
   }
 
-  const custId = customerId || world.getTestData<string>("customerId");
-  const userId = world.getTestData<string>("userId");
+  const custId = customerId || world.getTestData<string>('customerId');
+  const userId = world.getTestData<string>('userId');
 
   const request: ConsentRequest = {
     consentType,
@@ -132,24 +132,19 @@ async function grantConsent(
     const response = await world.customerApiClient.post<ConsentResponse>(
       `/api/v1/customers/${custId}/consents`,
       request,
-      { headers: { "X-User-Id": userId! } }
+      { headers: { 'X-User-Id': userId! } }
     );
 
-    world.setTestData("lastResponseStatus", response.status);
-    world.setTestData("lastResponseData", response.data);
-    world.setTestData("lastConsentResponse", response.data);
+    world.setTestData('lastResponseStatus', response.status);
+    world.setTestData('lastResponseData', response.data);
+    world.setTestData('lastConsentResponse', response.data);
   } catch (error: unknown) {
-    if (
-      error &&
-      typeof error === "object" &&
-      "response" in error &&
-      error.response
-    ) {
+    if (error && typeof error === 'object' && 'response' in error && error.response) {
       const err = error as {
         response: { status: number; data: ErrorResponse };
       };
-      world.setTestData("lastResponseStatus", err.response.status);
-      world.setTestData("lastResponseData", err.response.data);
+      world.setTestData('lastResponseStatus', err.response.status);
+      world.setTestData('lastResponseData', err.response.data);
     } else {
       throw error;
     }
@@ -168,8 +163,8 @@ async function revokeConsent(
     await ensureTestCustomerExists(world);
   }
 
-  const custId = customerId || world.getTestData<string>("customerId");
-  const userId = world.getTestData<string>("userId");
+  const custId = customerId || world.getTestData<string>('customerId');
+  const userId = world.getTestData<string>('userId');
 
   const request: ConsentRequest = {
     consentType,
@@ -183,24 +178,19 @@ async function revokeConsent(
     const response = await world.customerApiClient.post<ConsentResponse>(
       `/api/v1/customers/${custId}/consents`,
       request,
-      { headers: { "X-User-Id": userId! } }
+      { headers: { 'X-User-Id': userId! } }
     );
 
-    world.setTestData("lastResponseStatus", response.status);
-    world.setTestData("lastResponseData", response.data);
-    world.setTestData("lastConsentResponse", response.data);
+    world.setTestData('lastResponseStatus', response.status);
+    world.setTestData('lastResponseData', response.data);
+    world.setTestData('lastConsentResponse', response.data);
   } catch (error: unknown) {
-    if (
-      error &&
-      typeof error === "object" &&
-      "response" in error &&
-      error.response
-    ) {
+    if (error && typeof error === 'object' && 'response' in error && error.response) {
       const err = error as {
         response: { status: number; data: ErrorResponse };
       };
-      world.setTestData("lastResponseStatus", err.response.status);
-      world.setTestData("lastResponseData", err.response.data);
+      world.setTestData('lastResponseStatus', err.response.status);
+      world.setTestData('lastResponseData', err.response.data);
     } else {
       throw error;
     }
@@ -209,40 +199,34 @@ async function revokeConsent(
 
 // Given steps
 
-Given(
-  "I have DATA_PROCESSING consent from registration",
-  async function (this: CustomWorld) {
-    // DATA_PROCESSING consent is implicitly granted at registration
-    // We just need to ensure the customer exists
-    // For the test, we'll grant it explicitly via the test helper
-    await grantConsent(this, "DATA_PROCESSING", "REGISTRATION");
-  }
-);
+Given('I have DATA_PROCESSING consent from registration', async function (this: CustomWorld) {
+  // DATA_PROCESSING consent is implicitly granted at registration
+  // We just need to ensure the customer exists
+  // For the test, we'll grant it explicitly via the test helper
+  await grantConsent(this, 'DATA_PROCESSING', 'REGISTRATION');
+});
 
 Given(
-  "I have granted consent for {string}",
+  'I have granted consent for {string}',
   async function (this: CustomWorld, consentType: string) {
-    await grantConsent(this, consentType, "PROFILE_WIZARD");
+    await grantConsent(this, consentType, 'PROFILE_WIZARD');
   }
 );
 
-Given(
-  "I have granted and revoked several consents",
-  async function (this: CustomWorld) {
-    // Grant DATA_PROCESSING
-    await grantConsent(this, "DATA_PROCESSING", "REGISTRATION");
-    // Grant MARKETING
-    await grantConsent(this, "MARKETING", "PROFILE_WIZARD");
-    // Grant ANALYTICS
-    await grantConsent(this, "ANALYTICS", "PRIVACY_SETTINGS");
-    // Revoke ANALYTICS
-    await revokeConsent(this, "ANALYTICS", "PRIVACY_SETTINGS");
-    // Grant PERSONALIZATION
-    await grantConsent(this, "PERSONALIZATION", "API");
-  }
-);
+Given('I have granted and revoked several consents', async function (this: CustomWorld) {
+  // Grant DATA_PROCESSING
+  await grantConsent(this, 'DATA_PROCESSING', 'REGISTRATION');
+  // Grant MARKETING
+  await grantConsent(this, 'MARKETING', 'PROFILE_WIZARD');
+  // Grant ANALYTICS
+  await grantConsent(this, 'ANALYTICS', 'PRIVACY_SETTINGS');
+  // Revoke ANALYTICS
+  await revokeConsent(this, 'ANALYTICS', 'PRIVACY_SETTINGS');
+  // Grant PERSONALIZATION
+  await grantConsent(this, 'PERSONALIZATION', 'API');
+});
 
-Given("I have no consent records", async function (this: CustomWorld) {
+Given('I have no consent records', async function (this: CustomWorld) {
   // For this test, we assume the customer has just been created
   // and has no consent records yet.
   // This is a test setup assumption.
@@ -251,14 +235,14 @@ Given("I have no consent records", async function (this: CustomWorld) {
 // When steps
 
 When(
-  "I grant consent for {string} from {string}",
+  'I grant consent for {string} from {string}',
   async function (this: CustomWorld, consentType: string, source: string) {
     await grantConsent(this, consentType, source);
   }
 );
 
 When(
-  "I grant consent for {string} from {string} with IP {string} and user agent {string}",
+  'I grant consent for {string} from {string} with IP {string} and user agent {string}',
   async function (
     this: CustomWorld,
     consentType: string,
@@ -271,66 +255,64 @@ When(
 );
 
 When(
-  "I revoke consent for {string} from {string}",
+  'I revoke consent for {string} from {string}',
   async function (this: CustomWorld, consentType: string, source: string) {
     await revokeConsent(this, consentType, source);
   }
 );
 
 When(
-  "I try to revoke consent for {string} from {string}",
+  'I try to revoke consent for {string} from {string}',
   async function (this: CustomWorld, consentType: string, source: string) {
     await revokeConsent(this, consentType, source);
   }
 );
 
 When(
-  "I try to grant consent for {string} from {string}",
+  'I try to grant consent for {string} from {string}',
   async function (this: CustomWorld, consentType: string, source: string) {
     await grantConsent(this, consentType, source);
   }
 );
 
 When(
-  "I try to grant consent for {string} for customer {string}",
-  async function (
-    this: CustomWorld,
-    consentType: string,
-    customerId: string
-  ) {
+  'I try to grant consent for {string} for customer {string}',
+  async function (this: CustomWorld, consentType: string, customerId: string) {
     const normalizedCustomerId = normalizeCustomerId(customerId);
-    await grantConsent(this, consentType, "PROFILE_WIZARD", DEFAULT_IP, DEFAULT_USER_AGENT, normalizedCustomerId);
+    await grantConsent(
+      this,
+      consentType,
+      'PROFILE_WIZARD',
+      DEFAULT_IP,
+      DEFAULT_USER_AGENT,
+      normalizedCustomerId
+    );
   }
 );
 
-When("I request my consents", async function (this: CustomWorld) {
+When('I request my consents', async function (this: CustomWorld) {
   // Ensure the test customer exists
   await ensureTestCustomerExists(this);
 
-  const customerId = this.getTestData<string>("customerId");
-  const userId = this.getTestData<string>("userId");
+  const customerId = this.getTestData<string>('customerId');
+  const userId = this.getTestData<string>('userId');
 
   try {
     const response = await this.customerApiClient.get<ConsentsListResponse>(
       `/api/v1/customers/${customerId}/consents`,
-      { headers: { "X-User-Id": userId! } }
+      { headers: { 'X-User-Id': userId! } }
     );
 
-    this.setTestData("lastResponseStatus", response.status);
-    this.setTestData("lastResponseData", response.data);
-    this.setTestData("consentsListResponse", response.data);
+    this.setTestData('lastResponseStatus', response.status);
+    this.setTestData('lastResponseData', response.data);
+    this.setTestData('consentsListResponse', response.data);
   } catch (error: unknown) {
-    if (
-      error &&
-      typeof error === "object" &&
-      "response" in error &&
-      error.response
-    ) {
+    if (error && typeof error === 'object' && 'response' in error && error.response) {
       const err = error as {
         response: { status: number; data: ErrorResponse };
       };
-      this.setTestData("lastResponseStatus", err.response.status);
-      this.setTestData("lastResponseData", err.response.data);
+      this.setTestData('lastResponseStatus', err.response.status);
+      this.setTestData('lastResponseData', err.response.data);
     } else {
       throw error;
     }
@@ -338,31 +320,26 @@ When("I request my consents", async function (this: CustomWorld) {
 });
 
 When(
-  "I try to get consents for customer {string}",
+  'I try to get consents for customer {string}',
   async function (this: CustomWorld, customerId: string) {
-    const userId = this.getTestData<string>("userId");
+    const userId = this.getTestData<string>('userId');
     const normalizedCustomerId = normalizeCustomerId(customerId);
 
     try {
       const response = await this.customerApiClient.get<ConsentsListResponse>(
         `/api/v1/customers/${normalizedCustomerId}/consents`,
-        { headers: { "X-User-Id": userId! } }
+        { headers: { 'X-User-Id': userId! } }
       );
 
-      this.setTestData("lastResponseStatus", response.status);
-      this.setTestData("lastResponseData", response.data);
+      this.setTestData('lastResponseStatus', response.status);
+      this.setTestData('lastResponseData', response.data);
     } catch (error: unknown) {
-      if (
-        error &&
-        typeof error === "object" &&
-        "response" in error &&
-        error.response
-      ) {
+      if (error && typeof error === 'object' && 'response' in error && error.response) {
         const err = error as {
           response: { status: number; data: ErrorResponse };
         };
-        this.setTestData("lastResponseStatus", err.response.status);
-        this.setTestData("lastResponseData", err.response.data);
+        this.setTestData('lastResponseStatus', err.response.status);
+        this.setTestData('lastResponseData', err.response.data);
       } else {
         throw error;
       }
@@ -370,35 +347,29 @@ When(
   }
 );
 
-When("I export my consent history", async function (this: CustomWorld) {
+When('I export my consent history', async function (this: CustomWorld) {
   // Ensure the test customer exists
   await ensureTestCustomerExists(this);
 
-  const customerId = this.getTestData<string>("customerId");
-  const userId = this.getTestData<string>("userId");
+  const customerId = this.getTestData<string>('customerId');
+  const userId = this.getTestData<string>('userId');
 
   try {
-    const response =
-      await this.customerApiClient.get<ConsentHistoryExportResponse>(
-        `/api/v1/customers/${customerId}/consents/history?format=json`,
-        { headers: { "X-User-Id": userId! } }
-      );
+    const response = await this.customerApiClient.get<ConsentHistoryExportResponse>(
+      `/api/v1/customers/${customerId}/consents/history?format=json`,
+      { headers: { 'X-User-Id': userId! } }
+    );
 
-    this.setTestData("lastResponseStatus", response.status);
-    this.setTestData("lastResponseData", response.data);
-    this.setTestData("consentHistoryResponse", response.data);
+    this.setTestData('lastResponseStatus', response.status);
+    this.setTestData('lastResponseData', response.data);
+    this.setTestData('consentHistoryResponse', response.data);
   } catch (error: unknown) {
-    if (
-      error &&
-      typeof error === "object" &&
-      "response" in error &&
-      error.response
-    ) {
+    if (error && typeof error === 'object' && 'response' in error && error.response) {
       const err = error as {
         response: { status: number; data: ErrorResponse };
       };
-      this.setTestData("lastResponseStatus", err.response.status);
-      this.setTestData("lastResponseData", err.response.data);
+      this.setTestData('lastResponseStatus', err.response.status);
+      this.setTestData('lastResponseData', err.response.data);
     } else {
       throw error;
     }
@@ -406,35 +377,29 @@ When("I export my consent history", async function (this: CustomWorld) {
 });
 
 When(
-  "I export my consent history with format {string}",
+  'I export my consent history with format {string}',
   async function (this: CustomWorld, format: string) {
     // Ensure the test customer exists
     await ensureTestCustomerExists(this);
 
-    const customerId = this.getTestData<string>("customerId");
-    const userId = this.getTestData<string>("userId");
+    const customerId = this.getTestData<string>('customerId');
+    const userId = this.getTestData<string>('userId');
 
     try {
-      const response =
-        await this.customerApiClient.get<ConsentHistoryExportResponse>(
-          `/api/v1/customers/${customerId}/consents/history?format=${format}`,
-          { headers: { "X-User-Id": userId! } }
-        );
+      const response = await this.customerApiClient.get<ConsentHistoryExportResponse>(
+        `/api/v1/customers/${customerId}/consents/history?format=${format}`,
+        { headers: { 'X-User-Id': userId! } }
+      );
 
-      this.setTestData("lastResponseStatus", response.status);
-      this.setTestData("lastResponseData", response.data);
+      this.setTestData('lastResponseStatus', response.status);
+      this.setTestData('lastResponseData', response.data);
     } catch (error: unknown) {
-      if (
-        error &&
-        typeof error === "object" &&
-        "response" in error &&
-        error.response
-      ) {
+      if (error && typeof error === 'object' && 'response' in error && error.response) {
         const err = error as {
           response: { status: number; data: ErrorResponse };
         };
-        this.setTestData("lastResponseStatus", err.response.status);
-        this.setTestData("lastResponseData", err.response.data);
+        this.setTestData('lastResponseStatus', err.response.status);
+        this.setTestData('lastResponseData', err.response.data);
       } else {
         throw error;
       }
@@ -443,32 +408,26 @@ When(
 );
 
 When(
-  "I try to export consent history for customer {string}",
+  'I try to export consent history for customer {string}',
   async function (this: CustomWorld, customerId: string) {
-    const userId = this.getTestData<string>("userId");
+    const userId = this.getTestData<string>('userId');
     const normalizedCustomerId = normalizeCustomerId(customerId);
 
     try {
-      const response =
-        await this.customerApiClient.get<ConsentHistoryExportResponse>(
-          `/api/v1/customers/${normalizedCustomerId}/consents/history?format=json`,
-          { headers: { "X-User-Id": userId! } }
-        );
+      const response = await this.customerApiClient.get<ConsentHistoryExportResponse>(
+        `/api/v1/customers/${normalizedCustomerId}/consents/history?format=json`,
+        { headers: { 'X-User-Id': userId! } }
+      );
 
-      this.setTestData("lastResponseStatus", response.status);
-      this.setTestData("lastResponseData", response.data);
+      this.setTestData('lastResponseStatus', response.status);
+      this.setTestData('lastResponseData', response.data);
     } catch (error: unknown) {
-      if (
-        error &&
-        typeof error === "object" &&
-        "response" in error &&
-        error.response
-      ) {
+      if (error && typeof error === 'object' && 'response' in error && error.response) {
         const err = error as {
           response: { status: number; data: ErrorResponse };
         };
-        this.setTestData("lastResponseStatus", err.response.status);
-        this.setTestData("lastResponseData", err.response.data);
+        this.setTestData('lastResponseStatus', err.response.status);
+        this.setTestData('lastResponseData', err.response.data);
       } else {
         throw error;
       }
@@ -479,16 +438,16 @@ When(
 // Then steps
 
 Then(
-  "the consent response should have {string} set to {string}",
+  'the consent response should have {string} set to {string}',
   async function (this: CustomWorld, field: string, expectedValue: string) {
-    const data = this.getTestData<ConsentResponse>("lastResponseData");
+    const data = this.getTestData<ConsentResponse>('lastResponseData');
 
     const actualValue = (data as Record<string, unknown>)[field];
 
     // Convert expected value for comparison
     let expected: unknown = expectedValue;
-    if (expectedValue === "true") expected = true;
-    if (expectedValue === "false") expected = false;
+    if (expectedValue === 'true') expected = true;
+    if (expectedValue === 'false') expected = false;
     if (!isNaN(Number(expectedValue))) expected = Number(expectedValue);
 
     expect(String(actualValue)).toBe(String(expected));
@@ -496,28 +455,24 @@ Then(
 );
 
 Then(
-  "the consent response should include {string}",
+  'the consent response should include {string}',
   async function (this: CustomWorld, field: string) {
-    const data = this.getTestData<ConsentResponse>("lastResponseData");
+    const data = this.getTestData<ConsentResponse>('lastResponseData');
     expect((data as Record<string, unknown>)[field]).toBeDefined();
   }
 );
 
 Then(
-  "the consent response should have {string} set approximately 1 year from now",
+  'the consent response should have {string} set approximately 1 year from now',
   async function (this: CustomWorld, field: string) {
-    const data = this.getTestData<ConsentResponse>("lastResponseData");
+    const data = this.getTestData<ConsentResponse>('lastResponseData');
     const expiresAt = (data as Record<string, unknown>)[field] as string;
 
     expect(expiresAt).toBeDefined();
 
     const expiresDate = new Date(expiresAt);
     const now = new Date();
-    const oneYearFromNow = new Date(
-      now.getFullYear() + 1,
-      now.getMonth(),
-      now.getDate()
-    );
+    const oneYearFromNow = new Date(now.getFullYear() + 1, now.getMonth(), now.getDate());
 
     // Allow 1 day tolerance
     const diffDays = Math.abs(
@@ -528,9 +483,9 @@ Then(
 );
 
 Then(
-  "my consents should show {string} as granted",
+  'my consents should show {string} as granted',
   async function (this: CustomWorld, consentType: string) {
-    const data = this.getTestData<ConsentsListResponse>("lastResponseData");
+    const data = this.getTestData<ConsentsListResponse>('lastResponseData');
     const consent = data.consents.find((c) => c.consentType === consentType);
 
     expect(consent).toBeDefined();
@@ -539,9 +494,9 @@ Then(
 );
 
 Then(
-  "my consents should show {string} as not granted",
+  'my consents should show {string} as not granted',
   async function (this: CustomWorld, consentType: string) {
-    const data = this.getTestData<ConsentsListResponse>("lastResponseData");
+    const data = this.getTestData<ConsentsListResponse>('lastResponseData');
     const consent = data.consents.find((c) => c.consentType === consentType);
 
     expect(consent).toBeDefined();
@@ -550,9 +505,9 @@ Then(
 );
 
 Then(
-  "my consents should show {string} as required",
+  'my consents should show {string} as required',
   async function (this: CustomWorld, consentType: string) {
-    const data = this.getTestData<ConsentsListResponse>("lastResponseData");
+    const data = this.getTestData<ConsentsListResponse>('lastResponseData');
     const consent = data.consents.find((c) => c.consentType === consentType);
 
     expect(consent).toBeDefined();
@@ -561,9 +516,9 @@ Then(
 );
 
 Then(
-  "my consents should show {string} with source {string}",
+  'my consents should show {string} with source {string}',
   async function (this: CustomWorld, consentType: string, source: string) {
-    const data = this.getTestData<ConsentsListResponse>("lastResponseData");
+    const data = this.getTestData<ConsentsListResponse>('lastResponseData');
     const consent = data.consents.find((c) => c.consentType === consentType);
 
     expect(consent).toBeDefined();
@@ -572,9 +527,9 @@ Then(
 );
 
 Then(
-  "my consents should show {string} with no expiration",
+  'my consents should show {string} with no expiration',
   async function (this: CustomWorld, consentType: string) {
-    const data = this.getTestData<ConsentsListResponse>("lastResponseData");
+    const data = this.getTestData<ConsentsListResponse>('lastResponseData');
     const consent = data.consents.find((c) => c.consentType === consentType);
 
     expect(consent).toBeDefined();
@@ -583,73 +538,60 @@ Then(
 );
 
 Then(
-  "the consents response should include {string}",
+  'the consents response should include {string}',
   async function (this: CustomWorld, field: string) {
-    const data = this.getTestData<ConsentsListResponse>("lastResponseData");
+    const data = this.getTestData<ConsentsListResponse>('lastResponseData');
+    expect((data as Record<string, unknown>)[field]).toBeDefined();
+  }
+);
+
+Then('the consents should include all consent types', async function (this: CustomWorld) {
+  const data = this.getTestData<ConsentsListResponse>('lastResponseData');
+  const consentTypes = [
+    'DATA_PROCESSING',
+    'MARKETING',
+    'ANALYTICS',
+    'THIRD_PARTY',
+    'PERSONALIZATION',
+  ];
+
+  for (const type of consentTypes) {
+    const consent = data.consents.find((c) => c.consentType === type);
+    expect(consent).toBeDefined();
+  }
+});
+
+Then(
+  'the consent history export should include {string}',
+  async function (this: CustomWorld, field: string) {
+    const data = this.getTestData<ConsentHistoryExportResponse>('lastResponseData');
     expect((data as Record<string, unknown>)[field]).toBeDefined();
   }
 );
 
 Then(
-  "the consents should include all consent types",
-  async function (this: CustomWorld) {
-    const data = this.getTestData<ConsentsListResponse>("lastResponseData");
-    const consentTypes = [
-      "DATA_PROCESSING",
-      "MARKETING",
-      "ANALYTICS",
-      "THIRD_PARTY",
-      "PERSONALIZATION",
-    ];
-
-    for (const type of consentTypes) {
-      const consent = data.consents.find((c) => c.consentType === type);
-      expect(consent).toBeDefined();
-    }
-  }
-);
-
-Then(
-  "the consent history export should include {string}",
-  async function (this: CustomWorld, field: string) {
-    const data = this.getTestData<ConsentHistoryExportResponse>(
-      "lastResponseData"
-    );
-    expect((data as Record<string, unknown>)[field]).toBeDefined();
-  }
-);
-
-Then(
-  "the consent history should contain a record for {string}",
+  'the consent history should contain a record for {string}',
   async function (this: CustomWorld, consentType: string) {
-    const data = this.getTestData<ConsentHistoryExportResponse>(
-      "lastResponseData"
-    );
-    const record = data.consentHistory.find(
-      (r) => r.consentType === consentType
-    );
+    const data = this.getTestData<ConsentHistoryExportResponse>('lastResponseData');
+    const record = data.consentHistory.find((r) => r.consentType === consentType);
     expect(record).toBeDefined();
-    this.setTestData("lastConsentHistoryRecord", record);
+    this.setTestData('lastConsentHistoryRecord', record);
   }
 );
 
 Then(
-  "the consent history record should have {string} set to {string}",
+  'the consent history record should have {string} set to {string}',
   async function (this: CustomWorld, field: string, expectedValue: string) {
-    const record = this.getTestData<ConsentHistoryEntry>(
-      "lastConsentHistoryRecord"
-    );
+    const record = this.getTestData<ConsentHistoryEntry>('lastConsentHistoryRecord');
     const actualValue = (record as Record<string, unknown>)[field];
     expect(String(actualValue)).toBe(expectedValue);
   }
 );
 
 Then(
-  "each consent history record should include {string}",
+  'each consent history record should include {string}',
   async function (this: CustomWorld, field: string) {
-    const data = this.getTestData<ConsentHistoryExportResponse>(
-      "lastResponseData"
-    );
+    const data = this.getTestData<ConsentHistoryExportResponse>('lastResponseData');
 
     for (const record of data.consentHistory) {
       expect((record as Record<string, unknown>)[field]).toBeDefined();
@@ -657,12 +599,7 @@ Then(
   }
 );
 
-Then(
-  "the consent history should be empty",
-  async function (this: CustomWorld) {
-    const data = this.getTestData<ConsentHistoryExportResponse>(
-      "lastResponseData"
-    );
-    expect(data.consentHistory).toHaveLength(0);
-  }
-);
+Then('the consent history should be empty', async function (this: CustomWorld) {
+  const data = this.getTestData<ConsentHistoryExportResponse>('lastResponseData');
+  expect(data.consentHistory).toHaveLength(0);
+});

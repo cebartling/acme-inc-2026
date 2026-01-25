@@ -137,38 +137,35 @@ Given(
   }
 );
 
-When(
-  'I click the verification link with the token',
-  async function (this: CustomWorld) {
-    // In a real test, we'd use the actual token from registration
-    // For now, we'll use the token status to determine behavior
-    const tokenStatus = this.getTestData<string>('tokenStatus');
-    let token: string;
+When('I click the verification link with the token', async function (this: CustomWorld) {
+  // In a real test, we'd use the actual token from registration
+  // For now, we'll use the token status to determine behavior
+  const tokenStatus = this.getTestData<string>('tokenStatus');
+  let token: string;
 
-    switch (tokenStatus) {
-      case 'valid':
-        // Would use real token here
-        token = verificationToken || 'test-valid-token';
-        break;
-      case 'expired':
-        token = 'expired-token-simulation';
-        break;
-      case 'used':
-        token = 'used-token-simulation';
-        break;
-      default:
-        token = 'unknown-token';
-    }
-
-    // Note: This endpoint returns redirects, not JSON
-    // We need to handle redirect responses differently - use manual redirect to capture Location header
-    const response = await this.identityApiClient.get(`/api/v1/users/verify?token=${token}`, {
-      redirect: 'manual',
-    });
-    this.setTestData('lastResponse', response);
-    this.setTestData('redirectLocation', response.headers.get('location'));
+  switch (tokenStatus) {
+    case 'valid':
+      // Would use real token here
+      token = verificationToken || 'test-valid-token';
+      break;
+    case 'expired':
+      token = 'expired-token-simulation';
+      break;
+    case 'used':
+      token = 'used-token-simulation';
+      break;
+    default:
+      token = 'unknown-token';
   }
-);
+
+  // Note: This endpoint returns redirects, not JSON
+  // We need to handle redirect responses differently - use manual redirect to capture Location header
+  const response = await this.identityApiClient.get(`/api/v1/users/verify?token=${token}`, {
+    redirect: 'manual',
+  });
+  this.setTestData('lastResponse', response);
+  this.setTestData('redirectLocation', response.headers.get('location'));
+});
 
 When(
   'I click the verification link with token {string}',
@@ -280,14 +277,11 @@ Then('a UserActivated event should be published', async function (this: CustomWo
   expect(response).toBeDefined();
 });
 
-Then(
-  'the response should contain {string}',
-  async function (this: CustomWorld, field: string) {
-    const response = this.getTestData<ApiResponse<ResendVerificationResponse>>('lastResponse');
-    expect(response).toBeDefined();
-    expect(response!.data).toHaveProperty(field);
-  }
-);
+Then('the response should contain {string}', async function (this: CustomWorld, field: string) {
+  const response = this.getTestData<ApiResponse<ResendVerificationResponse>>('lastResponse');
+  expect(response).toBeDefined();
+  expect(response!.data).toHaveProperty(field);
+});
 
 Then(
   'the response should have a {string} header',

@@ -62,8 +62,12 @@ export class RegisterPage extends BasePage {
     this.submitButton = page.getByRole('button', { name: 'Create Account' });
 
     // Password toggles
-    this.passwordToggle = page.getByRole('button', { name: /show password|hide password/i }).first();
-    this.confirmPasswordToggle = page.getByRole('button', { name: /show password|hide password/i }).last();
+    this.passwordToggle = page
+      .getByRole('button', { name: /show password|hide password/i })
+      .first();
+    this.confirmPasswordToggle = page
+      .getByRole('button', { name: /show password|hide password/i })
+      .last();
 
     // Password strength
     this.passwordStrengthIndicator = page.locator('[class*="bg-"][class*="-500"]').first();
@@ -71,7 +75,10 @@ export class RegisterPage extends BasePage {
 
     // Error messages (using role="alert" for accessibility)
     this.emailError = page.getByRole('alert').filter({ hasText: /email/i });
-    this.passwordError = page.getByRole('alert').filter({ hasText: /password/i }).first();
+    this.passwordError = page
+      .getByRole('alert')
+      .filter({ hasText: /password/i })
+      .first();
     this.confirmPasswordError = page.getByRole('alert').filter({ hasText: /match/i });
     this.firstNameError = page.getByRole('alert').filter({ hasText: /first name/i });
     this.lastNameError = page.getByRole('alert').filter({ hasText: /last name/i });
@@ -80,10 +87,22 @@ export class RegisterPage extends BasePage {
 
     // Success indicators (check icons)
     this.emailSuccess = page.getByLabel('Email').locator('..').locator('..').getByLabel('Valid');
-    this.passwordSuccess = page.locator('label:has-text("Password")').locator('..').getByLabel('Valid');
-    this.confirmPasswordSuccess = page.locator('label:has-text("Confirm Password")').locator('..').getByLabel('Valid');
-    this.firstNameSuccess = page.locator('label:has-text("First Name")').locator('..').getByLabel('Valid');
-    this.lastNameSuccess = page.locator('label:has-text("Last Name")').locator('..').getByLabel('Valid');
+    this.passwordSuccess = page
+      .locator('label:has-text("Password")')
+      .locator('..')
+      .getByLabel('Valid');
+    this.confirmPasswordSuccess = page
+      .locator('label:has-text("Confirm Password")')
+      .locator('..')
+      .getByLabel('Valid');
+    this.firstNameSuccess = page
+      .locator('label:has-text("First Name")')
+      .locator('..')
+      .getByLabel('Valid');
+    this.lastNameSuccess = page
+      .locator('label:has-text("Last Name")')
+      .locator('..')
+      .getByLabel('Valid');
 
     // Character counters
     this.firstNameCounter = page.getByText(/\d+\/50/).first();
