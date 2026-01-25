@@ -198,9 +198,16 @@ class DeviceTrustService(
         logger.info("Revoking device trust $deviceTrustId for user $userId (reason: $reason)")
 
         // Find and verify ownership
-        val deviceTrust = deviceTrustRepository.findByIdAndUserId(deviceTrustId, userId)
+        // Note: findByIdAndUserId() is not supported by Spring Data Redis, so we use findById and verify userId
+        val deviceTrust = deviceTrustRepository.findById(deviceTrustId).orElse(null)
         if (deviceTrust == null) {
-            logger.warn("Device trust not found or not owned by user: $deviceTrustId")
+            logger.warn("Device trust not found: $deviceTrustId")
+            return false
+        }
+
+        // Verify ownership
+        if (deviceTrust.userId != userId) {
+            logger.warn("Device trust $deviceTrustId does not belong to user $userId (belongs to ${deviceTrust.userId})")
             return false
         }
 
