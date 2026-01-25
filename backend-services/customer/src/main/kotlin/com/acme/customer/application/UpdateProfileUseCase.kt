@@ -41,6 +41,7 @@ class UpdateProfileUseCase(
     private val outboxWriter: OutboxWriter,
     private val phoneNumberValidator: PhoneNumberValidator,
     private val profileCompletionService: ProfileCompletionService,
+    private val customerCacheService: com.acme.customer.infrastructure.cache.CustomerCacheService,
     meterRegistry: MeterRegistry
 ) {
     private val logger = LoggerFactory.getLogger(UpdateProfileUseCase::class.java)
@@ -164,6 +165,9 @@ class UpdateProfileUseCase(
 
                 // Save customer
                 customerRepository.save(customer)
+
+                // Invalidate cache to ensure fresh data on next request
+                customerCacheService.invalidate(customer.userId)
 
                 logger.info(
                     "Updated profile for customer {}, changed fields: {}",

@@ -87,6 +87,7 @@ class UpdatePreferencesUseCase(
     private val preferencesRepository: CustomerPreferencesRepository,
     private val changeLogRepository: PreferenceChangeLogRepository,
     private val eventPublisher: CustomerEventPublisher,
+    private val customerCacheService: com.acme.customer.infrastructure.cache.CustomerCacheService,
     private val meterRegistry: MeterRegistry
 ) {
     private val logger = LoggerFactory.getLogger(UpdatePreferencesUseCase::class.java)
@@ -234,6 +235,9 @@ class UpdatePreferencesUseCase(
 
             // Persist preferences
             preferencesRepository.save(preferences)
+
+            // Invalidate cache to ensure fresh data on next request
+            customerCacheService.invalidate(customer.userId)
 
             // Create and publish event
             val event = PreferencesUpdated.create(
