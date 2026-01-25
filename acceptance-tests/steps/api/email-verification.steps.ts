@@ -177,7 +177,7 @@ When(
       redirect: 'manual',
     });
     this.setTestData('lastResponse', response);
-    this.setTestData('redirectLocation', response.headers.get('location'));
+    this.setTestData('redirectLocation', response.headers['location']);
   }
 );
 
@@ -189,7 +189,7 @@ When(
       redirect: 'manual',
     });
     this.setTestData('lastResponse', response);
-    this.setTestData('redirectLocation', response.headers.get('location'));
+    this.setTestData('redirectLocation', response.headers['location']);
   }
 );
 
