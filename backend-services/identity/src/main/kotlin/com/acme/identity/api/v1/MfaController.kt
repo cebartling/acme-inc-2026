@@ -38,6 +38,7 @@ import java.util.UUID
 class MfaController(
     private val verifyMfaUseCase: VerifyMfaUseCase,
     private val smsMfaService: SmsMfaService,
+    private val authenticationSessionService: AuthenticationSessionService,
     private val tokenService: TokenService,
     private val sessionService: SessionService,
     private val deviceTrustService: DeviceTrustService,
@@ -435,84 +436,16 @@ class MfaController(
         mfaMethod: String,
         correlationId: UUID
     ): ResponseEntity.BodyBuilder {
-        // Get the user
-        val user = userRepository.findById(userId).orElseThrow {
-            IllegalStateException("User not found after successful MFA verification: $userId")
-        }
-
-        // Create device info
-        val deviceInfo = DeviceInfo.fromRequest(
-            ipAddress = ipAddress,
-            userAgent = userAgent,
-            fingerprint = deviceFingerprint
-        )
-
-        // Generate token family for refresh token rotation
-        val tokenFamily = "fam_${UUID.randomUUID()}"
-
-        // Create session
-        val session = sessionService.createSession(
+        return authenticationSessionService.createAuthenticatedSession(
             userId = userId,
-            deviceId = deviceInfo.deviceId,
-            ipAddress = ipAddress,
-            userAgent = userAgent,
-            tokenFamily = tokenFamily
-        )
-
-        // Generate tokens
-        val tokens = tokenService.createTokens(
-            user = user,
-            sessionId = session.id,
-            tokenFamily = tokenFamily
-        )
-
-        // Build cookies
-        val accessTokenCookie = authCookieBuilder.buildAccessTokenCookie(tokens.accessToken)
-        val refreshTokenCookie = authCookieBuilder.buildRefreshTokenCookie(tokens.refreshToken)
-
-        // Create device trust if requested and device fingerprint is available
-        val deviceTrustCookie = if (rememberDevice && deviceFingerprint != null) {
-            val deviceTrust = deviceTrustService.createTrust(
-                userId = userId,
-                deviceFingerprint = deviceFingerprint,
-                userAgent = userAgent,
-                ipAddress = ipAddress,
-                correlationId = correlationId
-            )
-            logger.info("Created device trust {} for user {}", deviceTrust.id, userId)
-            authCookieBuilder.buildDeviceTrustCookie(deviceTrust.id)
-        } else {
-            null
-        }
-
-        // Publish UserLoggedIn event
-        val event = UserLoggedIn.create(
-            userId = userId,
-            sessionId = session.id,
             ipAddress = ipAddress,
             userAgent = userAgent,
             deviceFingerprint = deviceFingerprint,
+            rememberDevice = rememberDevice,
             mfaUsed = true,
             mfaMethod = mfaMethod,
-            loginSource = "WEB",
             correlationId = correlationId
         )
-        eventStoreRepository.append(event)
-        userEventPublisher.publish(event)
-
-        logger.info("Created session {} and generated tokens for user {}", session.id, userId)
-
-        // Return response builder with cookies
-        val response = ResponseEntity.ok()
-            .header(HttpHeaders.SET_COOKIE, accessTokenCookie.toString())
-            .header(HttpHeaders.SET_COOKIE, refreshTokenCookie.toString())
-
-        // Add device trust cookie if created
-        if (deviceTrustCookie != null) {
-            response.header(HttpHeaders.SET_COOKIE, deviceTrustCookie.toString())
-        }
-
-        return response
     }
 
     /**

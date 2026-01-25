@@ -1,6 +1,7 @@
 package com.acme.identity.infrastructure.persistence
 
 import com.acme.identity.domain.events.DomainEvent
+import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Repository
@@ -74,7 +75,7 @@ class EventStoreRepository(
      * @return List of event records as maps, ordered by timestamp.
      */
     fun findByAggregateId(aggregateId: java.util.UUID): List<Map<String, Any?>> {
-        return jdbcTemplate.queryForList(
+        val rawEvents = jdbcTemplate.queryForList(
             """
             SELECT event_id, event_type, event_version, timestamp,
                    aggregate_id, aggregate_type, correlation_id, payload
@@ -84,6 +85,32 @@ class EventStoreRepository(
             """.trimIndent(),
             aggregateId
         )
+
+        // Parse payload from JSON (handling both String and PGobject) to Map for each event
+        return rawEvents.map { event ->
+            val mutableEvent = event.toMutableMap()
+            val payload = event["payload"]
+
+            // Extract JSON string from PGobject or use String directly
+            val jsonString = when {
+                payload is String -> payload
+                payload?.javaClass?.name == "org.postgresql.util.PGobject" -> {
+                    // Use reflection to get value from PGobject to avoid direct dependency
+                    payload.javaClass.getMethod("getValue").invoke(payload) as? String
+                }
+                else -> null
+            }
+
+            // Parse JSON string to Map
+            if (jsonString != null) {
+                mutableEvent["payload"] = objectMapper.readValue(
+                    jsonString,
+                    object : TypeReference<Map<String, Any?>>() {}
+                )
+            }
+
+            mutableEvent
+        }
     }
 
     /**
@@ -97,7 +124,7 @@ class EventStoreRepository(
      * @return List of event records as maps, ordered by timestamp.
      */
     fun findByEventTypeAndAggregateId(eventType: String, aggregateId: java.util.UUID): List<Map<String, Any?>> {
-        return jdbcTemplate.queryForList(
+        val rawEvents = jdbcTemplate.queryForList(
             """
             SELECT event_id, event_type, event_version, timestamp,
                    aggregate_id, aggregate_type, correlation_id, payload
@@ -108,5 +135,31 @@ class EventStoreRepository(
             eventType,
             aggregateId
         )
+
+        // Parse payload from JSON (handling both String and PGobject) to Map for each event
+        return rawEvents.map { event ->
+            val mutableEvent = event.toMutableMap()
+            val payload = event["payload"]
+
+            // Extract JSON string from PGobject or use String directly
+            val jsonString = when {
+                payload is String -> payload
+                payload?.javaClass?.name == "org.postgresql.util.PGobject" -> {
+                    // Use reflection to get value from PGobject to avoid direct dependency
+                    payload.javaClass.getMethod("getValue").invoke(payload) as? String
+                }
+                else -> null
+            }
+
+            // Parse JSON string to Map
+            if (jsonString != null) {
+                mutableEvent["payload"] = objectMapper.readValue(
+                    jsonString,
+                    object : TypeReference<Map<String, Any?>>() {}
+                )
+            }
+
+            mutableEvent
+        }
     }
 }
