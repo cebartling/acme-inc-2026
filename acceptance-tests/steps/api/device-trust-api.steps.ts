@@ -111,12 +111,18 @@ Given('I have an active session for {string}', async function (this: CustomWorld
     expect(mfaResponse.status).toBe(200);
 
     // Store cookies for authenticated requests
-    const accessToken = extractCookieValue(mfaResponse.headers['set-cookie'], 'access_token');
-    this.setTestData('access_token', accessToken);
+    const setCookieHeaders = mfaResponse.headers['set-cookie'];
+    if (setCookieHeaders) {
+      const accessToken = extractCookieValue(setCookieHeaders, 'access_token');
+      this.setTestData('access_token', accessToken);
+    }
   } else {
     // Direct success - store cookies
-    const accessToken = extractCookieValue(signinResponse.headers['set-cookie'], 'access_token');
-    this.setTestData('access_token', accessToken);
+    const setCookieHeaders = signinResponse.headers['set-cookie'];
+    if (setCookieHeaders) {
+      const accessToken = extractCookieValue(setCookieHeaders, 'access_token');
+      this.setTestData('access_token', accessToken);
+    }
   }
 });
 
