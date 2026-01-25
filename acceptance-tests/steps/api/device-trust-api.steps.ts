@@ -83,6 +83,23 @@ Given('the user {string} has TOTP MFA enabled', async function (this: CustomWorl
 
 Given('I have an active session for {string}', async function (this: CustomWorld, email: string) {
   const actualEmail = this.getTestData<string>('testUserEmail') || email;
+
+  // Check if we already have an access_token from a previous authentication
+  const existingAccessToken = this.getTestData<string>('access_token');
+
+  if (existingAccessToken) {
+    // We already have an access_token, just verify it works by making an authenticated request
+    const verifyResponse = await this.identityApiClient.get('/api/v1/auth/devices', {
+      headers: {
+        Cookie: `access_token=${existingAccessToken}`
+      }
+    });
+
+    expect(verifyResponse.status).toBe(200);
+    return;
+  }
+
+  // No existing access_token, perform fresh signin
   const password = this.getTestData<string>('userPassword') || 'ValidP@ss123!';
 
   // Sign in
@@ -400,6 +417,7 @@ When('I verify MFA with the correct TOTP code and rememberDevice set to true', a
   const mfaToken = this.getTestData<string>('mfaToken');
   const totpSecret = this.getTestData<string>('totpSecret') || 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
   const deviceFingerprint = this.getTestData<string>('deviceFingerprint') || 'fp_test_device';
+  const userAgent = this.getTestData<string>('userAgent');
 
   if (!mfaToken) {
     throw new Error('MFA token not found. Did you call signin first?');
@@ -415,6 +433,9 @@ When('I verify MFA with the correct TOTP code and rememberDevice set to true', a
       method: 'TOTP',
       deviceFingerprint,
       rememberDevice: true,
+    },
+    {
+      headers: userAgent ? { 'User-Agent': userAgent } : undefined
     }
   );
 
@@ -590,6 +611,7 @@ When('I signin with email {string} and password {string} with user agent {string
 
   this.setTestData('lastResponse', response);
   this.setTestData('deviceFingerprint', deviceFingerprint);
+  this.setTestData('userAgent', userAgent);
 
   if (response.data.status === 'MFA_REQUIRED') {
     this.setTestData('mfaToken', response.data.mfaToken);
