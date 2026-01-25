@@ -10,6 +10,7 @@ import com.acme.identity.infrastructure.persistence.DeviceTrustRepository
 import com.acme.identity.infrastructure.persistence.EventStoreRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
+import java.time.Instant
 import java.util.UUID
 
 /**
@@ -148,12 +149,12 @@ class DeviceTrustService(
             return null
         }
 
-        // Update last used timestamp
-        deviceTrust.touch()
-        deviceTrustRepository.save(deviceTrust)
+        // Update last used timestamp using copy() for data class immutability
+        val updatedDeviceTrust = deviceTrust.copy(lastUsedAt = Instant.now())
+        deviceTrustRepository.save(updatedDeviceTrust)
 
         logger.info("Device trust verified successfully for user $userId")
-        return deviceTrust
+        return updatedDeviceTrust
     }
 
     /**
