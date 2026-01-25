@@ -273,6 +273,42 @@ class User(
         return maxOf(0, maxAttempts - failedAttempts)
     }
 
+    /**
+     * Updates the password hash.
+     *
+     * This should be called after verifying the current password and validating the new password.
+     * Does not persist changes - caller must save the user.
+     *
+     * @param newPasswordHash The new Argon2id password hash.
+     */
+    fun updatePassword(newPasswordHash: String): User {
+        return User(
+            id = id,
+            email = email,
+            passwordHash = newPasswordHash,
+            firstName = firstName,
+            lastName = lastName,
+            status = status,
+            tosAcceptedAt = tosAcceptedAt,
+            marketingOptIn = marketingOptIn,
+            registrationSource = registrationSource,
+            emailVerified = emailVerified,
+            verifiedAt = verifiedAt,
+            failedAttempts = failedAttempts,
+            lockedUntil = lockedUntil,
+            mfaEnabled = mfaEnabled,
+            totpSecret = totpSecret,
+            totpEnabled = totpEnabled,
+            phoneNumber = phoneNumber,
+            phoneVerified = phoneVerified,
+            smsMfaEnabled = smsMfaEnabled,
+            lastLoginAt = lastLoginAt,
+            lastDeviceFingerprint = lastDeviceFingerprint,
+            createdAt = createdAt,
+            updatedAt = Instant.now()
+        )
+    }
+
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is User) return false
