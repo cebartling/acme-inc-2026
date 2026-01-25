@@ -199,22 +199,19 @@ When('I complete signin and MFA verification for {string}', async function (this
   this.setLastResponse(verifyResponse);
 
   // Store cookies and tokens for verification
-  // Use getSetCookie() to get all Set-Cookie headers (Node 19.7.0+)
-  if (verifyResponse.headers.getSetCookie) {
-    const setCookieHeaders = verifyResponse.headers.getSetCookie();
-    if (setCookieHeaders.length > 0) {
-      this.setTestData('setCookieHeaders', setCookieHeaders);
+  const setCookieHeaders = verifyResponse.headers['set-cookie'];
+  if (setCookieHeaders && setCookieHeaders.length > 0) {
+    this.setTestData('setCookieHeaders', setCookieHeaders);
 
-      // Automatically extract and store token values for convenience
-      const accessToken = extractCookieValue(setCookieHeaders, 'access_token');
-      if (accessToken) {
-        this.setTestData('access_token_value', accessToken);
-      }
+    // Automatically extract and store token values for convenience
+    const accessToken = extractCookieValue(setCookieHeaders, 'access_token');
+    if (accessToken) {
+      this.setTestData('access_token_value', accessToken);
+    }
 
-      const refreshToken = extractCookieValue(setCookieHeaders, 'refresh_token');
-      if (refreshToken) {
-        this.setTestData('refresh_token_value', refreshToken);
-      }
+    const refreshToken = extractCookieValue(setCookieHeaders, 'refresh_token');
+    if (refreshToken) {
+      this.setTestData('refresh_token_value', refreshToken);
     }
   }
 });
@@ -255,22 +252,20 @@ When('I complete signin and MFA verification for {string} from a new device', as
 
   this.setLastResponse(verifyResponse);
 
-  // Use getSetCookie() to get all Set-Cookie headers (Node 19.7.0+)
-  if (verifyResponse.headers.getSetCookie) {
-    const setCookieHeaders = verifyResponse.headers.getSetCookie();
-    if (setCookieHeaders.length > 0) {
-      this.setTestData('setCookieHeaders', setCookieHeaders);
+  // Store cookies and tokens for verification
+  const setCookieHeaders = verifyResponse.headers['set-cookie'];
+  if (setCookieHeaders && setCookieHeaders.length > 0) {
+    this.setTestData('setCookieHeaders', setCookieHeaders);
 
-      // Automatically extract and store token values for convenience
-      const accessToken = extractCookieValue(setCookieHeaders, 'access_token');
-      if (accessToken) {
-        this.setTestData('access_token_value', accessToken);
-      }
+    // Automatically extract and store token values for convenience
+    const accessToken = extractCookieValue(setCookieHeaders, 'access_token');
+    if (accessToken) {
+      this.setTestData('access_token_value', accessToken);
+    }
 
-      const refreshToken = extractCookieValue(setCookieHeaders, 'refresh_token');
-      if (refreshToken) {
-        this.setTestData('refresh_token_value', refreshToken);
-      }
+    const refreshToken = extractCookieValue(setCookieHeaders, 'refresh_token');
+    if (refreshToken) {
+      this.setTestData('refresh_token_value', refreshToken);
     }
   }
 });
@@ -308,22 +303,20 @@ When('I complete signin and MFA verification for {string} with device fingerprin
 
   this.setLastResponse(verifyResponse);
 
-  // Use getSetCookie() to get all Set-Cookie headers (Node 19.7.0+)
-  if (verifyResponse.headers.getSetCookie) {
-    const setCookieHeaders = verifyResponse.headers.getSetCookie();
-    if (setCookieHeaders.length > 0) {
-      this.setTestData('setCookieHeaders', setCookieHeaders);
+  // Store cookies and tokens for verification
+  const setCookieHeaders = verifyResponse.headers['set-cookie'];
+  if (setCookieHeaders && setCookieHeaders.length > 0) {
+    this.setTestData('setCookieHeaders', setCookieHeaders);
 
-      // Automatically extract and store token values for convenience
-      const accessToken = extractCookieValue(setCookieHeaders, 'access_token');
-      if (accessToken) {
-        this.setTestData('access_token_value', accessToken);
-      }
+    // Automatically extract and store token values for convenience
+    const accessToken = extractCookieValue(setCookieHeaders, 'access_token');
+    if (accessToken) {
+      this.setTestData('access_token_value', accessToken);
+    }
 
-      const refreshToken = extractCookieValue(setCookieHeaders, 'refresh_token');
-      if (refreshToken) {
-        this.setTestData('refresh_token_value', refreshToken);
-      }
+    const refreshToken = extractCookieValue(setCookieHeaders, 'refresh_token');
+    if (refreshToken) {
+      this.setTestData('refresh_token_value', refreshToken);
     }
   }
 
@@ -362,22 +355,20 @@ When('I complete signin and SMS MFA verification for {string}', async function (
 
   this.setLastResponse(verifyResponse);
 
-  // Use getSetCookie() to get all Set-Cookie headers (Node 19.7.0+)
-  if (verifyResponse.headers.getSetCookie) {
-    const setCookieHeaders = verifyResponse.headers.getSetCookie();
-    if (setCookieHeaders.length > 0) {
-      this.setTestData('setCookieHeaders', setCookieHeaders);
+  // Store cookies and tokens for verification
+  const setCookieHeaders = verifyResponse.headers['set-cookie'];
+  if (setCookieHeaders && setCookieHeaders.length > 0) {
+    this.setTestData('setCookieHeaders', setCookieHeaders);
 
-      // Automatically extract and store token values for convenience
-      const accessToken = extractCookieValue(setCookieHeaders, 'access_token');
-      if (accessToken) {
-        this.setTestData('access_token_value', accessToken);
-      }
+    // Automatically extract and store token values for convenience
+    const accessToken = extractCookieValue(setCookieHeaders, 'access_token');
+    if (accessToken) {
+      this.setTestData('access_token_value', accessToken);
+    }
 
-      const refreshToken = extractCookieValue(setCookieHeaders, 'refresh_token');
-      if (refreshToken) {
-        this.setTestData('refresh_token_value', refreshToken);
-      }
+    const refreshToken = extractCookieValue(setCookieHeaders, 'refresh_token');
+    if (refreshToken) {
+      this.setTestData('refresh_token_value', refreshToken);
     }
   }
 });
