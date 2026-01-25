@@ -314,6 +314,7 @@ Given('the user has a valid device trust created {int} days ago', async function
 
   this.setTestData('deviceTrustId', response.data.deviceTrustId);
   this.setTestData('deviceFingerprint', 'fp_old_device');
+  this.setTestData('deviceUserAgent', 'Mozilla/5.0 (Old Device)');
 });
 
 Given('the user has a valid device trust created from IP {string}', async function (this: CustomWorld, ipAddress: string) {

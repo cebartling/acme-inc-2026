@@ -149,12 +149,22 @@ class DeviceTrustService(
             return null
         }
 
-        // Update last used timestamp using copy() for data class immutability
-        val updatedDeviceTrust = deviceTrust.copy(lastUsedAt = Instant.now())
-        deviceTrustRepository.save(updatedDeviceTrust)
+        // Update last used timestamp by creating new instance (required for Spring Data Redis)
+        val updatedTrust = DeviceTrust(
+            id = deviceTrust.id,
+            userId = deviceTrust.userId,
+            deviceFingerprint = deviceTrust.deviceFingerprint,
+            userAgent = deviceTrust.userAgent,
+            ipAddress = deviceTrust.ipAddress,
+            createdAt = deviceTrust.createdAt,
+            expiresAt = deviceTrust.expiresAt,
+            lastUsedAt = Instant.now(),
+            ttl = deviceTrust.ttl
+        )
+        deviceTrustRepository.save(updatedTrust)
 
-        logger.info("Device trust verified successfully for user $userId")
-        return updatedDeviceTrust
+        logger.info("Device trust verified successfully for user $userId, lastUsedAt updated to {}", updatedTrust.lastUsedAt)
+        return updatedTrust
     }
 
     /**
