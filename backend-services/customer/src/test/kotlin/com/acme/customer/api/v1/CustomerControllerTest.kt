@@ -34,6 +34,7 @@ class CustomerControllerTest {
     private lateinit var customerPreferencesRepository: CustomerPreferencesRepository
     private lateinit var updateProfileUseCase: UpdateProfileUseCase
     private lateinit var profileCompletenessCalculator: ProfileCompletenessCalculator
+    private lateinit var getCustomerProfileUseCase: com.acme.customer.application.GetCustomerProfileUseCase
     private lateinit var controller: CustomerController
 
     private val customerId = UUID.randomUUID()
@@ -45,12 +46,14 @@ class CustomerControllerTest {
         customerPreferencesRepository = mockk()
         updateProfileUseCase = mockk()
         profileCompletenessCalculator = mockk()
+        getCustomerProfileUseCase = mockk()
 
         controller = CustomerController(
             customerRepository = customerRepository,
             customerPreferencesRepository = customerPreferencesRepository,
             updateProfileUseCase = updateProfileUseCase,
-            profileCompletenessCalculator = profileCompletenessCalculator
+            profileCompletenessCalculator = profileCompletenessCalculator,
+            getCustomerProfileUseCase = getCustomerProfileUseCase
         )
     }
 

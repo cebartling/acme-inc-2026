@@ -32,6 +32,7 @@ class UpdateProfileUseCaseTest {
     private lateinit var outboxWriter: OutboxWriter
     private lateinit var phoneNumberValidator: PhoneNumberValidator
     private lateinit var profileCompletionService: ProfileCompletionService
+    private lateinit var customerCacheService: com.acme.customer.infrastructure.cache.CustomerCacheService
     private lateinit var useCase: UpdateProfileUseCase
 
     @BeforeEach
@@ -43,8 +44,10 @@ class UpdateProfileUseCaseTest {
         outboxWriter = mockk()
         phoneNumberValidator = mockk()
         profileCompletionService = mockk()
+        customerCacheService = mockk()
 
         every { profileCompletionService.checkAndUpdateCompletion(any(), any(), any(), any()) } returns null
+        every { customerCacheService.invalidate(any()) } just Runs
 
         useCase = UpdateProfileUseCase(
             customerRepository = customerRepository,
@@ -54,6 +57,7 @@ class UpdateProfileUseCaseTest {
             outboxWriter = outboxWriter,
             phoneNumberValidator = phoneNumberValidator,
             profileCompletionService = profileCompletionService,
+            customerCacheService = customerCacheService,
             meterRegistry = SimpleMeterRegistry()
         )
     }
