@@ -37,6 +37,9 @@ function DashboardPage() {
   }, [isAuthLoading, isAuthenticated, navigate]);
 
   // Fetch profile if authenticated but profile not loaded
+  // Note: We check !profileError to prevent infinite retry loops if the API fails.
+  // Retries are handled explicitly by the retry button in the error UI, which
+  // clears the error state before calling fetchProfile() again.
   useEffect(() => {
     if (isAuthenticated && !profile && !isProfileLoading && !profileError) {
       fetchProfile();
