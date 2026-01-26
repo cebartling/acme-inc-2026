@@ -72,7 +72,7 @@ When('I sign in with valid credentials', async function (this: CustomWorld) {
   const signinPage = new SigninPage(this.page);
   await signinPage.fillEmail(email!);
   await signinPage.fillPassword(password);
-  await signinPage.submit();
+  await signinPage.submitForm();
 
   // Wait for navigation to dashboard
   await this.page.waitForURL('**/dashboard', { timeout: 10000 });
@@ -95,11 +95,6 @@ When('I start signing in with valid credentials', async function (this: CustomWo
 When('the signin completes', async function (this: CustomWorld) {
   // Wait for navigation to dashboard
   await this.page.waitForURL('**/dashboard', { timeout: 10000 });
-});
-
-When('I refresh the page', async function (this: CustomWorld) {
-  await this.page.reload();
-  await this.page.waitForLoadState('networkidle');
 });
 
 When('I sign out', async function (this: CustomWorld) {

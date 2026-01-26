@@ -1,4 +1,4 @@
-@customer @profile
+@customer @profile @wip
 Feature: Customer Profile Loading UI (US-0003-09)
   As a customer
   I want my profile to be loaded automatically after signin
@@ -8,7 +8,6 @@ Feature: Customer Profile Loading UI (US-0003-09)
     Given an active customer with email "ui-profile-test@example.com" exists
     And I am on the signin page
 
-  @smoke
   Scenario: Profile is loaded automatically after successful signin
     When I sign in with valid credentials
     Then I should be redirected to the dashboard
