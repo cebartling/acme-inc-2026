@@ -45,7 +45,7 @@ class CustomerController(
      * @param id The customer ID (UUID).
      * @return The customer profile or 404 if not found.
      */
-    @GetMapping("/{id}")
+    @GetMapping("/{id:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}}")
     fun getCustomer(@PathVariable id: String): ResponseEntity<CustomerResponse> {
         logger.debug("Getting customer by ID: {}", id)
 
@@ -164,8 +164,13 @@ class CustomerController(
      */
     @GetMapping("/me")
     fun getCurrentCustomer(
-        @RequestHeader("X-User-Id") userId: String
+        @RequestHeader("X-User-Id", required = false) userId: String?
     ): ResponseEntity<CustomerResponse> {
+        if (userId == null) {
+            logger.warn("Missing X-User-Id header")
+            return ResponseEntity.status(401).build()
+        }
+
         logger.debug("Getting current customer for user: {}", userId)
 
         val parsedUserId = try {
