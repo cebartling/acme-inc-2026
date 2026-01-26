@@ -5,6 +5,7 @@ import com.acme.customer.api.v1.dto.ProfileCompletenessResponse
 import com.acme.customer.api.v1.dto.ProfileResponse
 import com.acme.customer.api.v1.dto.UpdateProfileRequest
 import com.acme.customer.api.v1.dto.UpdateProfileResponse
+import com.acme.customer.application.GetCustomerProfileResult
 import com.acme.customer.application.ProfileCompletenessCalculator
 import com.acme.customer.application.UpdateProfileResult
 import com.acme.customer.application.UpdateProfileUseCase
@@ -33,7 +34,8 @@ class CustomerController(
     private val customerRepository: CustomerRepository,
     private val customerPreferencesRepository: CustomerPreferencesRepository,
     private val updateProfileUseCase: UpdateProfileUseCase,
-    private val profileCompletenessCalculator: ProfileCompletenessCalculator
+    private val profileCompletenessCalculator: ProfileCompletenessCalculator,
+    private val getCustomerProfileUseCase: com.acme.customer.application.GetCustomerProfileUseCase
 ) {
     private val logger = LoggerFactory.getLogger(CustomerController::class.java)
 
@@ -43,7 +45,7 @@ class CustomerController(
      * @param id The customer ID (UUID).
      * @return The customer profile or 404 if not found.
      */
-    @GetMapping("/{id}")
+    @GetMapping("/{id:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}}")
     fun getCustomer(@PathVariable id: String): ResponseEntity<CustomerResponse> {
         logger.debug("Getting customer by ID: {}", id)
 
@@ -149,6 +151,48 @@ class CustomerController(
             }
 
         return ResponseEntity.ok(CustomerResponse.fromDomain(customer, preferences))
+    }
+
+    /**
+     * Gets the current authenticated customer's profile.
+     *
+     * This endpoint is used after signin to load the customer profile into the frontend.
+     * The profile is cached in Redis with a 5-minute TTL for performance.
+     *
+     * @param userId The user ID from the X-User-Id header (injected by API Gateway from JWT).
+     * @return The customer profile or appropriate error response.
+     */
+    @GetMapping("/me")
+    fun getCurrentCustomer(
+        @RequestHeader("X-User-Id", required = false) userId: String?
+    ): ResponseEntity<CustomerResponse> {
+        if (userId == null) {
+            logger.warn("Missing X-User-Id header")
+            return ResponseEntity.status(401).build()
+        }
+
+        logger.debug("Getting current customer for user: {}", userId)
+
+        val parsedUserId = try {
+            UUID.fromString(userId)
+        } catch (e: IllegalArgumentException) {
+            logger.warn("Invalid user ID format: {}", userId)
+            return ResponseEntity.badRequest().build()
+        }
+
+        return when (val result = getCustomerProfileUseCase.execute(parsedUserId)) {
+            is GetCustomerProfileResult.Success -> {
+                ResponseEntity.ok(result.profile)
+            }
+            is GetCustomerProfileResult.NotFound -> {
+                logger.debug("Customer not found for user: {}", userId)
+                ResponseEntity.notFound().build()
+            }
+            is GetCustomerProfileResult.PreferencesNotFound -> {
+                logger.error("Preferences not found for customer: {}", result.customerId)
+                ResponseEntity.internalServerError().build()
+            }
+        }
     }
 
     /**

@@ -7,6 +7,7 @@ import {
 import { z } from "zod";
 import { SigninForm } from "@/components/signin";
 import { useAuthStore } from "@/stores/auth.store";
+import { useCustomerStore } from "@/stores/customer.store";
 import { identityApi, ApiError } from "@/services/api";
 import type { SigninFormData } from "@/schemas/signin.schema";
 
@@ -156,17 +157,33 @@ function SigninPage() {
         return;
       }
 
-      // Successful signin - store user info
-      // Note: The signin API only returns userId. In a full implementation,
-      // we would fetch additional user profile data from a separate endpoint.
-      // For now, we use the email from the form and placeholder values.
-      setUser({
-        userId: response.userId,
-        customerId: response.userId, // TODO: Get from user profile API
-        email: data.email,
-        firstName: "User", // TODO: Get from user profile API
-        lastName: "", // TODO: Get from user profile API
-      });
+      // Successful signin - fetch customer profile
+      // The signin API only returns userId. We fetch the full customer profile
+      // from the Customer Service to get name, customerId, and other profile data.
+      try {
+        await useCustomerStore.getState().fetchProfile();
+
+        // Store user info from customer profile
+        setUser({
+          userId: response.userId,
+          customerId: useCustomerStore.getState().profile?.customerId || response.userId,
+          email: useCustomerStore.getState().profile?.email.address || data.email,
+          firstName: useCustomerStore.getState().profile?.name.firstName || "User",
+          lastName: useCustomerStore.getState().profile?.name.lastName || "",
+        });
+      } catch (profileErr) {
+        // Log error but don't block navigation - profile can be fetched later on dashboard
+        console.error("Failed to fetch customer profile after signin:", profileErr);
+
+        // Set minimal user info to allow navigation
+        setUser({
+          userId: response.userId,
+          customerId: response.userId,
+          email: data.email,
+          firstName: "User",
+          lastName: "",
+        });
+      }
 
       // Navigate to redirect URL or dashboard (with validation as defense-in-depth)
       const redirectTo =

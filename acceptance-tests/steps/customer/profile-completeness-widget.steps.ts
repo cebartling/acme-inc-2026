@@ -36,9 +36,10 @@ async function setupAuthenticatedCustomer(world: CustomWorld): Promise<void> {
     }
   }
 
-  // Inject auth state into localStorage before navigation
+  // Inject auth state and customer profile into localStorage before navigation
   await world.page.addInitScript(
     (authData) => {
+      // Set auth-storage
       localStorage.setItem(
         'auth-storage',
         JSON.stringify({
@@ -56,8 +57,71 @@ async function setupAuthenticatedCustomer(world: CustomWorld): Promise<void> {
           version: 0,
         })
       );
+
+      // Set customer-storage with mock profile
+      // Generate customer number with current date (ACME-YYYYMM-NNNNNN)
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = (now.getMonth() + 1).toString().padStart(2, '0');
+      const randomNum = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
+      const customerNumber = `ACME-${year}${month}-${randomNum}`;
+
+      localStorage.setItem(
+        'customer-storage',
+        JSON.stringify({
+          state: {
+            profile: {
+              customerId: authData.customerId,
+              userId: authData.userId,
+              customerNumber: customerNumber,
+              name: {
+                firstName: 'Test',
+                lastName: 'User',
+                displayName: 'Test User',
+              },
+              email: {
+                address: 'test@example.com',
+                verified: true,
+              },
+              phone: null,
+              status: 'ACTIVE',
+              type: 'INDIVIDUAL',
+              profile: {
+                dateOfBirth: null,
+                gender: null,
+                preferredLocale: 'en-US',
+                timezone: 'America/New_York',
+                preferredCurrency: 'USD',
+              },
+              preferences: {
+                communication: {
+                  email: true,
+                  sms: false,
+                  push: false,
+                  marketing: false,
+                  frequency: 'WEEKLY',
+                },
+                privacy: {
+                  shareDataWithPartners: false,
+                  allowAnalytics: true,
+                  allowPersonalization: true,
+                },
+                display: {
+                  language: 'en',
+                  currency: 'USD',
+                  timezone: 'America/New_York',
+                },
+              },
+              profileCompleteness: authData.profileCompleteness || 45,
+              registeredAt: '2026-01-25T00:00:00Z',
+              lastActivityAt: '2026-01-25T00:00:00Z',
+            },
+          },
+          version: 0,
+        })
+      );
     },
-    { customerId, userId }
+    { customerId, userId, profileCompleteness: 45 }
   );
 }
 

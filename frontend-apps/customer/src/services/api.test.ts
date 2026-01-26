@@ -119,6 +119,278 @@ describe("customerApi", () => {
     });
   });
 
+  describe("getCurrentCustomer", () => {
+    it("makes GET request to /me endpoint", async () => {
+      const mockProfile = {
+        customerId: "customer-123",
+        userId: "user-456",
+        customerNumber: "ACME-202601-000001",
+        name: {
+          firstName: "John",
+          lastName: "Doe",
+          displayName: "John Doe",
+        },
+        email: {
+          address: "john.doe@example.com",
+          verified: true,
+        },
+        phone: null,
+        status: "ACTIVE",
+        type: "INDIVIDUAL",
+        profile: {
+          dateOfBirth: null,
+          gender: null,
+          preferredLocale: "en-US",
+          timezone: "UTC",
+          preferredCurrency: "USD",
+        },
+        preferences: {
+          communication: {
+            email: true,
+            sms: false,
+            push: false,
+            marketing: false,
+            frequency: "IMMEDIATE",
+          },
+          privacy: {
+            shareDataWithPartners: false,
+            allowAnalytics: true,
+            allowPersonalization: true,
+          },
+          display: {
+            language: "en-US",
+            currency: "USD",
+            timezone: "UTC",
+          },
+        },
+        profileCompleteness: 25,
+        registeredAt: "2024-01-15T10:00:00Z",
+        lastActivityAt: "2024-01-15T10:00:00Z",
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: () => Promise.resolve(mockProfile),
+      });
+
+      await customerApi.getCurrentCustomer();
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining("/api/v1/customers/me"),
+        expect.objectContaining({
+          method: "GET",
+          credentials: "include",
+        })
+      );
+    });
+
+    it("returns customer profile on success", async () => {
+      const mockProfile = {
+        customerId: "customer-123",
+        userId: "user-456",
+        customerNumber: "ACME-202601-000001",
+        name: {
+          firstName: "Jane",
+          lastName: "Smith",
+          displayName: "Jane Smith",
+        },
+        email: {
+          address: "jane.smith@example.com",
+          verified: true,
+        },
+        phone: {
+          countryCode: "+1",
+          number: "5551234567",
+          verified: true,
+        },
+        status: "ACTIVE",
+        type: "INDIVIDUAL",
+        profile: {
+          dateOfBirth: "1990-05-15",
+          gender: "female",
+          preferredLocale: "en-US",
+          timezone: "America/New_York",
+          preferredCurrency: "USD",
+        },
+        preferences: {
+          communication: {
+            email: true,
+            sms: true,
+            push: false,
+            marketing: true,
+            frequency: "DAILY_DIGEST",
+          },
+          privacy: {
+            shareDataWithPartners: false,
+            allowAnalytics: true,
+            allowPersonalization: true,
+          },
+          display: {
+            language: "es-ES",
+            currency: "EUR",
+            timezone: "Europe/Madrid",
+          },
+        },
+        profileCompleteness: 75,
+        registeredAt: "2024-01-10T08:00:00Z",
+        lastActivityAt: "2024-01-15T14:30:00Z",
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: () => Promise.resolve(mockProfile),
+      });
+
+      const result = await customerApi.getCurrentCustomer();
+
+      expect(result).toEqual(mockProfile);
+      expect(result.customerId).toBe("customer-123");
+      expect(result.name.displayName).toBe("Jane Smith");
+      expect(result.profileCompleteness).toBe(75);
+    });
+
+    it("includes credentials for authentication cookies", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: () => Promise.resolve({}),
+      });
+
+      await customerApi.getCurrentCustomer();
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          credentials: "include",
+        })
+      );
+    });
+
+    it("throws ApiError when not authenticated (401)", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: () =>
+          Promise.resolve({
+            error: "UNAUTHORIZED",
+            message: "Not authenticated",
+          }),
+      });
+
+      try {
+        await customerApi.getCurrentCustomer();
+      } catch (error) {
+        expect(error).toBeInstanceOf(ApiError);
+        expect((error as ApiError).status).toBe(401);
+        expect((error as ApiError).message).toBe("UNAUTHORIZED");
+      }
+    });
+
+    it("throws ApiError when customer not found (404)", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: () =>
+          Promise.resolve({
+            error: "CUSTOMER_NOT_FOUND",
+            message: "Customer profile not found for this user",
+          }),
+      });
+
+      await expect(customerApi.getCurrentCustomer()).rejects.toThrow(ApiError);
+    });
+
+    it("includes all required profile fields in response", async () => {
+      const completeProfile = {
+        customerId: "customer-123",
+        userId: "user-456",
+        customerNumber: "ACME-202601-000001",
+        name: {
+          firstName: "John",
+          lastName: "Doe",
+          displayName: "John Doe",
+        },
+        email: {
+          address: "john.doe@example.com",
+          verified: true,
+        },
+        phone: {
+          countryCode: "+1",
+          number: "5551234567",
+          verified: true,
+        },
+        status: "ACTIVE",
+        type: "INDIVIDUAL",
+        profile: {
+          dateOfBirth: "1990-05-15",
+          gender: "male",
+          preferredLocale: "en-US",
+          timezone: "America/New_York",
+          preferredCurrency: "USD",
+        },
+        preferences: {
+          communication: {
+            email: true,
+            sms: false,
+            push: false,
+            marketing: false,
+            frequency: "IMMEDIATE",
+          },
+          privacy: {
+            shareDataWithPartners: false,
+            allowAnalytics: true,
+            allowPersonalization: true,
+          },
+          display: {
+            language: "en-US",
+            currency: "USD",
+            timezone: "UTC",
+          },
+        },
+        profileCompleteness: 75,
+        registeredAt: "2024-01-15T10:00:00Z",
+        lastActivityAt: "2024-01-15T14:30:00Z",
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: () => Promise.resolve(completeProfile),
+      });
+
+      const result = await customerApi.getCurrentCustomer();
+
+      // Verify all top-level fields are present
+      expect(result).toHaveProperty("customerId");
+      expect(result).toHaveProperty("userId");
+      expect(result).toHaveProperty("customerNumber");
+      expect(result).toHaveProperty("name");
+      expect(result).toHaveProperty("email");
+      expect(result).toHaveProperty("phone");
+      expect(result).toHaveProperty("status");
+      expect(result).toHaveProperty("type");
+      expect(result).toHaveProperty("profile");
+      expect(result).toHaveProperty("preferences");
+      expect(result).toHaveProperty("profileCompleteness");
+      expect(result).toHaveProperty("registeredAt");
+      expect(result).toHaveProperty("lastActivityAt");
+
+      // Verify nested structures
+      expect(result.name).toHaveProperty("firstName");
+      expect(result.name).toHaveProperty("lastName");
+      expect(result.name).toHaveProperty("displayName");
+      expect(result.email).toHaveProperty("address");
+      expect(result.email).toHaveProperty("verified");
+      expect(result.preferences).toHaveProperty("communication");
+      expect(result.preferences).toHaveProperty("privacy");
+      expect(result.preferences).toHaveProperty("display");
+    });
+  });
+
   describe("updatePreferences", () => {
     const customerId = "customer-123";
     const userId = "user-456";

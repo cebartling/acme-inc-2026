@@ -34,6 +34,7 @@ class CustomerControllerTest {
     private lateinit var customerPreferencesRepository: CustomerPreferencesRepository
     private lateinit var updateProfileUseCase: UpdateProfileUseCase
     private lateinit var profileCompletenessCalculator: ProfileCompletenessCalculator
+    private lateinit var getCustomerProfileUseCase: com.acme.customer.application.GetCustomerProfileUseCase
     private lateinit var controller: CustomerController
 
     private val customerId = UUID.randomUUID()
@@ -45,12 +46,14 @@ class CustomerControllerTest {
         customerPreferencesRepository = mockk()
         updateProfileUseCase = mockk()
         profileCompletenessCalculator = mockk()
+        getCustomerProfileUseCase = mockk()
 
         controller = CustomerController(
             customerRepository = customerRepository,
             customerPreferencesRepository = customerPreferencesRepository,
             updateProfileUseCase = updateProfileUseCase,
-            profileCompletenessCalculator = profileCompletenessCalculator
+            profileCompletenessCalculator = profileCompletenessCalculator,
+            getCustomerProfileUseCase = getCustomerProfileUseCase
         )
     }
 
@@ -529,6 +532,131 @@ class CustomerControllerTest {
             assertNotNull(response.body)
             assertEquals(1, response.body!!.sections.size)
             assertEquals("basicInfo", response.body!!.sections[0].name)
+        }
+    }
+
+    @Nested
+    inner class GetCurrentCustomer {
+
+        @Test
+        fun `should return 400 for invalid user ID format`() {
+            // Given / When
+            val response = controller.getCurrentCustomer("invalid-uuid")
+
+            // Then
+            assertEquals(HttpStatus.BAD_REQUEST, response.statusCode)
+        }
+
+        @Test
+        fun `should return 404 when customer not found`() {
+            // Given
+            every {
+                getCustomerProfileUseCase.execute(userId)
+            } returns com.acme.customer.application.GetCustomerProfileResult.NotFound(userId)
+
+            // When
+            val response = controller.getCurrentCustomer(userId.toString())
+
+            // Then
+            assertEquals(HttpStatus.NOT_FOUND, response.statusCode)
+        }
+
+        @Test
+        fun `should return 500 when preferences not found`() {
+            // Given
+            every {
+                getCustomerProfileUseCase.execute(userId)
+            } returns com.acme.customer.application.GetCustomerProfileResult.PreferencesNotFound(customerId)
+
+            // When
+            val response = controller.getCurrentCustomer(userId.toString())
+
+            // Then
+            assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.statusCode)
+        }
+
+        @Test
+        fun `should return 200 with customer profile on success`() {
+            // Given
+            val customer = createCustomer()
+            val preferences = createPreferences()
+            val profileResponse = com.acme.customer.api.v1.dto.CustomerResponse.fromDomain(customer, preferences)
+
+            every {
+                getCustomerProfileUseCase.execute(userId)
+            } returns com.acme.customer.application.GetCustomerProfileResult.Success(profileResponse)
+
+            // When
+            val response = controller.getCurrentCustomer(userId.toString())
+
+            // Then
+            assertEquals(HttpStatus.OK, response.statusCode)
+            assertNotNull(response.body)
+            assertEquals(customerId.toString(), response.body!!.customerId)
+            assertEquals(userId.toString(), response.body!!.userId)
+            assertEquals("John", response.body!!.name.firstName)
+            assertEquals("Doe", response.body!!.name.lastName)
+            assertEquals("test@example.com", response.body!!.email.address)
+        }
+
+        @Test
+        fun `should call use case with correct user ID`() {
+            // Given
+            val customer = createCustomer()
+            val preferences = createPreferences()
+            val profileResponse = com.acme.customer.api.v1.dto.CustomerResponse.fromDomain(customer, preferences)
+
+            every {
+                getCustomerProfileUseCase.execute(userId)
+            } returns com.acme.customer.application.GetCustomerProfileResult.Success(profileResponse)
+
+            // When
+            controller.getCurrentCustomer(userId.toString())
+
+            // Then
+            verify(exactly = 1) { getCustomerProfileUseCase.execute(userId) }
+        }
+
+        @Test
+        fun `should include preferences in response`() {
+            // Given
+            val customer = createCustomer()
+            val preferences = createPreferences()
+            val profileResponse = com.acme.customer.api.v1.dto.CustomerResponse.fromDomain(customer, preferences)
+
+            every {
+                getCustomerProfileUseCase.execute(userId)
+            } returns com.acme.customer.application.GetCustomerProfileResult.Success(profileResponse)
+
+            // When
+            val response = controller.getCurrentCustomer(userId.toString())
+
+            // Then
+            assertEquals(HttpStatus.OK, response.statusCode)
+            assertNotNull(response.body)
+            assertNotNull(response.body!!.preferences)
+            assertEquals(true, response.body!!.preferences.communication.email)
+            assertEquals("en-US", response.body!!.preferences.display.language)
+        }
+
+        @Test
+        fun `should include profile completeness in response`() {
+            // Given
+            val customer = createCustomer()
+            val preferences = createPreferences()
+            val profileResponse = com.acme.customer.api.v1.dto.CustomerResponse.fromDomain(customer, preferences)
+
+            every {
+                getCustomerProfileUseCase.execute(userId)
+            } returns com.acme.customer.application.GetCustomerProfileResult.Success(profileResponse)
+
+            // When
+            val response = controller.getCurrentCustomer(userId.toString())
+
+            // Then
+            assertEquals(HttpStatus.OK, response.statusCode)
+            assertNotNull(response.body)
+            assertEquals(25, response.body!!.profileCompleteness)
         }
     }
 }

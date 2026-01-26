@@ -112,6 +112,25 @@ export const customerApi = {
       }
     );
   },
+
+  /**
+   * Gets the current authenticated customer's profile.
+   *
+   * This is called after signin to load the customer profile into the frontend.
+   * The backend caches this in Redis with a 5-minute TTL for performance.
+   *
+   * @returns The customer profile with all fields.
+   * @throws ApiError on failure (401 if not authenticated, 404 if customer not found).
+   */
+  async getCurrentCustomer(): Promise<CustomerProfile> {
+    return apiRequest<CustomerProfile>(
+      `${CUSTOMER_SERVICE_URL}/api/v1/customers/me`,
+      {
+        method: "GET",
+        credentials: "include", // Include cookies for authentication
+      }
+    );
+  },
 };
 
 /**
@@ -203,6 +222,67 @@ export interface ProfileCompletenessNextAction {
   section: string;
   action: string;
   url: string;
+}
+
+/**
+ * Full customer profile response from /api/v1/customers/me.
+ *
+ * This is loaded after signin and includes:
+ * - Customer identification (ID, number, name, email)
+ * - Profile data (date of birth, gender, locale, timezone, currency)
+ * - Preferences (communication, privacy, display settings)
+ * - Profile completeness percentage
+ * - Activity tracking (last activity timestamp)
+ */
+export interface CustomerProfile {
+  customerId: string;
+  userId: string;
+  customerNumber: string;
+  name: {
+    firstName: string;
+    lastName: string;
+    displayName: string;
+  };
+  email: {
+    address: string;
+    verified: boolean;
+  };
+  phone: {
+    countryCode: string | null;
+    number: string;
+    verified: boolean;
+  } | null;
+  status: string;
+  type: string;
+  profile: {
+    dateOfBirth: string | null;
+    gender: string | null;
+    preferredLocale: string;
+    timezone: string;
+    preferredCurrency: string;
+  };
+  preferences: {
+    communication: {
+      email: boolean;
+      sms: boolean;
+      push: boolean;
+      marketing: boolean;
+      frequency: string;
+    };
+    privacy: {
+      shareDataWithPartners: boolean;
+      allowAnalytics: boolean;
+      allowPersonalization: boolean;
+    };
+    display: {
+      language: string;
+      currency: string;
+      timezone: string;
+    };
+  };
+  profileCompleteness: number;
+  registeredAt: string;
+  lastActivityAt: string;
 }
 
 // =============================================================================
