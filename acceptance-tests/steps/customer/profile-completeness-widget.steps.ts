@@ -59,6 +59,13 @@ async function setupAuthenticatedCustomer(world: CustomWorld): Promise<void> {
       );
 
       // Set customer-storage with mock profile
+      // Generate customer number with current date (ACME-YYYYMM-NNNNNN)
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = (now.getMonth() + 1).toString().padStart(2, '0');
+      const randomNum = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
+      const customerNumber = `ACME-${year}${month}-${randomNum}`;
+
       localStorage.setItem(
         'customer-storage',
         JSON.stringify({
@@ -66,7 +73,7 @@ async function setupAuthenticatedCustomer(world: CustomWorld): Promise<void> {
             profile: {
               customerId: authData.customerId,
               userId: authData.userId,
-              customerNumber: `ACME-202601-${Math.floor(Math.random() * 100000).toString().padStart(6, '0')}`,
+              customerNumber: customerNumber,
               name: {
                 firstName: 'Test',
                 lastName: 'User',
