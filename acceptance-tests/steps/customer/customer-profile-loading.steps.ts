@@ -329,26 +329,15 @@ Given('my profile is loaded', async function (this: CustomWorld) {
 });
 
 Given('the customer profile API will return an error', async function (this: CustomWorld) {
-  // Mock the API to return an error
-  await this.page.route('**/api/v1/customers/me', (route) => {
-    route.fulfill({
-      status: 500,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        error: 'INTERNAL_SERVER_ERROR',
-        message: 'Failed to load customer profile',
-      }),
-    });
-  });
-
   // Store that we're mocking an error
   this.setTestData('mockingApiError', true);
 
-  // After the first error, allow subsequent requests to succeed
+  // Mock API to return error on first call, then succeed on subsequent calls (for retry)
   let errorCount = 0;
   await this.page.route('**/api/v1/customers/me', (route) => {
     errorCount++;
     if (errorCount === 1) {
+      // First call returns error
       route.fulfill({
         status: 500,
         contentType: 'application/json',
@@ -358,6 +347,7 @@ Given('the customer profile API will return an error', async function (this: Cus
         }),
       });
     } else {
+      // Subsequent calls succeed (allow retry to work)
       route.continue();
     }
   });
