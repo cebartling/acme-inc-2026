@@ -161,7 +161,7 @@ function SigninPage() {
       // The signin API only returns userId. We fetch the full customer profile
       // from the Customer Service to get name, customerId, and other profile data.
       try {
-        const profile = await useCustomerStore.getState().fetchProfile();
+        await useCustomerStore.getState().fetchProfile();
 
         // Store user info from customer profile
         setUser({
