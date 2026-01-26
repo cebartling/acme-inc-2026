@@ -38,31 +38,6 @@ interface CustomerProfile {
   lastActivityAt: string;
 }
 
-// Helper function to generate unique emails
-function makeUniqueEmail(email: string): string {
-  if (!email.includes('@')) {
-    return email;
-  }
-  const [local, domain] = email.split('@');
-  return `${local}-${Date.now()}@${domain}`;
-}
-
-// Helper function to wait for condition with timeout
-async function waitFor(
-  condition: () => Promise<boolean>,
-  timeoutMs: number,
-  intervalMs: number = 500
-): Promise<boolean> {
-  const startTime = Date.now();
-  while (Date.now() - startTime < timeoutMs) {
-    if (await condition()) {
-      return true;
-    }
-    await new Promise((resolve) => setTimeout(resolve, intervalMs));
-  }
-  return false;
-}
-
 When('I sign in with valid credentials', async function (this: CustomWorld) {
   const email = this.getTestData<string>('registeredEmail');
   const password = 'SecureP@ss123';
