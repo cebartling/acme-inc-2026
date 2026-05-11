@@ -18,12 +18,15 @@ import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.springframework.test.web.servlet.MockMvc
+import jakarta.servlet.http.Cookie
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.*
+import org.testcontainers.containers.GenericContainer
 import org.testcontainers.kafka.KafkaContainer
 import org.testcontainers.postgresql.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
+import org.testcontainers.utility.DockerImageName
 import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertEquals
@@ -62,6 +65,10 @@ class AuthenticationControllerIntegrationTest {
         @Container
         val kafka = KafkaContainer("apache/kafka:3.8.0")
 
+        @Container
+        val redis: GenericContainer<*> = GenericContainer(DockerImageName.parse("redis:7-alpine"))
+            .withExposedPorts(6379)
+
         @JvmStatic
         @DynamicPropertySource
         fun configureProperties(registry: DynamicPropertyRegistry) {
@@ -69,6 +76,8 @@ class AuthenticationControllerIntegrationTest {
             registry.add("spring.datasource.username") { postgres.username }
             registry.add("spring.datasource.password") { postgres.password }
             registry.add("spring.kafka.bootstrap-servers") { kafka.bootstrapServers }
+            registry.add("spring.data.redis.host") { redis.host }
+            registry.add("spring.data.redis.port") { redis.getMappedPort(6379) }
             registry.add("spring.jpa.hibernate.ddl-auto") { "create-drop" }
         }
     }
@@ -294,6 +303,148 @@ class AuthenticationControllerIntegrationTest {
         )
             .andExpect(status().isUnauthorized)
             .andExpect(jsonPath("$.error").value("INVALID_CREDENTIALS"))
+    }
+
+    @Test
+    fun `POST logout with valid access_token should clear all three cookies and return SUCCESS`() {
+        // Given: a signed-in user
+        val email = "logout-user@example.com"
+        val password = "ValidP@ss123!"
+        createUserWithNoMfa(email, password)
+        val accessToken = signinAndGetAccessToken(email, password)
+
+        // When: logout with the access token cookie
+        val result = mockMvc.perform(
+            post("/api/v1/auth/logout")
+                .cookie(Cookie("access_token", accessToken))
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.status").value("SUCCESS"))
+            .andExpect(jsonPath("$.message").value("You have been signed out."))
+            .andReturn()
+
+        // Then: all three auth cookies are cleared with Max-Age=0
+        val cookies = result.response.getHeaders("Set-Cookie")
+        assertNotNull(cookies)
+        assertEquals(3, cookies.size, "Expected access_token, refresh_token, and device_trust cleared")
+        assertCookieCleared(cookies, "access_token")
+        assertCookieCleared(cookies, "refresh_token")
+        assertCookieCleared(cookies, "device_trust")
+    }
+
+    @Test
+    fun `POST logout with no access_token cookie should return 200 and still clear cookies`() {
+        // When: logout with no cookie at all
+        val result = mockMvc.perform(post("/api/v1/auth/logout"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.status").value("SUCCESS"))
+            .andReturn()
+
+        // Then: cookies are still cleared (idempotent logout)
+        val cookies = result.response.getHeaders("Set-Cookie")
+        assertNotNull(cookies)
+        assertEquals(3, cookies.size)
+        assertCookieCleared(cookies, "access_token")
+        assertCookieCleared(cookies, "refresh_token")
+        assertCookieCleared(cookies, "device_trust")
+    }
+
+    @Test
+    fun `POST logout with invalid access_token should return 200 and clear cookies without error`() {
+        // When: logout with a malformed token
+        val result = mockMvc.perform(
+            post("/api/v1/auth/logout")
+                .cookie(Cookie("access_token", "not.a.real.jwt"))
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.status").value("SUCCESS"))
+            .andReturn()
+
+        // Then: cookies are cleared and no error surfaces
+        val cookies = result.response.getHeaders("Set-Cookie")
+        assertNotNull(cookies)
+        assertEquals(3, cookies.size)
+        assertCookieCleared(cookies, "access_token")
+        assertCookieCleared(cookies, "refresh_token")
+        assertCookieCleared(cookies, "device_trust")
+    }
+
+    @Test
+    fun `POST logout-all without access_token cookie should return 401`() {
+        mockMvc.perform(post("/api/v1/auth/logout/all"))
+            .andExpect(status().isUnauthorized)
+            .andExpect(jsonPath("$.error").value("UNAUTHORIZED"))
+    }
+
+    @Test
+    fun `POST logout-all with invalid access_token should return 401`() {
+        mockMvc.perform(
+            post("/api/v1/auth/logout/all")
+                .cookie(Cookie("access_token", "not.a.real.jwt"))
+        )
+            .andExpect(status().isUnauthorized)
+            .andExpect(jsonPath("$.error").value("UNAUTHORIZED"))
+    }
+
+    @Test
+    fun `POST logout-all with valid token should return sessionsInvalidated count and clear cookies`() {
+        // Given: a user with three signed-in sessions
+        val email = "logout-all-user@example.com"
+        val password = "ValidP@ss123!"
+        createUserWithNoMfa(email, password)
+        val accessToken = signinAndGetAccessToken(email, password)
+        signinAndGetAccessToken(email, password)
+        signinAndGetAccessToken(email, password)
+
+        // When: logout/all is invoked
+        val result = mockMvc.perform(
+            post("/api/v1/auth/logout/all")
+                .cookie(Cookie("access_token", accessToken))
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.status").value("SUCCESS"))
+            .andExpect(jsonPath("$.sessionsInvalidated").value(3))
+            .andReturn()
+
+        // Then: cookies cleared
+        val cookies = result.response.getHeaders("Set-Cookie")
+        assertNotNull(cookies)
+        assertEquals(3, cookies.size)
+        assertCookieCleared(cookies, "access_token")
+        assertCookieCleared(cookies, "refresh_token")
+        assertCookieCleared(cookies, "device_trust")
+    }
+
+    private fun signinAndGetAccessToken(email: String, password: String): String {
+        val request = SigninRequest(
+            email = email,
+            password = password,
+            rememberMe = false,
+            deviceFingerprint = null,
+            deviceTrustToken = null
+        )
+        val result = mockMvc.perform(
+            post("/api/v1/auth/signin")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request))
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.status").value("SUCCESS"))
+            .andReturn()
+
+        val setCookies = result.response.getHeaders("Set-Cookie")
+        val accessCookieHeader = setCookies.firstOrNull { it.startsWith("access_token=") }
+            ?: error("signin did not set access_token cookie")
+        return accessCookieHeader.substringAfter("access_token=").substringBefore(';')
+    }
+
+    private fun assertCookieCleared(cookies: List<String>, name: String) {
+        val cookie = cookies.firstOrNull { it.startsWith("$name=") }
+        assertNotNull(cookie, "Missing cleared cookie: $name")
+        assertTrue(
+            cookie.contains("Max-Age=0"),
+            "Expected $name to be cleared with Max-Age=0 but was: $cookie"
+        )
     }
 
     private fun createUserWithNoMfa(email: String, password: String): User {

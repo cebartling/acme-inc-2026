@@ -10,6 +10,7 @@ const common = {
     'steps/common/api-assertions.steps.ts',
     // Customer step definitions
     'steps/customer/registration.steps.ts',
+    'steps/customer/customer-logout.steps.ts',
     // API step definitions
     'steps/api/address-api.steps.ts',
     'steps/api/authentication-api.steps.ts',
@@ -23,6 +24,7 @@ const common = {
     'steps/api/registration-api.steps.ts',
     'steps/api/session-token-creation.steps.ts',
     'steps/api/verification-email.steps.ts',
+    'steps/api/customer-logout.steps.ts',
   ],
   format: [
     'json:reports/cucumber-report.json',

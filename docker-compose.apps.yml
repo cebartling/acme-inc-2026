@@ -82,7 +82,8 @@ services:
       retries: 5
       start_period: 60s
     depends_on:
-      - identity-db-init
+      identity-db-init:
+        condition: service_completed_successfully
     labels:
       - "com.acme.service=identity"
       - "com.acme.type=backend"
@@ -99,10 +100,30 @@ services:
       - sh
       - -c
       - |
-        until pg_isready -h postgres -p 5432 -U $${POSTGRES_USER:-postgres}; do
-          echo 'Waiting for PostgreSQL...'
-          sleep 2
-        done
+        # Bounded readiness probes: each loop retries up to MAX_RETRIES
+        # (60) times with 2s between attempts (~120s per dependency).
+        # Unbounded loops would let identity-service hang indefinitely
+        # if infra never comes up.
+        MAX_RETRIES=60
+        wait_for() {
+          name="$$1"; host="$$2"; port="$$3"; probe="$$4"
+          i=0
+          until eval "$$probe"; do
+            i=$$((i + 1))
+            if [ $$i -ge $$MAX_RETRIES ]; then
+              echo "Timed out waiting for $$name at $$host:$$port after $$MAX_RETRIES attempts" >&2
+              exit 1
+            fi
+            echo "Waiting for $$name..."
+            sleep 2
+          done
+        }
+        wait_for PostgreSQL postgres 5432 "pg_isready -h postgres -p 5432 -U $${POSTGRES_USER:-postgres} >/dev/null 2>&1"
+        # acme-network is external, so we can't depends_on these from this
+        # compose file -- TCP probes over the shared network are enough.
+        wait_for Redis redis 6379 "nc -z redis 6379"
+        wait_for Kafka kafka 29092 "nc -z kafka 29092"
+        wait_for 'Schema Registry' schema-registry 8081 "nc -z schema-registry 8081"
         echo "Creating database acme_identity if it doesn't exist..."
         psql -h postgres -U $${POSTGRES_USER:-postgres} -tc "SELECT 1 FROM pg_database WHERE datname = 'acme_identity'" | grep -q 1 || psql -h postgres -U $${POSTGRES_USER:-postgres} -c "CREATE DATABASE acme_identity"
 

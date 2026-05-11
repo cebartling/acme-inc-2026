@@ -51,22 +51,37 @@ class AuthCookieBuilderTest {
     }
 
     @Test
-    fun `buildClearCookies should create two cookies with zero max age`() {
+    fun `buildClearCookies should clear access_token, refresh_token, and device_trust`() {
         val cookies = authCookieBuilder.buildClearCookies()
 
-        assertEquals(2, cookies.size)
+        assertEquals(3, cookies.size)
 
         val accessCookie = cookies.find { it.name == "access_token" }
         assertNotNull(accessCookie)
         assertEquals("", accessCookie.value)
         assertEquals(0L, accessCookie.maxAge.seconds)
+        assertEquals("/", accessCookie.path)
         assertTrue(accessCookie.isHttpOnly)
+        assertTrue(accessCookie.isSecure)
+        assertEquals("Strict", accessCookie.sameSite)
 
         val refreshCookie = cookies.find { it.name == "refresh_token" }
         assertNotNull(refreshCookie)
         assertEquals("", refreshCookie.value)
         assertEquals(0L, refreshCookie.maxAge.seconds)
+        assertEquals("/api/v1/auth/refresh", refreshCookie.path)
         assertTrue(refreshCookie.isHttpOnly)
+        assertTrue(refreshCookie.isSecure)
+        assertEquals("Strict", refreshCookie.sameSite)
+
+        val deviceTrustCookie = cookies.find { it.name == "device_trust" }
+        assertNotNull(deviceTrustCookie)
+        assertEquals("", deviceTrustCookie.value)
+        assertEquals(0L, deviceTrustCookie.maxAge.seconds)
+        assertEquals("/", deviceTrustCookie.path)
+        assertTrue(deviceTrustCookie.isHttpOnly)
+        assertTrue(deviceTrustCookie.isSecure)
+        assertEquals("Strict", deviceTrustCookie.sameSite)
     }
 
     @Test

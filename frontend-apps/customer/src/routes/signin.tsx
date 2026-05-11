@@ -52,7 +52,7 @@ const signinSearchSchema = z.object({
     .refine((val) => !val || isValidRedirectUrl(val), {
       message: "Invalid redirect URL",
     }),
-  logout: z.string().optional(),
+  logout: z.boolean().optional(),
 });
 
 export const Route = createFileRoute("/signin")({
@@ -69,7 +69,7 @@ function SigninPage() {
 
   // Show logout message if redirected after logout
   const logoutMessage =
-    search.logout === "true" ? "You have been signed out." : undefined;
+    search.logout === true ? "You have been signed out." : undefined;
 
   /**
    * Formats remaining seconds as "Xm Ys" or "Xs" for display.

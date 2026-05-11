@@ -28,8 +28,16 @@ demo-register:
 demo-register-record:
     cd demos && bun run src/run.ts register --mode=record
 
+# Live headed walkthrough of the logout flow (DEMO_LOGOUT_ALL=true to demo all-devices).
+demo-logout:
+    cd demos && bun run src/run.ts logout
+
+# Recorded logout walkthrough; .webm lands in demos/recordings/.
+demo-logout-record:
+    cd demos && bun run src/run.ts logout --mode=record
+
 # Run all demos sequentially in live mode.
-demo-all: demo-register demo-signin
+demo-all: demo-register demo-signin demo-logout
 
 # Run all demos sequentially in record mode.
-demo-all-record: demo-register-record demo-signin-record
+demo-all-record: demo-register-record demo-signin-record demo-logout-record

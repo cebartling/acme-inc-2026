@@ -34,8 +34,10 @@ just demo-register           # Live headed walkthrough of registration
 just demo-register-record    # Same flow, saved to demos/recordings/*.webm
 just demo-signin             # Live headed walkthrough of sign-in
 just demo-signin-record      # Same flow, recorded
-just demo-all                # Sequence: register → signin (live)
-just demo-all-record         # Sequence: register → signin (recorded)
+just demo-logout             # Live headed walkthrough of logout
+just demo-logout-record      # Same flow, recorded
+just demo-all                # Sequence: register → signin → logout (live)
+just demo-all-record         # Sequence: register → signin → logout (recorded)
 just demo-down               # Stop services when finished
 ```
 
@@ -52,6 +54,7 @@ Behavior is controlled by env vars (all optional):
 | `DEMO_EMAIL`        | `demo@acme.test`         | Account used by the sign-in demo            |
 | `DEMO_PASSWORD`     | `DemoPass123!`           | Password for the sign-in demo               |
 | `DEMO_SLOWMO_MS`    | `250`                    | Playwright `slowMo` — increase for live use |
+| `DEMO_LOGOUT_ALL`   | `false`                  | Set `true` to exercise "Sign Out All Devices" (with confirm dialog) instead of single-session logout |
 
 ### Sign-in credentials
 

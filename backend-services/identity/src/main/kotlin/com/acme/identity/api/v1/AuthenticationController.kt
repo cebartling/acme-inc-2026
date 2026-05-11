@@ -3,6 +3,8 @@ package com.acme.identity.api.v1
 import com.acme.identity.api.v1.dto.ChangePasswordRequest
 import com.acme.identity.api.v1.dto.ChangePasswordResponse
 import com.acme.identity.api.v1.dto.ErrorResponse
+import com.acme.identity.api.v1.dto.LogoutAllResponse
+import com.acme.identity.api.v1.dto.LogoutResponse
 import com.acme.identity.api.v1.dto.SigninErrorResponse
 import com.acme.identity.api.v1.dto.SigninRequest
 import com.acme.identity.api.v1.dto.SigninStatus
@@ -12,13 +14,17 @@ import com.acme.identity.application.AuthenticationError
 import com.acme.identity.application.AuthenticationSessionService
 import com.acme.identity.application.ChangePasswordResult
 import com.acme.identity.application.ChangePasswordUseCase
+import com.acme.identity.application.SessionService
 import com.acme.identity.application.TokenService
 import com.acme.identity.domain.UserStatus
+import com.acme.identity.domain.events.SessionInvalidated
+import com.acme.identity.infrastructure.security.AuthCookieBuilder
 import com.acme.identity.infrastructure.security.RateLimiter
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.validation.Valid
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
+import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
@@ -42,6 +48,8 @@ class AuthenticationController(
     private val tokenService: TokenService,
     private val rateLimiter: RateLimiter,
     private val authenticationSessionService: AuthenticationSessionService,
+    private val sessionService: SessionService,
+    private val authCookieBuilder: AuthCookieBuilder,
     @Value("\${identity.support-url:https://www.acme.com/support}")
     private val supportUrl: String = "https://www.acme.com/support",
     @Value("\${identity.password-reset-url:https://www.acme.com/forgot-password}")
@@ -208,6 +216,118 @@ class AuthenticationController(
                 )
             }
         }
+    }
+
+    /**
+     * Signs the current session out.
+     *
+     * If a valid access_token cookie is present, the corresponding session
+     * is removed from Redis and a SessionInvalidated event is published.
+     * Regardless of token validity, all auth cookies (access_token,
+     * refresh_token, device_trust) are cleared with Max-Age=0 so a stale
+     * or missing token still produces a clean signed-out state.
+     *
+     * @param accessToken Optional access token from cookie.
+     * @return 200 OK with [LogoutResponse]; cookies are cleared in the response.
+     */
+    @PostMapping("/logout")
+    fun logout(
+        @CookieValue(value = "access_token", required = false) accessToken: String?
+    ): ResponseEntity<LogoutResponse> {
+        if (!accessToken.isNullOrBlank()) {
+            tokenService.parseAccessTokenClaims(accessToken)?.let { claims ->
+                val sessionId = claims.getStringClaim("sessionId")
+                val subject = claims.subject
+                if (!sessionId.isNullOrBlank() && !subject.isNullOrBlank()) {
+                    try {
+                        val userId = UUID.fromString(subject)
+                        sessionService.invalidateSession(
+                            sessionId = sessionId,
+                            userId = userId,
+                            reason = SessionInvalidated.REASON_LOGOUT
+                        )
+                    } catch (e: IllegalArgumentException) {
+                        logger.warn("Logout: malformed userId in access token subject")
+                    }
+                }
+            }
+        }
+
+        return buildClearCookieResponse(LogoutResponse())
+    }
+
+    /**
+     * Signs the user out of every active session.
+     *
+     * Requires a valid access_token cookie. All sessions belonging to the
+     * user are invalidated; each emits a SessionInvalidated event with
+     * reason USER_LOGOUT_ALL. All auth cookies are cleared on the response.
+     *
+     * @param accessToken Required access token from cookie.
+     * @return 200 OK with [LogoutAllResponse] including session count,
+     *         401 Unauthorized if the token is missing or invalid.
+     */
+    @PostMapping("/logout/all")
+    fun logoutAll(
+        @CookieValue(value = "access_token", required = false) accessToken: String?
+    ): ResponseEntity<Any> {
+        if (accessToken.isNullOrBlank()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
+                ErrorResponse(
+                    error = "UNAUTHORIZED",
+                    message = "Authentication required"
+                )
+            )
+        }
+
+        val claims = tokenService.parseAccessTokenClaims(accessToken)
+            ?: return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
+                ErrorResponse(
+                    error = "UNAUTHORIZED",
+                    message = "Invalid or expired access token"
+                )
+            )
+
+        val subject = claims.subject
+            ?: return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
+                ErrorResponse(
+                    error = "UNAUTHORIZED",
+                    message = "Invalid access token"
+                )
+            )
+
+        val userId = try {
+            UUID.fromString(subject)
+        } catch (e: IllegalArgumentException) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
+                ErrorResponse(
+                    error = "UNAUTHORIZED",
+                    message = "Invalid access token"
+                )
+            )
+        }
+
+        val sessions = sessionService.findUserSessions(userId)
+        sessions.forEach { session ->
+            sessionService.invalidateSession(
+                sessionId = session.id,
+                userId = userId,
+                reason = SessionInvalidated.REASON_LOGOUT_ALL
+            )
+        }
+
+        return buildClearCookieResponse(LogoutAllResponse(sessionsInvalidated = sessions.size))
+    }
+
+    /**
+     * Builds a 200 OK response with all auth cookies cleared.
+     */
+    private fun <T : Any> buildClearCookieResponse(body: T): ResponseEntity<T> {
+        val builder = ResponseEntity.ok()
+        authCookieBuilder.buildClearCookies().forEach { cookie ->
+            builder.header(HttpHeaders.SET_COOKIE, cookie.toString())
+        }
+        return builder.body(body)
     }
 
     /**

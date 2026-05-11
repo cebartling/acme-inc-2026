@@ -73,12 +73,15 @@ When('the signin completes', async function (this: CustomWorld) {
 });
 
 When('I sign out', async function (this: CustomWorld) {
-  // Click the logout button or link
-  const logoutButton = this.page.getByRole('button', { name: /sign out|logout/i });
-  await logoutButton.click();
+  // Open the user menu, then choose "Sign Out" (US-0003-14 introduced this menu).
+  const userMenuTrigger = this.page.getByRole('button', { name: /open user menu/i });
+  await userMenuTrigger.click();
 
-  // Wait for redirect to signin page
-  await this.page.waitForURL('**/signin', { timeout: 10000 });
+  const signOutItem = this.page.getByRole('menuitem', { name: /^sign out$/i });
+  await signOutItem.click();
+
+  // Wait for redirect to signin page (with the post-logout query param)
+  await this.page.waitForURL(/\/signin(\?|$)/, { timeout: 10000 });
 });
 
 When('I click the retry button', async function (this: CustomWorld) {

@@ -72,8 +72,11 @@ class SessionInvalidated(
         /** Reason: Session exceeded concurrent session limit and was evicted. */
         const val REASON_CONCURRENT_LIMIT = "CONCURRENT_SESSION_LIMIT"
 
-        /** Reason: User explicitly logged out. */
-        const val REASON_LOGOUT = "LOGOUT"
+        /** Reason: User explicitly logged out of the current session. */
+        const val REASON_LOGOUT = "USER_LOGOUT"
+
+        /** Reason: User explicitly logged out of all sessions. */
+        const val REASON_LOGOUT_ALL = "USER_LOGOUT_ALL"
 
         /** Reason: Session TTL expired. */
         const val REASON_EXPIRED = "EXPIRED"

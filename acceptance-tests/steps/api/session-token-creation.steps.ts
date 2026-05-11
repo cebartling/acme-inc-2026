@@ -129,9 +129,6 @@ Given(
     }
 
     // Create multiple sessions via test endpoint
-    console.log(`Creating ${sessionCount} sessions for user ${userId}`);
-    console.log('Request body:', JSON.stringify({ count: sessionCount }));
-
     const response = await this.identityApiClient.post(
       `/api/v1/test/users/${userId}/create-sessions`,
       { count: sessionCount }
