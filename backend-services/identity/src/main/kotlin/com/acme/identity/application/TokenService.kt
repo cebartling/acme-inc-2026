@@ -238,4 +238,45 @@ class TokenService(
             null
         }
     }
+
+    /**
+     * Parses and validates a JWT access token, returning the full claims set.
+     *
+     * Performs the same signature, expiration, and issuer checks as
+     * [parseAccessToken], but exposes the entire [JWTClaimsSet] so callers
+     * can read non-subject claims (e.g., `sessionId`) without re-parsing.
+     *
+     * @param token The JWT token string.
+     * @return The [JWTClaimsSet] if the token is valid, null otherwise.
+     */
+    fun parseAccessTokenClaims(token: String): JWTClaimsSet? {
+        return try {
+            val jwt = SignedJWT.parse(token)
+            val signingKey = keyProvider.getCurrentKey()
+
+            val verifier = RSASSAVerifier(signingKey.publicKey as RSAPublicKey)
+            if (!jwt.verify(verifier)) {
+                logger.warn("JWT signature verification failed")
+                return null
+            }
+
+            val claims = jwt.jwtClaimsSet
+
+            val expiration = claims.expirationTime
+            if (expiration == null || expiration.before(Date())) {
+                logger.debug("JWT token expired")
+                return null
+            }
+
+            if (claims.issuer != config.issuer) {
+                logger.warn("JWT issuer mismatch: expected ${config.issuer}, got ${claims.issuer}")
+                return null
+            }
+
+            claims
+        } catch (e: Exception) {
+            logger.warn("Failed to parse JWT token: ${e.message}")
+            null
+        }
+    }
 }

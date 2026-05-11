@@ -416,6 +416,23 @@ export interface DevicesResponse {
 }
 
 /**
+ * Response type for single-session logout.
+ */
+export interface LogoutResponse {
+  status: "SUCCESS";
+  message: string;
+}
+
+/**
+ * Response type for logout-all-devices.
+ */
+export interface LogoutAllResponse {
+  status: "SUCCESS";
+  message: string;
+  sessionsInvalidated: number;
+}
+
+/**
  * Identity Service API client.
  */
 export const identityApi = {
@@ -515,6 +532,39 @@ export const identityApi = {
       {
         method: "DELETE",
         credentials: "include", // Include cookies for authentication
+      }
+    );
+  },
+
+  /**
+   * Signs the current session out.
+   *
+   * The server clears all auth cookies in the response regardless of token
+   * validity, so this call is safe to make even when not authenticated.
+   */
+  async logout(): Promise<LogoutResponse> {
+    return apiRequest<LogoutResponse>(
+      `${IDENTITY_SERVICE_URL}/api/v1/auth/logout`,
+      {
+        method: "POST",
+        credentials: "include",
+      }
+    );
+  },
+
+  /**
+   * Signs the user out of every active session.
+   *
+   * Requires a valid access_token cookie.
+   *
+   * @throws ApiError 401 if not authenticated.
+   */
+  async logoutAll(): Promise<LogoutAllResponse> {
+    return apiRequest<LogoutAllResponse>(
+      `${IDENTITY_SERVICE_URL}/api/v1/auth/logout/all`,
+      {
+        method: "POST",
+        credentials: "include",
       }
     );
   },

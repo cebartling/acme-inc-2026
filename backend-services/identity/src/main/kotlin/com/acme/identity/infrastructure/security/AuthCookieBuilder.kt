@@ -72,10 +72,11 @@ class AuthCookieBuilder(private val config: JwtConfig) {
     /**
      * Builds cookies to clear both access and refresh tokens.
      *
-     * Used during logout or session invalidation. Sets both cookies
-     * with empty values and Max-Age=0 to immediately expire them.
+     * Used during logout or session invalidation. Sets all three auth cookies
+     * (access_token, refresh_token, device_trust) with empty values and
+     * Max-Age=0 to immediately expire them.
      *
-     * @return A list of [ResponseCookie] instances to clear auth cookies.
+     * @return A list of [ResponseCookie] instances to clear all auth cookies.
      */
     fun buildClearCookies(): List<ResponseCookie> {
         return listOf(
@@ -91,6 +92,13 @@ class AuthCookieBuilder(private val config: JwtConfig) {
                 .secure(true)
                 .sameSite("Strict")
                 .path("/api/v1/auth/refresh")
+                .maxAge(0)
+                .build(),
+            ResponseCookie.from("device_trust", "")
+                .httpOnly(true)
+                .secure(true)
+                .sameSite("Strict")
+                .path("/")
                 .maxAge(0)
                 .build()
         )

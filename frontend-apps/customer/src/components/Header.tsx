@@ -13,11 +13,15 @@ import {
   X,
 } from "lucide-react";
 
+import { UserMenu } from "@/components/UserMenu";
+import { useIsAuthenticated } from "@/stores/auth.store";
+
 export default function Header() {
   const [isOpen, setIsOpen] = useState(false);
   const [groupedExpanded, setGroupedExpanded] = useState<
     Record<string, boolean>
   >({});
+  const isAuthenticated = useIsAuthenticated();
 
   return (
     <>
@@ -38,6 +42,11 @@ export default function Header() {
             />
           </Link>
         </h1>
+        {isAuthenticated && (
+          <div className="ml-auto">
+            <UserMenu />
+          </div>
+        )}
       </header>
 
       <aside

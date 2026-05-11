@@ -54,7 +54,8 @@ class SessionInvalidatedTest {
     @Test
     fun `reason constants should be defined correctly`() {
         assertEquals("CONCURRENT_SESSION_LIMIT", SessionInvalidated.REASON_CONCURRENT_LIMIT)
-        assertEquals("LOGOUT", SessionInvalidated.REASON_LOGOUT)
+        assertEquals("USER_LOGOUT", SessionInvalidated.REASON_LOGOUT)
+        assertEquals("USER_LOGOUT_ALL", SessionInvalidated.REASON_LOGOUT_ALL)
         assertEquals("EXPIRED", SessionInvalidated.REASON_EXPIRED)
         assertEquals("SECURITY", SessionInvalidated.REASON_SECURITY)
     }
@@ -84,6 +85,7 @@ class SessionInvalidatedTest {
         val reasons = listOf(
             SessionInvalidated.REASON_CONCURRENT_LIMIT,
             SessionInvalidated.REASON_LOGOUT,
+            SessionInvalidated.REASON_LOGOUT_ALL,
             SessionInvalidated.REASON_EXPIRED,
             SessionInvalidated.REASON_SECURITY
         )

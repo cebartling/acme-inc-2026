@@ -196,6 +196,63 @@ class TokenServiceTest {
         assertNotEquals(tokens1.refreshToken, tokens2.refreshToken)
     }
 
+    @Test
+    fun `parseAccessTokenClaims should return full claims for a valid token`() {
+        val user = createTestUser()
+        val tokens = tokenService.createTokens(user, testSessionId, testTokenFamily)
+
+        val claims = tokenService.parseAccessTokenClaims(tokens.accessToken)
+
+        assertNotNull(claims)
+        assertEquals(testUserId.toString(), claims.subject)
+        assertEquals(testSessionId, claims.getStringClaim("sessionId"))
+        assertEquals(user.email, claims.getStringClaim("email"))
+        assertEquals(jwtConfig.issuer, claims.issuer)
+    }
+
+    @Test
+    fun `parseAccessTokenClaims should return null for a malformed token`() {
+        val claims = tokenService.parseAccessTokenClaims("not.a.jwt")
+        assertNull(claims)
+    }
+
+    @Test
+    fun `parseAccessTokenClaims should return null when issuer does not match`() {
+        val otherConfig = JwtConfig(
+            issuer = "https://other.acme.com",
+            audience = jwtConfig.audience,
+            accessTokenExpiryMinutes = 15,
+            refreshTokenExpiryDays = 7,
+            keyRotationPeriodDays = 30
+        )
+        val otherTokenService = TokenService(signingKeyProvider, otherConfig)
+        val user = createTestUser()
+        val tokens = otherTokenService.createTokens(user, testSessionId, testTokenFamily)
+
+        val claims = tokenService.parseAccessTokenClaims(tokens.accessToken)
+
+        assertNull(claims)
+    }
+
+    @Test
+    fun `parseAccessTokenClaims should return null for an expired token`() {
+        val shortLivedConfig = JwtConfig(
+            issuer = jwtConfig.issuer,
+            audience = jwtConfig.audience,
+            accessTokenExpiryMinutes = 0,
+            refreshTokenExpiryDays = 7,
+            keyRotationPeriodDays = 30
+        )
+        val shortLivedService = TokenService(signingKeyProvider, shortLivedConfig)
+        val user = createTestUser()
+        val tokens = shortLivedService.createTokens(user, testSessionId, testTokenFamily)
+
+        Thread.sleep(1100)
+
+        val claims = tokenService.parseAccessTokenClaims(tokens.accessToken)
+        assertNull(claims)
+    }
+
     private fun createTestUser(): User {
         return User(
             id = testUserId,
