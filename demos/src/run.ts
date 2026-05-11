@@ -1,5 +1,5 @@
 import { chromium, type Page } from 'playwright';
-import { mkdir, readdir, rename } from 'node:fs/promises';
+import { mkdir, rename } from 'node:fs/promises';
 import { join } from 'node:path';
 import { config } from './config.ts';
 
@@ -48,17 +48,14 @@ async function loadScenario(name: string): Promise<Scenario> {
   }
 }
 
-async function timestampedRename(dir: string, name: string): Promise<string | null> {
-  const entries = await readdir(dir);
-  const fresh = entries
-    .filter((e) => e.endsWith('.webm'))
-    .map((e) => ({ e, path: join(dir, e) }));
-  if (fresh.length === 0) return null;
-  // The most recently written file is the one we just produced.
-  const latest = fresh[fresh.length - 1];
+async function timestampedRename(
+  sourcePath: string,
+  dir: string,
+  name: string
+): Promise<string> {
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   const target = join(dir, `${name}-${stamp}.webm`);
-  await rename(latest.path, target);
+  await rename(sourcePath, target);
   return target;
 }
 
@@ -89,6 +86,8 @@ async function main(): Promise<void> {
 
   const context = await browser.newContext(contextOptions);
   const page = await context.newPage();
+  // Capture the video handle before page.close() — page.video() is null afterwards.
+  const video = mode === 'record' ? page.video() : null;
 
   try {
     await scenario(page);
@@ -97,16 +96,18 @@ async function main(): Promise<void> {
     }
   } finally {
     await page.close();
+    // context.close() flushes the recorded video to disk.
     await context.close();
     await browser.close();
   }
 
   if (mode === 'record') {
-    const out = await timestampedRename(config.recordingsDir, name);
-    if (out) {
+    const sourcePath = await video?.path();
+    if (sourcePath) {
+      const out = await timestampedRename(sourcePath, config.recordingsDir, name);
       console.log(`✓ Recording saved: ${out}`);
     } else {
-      console.warn(`⚠ Expected a .webm in ${config.recordingsDir} but found none.`);
+      console.warn(`⚠ Recording requested but no video path was produced.`);
     }
   } else {
     console.log('✓ Demo complete.');
