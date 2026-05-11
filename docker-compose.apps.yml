@@ -82,14 +82,6 @@ services:
       retries: 5
       start_period: 60s
     depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
-      schema-registry:
-        condition: service_healthy
       identity-db-init:
         condition: service_completed_successfully
     labels:
@@ -110,6 +102,23 @@ services:
       - |
         until pg_isready -h postgres -p 5432 -U $${POSTGRES_USER:-postgres}; do
           echo 'Waiting for PostgreSQL...'
+          sleep 2
+        done
+        # Also gate on Redis / Kafka / Schema Registry being reachable so the
+        # identity-service JVM (which depends on this init) doesn't start
+        # before its non-Postgres dependencies are bound. acme-network is
+        # external, so we can't depends_on those services directly from this
+        # compose file -- a TCP probe over the shared network is enough.
+        until nc -z redis 6379; do
+          echo 'Waiting for Redis...'
+          sleep 2
+        done
+        until nc -z kafka 29092; do
+          echo 'Waiting for Kafka...'
+          sleep 2
+        done
+        until nc -z schema-registry 8081; do
+          echo 'Waiting for Schema Registry...'
           sleep 2
         done
         echo "Creating database acme_identity if it doesn't exist..."
