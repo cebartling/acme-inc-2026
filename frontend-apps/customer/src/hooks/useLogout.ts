@@ -44,7 +44,7 @@ export function useLogout(): UseLogoutResult {
         // auth guard sees isAuthenticated=false and races us with its own
         // `navigate({ to: "/signin" })` (no search), which would otherwise
         // overwrite our redirect and strip the `logout` query param.
-        await navigate({ to: "/signin", search: { logout: "true" } });
+        await navigate({ to: "/signin", search: { logout: true } });
         useAuthStore.getState().clearUser();
         useCustomerStore.getState().clearProfile();
         trackEvent("logout", {
