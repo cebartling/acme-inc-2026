@@ -1,7 +1,11 @@
 import { chromium, type Page } from 'playwright';
+import { existsSync } from 'node:fs';
 import { mkdir, rename } from 'node:fs/promises';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { config } from './config.ts';
+
+const here = dirname(fileURLToPath(import.meta.url));
 
 type Mode = 'live' | 'record';
 type Scenario = (page: Page) => Promise<void>;
@@ -34,18 +38,14 @@ async function preflight(): Promise<void> {
 }
 
 async function loadScenario(name: string): Promise<Scenario> {
-  try {
-    const mod = await import(`./scenarios/${name}.ts`);
-    if (typeof mod.default !== 'function') {
-      throw new Error(`Scenario \`${name}\` does not export a default function.`);
-    }
-    return mod.default as Scenario;
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === 'ERR_MODULE_NOT_FOUND') {
-      throw new Error(`Unknown demo \`${name}\`. Looked in demos/src/scenarios/.`);
-    }
-    throw err;
+  if (!existsSync(join(here, 'scenarios', `${name}.ts`))) {
+    throw new Error(`Unknown demo \`${name}\`. Looked in demos/src/scenarios/.`);
   }
+  const mod = await import(`./scenarios/${name}.ts`);
+  if (typeof mod.default !== 'function') {
+    throw new Error(`Scenario \`${name}\` does not export a default function.`);
+  }
+  return mod.default as Scenario;
 }
 
 async function timestampedRename(
