@@ -133,6 +133,19 @@ Given(
     this.setTestData('registeredEmail', uniqueEmail);
     this.setTestData('userId', response.data.userId);
 
+    // The user is created with status PENDING_VERIFICATION; without verifying
+    // the email the user cannot sign in, which is what an "active customer"
+    // implies. Hit the test endpoint for the verification token and consume it
+    // (same pattern createTestUser uses in authentication-api.steps.ts).
+    const tokenResponse = await this.identityApiClient.get<{ token: string }>(
+      `/api/v1/test/users/${response.data.userId}/verification-token`
+    );
+    if (tokenResponse.status === 200 && tokenResponse.data.token) {
+      await this.identityApiClient.get<void>(
+        `/api/v1/users/verify?token=${tokenResponse.data.token}`
+      );
+    }
+
     // Wait for customer profile to be created
     const found = await waitFor(async () => {
       try {
