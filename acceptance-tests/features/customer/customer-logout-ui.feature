@@ -1,3 +1,11 @@
+# @wip is set because these scenarios share a Background with
+# customer-profile-loading-ui.feature -- both are blocked by a
+# pre-existing SSR/hydration race in the customer-frontend's dashboard
+# route guard that bounces users back to /signin before the auth
+# Zustand store rehydrates. The 6 @api logout scenarios in
+# customer-logout-api.feature run in CI; these UI scenarios will be
+# un-@wip'd once the dashboard race is fixed (out of scope for
+# US-0003-14).
 @customer @logout @wip
 Feature: Customer Logout UI (US-0003-14)
   As a signed-in customer
