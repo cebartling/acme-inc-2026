@@ -37,3 +37,9 @@ temp/
 *.temp
 
 .playwright-mcp/
+
+# Demos: recorded videos (artifacts, not source)
+demos/recordings/
+
+# Demos: credentials of the most recently registered demo account
+demos/.last-registered.json

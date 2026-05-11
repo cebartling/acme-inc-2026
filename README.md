@@ -309,3 +309,18 @@ cp .env.example .env
 - Application services should be running (`./scripts/docker-manage.sh start`)
 
 See [documentation/user-stories/0001-acceptance-testing/README.md](documentation/user-stories/0001-acceptance-testing/README.md) for detailed testing documentation.
+
+## Demos
+
+Scripted UI walkthroughs live in `demos/` and run via a top-level `Justfile`:
+
+```bash
+just demo-up                 # Start services
+just demo-register           # Live headed walkthrough of registration
+just demo-register-record    # Same flow recorded to demos/recordings/*.webm
+just demo-signin             # Live headed walkthrough of sign-in
+just demo-down               # Stop services
+just --list                  # Show all targets
+```
+
+Demos use Bun + Playwright and are separate from the acceptance test suite. See [demos/README.md](demos/README.md) for prerequisites (Bun, `just`) and authoring instructions.
