@@ -21,10 +21,12 @@ import org.springframework.test.web.servlet.MockMvc
 import jakarta.servlet.http.Cookie
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.*
+import org.testcontainers.containers.GenericContainer
 import org.testcontainers.kafka.KafkaContainer
 import org.testcontainers.postgresql.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
+import org.testcontainers.utility.DockerImageName
 import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertEquals
@@ -63,6 +65,10 @@ class AuthenticationControllerIntegrationTest {
         @Container
         val kafka = KafkaContainer("apache/kafka:3.8.0")
 
+        @Container
+        val redis: GenericContainer<*> = GenericContainer(DockerImageName.parse("redis:7-alpine"))
+            .withExposedPorts(6379)
+
         @JvmStatic
         @DynamicPropertySource
         fun configureProperties(registry: DynamicPropertyRegistry) {
@@ -70,6 +76,8 @@ class AuthenticationControllerIntegrationTest {
             registry.add("spring.datasource.username") { postgres.username }
             registry.add("spring.datasource.password") { postgres.password }
             registry.add("spring.kafka.bootstrap-servers") { kafka.bootstrapServers }
+            registry.add("spring.data.redis.host") { redis.host }
+            registry.add("spring.data.redis.port") { redis.getMappedPort(6379) }
             registry.add("spring.jpa.hibernate.ddl-auto") { "create-drop" }
         }
     }
