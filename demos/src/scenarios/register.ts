@@ -63,7 +63,7 @@ async function registerViaApi(email: string, password: string): Promise<void> {
 export default async function register(page: Page): Promise<void> {
   const stamp = Date.now();
   const email = `demo-${stamp}@acme.test`;
-  const password = 'DemoPass123!';
+  const password = config.demoPassword;
 
   await page.goto(`${config.customerAppUrl}/register`);
   await page.getByRole('heading', { name: 'Welcome to ACME' }).waitFor();
