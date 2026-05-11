@@ -365,6 +365,8 @@ class AuthenticationControllerIntegrationTest {
         assertNotNull(cookies)
         assertEquals(3, cookies.size)
         assertCookieCleared(cookies, "access_token")
+        assertCookieCleared(cookies, "refresh_token")
+        assertCookieCleared(cookies, "device_trust")
     }
 
     @Test
