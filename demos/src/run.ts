@@ -17,6 +17,9 @@ function parseArgs(argv: string[]): { name: string; mode: Mode } {
     throw new Error('Usage: bun run src/run.ts <demo-name> [--mode=live|record]');
   }
   const modeArg = argv.find((a) => a.startsWith('--mode='))?.split('=')[1];
+  if (modeArg !== undefined && modeArg !== 'live' && modeArg !== 'record') {
+    throw new Error(`Invalid --mode value \`${modeArg}\`. Expected 'live' or 'record'.`);
+  }
   const mode: Mode = modeArg === 'record' ? 'record' : 'live';
   return { name, mode };
 }
