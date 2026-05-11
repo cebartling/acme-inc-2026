@@ -11,7 +11,7 @@ human-readable pace. Pass/fail coverage lives in `../acceptance-tests/`.
 
 | Tool         | Version | Install                                                    |
 | ------------ | ------- | ---------------------------------------------------------- |
-| Bun          | 1.1+    | `curl -fsSL https://bun.sh/install \| bash`                |
+| Bun          | 1.3+    | `curl -fsSL https://bun.sh/install \| bash`                |
 | just         | 1.20+   | `brew install just`                                        |
 | Chromium     | bundled | Installed once via `bunx playwright install chromium`      |
 | Backend + UI | running | `just demo-up` (wraps `./scripts/docker-manage.sh start`)  |
