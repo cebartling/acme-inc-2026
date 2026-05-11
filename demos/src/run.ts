@@ -95,10 +95,12 @@ async function main(): Promise<void> {
       await page.waitForTimeout(2000);
     }
   } finally {
-    await page.close();
-    // context.close() flushes the recorded video to disk.
-    await context.close();
-    await browser.close();
+    // Best-effort cleanup: each close may fail, but a failure in one must
+    // not skip the others. context.close() in particular flushes the
+    // recorded video to disk in record mode.
+    await page.close().catch(() => {});
+    await context.close().catch(() => {});
+    await browser.close().catch(() => {});
   }
 
   if (mode === 'record') {
