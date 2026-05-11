@@ -44,7 +44,14 @@ export function useLogout(): UseLogoutResult {
         // auth guard sees isAuthenticated=false and races us with its own
         // `navigate({ to: "/signin" })` (no search), which would otherwise
         // overwrite our redirect and strip the `logout` query param.
-        await navigate({ to: "/signin", search: { logout: true } });
+        // Wrap navigate so a router-side failure still lets the client
+        // cleanup below complete -- a stuck "Loading..." spinner with
+        // stale auth state is worse than a missed redirect.
+        try {
+          await navigate({ to: "/signin", search: { logout: true } });
+        } catch {
+          // Best-effort; cleanup still runs below.
+        }
         useAuthStore.getState().clearUser();
         useCustomerStore.getState().clearProfile();
         trackEvent("logout", {
