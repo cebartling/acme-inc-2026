@@ -41,16 +41,22 @@ async function registerViaApi(email: string, password: string): Promise<void> {
   }
   const { token } = (await tokenRes.json()) as { token: string };
 
-  // The verify endpoint returns 302 → www.acme.com on success; don't follow it.
+  // The verify endpoint ALWAYS returns 302 — success goes to /login?verified=true
+  // or /login?already_verified=true; failures go to /verify/resend?error=…. We
+  // must inspect the Location header to tell the cases apart.
   const verifyRes = await fetch(
     `${config.identityApiUrl}/api/v1/users/verify?token=${encodeURIComponent(token)}`,
     { redirect: 'manual' }
   );
-  // 200, 204, or a 3xx redirect all indicate verification succeeded.
   if (verifyRes.status >= 400) {
     throw new Error(
       `Email verification failed: ${verifyRes.status} ${await verifyRes.text()}`
     );
+  }
+  const location = verifyRes.headers.get('location') ?? '';
+  const verified = /[?&](verified|already_verified)=true(?:&|$)/.test(location);
+  if (!verified) {
+    throw new Error(`Email verification did not succeed; identity service redirected to ${location}`);
   }
 }
 
