@@ -25,7 +25,11 @@ When('I cancel the all-devices logout', async function (this: CustomWorld) {
 Then(
   'I should be redirected to the signin page with logout=true',
   async function (this: CustomWorld) {
-    await this.page.waitForURL(/\/signin(\?|$).*logout=true/, { timeout: 10000 });
+    // TanStack Router JSON-stringifies string search params, so the redirect
+    // lands at /signin?logout=%22true%22 rather than /signin?logout=true.
+    // Match on the presence of a logout= param; signin.tsx still reads
+    // search.logout === "true" correctly after the matching JSON.parse.
+    await this.page.waitForURL(/\/signin\?.*logout=/, { timeout: 10000 });
   },
 );
 

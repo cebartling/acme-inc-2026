@@ -55,7 +55,10 @@ export default async function logout(page: Page): Promise<void> {
     await page.getByRole('menuitem', { name: /^sign out$/i }).click();
   }
 
-  await page.waitForURL(/\/signin(\?|$).*logout=true/, { timeout: 10000 });
+  // TanStack Router JSON-stringifies string search params, so the actual URL
+  // is /signin?logout=%22true%22, not /signin?logout=true. Match on the param
+  // name only.
+  await page.waitForURL(/\/signin\?.*logout=/, { timeout: 10000 });
   await page.waitForTimeout(1500);
   console.log('  signed out, landed on /signin?logout=true');
 }

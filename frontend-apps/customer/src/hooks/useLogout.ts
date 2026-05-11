@@ -40,6 +40,11 @@ export function useLogout(): UseLogoutResult {
         // Logout is best-effort on the server side; we still clear
         // client state and redirect to signin below.
       } finally {
+        // Order matters: navigate FIRST so /dashboard unmounts before its
+        // auth guard sees isAuthenticated=false and races us with its own
+        // `navigate({ to: "/signin" })` (no search), which would otherwise
+        // overwrite our redirect and strip the `logout` query param.
+        await navigate({ to: "/signin", search: { logout: "true" } });
         useAuthStore.getState().clearUser();
         useCustomerStore.getState().clearProfile();
         trackEvent("logout", {
@@ -47,7 +52,6 @@ export function useLogout(): UseLogoutResult {
           logoutType: allDevices ? "all" : "single",
         });
         setIsLoading(false);
-        await navigate({ to: "/signin", search: { logout: "true" } });
       }
     },
     [navigate],
