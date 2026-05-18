@@ -51,8 +51,17 @@ sealed interface AuthenticationError {
      *
      * @property status The current account status.
      * @property reason Human-readable reason for the inactive status.
+     * @property deactivatedAt When the account was deactivated (only DEACTIVATED).
+     * @property reactivationAvailable Whether self-service reactivation is offered (only DEACTIVATED).
+     * @property resendAvailableIn Seconds until the verification email can be resent (only PENDING_VERIFICATION).
      */
-    data class AccountInactive(val status: UserStatus, val reason: String) : AuthenticationError
+    data class AccountInactive(
+        val status: UserStatus,
+        val reason: String,
+        val deactivatedAt: Instant? = null,
+        val reactivationAvailable: Boolean = false,
+        val resendAvailableIn: Long? = null
+    ) : AuthenticationError
 
     /**
      * Authentication failed because the account is locked.
@@ -340,7 +349,7 @@ class AuthenticateUserUseCase(
                         deviceFingerprint = request.deviceFingerprint
                     )
                     incrementAuthenticationCounter("account_inactive")
-                    mapAccountStatusToError(user.status)
+                    mapAccountStatusToError(user)
                 }
 
                 // Authentication successful - reset failed attempts and update last login
@@ -456,28 +465,35 @@ class AuthenticateUserUseCase(
     }
 
     /**
-     * Maps an account status to the appropriate authentication error.
+     * Maps a user's account status to the appropriate authentication error.
+     *
+     * Populates per-status fields (deactivatedAt, reactivationAvailable,
+     * resendAvailableIn) so the API response can drive the customer UI
+     * without a second round trip.
      */
-    private fun mapAccountStatusToError(status: UserStatus): AuthenticationError {
-        return when (status) {
+    private fun mapAccountStatusToError(user: User): AuthenticationError {
+        return when (user.status) {
             UserStatus.PENDING_VERIFICATION -> AuthenticationError.AccountInactive(
-                status = status,
-                reason = "Please verify your email address before signing in."
+                status = user.status,
+                reason = "Please verify your email address before signing in.",
+                resendAvailableIn = 0L
             )
             UserStatus.SUSPENDED -> AuthenticationError.AccountInactive(
-                status = status,
+                status = user.status,
                 reason = "Your account has been suspended. Please contact support at $supportUrl"
             )
             UserStatus.DEACTIVATED -> AuthenticationError.AccountInactive(
-                status = status,
-                reason = "Your account has been deactivated. Please contact support to reactivate."
+                status = user.status,
+                reason = "Your account has been deactivated. Please contact support to reactivate.",
+                deactivatedAt = user.deactivatedAt,
+                reactivationAvailable = true
             )
             UserStatus.LOCKED -> AuthenticationError.AccountInactive(
-                status = status,
+                status = user.status,
                 reason = "Your account is locked. Please try again later or contact support."
             )
             UserStatus.DELETED -> AuthenticationError.AccountInactive(
-                status = status,
+                status = user.status,
                 reason = "This account no longer exists."
             )
             UserStatus.ACTIVE -> throw IllegalStateException("ACTIVE status should not reach this point")

@@ -332,7 +332,19 @@ export interface SigninErrorResponse {
   remainingAttempts?: number;
   reason?: string;
   supportUrl?: string;
+  supportEmail?: string;
   lockedUntil?: string;
+  deactivatedAt?: string;
+  reactivationAvailable?: boolean;
+  resendAvailableIn?: number;
+}
+
+/**
+ * Response from the verification-email resend endpoint.
+ */
+export interface ResendVerificationResponse {
+  message: string;
+  requestsRemaining?: number;
 }
 
 /**
@@ -565,6 +577,24 @@ export const identityApi = {
       {
         method: "POST",
         credentials: "include",
+      }
+    );
+  },
+
+  /**
+   * Resends the verification email for a customer with a PENDING_VERIFICATION
+   * account. The backend rate-limits resends; success is reported uniformly
+   * regardless of whether the email maps to a real account, to prevent
+   * enumeration.
+   */
+  async resendVerification(
+    email: string
+  ): Promise<ResendVerificationResponse> {
+    return apiRequest<ResendVerificationResponse>(
+      `${IDENTITY_SERVICE_URL}/api/v1/users/verify/resend`,
+      {
+        method: "POST",
+        body: JSON.stringify({ email }),
       }
     );
   },

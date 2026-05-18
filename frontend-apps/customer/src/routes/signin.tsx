@@ -7,6 +7,10 @@ import {
 import { z } from "zod";
 import { SigninForm } from "@/components/signin";
 import type { SigninFormError } from "@/components/signin/SigninForm";
+import {
+  InactiveAccountMessage,
+  type InactiveAccountReason,
+} from "@/components/signin/InactiveAccountMessage";
 import { useAuthStore } from "@/stores/auth.store";
 import { useCustomerStore } from "@/stores/customer.store";
 import { identityApi, ApiError } from "@/services/api";
@@ -23,6 +27,33 @@ interface LockoutState {
   remainingSeconds: number;
   lockedUntil: string;
   passwordResetUrl?: string;
+}
+
+/**
+ * State for an inactive-account response (PENDING_VERIFICATION / SUSPENDED /
+ * DEACTIVATED). The customer's email is captured from the submit handler so
+ * the backend can keep error responses PII-free.
+ */
+interface InactiveAccountState {
+  reason: InactiveAccountReason;
+  email: string;
+  supportUrl?: string;
+  supportEmail?: string;
+  deactivatedAt?: string;
+  resendAvailableIn?: number;
+}
+
+const INACTIVE_REASONS: InactiveAccountReason[] = [
+  "PENDING_VERIFICATION",
+  "SUSPENDED",
+  "DEACTIVATED",
+];
+
+function isInactiveReason(value: unknown): value is InactiveAccountReason {
+  return (
+    typeof value === "string" &&
+    INACTIVE_REASONS.includes(value as InactiveAccountReason)
+  );
 }
 
 /**
@@ -70,6 +101,8 @@ function SigninPage() {
   const setUser = useAuthStore((state) => state.setUser);
   const [error, setError] = useState<SigninFormError | null>(null);
   const [lockout, setLockout] = useState<LockoutState | null>(null);
+  const [inactiveAccount, setInactiveAccount] =
+    useState<InactiveAccountState | null>(null);
 
   // Show logout message if redirected after logout
   const logoutMessage =
@@ -113,6 +146,7 @@ function SigninPage() {
   const handleSubmit = async (data: SigninFormData) => {
     setError(null);
     setLockout(null);
+    setInactiveAccount(null);
 
     try {
       // Call Identity Service API
@@ -205,6 +239,11 @@ function SigninPage() {
           lockoutRemainingSeconds?: number;
           lockedUntil?: string;
           passwordResetUrl?: string;
+          reason?: string;
+          supportUrl?: string;
+          supportEmail?: string;
+          deactivatedAt?: string;
+          resendAvailableIn?: number;
         };
 
         // Check for account lockout (HTTP 423)
@@ -214,6 +253,26 @@ function SigninPage() {
             remainingSeconds: errorData?.lockoutRemainingSeconds ?? 0,
             lockedUntil: errorData?.lockedUntil ?? "",
             passwordResetUrl: errorData?.passwordResetUrl,
+          });
+          return;
+        }
+
+        // Inactive account (HTTP 403): pending verification, suspended, or
+        // deactivated. The backend returns a `reason` matching the account
+        // status; the LOCKED + DELETED reasons fall through to the generic
+        // error path so we don't render an inactive-account card for them.
+        if (
+          err.status === 403 &&
+          errorData?.error === "ACCOUNT_INACTIVE" &&
+          isInactiveReason(errorData?.reason)
+        ) {
+          setInactiveAccount({
+            reason: errorData.reason,
+            email: data.email,
+            supportUrl: errorData.supportUrl,
+            supportEmail: errorData.supportEmail,
+            deactivatedAt: errorData.deactivatedAt,
+            resendAvailableIn: errorData.resendAvailableIn,
           });
           return;
         }
@@ -310,6 +369,17 @@ function SigninPage() {
               </div>
             </div>
           </div>
+        )}
+
+        {inactiveAccount && (
+          <InactiveAccountMessage
+            reason={inactiveAccount.reason}
+            email={inactiveAccount.email}
+            supportUrl={inactiveAccount.supportUrl}
+            supportEmail={inactiveAccount.supportEmail}
+            deactivatedAt={inactiveAccount.deactivatedAt}
+            resendAvailableIn={inactiveAccount.resendAvailableIn}
+          />
         )}
 
         <SigninForm onSubmit={handleSubmit} error={error} isDisabled={lockout?.isLocked} />

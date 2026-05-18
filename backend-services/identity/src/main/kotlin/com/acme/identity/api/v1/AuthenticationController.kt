@@ -52,6 +52,8 @@ class AuthenticationController(
     private val authCookieBuilder: AuthCookieBuilder,
     @Value("\${identity.support-url:https://www.acme.com/support}")
     private val supportUrl: String = "https://www.acme.com/support",
+    @Value("\${identity.support-email:support@acme.com}")
+    private val supportEmail: String = "support@acme.com",
     @Value("\${identity.password-reset-url:https://www.acme.com/forgot-password}")
     private val passwordResetUrl: String = "https://www.acme.com/forgot-password"
 ) {
@@ -348,10 +350,23 @@ class AuthenticationController(
                 ResponseEntity.status(HttpStatus.FORBIDDEN).body(
                     SigninErrorResponse(
                         error = "ACCOUNT_INACTIVE",
-                        message = "Account is not active",
+                        message = inactiveMessageFor(error.status),
                         reason = error.status.name,
                         supportUrl = when (error.status) {
                             UserStatus.SUSPENDED, UserStatus.DEACTIVATED -> supportUrl
+                            else -> null
+                        },
+                        supportEmail = when (error.status) {
+                            UserStatus.SUSPENDED -> supportEmail
+                            else -> null
+                        },
+                        deactivatedAt = error.deactivatedAt?.toString(),
+                        reactivationAvailable = when (error.status) {
+                            UserStatus.DEACTIVATED -> error.reactivationAvailable
+                            else -> null
+                        },
+                        resendAvailableIn = when (error.status) {
+                            UserStatus.PENDING_VERIFICATION -> error.resendAvailableIn
                             else -> null
                         }
                     )
@@ -396,6 +411,18 @@ class AuthenticationController(
                 )
             }
         }
+    }
+
+    /**
+     * Human-readable message keyed off the inactive account status. Kept on
+     * the controller so the message strings stay in the API layer rather
+     * than the domain.
+     */
+    private fun inactiveMessageFor(status: UserStatus): String = when (status) {
+        UserStatus.PENDING_VERIFICATION -> "Please verify your email address to continue."
+        UserStatus.SUSPENDED -> "Your account has been suspended. Please contact support for assistance."
+        UserStatus.DEACTIVATED -> "Your account has been deactivated. Would you like to reactivate it?"
+        else -> "Account is not active"
     }
 
     /**
