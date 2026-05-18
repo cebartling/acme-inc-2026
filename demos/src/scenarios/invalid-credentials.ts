@@ -1,6 +1,6 @@
 import type { Page } from 'playwright';
 import { config } from '../config.ts';
-import { loadRegisteredAccount } from '../state.ts';
+import { registerAndVerifyUser } from '../identity-api.ts';
 
 // Walks the audience through the invalid-credentials UX added in US-0003-10:
 //   - first failure shows the default error banner with a remaining-attempts hint
@@ -12,17 +12,20 @@ import { loadRegisteredAccount } from '../state.ts';
 //
 // The demo intentionally stops before the 5th attempt to avoid tripping the
 // account-lockout flow — that has its own demo story.
+//
+// IMPORTANT: the identity service deliberately omits `remainingAttempts` from
+// its 401 response when the email isn't a registered user — this is a
+// username-enumeration mitigation. To make the counter actually tick down,
+// the demo registers and verifies a fresh account first, then attempts
+// failures against it.
 export default async function invalidCredentials(page: Page): Promise<void> {
-  const registered = await loadRegisteredAccount();
-  const email = registered?.email ?? config.demoEmail;
-
-  if (registered) {
-    console.log(`  using account from last register run: ${email}`);
-  } else {
-    console.log(`  using DEMO_EMAIL env default: ${email}`);
-  }
-
+  const stamp = Date.now();
+  const email = `demo-invalid-${stamp}@acme.test`;
+  const password = config.demoPassword;
   const wrongPassword = 'WrongPassword123!';
+
+  console.log(`  registering throwaway account ${email}...`);
+  await registerAndVerifyUser({ email, password });
 
   await page.goto(`${config.customerAppUrl}/signin`);
   await page.getByRole('heading', { name: /welcome back/i }).waitFor();
