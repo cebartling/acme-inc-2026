@@ -36,6 +36,14 @@ demo-logout:
 demo-logout-record:
     cd demos && bun run src/run.ts logout --mode=record
 
+# Live headed walkthrough of the invalid-credentials error UX (US-0003-10).
+demo-invalid-credentials:
+    cd demos && bun run src/run.ts invalid-credentials
+
+# Recorded invalid-credentials walkthrough; .webm lands in demos/recordings/.
+demo-invalid-credentials-record:
+    cd demos && bun run src/run.ts invalid-credentials --mode=record
+
 # Run all demos sequentially in live mode.
 demo-all: demo-register demo-signin demo-logout
 

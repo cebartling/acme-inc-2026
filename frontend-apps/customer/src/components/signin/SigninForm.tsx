@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2 } from "lucide-react";
@@ -19,12 +19,18 @@ import {
 
 import { FormField } from "@/components/registration/FormField";
 import { PasswordInput } from "@/components/registration/PasswordInput";
+import { SigninErrorBanner } from "@/components/signin/SigninErrorBanner";
 
 import { signinSchema, type SigninFormData } from "@/schemas/signin.schema";
 
+export interface SigninFormError {
+  message: string;
+  remainingAttempts?: number;
+}
+
 export interface SigninFormProps {
   onSubmit: (data: SigninFormData) => Promise<void>;
-  error?: string;
+  error?: SigninFormError | null;
   isDisabled?: boolean;
 }
 
@@ -37,6 +43,8 @@ export function SigninForm({ onSubmit, error, isDisabled = false }: SigninFormPr
     formState: { errors, touchedFields, isValid, dirtyFields },
     setValue,
     trigger,
+    resetField,
+    setFocus,
   } = useForm<SigninFormData>({
     resolver: zodResolver(signinSchema),
     mode: "onBlur",
@@ -46,6 +54,12 @@ export function SigninForm({ onSubmit, error, isDisabled = false }: SigninFormPr
       rememberMe: false,
     },
   });
+
+  useEffect(() => {
+    if (!error) return;
+    resetField("password", { defaultValue: "" });
+    setFocus("password");
+  }, [error, resetField, setFocus]);
 
   const handleFormSubmit = async (data: SigninFormData) => {
     setIsSubmitting(true);
@@ -71,13 +85,10 @@ export function SigninForm({ onSubmit, error, isDisabled = false }: SigninFormPr
           noValidate
         >
           {error && (
-            <div
-              className="p-3 text-sm text-red-600 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 rounded-md"
-              role="alert"
-              aria-live="polite"
-            >
-              {error}
-            </div>
+            <SigninErrorBanner
+              message={error.message}
+              remainingAttempts={error.remainingAttempts}
+            />
           )}
 
           <FormField

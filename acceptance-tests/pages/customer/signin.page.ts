@@ -16,6 +16,8 @@ export class SigninPage extends BasePage {
   readonly emailError: Locator;
   readonly passwordError: Locator;
   readonly apiError: Locator;
+  readonly errorBanner: Locator;
+  readonly errorBannerResetLink: Locator;
 
   // Success indicators
   readonly emailSuccess: Locator;
@@ -45,6 +47,8 @@ export class SigninPage extends BasePage {
     this.emailError = page.getByRole('alert').filter({ hasText: /email/i });
     this.passwordError = page.getByRole('alert').filter({ hasText: /password/i });
     this.apiError = page.locator('div[role="alert"]').filter({ hasText: /invalid|error/i });
+    this.errorBanner = page.getByTestId('signin-error-banner');
+    this.errorBannerResetLink = page.getByTestId('signin-error-reset-link');
 
     // Success indicators (check icons)
     this.emailSuccess = page.getByLabel('Valid').first();

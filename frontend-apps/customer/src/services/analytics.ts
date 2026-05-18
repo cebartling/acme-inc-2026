@@ -18,3 +18,16 @@ export function trackEvent(
     console.debug("[analytics]", name, properties ?? {});
   }
 }
+
+export interface SigninFailedProperties {
+  errorType: string;
+  attemptNumber?: number;
+}
+
+export function trackSigninFailed(properties: SigninFailedProperties): void {
+  trackEvent("SigninFailed", {
+    source: "WEB",
+    errorType: properties.errorType,
+    attemptNumber: properties.attemptNumber,
+  });
+}

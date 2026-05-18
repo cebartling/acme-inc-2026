@@ -6,10 +6,14 @@ import {
 } from "@tanstack/react-router";
 import { z } from "zod";
 import { SigninForm } from "@/components/signin";
+import type { SigninFormError } from "@/components/signin/SigninForm";
 import { useAuthStore } from "@/stores/auth.store";
 import { useCustomerStore } from "@/stores/customer.store";
 import { identityApi, ApiError } from "@/services/api";
+import { trackSigninFailed } from "@/services/analytics";
 import type { SigninFormData } from "@/schemas/signin.schema";
+
+const MAX_SIGNIN_ATTEMPTS = 5;
 
 /**
  * State for account lockout information.
@@ -64,7 +68,7 @@ function SigninPage() {
   const navigate = useNavigate();
   const search = useSearch({ from: "/signin" });
   const setUser = useAuthStore((state) => state.setUser);
-  const [error, setError] = useState<string | undefined>(undefined);
+  const [error, setError] = useState<SigninFormError | null>(null);
   const [lockout, setLockout] = useState<LockoutState | null>(null);
 
   // Show logout message if redirected after logout
@@ -107,7 +111,7 @@ function SigninPage() {
   }, [lockout?.isLocked, lockout?.lockedUntil]);
 
   const handleSubmit = async (data: SigninFormData) => {
-    setError(undefined);
+    setError(null);
     setLockout(null);
 
     try {
@@ -214,14 +218,21 @@ function SigninPage() {
           return;
         }
 
-        // Handle invalid credentials with remaining attempts
-        if (errorData?.remainingAttempts !== undefined && errorData.remainingAttempts > 0) {
-          setError(`${errorData.message || "Invalid email or password."} (${errorData.remainingAttempts} attempts remaining)`);
-        } else {
-          setError(errorData?.message || "Invalid email or password. Please try again.");
-        }
+        // Handle invalid credentials
+        const message =
+          errorData?.message || "Invalid email or password.";
+        const remainingAttempts = errorData?.remainingAttempts;
+        setError({ message, remainingAttempts });
+
+        trackSigninFailed({
+          errorType: errorData?.error ?? "INVALID_CREDENTIALS",
+          attemptNumber:
+            remainingAttempts !== undefined
+              ? MAX_SIGNIN_ATTEMPTS - remainingAttempts
+              : undefined,
+        });
       } else {
-        setError("An unexpected error occurred. Please try again.");
+        setError({ message: "An unexpected error occurred. Please try again." });
       }
       console.error("Signin error:", err);
     }
