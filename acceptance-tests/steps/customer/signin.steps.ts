@@ -233,7 +233,10 @@ Then(
   'the signin email field should still contain {string}',
   async function (this: CustomWorld, email: string) {
     const signinPage = new SigninPage(this.page);
-    await expect(signinPage.emailInput).toHaveValue(email);
+    // The fill step substitutes a session-unique testUserEmail when available,
+    // so assert against that value (falling back to the literal scenario string).
+    const expected = this.getTestData<string>('testUserEmail') || email;
+    await expect(signinPage.emailInput).toHaveValue(expected);
   }
 );
 
