@@ -19,6 +19,14 @@ export class SigninPage extends BasePage {
   readonly errorBanner: Locator;
   readonly errorBannerResetLink: Locator;
 
+  // Inactive-account card (US-0003-11)
+  readonly inactiveAccountCard: Locator;
+  readonly resendVerificationButton: Locator;
+  readonly resendVerificationSuccess: Locator;
+  readonly contactSupportLink: Locator;
+  readonly supportEmailLink: Locator;
+  readonly reactivateAccountLink: Locator;
+
   // Success indicators
   readonly emailSuccess: Locator;
 
@@ -49,6 +57,14 @@ export class SigninPage extends BasePage {
     this.apiError = page.locator('div[role="alert"]').filter({ hasText: /invalid|error/i });
     this.errorBanner = page.getByTestId('signin-error-banner');
     this.errorBannerResetLink = page.getByTestId('signin-error-reset-link');
+
+    // Inactive-account card and per-variant call-to-action elements.
+    this.inactiveAccountCard = page.getByTestId('inactive-account-message');
+    this.resendVerificationButton = page.getByTestId('resend-verification-button');
+    this.resendVerificationSuccess = page.getByTestId('resend-verification-success');
+    this.contactSupportLink = page.getByTestId('contact-support-link');
+    this.supportEmailLink = page.getByTestId('support-email-link');
+    this.reactivateAccountLink = page.getByTestId('reactivate-account-link');
 
     // Success indicators (check icons)
     this.emailSuccess = page.getByLabel('Valid').first();

@@ -24,9 +24,13 @@ interface SigninErrorResponse {
   remainingAttempts?: number;
   reason?: string;
   supportUrl?: string;
+  supportEmail?: string;
   lockedUntil?: string;
   lockoutRemainingSeconds?: number;
   passwordResetUrl?: string;
+  deactivatedAt?: string;
+  reactivationAvailable?: boolean;
+  resendAvailableIn?: number;
 }
 
 interface RegistrationRequest {
@@ -121,6 +125,31 @@ async function createTestUser(
         `/api/v1/users/verify?token=${tokenResponse.data.token}`
       );
     }
+  }
+
+  // For non-ACTIVE inactive statuses (SUSPENDED, DEACTIVATED, LOCKED) or for
+  // pre-seeded LOCKED accounts, drive the user into the requested state via
+  // the test-only status endpoint added for US-0003-11 (PIN-91).
+  const statesNeedingDirectSet = new Set([
+    'SUSPENDED',
+    'DEACTIVATED',
+    'LOCKED',
+  ]);
+  if (options.status && statesNeedingDirectSet.has(options.status)) {
+    const body: Record<string, unknown> = { status: options.status };
+    if (options.status === 'DEACTIVATED') {
+      body.deactivatedAt = '2025-12-01T00:00:00Z';
+    }
+    if (options.status === 'LOCKED' && options.lockedUntil) {
+      body.lockedUntil = options.lockedUntil;
+    }
+    if (typeof options.failedAttempts === 'number') {
+      body.failedAttempts = options.failedAttempts;
+    }
+    await world.identityApiClient.post(
+      `/api/v1/test/users/${userId}/status`,
+      body
+    );
   }
 
   return userId;
@@ -233,8 +262,14 @@ Given('the user has MFA enabled', async function (this: CustomWorld) {
 });
 
 Given('the user is locked until {string}', async function (this: CustomWorld, lockedUntil: string) {
-  // In a real implementation, we would lock the user's account
   this.setTestData('lockedUntil', lockedUntil);
+  const userId = this.getTestData<string>('testUserId');
+  if (userId) {
+    await this.identityApiClient.post(`/api/v1/test/users/${userId}/status`, {
+      status: 'LOCKED',
+      lockedUntil,
+    });
+  }
 });
 
 Given(
@@ -368,6 +403,18 @@ Then(
 );
 
 Then(
+  'the response should not contain {string}',
+  async function (this: CustomWorld, field: string) {
+    const response =
+      this.getTestData<ApiResponse<SigninResponse | SigninErrorResponse>>('lastResponse');
+    expect(response).toBeDefined();
+
+    const data = response!.data as Record<string, unknown>;
+    expect(data[field]).toBeUndefined();
+  }
+);
+
+Then(
   'the response time should be within {int}ms of a valid user response',
   async function (this: CustomWorld, _varianceMs: number) {
     // This would require timing measurements in a real implementation
@@ -385,6 +432,81 @@ Then(
     const response = this.getTestData<ApiResponse<SigninResponse>>('lastResponse');
     expect(response).toBeDefined();
     expect(response!.status).toBe(200);
+  }
+);
+
+interface ReactivationRequest {
+  email: string;
+  password: string;
+}
+
+When(
+  'I submit a reactivation request with:',
+  async function (this: CustomWorld, dataTable: DataTable) {
+    const data = dataTable.rowsHash();
+
+    // Honor the same email-rewrite convention as signin: if a unique
+    // testUserEmail was generated in a prior Given step, use it instead of
+    // the literal email in the table.
+    let email = data.email;
+    const testUserEmail = this.getTestData<string>('testUserEmail');
+    if (testUserEmail && email.toLowerCase().includes('@acme.com')) {
+      email = testUserEmail;
+    }
+
+    const request: ReactivationRequest = {
+      email,
+      password: data.password,
+    };
+
+    const response = await this.identityApiClient.post(
+      '/api/v1/auth/reactivate',
+      request
+    );
+
+    this.setTestData('lastResponse', response);
+  }
+);
+
+Then(
+  'a ReactivationRequested event should be persisted in the event store',
+  async function (this: CustomWorld) {
+    const userId = this.getTestData<string>('testUserId');
+    if (!userId) {
+      throw new Error('User ID not found');
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    const response = await this.identityApiClient.get(
+      `/api/v1/test/events/ReactivationRequested?userId=${userId}`
+    );
+
+    expect(response.status).toBe(200);
+    const events = (response.data as { events: Array<unknown> }).events;
+    expect(events).toBeDefined();
+    expect(events.length).toBeGreaterThan(0);
+  }
+);
+
+Then(
+  'no ReactivationRequested event is persisted for that email',
+  async function (this: CustomWorld) {
+    const userId = this.getTestData<string>('testUserId');
+    // No user was created for the unknown-email case → no event possible.
+    if (!userId) {
+      return;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    const response = await this.identityApiClient.get(
+      `/api/v1/test/events/ReactivationRequested?userId=${userId}`
+    );
+
+    expect(response.status).toBe(200);
+    const events = (response.data as { events: Array<unknown> }).events;
+    expect(events.length).toBe(0);
   }
 );
 

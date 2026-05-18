@@ -1,6 +1,7 @@
 package com.acme.identity.api.v1
 
 import com.acme.identity.domain.SmsRateLimit
+import com.acme.identity.domain.UserStatus
 import com.acme.identity.infrastructure.persistence.DeviceTrustRepository
 import com.acme.identity.infrastructure.persistence.EventStoreRepository
 import com.acme.identity.infrastructure.persistence.MfaChallengeRepository
@@ -307,6 +308,78 @@ class TestController(
             logger.debug("No user found with email {}", email)
             ResponseEntity.notFound().build()
         }
+    }
+
+    /**
+     * Request DTO for setting a user's account status.
+     */
+    data class SetUserStatusRequest(
+        val status: String,
+        val deactivatedAt: String? = null,
+        val lockedUntil: String? = null,
+        val failedAttempts: Int? = null
+    )
+
+    /**
+     * Response DTO for setting a user's account status.
+     */
+    data class SetUserStatusResponse(
+        val userId: String,
+        val status: String,
+        val deactivatedAt: String?,
+        val lockedUntil: String?,
+        val failedAttempts: Int
+    )
+
+    /**
+     * Test-only: set a user's account status (and the associated timestamps
+     * for DEACTIVATED / LOCKED) directly, without going through the normal
+     * lifecycle. Backs acceptance scenarios for US-0003-11 inactive-account
+     * handling, where the three inactive states (PENDING_VERIFICATION,
+     * SUSPENDED, DEACTIVATED) and LOCKED must all be exercised.
+     */
+    @PostMapping("/users/{userId}/status")
+    @Transactional
+    fun setUserStatus(
+        @PathVariable userId: UUID,
+        @RequestBody request: SetUserStatusRequest
+    ): ResponseEntity<Any> {
+        logger.debug("Test endpoint: Setting status {} for user {}", request.status, userId)
+
+        val parsedStatus = try {
+            UserStatus.valueOf(request.status.uppercase())
+        } catch (e: IllegalArgumentException) {
+            return ResponseEntity.badRequest().body(
+                ValidationErrorResponse(
+                    error = "INVALID_STATUS",
+                    message = "Unknown status: ${request.status}"
+                )
+            )
+        }
+
+        val user = userRepository.findById(userId).orElse(null)
+            ?: return ResponseEntity.notFound().build()
+
+        user.status = parsedStatus
+        user.deactivatedAt = request.deactivatedAt?.let { Instant.parse(it) }
+            ?: if (parsedStatus == UserStatus.DEACTIVATED) Instant.now() else null
+        user.lockedUntil = request.lockedUntil?.let { Instant.parse(it) }
+            ?: if (parsedStatus == UserStatus.LOCKED) user.lockedUntil else null
+        if (request.failedAttempts != null) {
+            user.failedAttempts = request.failedAttempts
+        }
+        userRepository.save(user)
+
+        logger.info("Set user {} status to {}", userId, parsedStatus)
+        return ResponseEntity.ok(
+            SetUserStatusResponse(
+                userId = userId.toString(),
+                status = user.status.name,
+                deactivatedAt = user.deactivatedAt?.toString(),
+                lockedUntil = user.lockedUntil?.toString(),
+                failedAttempts = user.failedAttempts
+            )
+        )
     }
 
     /**
