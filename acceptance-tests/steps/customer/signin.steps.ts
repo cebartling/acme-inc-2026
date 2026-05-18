@@ -182,6 +182,66 @@ Then('I should see the signin error message', async function (this: CustomWorld)
   ).toBeVisible({ timeout: 10000 });
 });
 
+// ============================================================================
+// Invalid Credentials UI Steps (US-0003-10)
+// ============================================================================
+
+Then('I should see the signin error banner', async function (this: CustomWorld) {
+  const signinPage = new SigninPage(this.page);
+  await expect(signinPage.errorBanner).toBeVisible({ timeout: 10000 });
+});
+
+Then('I should not see the signin error banner', async function (this: CustomWorld) {
+  const signinPage = new SigninPage(this.page);
+  await expect(signinPage.errorBanner).not.toBeVisible({ timeout: 10000 });
+});
+
+Then(
+  'the signin error banner should contain {string}',
+  async function (this: CustomWorld, text: string) {
+    const signinPage = new SigninPage(this.page);
+    await expect(signinPage.errorBanner).toContainText(text, { timeout: 5000 });
+  }
+);
+
+Then(
+  'the signin error banner should show {string}',
+  async function (this: CustomWorld, text: string) {
+    const signinPage = new SigninPage(this.page);
+    await expect(signinPage.errorBanner).toContainText(text, { timeout: 5000 });
+  }
+);
+
+Then(
+  'the signin error banner should contain a password reset link',
+  async function (this: CustomWorld) {
+    const signinPage = new SigninPage(this.page);
+    await expect(signinPage.errorBannerResetLink).toBeVisible();
+    await expect(signinPage.errorBannerResetLink).toHaveAttribute(
+      'href',
+      '/forgot-password'
+    );
+  }
+);
+
+Then('the signin password field should be empty', async function (this: CustomWorld) {
+  const signinPage = new SigninPage(this.page);
+  await expect(signinPage.passwordInput).toHaveValue('');
+});
+
+Then(
+  'the signin email field should still contain {string}',
+  async function (this: CustomWorld, email: string) {
+    const signinPage = new SigninPage(this.page);
+    await expect(signinPage.emailInput).toHaveValue(email);
+  }
+);
+
+Then('focus should be on the signin password field', async function (this: CustomWorld) {
+  const signinPage = new SigninPage(this.page);
+  await expect(signinPage.passwordInput).toBeFocused();
+});
+
 Then('I should be redirected to the dashboard page', async function (this: CustomWorld) {
   await expect(this.page).toHaveURL(/\/dashboard/, { timeout: 10000 });
 });
