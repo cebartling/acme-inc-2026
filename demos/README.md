@@ -36,6 +36,8 @@ just demo-signin             # Live headed walkthrough of sign-in
 just demo-signin-record      # Same flow, recorded
 just demo-logout             # Live headed walkthrough of logout
 just demo-logout-record      # Same flow, recorded
+just demo-invalid-credentials        # Live walkthrough of the invalid-credentials error UX
+just demo-invalid-credentials-record # Same flow, recorded
 just demo-all                # Sequence: register → signin → logout (live)
 just demo-all-record         # Sequence: register → signin → logout (recorded)
 just demo-down               # Stop services when finished
