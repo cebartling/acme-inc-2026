@@ -5,6 +5,8 @@ import com.acme.identity.api.v1.dto.ChangePasswordResponse
 import com.acme.identity.api.v1.dto.ErrorResponse
 import com.acme.identity.api.v1.dto.LogoutAllResponse
 import com.acme.identity.api.v1.dto.LogoutResponse
+import com.acme.identity.api.v1.dto.ReactivateAccountRequest
+import com.acme.identity.api.v1.dto.ReactivateAccountResponse
 import com.acme.identity.api.v1.dto.SigninErrorResponse
 import com.acme.identity.api.v1.dto.SigninRequest
 import com.acme.identity.api.v1.dto.SigninStatus
@@ -14,6 +16,7 @@ import com.acme.identity.application.AuthenticationError
 import com.acme.identity.application.AuthenticationSessionService
 import com.acme.identity.application.ChangePasswordResult
 import com.acme.identity.application.ChangePasswordUseCase
+import com.acme.identity.application.ReactivateAccountUseCase
 import com.acme.identity.application.SessionService
 import com.acme.identity.application.TokenService
 import com.acme.identity.domain.UserStatus
@@ -45,6 +48,7 @@ import java.util.UUID
 class AuthenticationController(
     private val authenticateUserUseCase: AuthenticateUserUseCase,
     private val changePasswordUseCase: ChangePasswordUseCase,
+    private val reactivateAccountUseCase: ReactivateAccountUseCase,
     private val tokenService: TokenService,
     private val rateLimiter: RateLimiter,
     private val authenticationSessionService: AuthenticationSessionService,
@@ -142,6 +146,30 @@ class AuthenticationController(
                 }
             }
         )
+    }
+
+    /**
+     * Requests reactivation of a DEACTIVATED account.
+     *
+     * The endpoint always responds 200 with a generic message regardless of
+     * whether the email exists, whether the account is in the right state, or
+     * whether the password is correct. This prevents enumeration of which
+     * accounts are deactivated. When all checks pass, a single-use
+     * reactivation token is generated and a [ReactivationRequested] event is
+     * published so the notification service can deliver the email.
+     */
+    @PostMapping("/reactivate")
+    fun reactivate(
+        @Valid @RequestBody request: ReactivateAccountRequest,
+        @RequestHeader("X-Correlation-ID", required = false) correlationId: String?
+    ): ResponseEntity<ReactivateAccountResponse> {
+        val corrId = correlationId?.let { UUID.fromString(it) } ?: UUID.randomUUID()
+        reactivateAccountUseCase.execute(
+            email = request.email,
+            password = request.password,
+            correlationId = corrId
+        )
+        return ResponseEntity.ok(ReactivateAccountResponse())
     }
 
     /**

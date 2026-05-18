@@ -348,6 +348,13 @@ export interface ResendVerificationResponse {
 }
 
 /**
+ * Response from the account-reactivation request endpoint.
+ */
+export interface ReactivateAccountResponse {
+  message: string;
+}
+
+/**
  * Request type for MFA verification.
  */
 export interface MfaVerifyRequest {
@@ -595,6 +602,27 @@ export const identityApi = {
       {
         method: "POST",
         body: JSON.stringify({ email }),
+      }
+    );
+  },
+
+  /**
+   * Requests reactivation of a deactivated account.
+   *
+   * The backend always returns 200 with a generic message regardless of
+   * whether the email is known or whether the password is correct — this
+   * is intentional to prevent enumeration. When everything lines up, the
+   * customer receives a reactivation email.
+   */
+  async reactivateAccount(
+    email: string,
+    password: string
+  ): Promise<ReactivateAccountResponse> {
+    return apiRequest<ReactivateAccountResponse>(
+      `${IDENTITY_SERVICE_URL}/api/v1/auth/reactivate`,
+      {
+        method: "POST",
+        body: JSON.stringify({ email, password }),
       }
     );
   },
