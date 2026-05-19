@@ -13,6 +13,7 @@ import com.acme.identity.domain.events.MFAVerificationSucceeded
 import com.acme.identity.domain.events.ReactivationRequested
 import com.acme.identity.domain.events.SessionCreated
 import com.acme.identity.domain.events.SessionInvalidated
+import com.acme.identity.domain.events.TokenReuseDetected
 import com.acme.identity.domain.events.UserActivated
 import com.acme.identity.domain.events.UserLoggedIn
 import com.acme.identity.domain.events.UserRegistered
@@ -607,6 +608,55 @@ class UserEventPublisher(
                     "Failed to publish ReactivationRequested event for user {}. " +
                     "Event is persisted in event store but not published to Kafka. " +
                     "Manual intervention may be required.",
+                    event.payload.userId,
+                    ex
+                )
+                null
+            }
+    }
+
+    /**
+     * Publishes a [TokenReuseDetected] event to Kafka on the
+     * `identity.session.events` topic — the same topic [SessionInvalidated]
+     * uses, so security monitoring and notification consumers can read the
+     * reuse-detection narrative (one reuse event + N invalidation events)
+     * from a single subscription.
+     *
+     * The publish operation is asynchronous. Failures are logged but not
+     * rethrown — the event store already has the durable record.
+     *
+     * @param event The token-reuse-detected event to publish.
+     * @return A [CompletableFuture] that completes when publishing succeeds.
+     */
+    fun publishTokenReuseDetected(event: TokenReuseDetected): CompletableFuture<Void> {
+        val key = event.aggregateId.toString()
+        val value = objectMapper.writeValueAsString(event)
+
+        logger.debug(
+            "Publishing TokenReuseDetected event for session: {} user: {}",
+            event.payload.sessionId,
+            event.payload.userId
+        )
+
+        return kafkaTemplate.send(TokenReuseDetected.TOPIC, key, value)
+            .thenAccept { result ->
+                logger.warn(
+                    "Published TokenReuseDetected event for session {} user {} to topic {} partition {} offset {} " +
+                            "(sessions invalidated: {})",
+                    event.payload.sessionId,
+                    event.payload.userId,
+                    result.recordMetadata.topic(),
+                    result.recordMetadata.partition(),
+                    result.recordMetadata.offset(),
+                    event.payload.sessionsInvalidatedCount
+                )
+            }
+            .exceptionally { ex ->
+                logger.error(
+                    "Failed to publish TokenReuseDetected event for session {} user {}. " +
+                            "Event is persisted in event store but not published to Kafka. " +
+                            "Manual intervention may be required.",
+                    event.payload.sessionId,
                     event.payload.userId,
                     ex
                 )

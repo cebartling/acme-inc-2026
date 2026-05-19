@@ -1,6 +1,10 @@
 package com.acme.identity.application
 
 import com.acme.identity.domain.Session
+import com.acme.identity.domain.events.SessionInvalidated
+import com.acme.identity.domain.events.TokenReuseDetected
+import com.acme.identity.infrastructure.messaging.UserEventPublisher
+import com.acme.identity.infrastructure.persistence.EventStoreRepository
 import com.acme.identity.infrastructure.persistence.SessionRepository
 import com.acme.identity.infrastructure.persistence.UserRepository
 import io.micrometer.core.instrument.MeterRegistry
@@ -54,18 +58,22 @@ sealed interface RefreshResult {
  *   4. Generate a new `tokenFamily`, issue a new [TokenPair], persist the
  *      updated session.
  *
- * Reuse detection is intentionally minimal in this commit: any mismatch
- * just returns `TokenReuse`. A follow-up commit adds Kafka-published
- * `TokenReuseDetected` events and sweeps every active session for the
- * affected user. The behavior here is already secure — the stale token is
- * rejected and no new tokens are issued — the follow-up only improves
- * observability and blast-radius cleanup.
+ * Reuse detection follows OWASP guidance on refresh-token rotation:
+ * presenting a stale (already-rotated) refresh token invalidates **every**
+ * session for the user, not just the targeted one. A stolen refresh token
+ * is evidence the attacker may have stolen others — nuking all sessions
+ * forces re-authentication across devices and limits the blast radius.
+ * Each invalidated session emits a [SessionInvalidated] event with
+ * `reason=SECURITY`, plus a single [TokenReuseDetected] event captures
+ * the reuse signal for security monitoring.
  */
 @Service
 class RefreshTokensUseCase(
     private val tokenService: TokenService,
     private val sessionRepository: SessionRepository,
     private val userRepository: UserRepository,
+    private val eventStoreRepository: EventStoreRepository,
+    private val userEventPublisher: UserEventPublisher,
     private val meterRegistry: MeterRegistry
 ) {
     private val logger = LoggerFactory.getLogger(RefreshTokensUseCase::class.java)
@@ -110,8 +118,14 @@ class RefreshTokensUseCase(
 
         if (session.tokenFamily != claimTokenFamily) {
             logger.warn(
-                "Refresh: tokenFamily mismatch for session {} (presented={}, session={})",
-                sessionId, claimTokenFamily, session.tokenFamily
+                "Refresh: tokenFamily mismatch for session {} (presented={}, session={}) — " +
+                        "invalidating every session for user {} per OWASP guidance",
+                sessionId, claimTokenFamily, session.tokenFamily, userId
+            )
+            handleTokenReuse(
+                triggeringSession = session,
+                userId = userId,
+                presentedTokenFamily = claimTokenFamily
             )
             incrementCounter("token_reuse")
             return RefreshResult.TokenReuse
@@ -140,6 +154,51 @@ class RefreshTokensUseCase(
             sessionId = sessionId,
             newTokenFamily = newTokenFamily
         )
+    }
+
+    /**
+     * On reuse detection, sweep every active session for the user (OWASP)
+     * and emit the matching events. Each session deletion publishes its own
+     * [SessionInvalidated] event so existing consumers (security monitoring,
+     * customer-facing notifications) keep working unchanged; a single
+     * [TokenReuseDetected] event captures the security signal and the size
+     * of the sweep.
+     *
+     * Designed to be best-effort: a Kafka failure here does NOT prevent the
+     * security 401 response from going back to the client. The events are
+     * persisted to the event store first, so even if Kafka is down the
+     * audit trail is durable.
+     */
+    private fun handleTokenReuse(
+        triggeringSession: Session,
+        userId: UUID,
+        presentedTokenFamily: String
+    ) {
+        val userSessions = sessionRepository.findByUserId(userId)
+        userSessions.forEach { s ->
+            try {
+                sessionRepository.delete(s)
+            } catch (e: Exception) {
+                logger.warn("Failed to delete session {} during reuse sweep: {}", s.id, e.message)
+            }
+            val invalidated = SessionInvalidated.create(
+                sessionId = s.id,
+                userId = userId,
+                reason = SessionInvalidated.REASON_SECURITY
+            )
+            eventStoreRepository.append(invalidated)
+            userEventPublisher.publish(invalidated)
+        }
+
+        val reuseEvent = TokenReuseDetected.create(
+            sessionId = triggeringSession.id,
+            userId = userId,
+            sessionTokenFamily = triggeringSession.tokenFamily,
+            presentedTokenFamily = presentedTokenFamily,
+            sessionsInvalidatedCount = userSessions.size
+        )
+        eventStoreRepository.append(reuseEvent)
+        userEventPublisher.publishTokenReuseDetected(reuseEvent)
     }
 
     private fun incrementCounter(result: String) {

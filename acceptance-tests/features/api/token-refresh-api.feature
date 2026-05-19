@@ -37,7 +37,6 @@ Feature: Token Refresh API (US-0003-12)
   # OWASP-style all-session invalidation behavior + TokenReuseDetected
   # event are covered by the integration / unit tests; this scenario
   # focuses on the publicly observable API contract.
-  @wip
   Scenario: Reuse detection rejects a stale refresh token and clears cookies
     Given an active user exists with email "refresh-reuse@acme.com" and password "ValidP@ss123!"
     And the user has TOTP MFA enabled

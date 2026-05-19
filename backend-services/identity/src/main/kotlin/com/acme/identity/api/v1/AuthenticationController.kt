@@ -223,10 +223,21 @@ class AuthenticationController(
                     )
                 )
             }
+            is RefreshResult.TokenReuse -> {
+                val builder = ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                authCookieBuilder.buildClearCookies().forEach { cookie ->
+                    builder.header(HttpHeaders.SET_COOKIE, cookie.toString())
+                }
+                builder.body(
+                    ErrorResponse(
+                        error = "TOKEN_REUSE_DETECTED",
+                        message = "Security alert: Your session was invalidated due to suspicious activity."
+                    )
+                )
+            }
             is RefreshResult.MissingToken,
             is RefreshResult.InvalidToken,
-            is RefreshResult.SessionNotFound,
-            is RefreshResult.TokenReuse -> {
+            is RefreshResult.SessionNotFound -> {
                 val builder = ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 authCookieBuilder.buildClearCookies().forEach { cookie ->
                     builder.header(HttpHeaders.SET_COOKIE, cookie.toString())
