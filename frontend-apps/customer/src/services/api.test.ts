@@ -633,5 +633,124 @@ describe("token-refresh interceptor", () => {
       credentials: "include",
     });
   });
+
+  it("concurrent 401s share a single refresh, then each retries with the new tokens", async () => {
+    const prefs = { customerId: "c", preferences: {}, updatedAt: "x" };
+    const profile = { customerId: "c", userId: "u" };
+
+    // Sequence (order matters because mockResolvedValueOnce is FIFO):
+    //   1) first caller's request → 401
+    //   2) second caller's request → 401
+    //   3) /refresh (only the first caller fires this) → 200
+    //   4) first caller retry → 200
+    //   5) second caller retry → 200
+    mockFetch
+      .mockResolvedValueOnce(tokenExpired())
+      .mockResolvedValueOnce(tokenExpired())
+      .mockResolvedValueOnce(okJson({ status: "SUCCESS", expiresIn: 900 }))
+      .mockResolvedValueOnce(okJson(profile))
+      .mockResolvedValueOnce(okJson(prefs));
+
+    const [profileResult, prefsResult] = await Promise.all([
+      customerApi.getCurrentCustomer(),
+      customerApi.getPreferences("c", "u"),
+    ]);
+
+    expect(profileResult).toEqual(profile);
+    expect(prefsResult).toEqual(prefs);
+
+    // 2 initial 401s + 1 refresh + 2 retries = 5 fetch calls.
+    expect(mockFetch).toHaveBeenCalledTimes(5);
+
+    // Exactly one refresh call.
+    const refreshCalls = mockFetch.mock.calls.filter((args) =>
+      String(args[0]).includes("/api/v1/auth/refresh")
+    );
+    expect(refreshCalls.length).toBe(1);
+  });
+
+  it("refresh failure clears auth stores, redirects to /signin?logout=true, and rejects the original request", async () => {
+    // Mock window.location so we can observe the redirect without
+    // actually navigating in the JSDOM environment.
+    const originalLocation = window.location;
+    let assignedHref: string | null = null;
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: {
+        ...originalLocation,
+        set href(value: string) {
+          assignedHref = value;
+        },
+        get href() {
+          return assignedHref ?? originalLocation.href;
+        },
+      },
+    });
+
+    // Mock the auth + customer stores so we can assert cleanup.
+    const clearUser = vi.fn();
+    const clearProfile = vi.fn();
+    vi.doMock("@/stores/auth.store", () => ({
+      useAuthStore: {
+        getState: () => ({ clearUser }),
+      },
+    }));
+    vi.doMock("@/stores/customer.store", () => ({
+      useCustomerStore: {
+        getState: () => ({ clearProfile }),
+      },
+    }));
+
+    // 1) original request → 401
+    // 2) /refresh → 401 TOKEN_EXPIRED (refresh itself rejected)
+    mockFetch
+      .mockResolvedValueOnce(tokenExpired())
+      .mockResolvedValueOnce(tokenExpired());
+
+    await expect(customerApi.getCurrentCustomer()).rejects.toBeInstanceOf(
+      ApiError
+    );
+
+    expect(clearUser).toHaveBeenCalledOnce();
+    expect(clearProfile).toHaveBeenCalledOnce();
+    expect(assignedHref).toBe("/signin?logout=true");
+
+    // Restore.
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: originalLocation,
+    });
+    vi.doUnmock("@/stores/auth.store");
+    vi.doUnmock("@/stores/customer.store");
+  });
+
+  it("401 with a non-TOKEN_EXPIRED error code does not trigger refresh", async () => {
+    mockFetch.mockResolvedValueOnce(
+      errorJson(401, { error: "UNAUTHORIZED", message: "Not authenticated" })
+    );
+
+    await expect(customerApi.getCurrentCustomer()).rejects.toBeInstanceOf(
+      ApiError
+    );
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not loop if the retry itself comes back 401 TOKEN_EXPIRED", async () => {
+    // 1) original → 401
+    // 2) /refresh → 200
+    // 3) retry → 401 (still expired somehow)
+    mockFetch
+      .mockResolvedValueOnce(tokenExpired())
+      .mockResolvedValueOnce(okJson({ status: "SUCCESS", expiresIn: 900 }))
+      .mockResolvedValueOnce(tokenExpired());
+
+    await expect(customerApi.getCurrentCustomer()).rejects.toBeInstanceOf(
+      ApiError
+    );
+
+    // Exactly 3 calls — no second refresh attempt.
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+  });
 });
 
