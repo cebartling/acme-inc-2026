@@ -95,6 +95,36 @@ Given(
 // ============================================================================
 
 When(
+  'I POST to {string} with no cookies',
+  async function (this: CustomWorld, path: string) {
+    const response = await this.identityApiClient.post<unknown>(path, undefined);
+    this.setLastResponse(response);
+  }
+);
+
+Given(
+  'the user has logged out of the current session',
+  async function (this: CustomWorld) {
+    const accessToken = this.getTestData<string>('access_token_value');
+    if (!accessToken) {
+      throw new Error(
+        'No access_token_value in test data — complete signin + MFA before logging out'
+      );
+    }
+    const response = await this.identityApiClient.post(
+      '/api/v1/auth/logout',
+      undefined,
+      { headers: { Cookie: `access_token=${accessToken}` } }
+    );
+    if (response.status !== 200) {
+      throw new Error(
+        `Logout failed: ${response.status} ${JSON.stringify(response.data)}`
+      );
+    }
+  }
+);
+
+When(
   'I POST to {string} with the current refresh_token cookie',
   async function (this: CustomWorld, path: string) {
     const refreshToken = this.getTestData<string>('refresh_token_value');

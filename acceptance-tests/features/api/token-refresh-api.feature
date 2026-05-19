@@ -48,3 +48,27 @@ Feature: Token Refresh API (US-0003-12)
     And the access_token cookie should be cleared
     And the refresh_token cookie should be cleared
 
+  # AC-0003-12-05: Refresh failure cleanup — the endpoint must clear cookies
+  # even on the "no token presented" path so a misbehaving client can't get
+  # stuck with a stale refresh_token cookie wedged in its jar.
+  Scenario: Refresh without the refresh_token cookie returns 401 and clears cookies
+    When I POST to "/api/v1/auth/refresh" with no cookies
+    Then the API should respond with status 401
+    And the response should contain error "TOKEN_EXPIRED"
+    And the access_token cookie should be cleared
+    And the refresh_token cookie should be cleared
+
+  # AC-0003-12-05, AC-0003-12-06: After logout, the session is gone from
+  # Redis. Any client that still holds the old refresh-token cookie must
+  # get a clean 401 + cleared cookies, not a successful rotation.
+  Scenario: Refresh after logout returns 401 and clears cookies
+    Given an active user exists with email "refresh-logout@acme.com" and password "ValidP@ss123!"
+    And the user has TOTP MFA enabled
+    And I complete signin and MFA verification for "refresh-logout@acme.com"
+    And the user has logged out of the current session
+    When I POST to "/api/v1/auth/refresh" with the current refresh_token cookie
+    Then the API should respond with status 401
+    And the response should contain error "TOKEN_EXPIRED"
+    And the access_token cookie should be cleared
+    And the refresh_token cookie should be cleared
+
