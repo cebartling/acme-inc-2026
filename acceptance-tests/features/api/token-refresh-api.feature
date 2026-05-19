@@ -28,3 +28,24 @@ Feature: Token Refresh API (US-0003-12)
     And the new refresh token's tokenFamily claim should differ from the remembered tokenFamily
     And the refresh response status field should be "SUCCESS"
     And the refresh response expiresIn field should be 900
+
+  # AC-0003-12-03, AC-0003-12-07: Reuse detection invalidates the family
+  # The acceptance test simulates reuse by signing in, capturing the real
+  # refresh-token cookie, then asking the server to rotate the session's
+  # tokenFamily out from under us. Presenting the now-stale cookie must
+  # fail with TOKEN_REUSE_DETECTED and clear all auth cookies. The
+  # OWASP-style all-session invalidation behavior + TokenReuseDetected
+  # event are covered by the integration / unit tests; this scenario
+  # focuses on the publicly observable API contract.
+  @wip
+  Scenario: Reuse detection rejects a stale refresh token and clears cookies
+    Given an active user exists with email "refresh-reuse@acme.com" and password "ValidP@ss123!"
+    And the user has TOTP MFA enabled
+    And I complete signin and MFA verification for "refresh-reuse@acme.com"
+    And the server has rotated the current session's tokenFamily out of band
+    When I POST to "/api/v1/auth/refresh" with the current refresh_token cookie
+    Then the API should respond with status 401
+    And the response should contain error "TOKEN_REUSE_DETECTED"
+    And the access_token cookie should be cleared
+    And the refresh_token cookie should be cleared
+

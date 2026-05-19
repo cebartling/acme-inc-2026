@@ -43,6 +43,36 @@ function extractCookieValue(
 // ============================================================================
 
 Given(
+  "the server has rotated the current session's tokenFamily out of band",
+  async function (this: CustomWorld) {
+    // Pull sessionId from the access-token JWT claims (set by the signin/MFA
+    // step). Calling the test-only rotate-family endpoint flips the session's
+    // tokenFamily on the server while the test still holds the original
+    // refresh-token cookie — exactly the condition reuse detection guards
+    // against (a stolen, already-rotated refresh token).
+    const accessToken = this.getTestData<string>('access_token_value');
+    if (!accessToken) {
+      throw new Error(
+        'No access_token_value in test data — complete signin + MFA before rotating tokenFamily'
+      );
+    }
+    const sessionId = decodeJWTPayload(accessToken).sessionId;
+    if (!sessionId) {
+      throw new Error('Access token has no sessionId claim');
+    }
+
+    const response = await this.identityApiClient.post(
+      `/api/v1/test/sessions/${sessionId}/rotate-family`
+    );
+    if (response.status !== 200) {
+      throw new Error(
+        `Failed to rotate tokenFamily: ${response.status} ${JSON.stringify(response.data)}`
+      );
+    }
+  }
+);
+
+Given(
   "I remember the current refresh token's tokenFamily claim",
   function (this: CustomWorld) {
     const refreshToken = this.getTestData<string>('refresh_token_value');
@@ -136,5 +166,48 @@ Then(
   function (this: CustomWorld, expected: number) {
     const response = this.getLastResponse<RefreshResponseBody>();
     expect(response?.data.expiresIn).toBe(expected);
+  }
+);
+
+// "Cleared" means a Set-Cookie that immediately expires the cookie:
+// empty value + Max-Age=0 (per RFC 6265 and AuthCookieBuilder.buildClearCookies).
+function assertCookieCleared(
+  cookieHeader: string | string[] | undefined,
+  cookieName: string
+): void {
+  const cookies = cookieHeader
+    ? Array.isArray(cookieHeader)
+      ? cookieHeader
+      : [cookieHeader]
+    : [];
+  const matching = cookies.filter((c) => c.startsWith(`${cookieName}=`));
+  expect(
+    matching.length,
+    `expected a Set-Cookie clearing ${cookieName}, got: ${JSON.stringify(cookies)}`
+  ).toBeGreaterThan(0);
+  // The clear cookie has an empty value (cookieName=;...)
+  const clearedValue = matching[0].split(';')[0].substring(cookieName.length + 1);
+  expect(clearedValue).toBe('');
+  // ...and Max-Age=0
+  const maxAgePart = matching[0]
+    .split(';')
+    .map((p) => p.trim())
+    .find((p) => p.toLowerCase().startsWith('max-age'));
+  expect(maxAgePart?.toLowerCase()).toBe('max-age=0');
+}
+
+Then(
+  'the access_token cookie should be cleared',
+  function (this: CustomWorld) {
+    const response = this.getLastResponse();
+    assertCookieCleared(response?.headers['set-cookie'], 'access_token');
+  }
+);
+
+Then(
+  'the refresh_token cookie should be cleared',
+  function (this: CustomWorld) {
+    const response = this.getLastResponse();
+    assertCookieCleared(response?.headers['set-cookie'], 'refresh_token');
   }
 );
