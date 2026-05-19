@@ -279,4 +279,49 @@ class TokenService(
             null
         }
     }
+
+    /**
+     * Parses and validates a refresh-token JWT.
+     *
+     * Mirrors [parseAccessTokenClaims] but enforces the refresh-token claim
+     * shape (no `audience` claim is set on refresh tokens — see
+     * [generateRefreshToken]). Performs the same signature, expiration, and
+     * issuer checks.
+     *
+     * @param token The refresh-token JWT string.
+     * @return The [JWTClaimsSet] when the token is structurally valid and
+     *         unexpired, null otherwise.
+     */
+    fun parseRefreshTokenClaims(token: String): JWTClaimsSet? {
+        return try {
+            val jwt = SignedJWT.parse(token)
+            val signingKey = keyProvider.getCurrentKey()
+
+            val verifier = RSASSAVerifier(signingKey.publicKey as RSAPublicKey)
+            if (!jwt.verify(verifier)) {
+                logger.warn("Refresh JWT signature verification failed")
+                return null
+            }
+
+            val claims = jwt.jwtClaimsSet
+
+            val expiration = claims.expirationTime
+            if (expiration == null || expiration.before(Date())) {
+                logger.debug("Refresh JWT expired")
+                return null
+            }
+
+            if (claims.issuer != config.issuer) {
+                logger.warn(
+                    "Refresh JWT issuer mismatch: expected ${config.issuer}, got ${claims.issuer}"
+                )
+                return null
+            }
+
+            claims
+        } catch (e: Exception) {
+            logger.warn("Failed to parse refresh JWT: ${e.message}")
+            null
+        }
+    }
 }

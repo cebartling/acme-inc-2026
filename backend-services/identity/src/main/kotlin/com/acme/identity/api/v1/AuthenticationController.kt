@@ -7,6 +7,7 @@ import com.acme.identity.api.v1.dto.LogoutAllResponse
 import com.acme.identity.api.v1.dto.LogoutResponse
 import com.acme.identity.api.v1.dto.ReactivateAccountRequest
 import com.acme.identity.api.v1.dto.ReactivateAccountResponse
+import com.acme.identity.api.v1.dto.RefreshTokenResponse
 import com.acme.identity.api.v1.dto.SigninErrorResponse
 import com.acme.identity.api.v1.dto.SigninRequest
 import com.acme.identity.api.v1.dto.SigninStatus
@@ -17,6 +18,8 @@ import com.acme.identity.application.AuthenticationSessionService
 import com.acme.identity.application.ChangePasswordResult
 import com.acme.identity.application.ChangePasswordUseCase
 import com.acme.identity.application.ReactivateAccountUseCase
+import com.acme.identity.application.RefreshResult
+import com.acme.identity.application.RefreshTokensUseCase
 import com.acme.identity.application.SessionService
 import com.acme.identity.application.TokenService
 import com.acme.identity.domain.UserStatus
@@ -49,6 +52,7 @@ class AuthenticationController(
     private val authenticateUserUseCase: AuthenticateUserUseCase,
     private val changePasswordUseCase: ChangePasswordUseCase,
     private val reactivateAccountUseCase: ReactivateAccountUseCase,
+    private val refreshTokensUseCase: RefreshTokensUseCase,
     private val tokenService: TokenService,
     private val rateLimiter: RateLimiter,
     private val authenticationSessionService: AuthenticationSessionService,
@@ -170,6 +174,71 @@ class AuthenticationController(
             correlationId = corrId
         )
         return ResponseEntity.ok(ReactivateAccountResponse())
+    }
+
+    /**
+     * Rotates an authenticated session's access + refresh tokens.
+     *
+     * The endpoint reads the `refresh_token` HttpOnly cookie, validates the
+     * JWT, confirms the referenced session still exists in Redis, and that
+     * the JWT's `tokenFamily` claim matches the session's current
+     * tokenFamily. On success it issues a new pair of tokens (each with a
+     * new `tokenFamily` so the previous refresh token can never be replayed)
+     * and writes them as `Set-Cookie` headers. On any failure it returns
+     * 401 with all auth cookies cleared, so the client falls back to a
+     * fresh signin.
+     *
+     * Failure modes are intentionally collapsed to a single
+     * `TOKEN_EXPIRED` error code from the client's perspective —
+     * distinguishing them would leak information about session state.
+     * Reuse detection (`TOKEN_REUSE_DETECTED`) is added in a later commit
+     * once the matching events and all-session invalidation are wired up;
+     * for now the use case rejects the stale token without issuing new
+     * ones, which is already secure.
+     *
+     * @param refreshToken Optional refresh-token JWT from the cookie.
+     * @return 200 OK with `RefreshTokenResponse` and rotated `Set-Cookie`
+     *         headers on success, 401 Unauthorized with cleared cookies on
+     *         any failure.
+     */
+    @PostMapping("/refresh")
+    fun refresh(
+        @CookieValue(value = "refresh_token", required = false) refreshToken: String?
+    ): ResponseEntity<Any> {
+        return when (val result = refreshTokensUseCase.execute(refreshToken)) {
+            is RefreshResult.Success -> {
+                val builder = ResponseEntity.ok()
+                builder.header(
+                    HttpHeaders.SET_COOKIE,
+                    authCookieBuilder.buildAccessTokenCookie(result.tokens.accessToken).toString()
+                )
+                builder.header(
+                    HttpHeaders.SET_COOKIE,
+                    authCookieBuilder.buildRefreshTokenCookie(result.tokens.refreshToken).toString()
+                )
+                builder.body(
+                    RefreshTokenResponse(
+                        status = "SUCCESS",
+                        expiresIn = result.tokens.accessTokenExpiry
+                    )
+                )
+            }
+            is RefreshResult.MissingToken,
+            is RefreshResult.InvalidToken,
+            is RefreshResult.SessionNotFound,
+            is RefreshResult.TokenReuse -> {
+                val builder = ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                authCookieBuilder.buildClearCookies().forEach { cookie ->
+                    builder.header(HttpHeaders.SET_COOKIE, cookie.toString())
+                }
+                builder.body(
+                    ErrorResponse(
+                        error = "TOKEN_EXPIRED",
+                        message = "Session expired. Please sign in again."
+                    )
+                )
+            }
+        }
     }
 
     /**

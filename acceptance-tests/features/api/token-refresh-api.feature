@@ -9,7 +9,7 @@ Feature: Token Refresh API (US-0003-12)
     Given the Identity Service is available
 
   # AC-0003-12-01, AC-0003-12-02: Automatic refresh + token rotation
-  @wip @smoke
+  @smoke
   Scenario: Refresh rotates both cookies and the tokenFamily
     Given an active user exists with email "refresh-happy@acme.com" and password "ValidP@ss123!"
     And the user has TOTP MFA enabled
