@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { ApiError, customerApi } from "./api";
+import {
+  ApiError,
+  customerApi,
+  __resetRefreshStateForTests,
+} from "./api";
 
 describe("ApiError", () => {
   it("creates error with message and status", () => {
@@ -563,3 +567,71 @@ describe("customerApi", () => {
     });
   });
 });
+
+// =============================================================================
+// Token-refresh interceptor (PIN-92 / US-0003-12)
+//
+// apiRequest intercepts 401 + { error: "TOKEN_EXPIRED" }, calls
+// POST /api/v1/auth/refresh, and re-tries the original request on success.
+// These tests pin the contract down so the queue behavior, retry, and
+// failure-path cleanup can't silently regress.
+// =============================================================================
+
+describe("token-refresh interceptor", () => {
+  const mockFetch = vi.fn();
+  const originalFetch = global.fetch;
+
+  beforeEach(() => {
+    global.fetch = mockFetch;
+    mockFetch.mockReset();
+    __resetRefreshStateForTests();
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  // Helpers to keep the response-shape boilerplate out of the cases.
+  const okJson = (body: unknown) => ({
+    ok: true,
+    status: 200,
+    headers: new Headers({ "content-type": "application/json" }),
+    json: () => Promise.resolve(body),
+  });
+  const errorJson = (status: number, body: unknown) => ({
+    ok: false,
+    status,
+    headers: new Headers({ "content-type": "application/json" }),
+    json: () => Promise.resolve(body),
+  });
+  const tokenExpired = () =>
+    errorJson(401, {
+      error: "TOKEN_EXPIRED",
+      message: "Session expired. Please sign in again.",
+    });
+
+  it("on a single 401 TOKEN_EXPIRED, calls /refresh exactly once and retries the original request", async () => {
+    const profile = { customerId: "customer-123", userId: "user-456" };
+
+    // 1) original request → 401 TOKEN_EXPIRED
+    // 2) /refresh → 200
+    // 3) original request retry → 200
+    mockFetch
+      .mockResolvedValueOnce(tokenExpired())
+      .mockResolvedValueOnce(okJson({ status: "SUCCESS", expiresIn: 900 }))
+      .mockResolvedValueOnce(okJson(profile));
+
+    const result = await customerApi.getCurrentCustomer();
+
+    expect(result).toEqual(profile);
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+    // The middle call hits the refresh endpoint.
+    const [secondUrl, secondInit] = mockFetch.mock.calls[1];
+    expect(secondUrl).toContain("/api/v1/auth/refresh");
+    expect(secondInit).toMatchObject({
+      method: "POST",
+      credentials: "include",
+    });
+  });
+});
+
