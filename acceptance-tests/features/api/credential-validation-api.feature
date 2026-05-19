@@ -60,7 +60,7 @@ Feature: Credential Validation API (US-0003-02)
     Then the API should respond with status 200
     And the user's failed attempts should be reset to 0
 
-  # AC-0003-02-05: Account Status Check
+  # AC-0003-02-05 / AC-0003-11-01: Account Status Check (PENDING_VERIFICATION)
   Scenario: Reject signin for PENDING_VERIFICATION account
     Given a user exists with email "pending@acme.com" and status "PENDING_VERIFICATION"
     And the user has password "ValidP@ss123!"
@@ -70,10 +70,12 @@ Feature: Credential Validation API (US-0003-02)
     Then the API should respond with status 403
     And the response should contain error "ACCOUNT_INACTIVE"
     And the response should contain "reason" with value "PENDING_VERIFICATION"
+    And the response should contain "resendAvailableIn" with value 0
+    And the response should not contain "deactivatedAt"
+    And the response should not contain "supportEmail"
 
-  @wip
-  Scenario: Reject signin for SUSPENDED account
-    # Note: Requires backend test endpoint to set user status
+  # AC-0003-11-03: SUSPENDED account exposes support contact options
+  Scenario: Reject signin for SUSPENDED account with support contact options
     Given a user exists with email "suspended@acme.com" and status "SUSPENDED"
     And the user has password "ValidP@ss123!"
     When I submit a signin request with:
@@ -83,10 +85,11 @@ Feature: Credential Validation API (US-0003-02)
     And the response should contain error "ACCOUNT_INACTIVE"
     And the response should contain "reason" with value "SUSPENDED"
     And the response should contain "supportUrl"
+    And the response should contain "supportEmail"
+    And the response should not contain "reactivationAvailable"
 
-  @wip
-  Scenario: Reject signin for DEACTIVATED account
-    # Note: Requires backend test endpoint to set user status
+  # AC-0003-11-04: DEACTIVATED account exposes reactivation option
+  Scenario: Reject signin for DEACTIVATED account with reactivation option
     Given a user exists with email "deactivated@acme.com" and status "DEACTIVATED"
     And the user has password "ValidP@ss123!"
     When I submit a signin request with:
@@ -95,10 +98,25 @@ Feature: Credential Validation API (US-0003-02)
     Then the API should respond with status 403
     And the response should contain error "ACCOUNT_INACTIVE"
     And the response should contain "reason" with value "DEACTIVATED"
+    And the response should contain "reactivationAvailable" with value true
+    And the response should contain "deactivatedAt"
+    And the response should contain "supportUrl"
+    And the response should not contain "supportEmail"
 
-  @wip
+  # AC-0003-11-06: Wrong password against an inactive account must not leak status
+  Scenario: Wrong password on a SUSPENDED account still returns generic invalid-credentials
+    Given a user exists with email "suspended-wrong@acme.com" and status "SUSPENDED"
+    And the user has password "ValidP@ss123!"
+    When I submit a signin request with:
+      | email    | suspended-wrong@acme.com |
+      | password | WrongPassword            |
+    Then the API should respond with status 401
+    And the response should contain error "INVALID_CREDENTIALS"
+    And the response should contain message "Invalid email or password"
+    And the response should not contain "reason"
+    And the response should not contain "supportUrl"
+
   Scenario: Reject signin for LOCKED account
-    # Note: Requires backend test endpoint to lock accounts
     Given a user exists with email "locked@acme.com" and status "LOCKED"
     And the user is locked until "2099-12-31T23:59:59Z"
     And the user has password "ValidP@ss123!"

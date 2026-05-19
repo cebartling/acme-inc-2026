@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SigninRouteImport } from './routes/signin'
 import { Route as RegisterRouteImport } from './routes/register'
+import { Route as ReactivateRouteImport } from './routes/reactivate'
 import { Route as PreferencesRouteImport } from './routes/preferences'
 import { Route as MfaVerifyRouteImport } from './routes/mfa-verify'
 import { Route as DevicesRouteImport } from './routes/devices'
@@ -34,6 +35,11 @@ const SigninRoute = SigninRouteImport.update({
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
   path: '/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReactivateRoute = ReactivateRouteImport.update({
+  id: '/reactivate',
+  path: '/reactivate',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PreferencesRoute = PreferencesRouteImport.update({
@@ -113,6 +119,7 @@ export interface FileRoutesByFullPath {
   '/devices': typeof DevicesRoute
   '/mfa-verify': typeof MfaVerifyRoute
   '/preferences': typeof PreferencesRoute
+  '/reactivate': typeof ReactivateRoute
   '/register': typeof RegisterRoute
   '/signin': typeof SigninRoute
   '/api/health': typeof ApiHealthRoute
@@ -131,6 +138,7 @@ export interface FileRoutesByTo {
   '/devices': typeof DevicesRoute
   '/mfa-verify': typeof MfaVerifyRoute
   '/preferences': typeof PreferencesRoute
+  '/reactivate': typeof ReactivateRoute
   '/register': typeof RegisterRoute
   '/signin': typeof SigninRoute
   '/api/health': typeof ApiHealthRoute
@@ -150,6 +158,7 @@ export interface FileRoutesById {
   '/devices': typeof DevicesRoute
   '/mfa-verify': typeof MfaVerifyRoute
   '/preferences': typeof PreferencesRoute
+  '/reactivate': typeof ReactivateRoute
   '/register': typeof RegisterRoute
   '/signin': typeof SigninRoute
   '/api/health': typeof ApiHealthRoute
@@ -170,6 +179,7 @@ export interface FileRouteTypes {
     | '/devices'
     | '/mfa-verify'
     | '/preferences'
+    | '/reactivate'
     | '/register'
     | '/signin'
     | '/api/health'
@@ -188,6 +198,7 @@ export interface FileRouteTypes {
     | '/devices'
     | '/mfa-verify'
     | '/preferences'
+    | '/reactivate'
     | '/register'
     | '/signin'
     | '/api/health'
@@ -206,6 +217,7 @@ export interface FileRouteTypes {
     | '/devices'
     | '/mfa-verify'
     | '/preferences'
+    | '/reactivate'
     | '/register'
     | '/signin'
     | '/api/health'
@@ -225,6 +237,7 @@ export interface RootRouteChildren {
   DevicesRoute: typeof DevicesRoute
   MfaVerifyRoute: typeof MfaVerifyRoute
   PreferencesRoute: typeof PreferencesRoute
+  ReactivateRoute: typeof ReactivateRoute
   RegisterRoute: typeof RegisterRoute
   SigninRoute: typeof SigninRoute
   ApiHealthRoute: typeof ApiHealthRoute
@@ -252,6 +265,13 @@ declare module '@tanstack/react-router' {
       path: '/register'
       fullPath: '/register'
       preLoaderRoute: typeof RegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reactivate': {
+      id: '/reactivate'
+      path: '/reactivate'
+      fullPath: '/reactivate'
+      preLoaderRoute: typeof ReactivateRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/preferences': {
@@ -361,6 +381,7 @@ const rootRouteChildren: RootRouteChildren = {
   DevicesRoute: DevicesRoute,
   MfaVerifyRoute: MfaVerifyRoute,
   PreferencesRoute: PreferencesRoute,
+  ReactivateRoute: ReactivateRoute,
   RegisterRoute: RegisterRoute,
   SigninRoute: SigninRoute,
   ApiHealthRoute: ApiHealthRoute,

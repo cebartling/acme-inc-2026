@@ -102,6 +102,9 @@ class User(
     @Column(name = "last_device_fingerprint")
     var lastDeviceFingerprint: String? = null,
 
+    @Column(name = "deactivated_at")
+    var deactivatedAt: Instant? = null,
+
     @Column(name = "created_at", nullable = false, updatable = false)
     val createdAt: Instant = Instant.now(),
 
@@ -158,9 +161,20 @@ class User(
             smsMfaEnabled = smsMfaEnabled,
             lastLoginAt = lastLoginAt,
             lastDeviceFingerprint = lastDeviceFingerprint,
+            deactivatedAt = null,
             createdAt = createdAt,
             updatedAt = Instant.now()
         )
+    }
+
+    /**
+     * Marks the account as DEACTIVATED and records the timestamp.
+     * Caller is responsible for persisting the change.
+     */
+    fun deactivate() {
+        status = UserStatus.DEACTIVATED
+        deactivatedAt = Instant.now()
+        updatedAt = Instant.now()
     }
 
     /**
@@ -304,6 +318,7 @@ class User(
             smsMfaEnabled = smsMfaEnabled,
             lastLoginAt = lastLoginAt,
             lastDeviceFingerprint = lastDeviceFingerprint,
+            deactivatedAt = deactivatedAt,
             createdAt = createdAt,
             updatedAt = Instant.now()
         )

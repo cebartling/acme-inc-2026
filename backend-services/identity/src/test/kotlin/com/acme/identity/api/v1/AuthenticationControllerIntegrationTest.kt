@@ -281,6 +281,93 @@ class AuthenticationControllerIntegrationTest {
     }
 
     @Test
+    fun `POST signin with PENDING_VERIFICATION account returns 403 with resendAvailableIn`() {
+        val email = "pending@example.com"
+        val password = "ValidP@ss123!"
+        createUserWithStatus(email, password, UserStatus.PENDING_VERIFICATION)
+
+        val request = SigninRequest(email = email, password = password)
+
+        mockMvc.perform(
+            post("/api/v1/auth/signin")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request))
+        )
+            .andExpect(status().isForbidden)
+            .andExpect(jsonPath("$.error").value("ACCOUNT_INACTIVE"))
+            .andExpect(jsonPath("$.reason").value("PENDING_VERIFICATION"))
+            .andExpect(jsonPath("$.resendAvailableIn").value(0))
+            .andExpect(jsonPath("$.supportEmail").doesNotExist())
+            .andExpect(jsonPath("$.deactivatedAt").doesNotExist())
+            .andExpect(jsonPath("$.reactivationAvailable").doesNotExist())
+    }
+
+    @Test
+    fun `POST signin with SUSPENDED account returns 403 with supportUrl and supportEmail`() {
+        val email = "suspended@example.com"
+        val password = "ValidP@ss123!"
+        createUserWithStatus(email, password, UserStatus.SUSPENDED)
+
+        val request = SigninRequest(email = email, password = password)
+
+        mockMvc.perform(
+            post("/api/v1/auth/signin")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request))
+        )
+            .andExpect(status().isForbidden)
+            .andExpect(jsonPath("$.error").value("ACCOUNT_INACTIVE"))
+            .andExpect(jsonPath("$.reason").value("SUSPENDED"))
+            .andExpect(jsonPath("$.supportUrl").isNotEmpty)
+            .andExpect(jsonPath("$.supportEmail").isNotEmpty)
+            .andExpect(jsonPath("$.resendAvailableIn").doesNotExist())
+            .andExpect(jsonPath("$.reactivationAvailable").doesNotExist())
+    }
+
+    @Test
+    fun `POST signin with DEACTIVATED account returns 403 with deactivatedAt and reactivationAvailable`() {
+        val email = "deactivated@example.com"
+        val password = "ValidP@ss123!"
+        val deactivatedAt = Instant.parse("2025-12-01T00:00:00Z")
+        createUserWithStatus(email, password, UserStatus.DEACTIVATED, deactivatedAt = deactivatedAt)
+
+        val request = SigninRequest(email = email, password = password)
+
+        mockMvc.perform(
+            post("/api/v1/auth/signin")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request))
+        )
+            .andExpect(status().isForbidden)
+            .andExpect(jsonPath("$.error").value("ACCOUNT_INACTIVE"))
+            .andExpect(jsonPath("$.reason").value("DEACTIVATED"))
+            .andExpect(jsonPath("$.reactivationAvailable").value(true))
+            .andExpect(jsonPath("$.deactivatedAt").value("2025-12-01T00:00:00Z"))
+            .andExpect(jsonPath("$.supportUrl").isNotEmpty)
+            .andExpect(jsonPath("$.supportEmail").doesNotExist())
+    }
+
+    @Test
+    fun `POST signin with wrong password on SUSPENDED account does not reveal inactive status`() {
+        val email = "suspended-wrong-pw@example.com"
+        val password = "ValidP@ss123!"
+        createUserWithStatus(email, password, UserStatus.SUSPENDED)
+
+        val request = SigninRequest(email = email, password = "WrongPassword123!")
+
+        mockMvc.perform(
+            post("/api/v1/auth/signin")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request))
+        )
+            .andExpect(status().isUnauthorized)
+            .andExpect(jsonPath("$.error").value("INVALID_CREDENTIALS"))
+            .andExpect(jsonPath("$.reason").doesNotExist())
+            .andExpect(jsonPath("$.supportEmail").doesNotExist())
+            .andExpect(jsonPath("$.deactivatedAt").doesNotExist())
+    }
+
+    @Test
     fun `POST signin with invalid credentials should return 401`() {
         // Given
         val email = "user@example.com"
@@ -462,6 +549,31 @@ class AuthenticationControllerIntegrationTest {
         user.emailVerified = true
         user.mfaEnabled = false
         user.failedAttempts = 0
+        return userRepository.save(user)
+    }
+
+    private fun createUserWithStatus(
+        email: String,
+        password: String,
+        status: UserStatus,
+        deactivatedAt: Instant? = null
+    ): User {
+        val user = User(
+            id = UUID.randomUUID(),
+            email = email.lowercase(),
+            passwordHash = passwordHasher.hash(password),
+            firstName = "Test",
+            lastName = "User",
+            status = status,
+            tosAcceptedAt = Instant.now(),
+            marketingOptIn = false,
+            registrationSource = com.acme.identity.domain.RegistrationSource.WEB
+        )
+        user.emailVerified = status != UserStatus.PENDING_VERIFICATION
+        user.failedAttempts = 0
+        if (deactivatedAt != null) {
+            user.deactivatedAt = deactivatedAt
+        }
         return userRepository.save(user)
     }
 

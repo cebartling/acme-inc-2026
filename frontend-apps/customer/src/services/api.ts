@@ -332,7 +332,26 @@ export interface SigninErrorResponse {
   remainingAttempts?: number;
   reason?: string;
   supportUrl?: string;
+  supportEmail?: string;
   lockedUntil?: string;
+  deactivatedAt?: string;
+  reactivationAvailable?: boolean;
+  resendAvailableIn?: number;
+}
+
+/**
+ * Response from the verification-email resend endpoint.
+ */
+export interface ResendVerificationResponse {
+  message: string;
+  requestsRemaining?: number;
+}
+
+/**
+ * Response from the account-reactivation request endpoint.
+ */
+export interface ReactivateAccountResponse {
+  message: string;
 }
 
 /**
@@ -565,6 +584,45 @@ export const identityApi = {
       {
         method: "POST",
         credentials: "include",
+      }
+    );
+  },
+
+  /**
+   * Resends the verification email for a customer with a PENDING_VERIFICATION
+   * account. The backend rate-limits resends; success is reported uniformly
+   * regardless of whether the email maps to a real account, to prevent
+   * enumeration.
+   */
+  async resendVerification(
+    email: string
+  ): Promise<ResendVerificationResponse> {
+    return apiRequest<ResendVerificationResponse>(
+      `${IDENTITY_SERVICE_URL}/api/v1/users/verify/resend`,
+      {
+        method: "POST",
+        body: JSON.stringify({ email }),
+      }
+    );
+  },
+
+  /**
+   * Requests reactivation of a deactivated account.
+   *
+   * The backend always returns 200 with a generic message regardless of
+   * whether the email is known or whether the password is correct — this
+   * is intentional to prevent enumeration. When everything lines up, the
+   * customer receives a reactivation email.
+   */
+  async reactivateAccount(
+    email: string,
+    password: string
+  ): Promise<ReactivateAccountResponse> {
+    return apiRequest<ReactivateAccountResponse>(
+      `${IDENTITY_SERVICE_URL}/api/v1/auth/reactivate`,
+      {
+        method: "POST",
+        body: JSON.stringify({ email, password }),
       }
     );
   },

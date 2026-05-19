@@ -31,3 +31,18 @@ export function trackSigninFailed(properties: SigninFailedProperties): void {
     attemptNumber: properties.attemptNumber,
   });
 }
+
+export interface InactiveAccountDisplayedProperties {
+  accountStatus: "PENDING_VERIFICATION" | "SUSPENDED" | "DEACTIVATED";
+  resolutionOffered: "RESEND_VERIFICATION" | "CONTACT_SUPPORT" | "REACTIVATE";
+}
+
+export function trackInactiveAccountDisplayed(
+  properties: InactiveAccountDisplayedProperties,
+): void {
+  trackEvent("InactiveAccountDisplayed", {
+    source: "WEB",
+    accountStatus: properties.accountStatus,
+    resolutionOffered: properties.resolutionOffered,
+  });
+}

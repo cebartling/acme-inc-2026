@@ -10,6 +10,7 @@ import com.acme.identity.domain.events.EmailVerified
 import com.acme.identity.domain.events.MFAChallengeInitiated
 import com.acme.identity.domain.events.MFAVerificationFailed
 import com.acme.identity.domain.events.MFAVerificationSucceeded
+import com.acme.identity.domain.events.ReactivationRequested
 import com.acme.identity.domain.events.SessionCreated
 import com.acme.identity.domain.events.SessionInvalidated
 import com.acme.identity.domain.events.UserActivated
@@ -572,6 +573,38 @@ class UserEventPublisher(
             .exceptionally { ex ->
                 logger.error(
                     "Failed to publish DeviceRemembered event for user {}. " +
+                    "Event is persisted in event store but not published to Kafka. " +
+                    "Manual intervention may be required.",
+                    event.payload.userId,
+                    ex
+                )
+                null
+            }
+    }
+
+    /**
+     * Publishes a [ReactivationRequested] event so the notification service
+     * can send a reactivation email to a deactivated customer.
+     */
+    fun publishReactivationRequested(event: ReactivationRequested): CompletableFuture<Void> {
+        val key = event.aggregateId.toString()
+        val value = objectMapper.writeValueAsString(event)
+
+        logger.debug("Publishing ReactivationRequested event for user: {}", event.payload.userId)
+
+        return kafkaTemplate.send(ReactivationRequested.TOPIC, key, value)
+            .thenAccept { result ->
+                logger.info(
+                    "Published ReactivationRequested event for user {} to topic {} partition {} offset {}",
+                    event.payload.userId,
+                    result.recordMetadata.topic(),
+                    result.recordMetadata.partition(),
+                    result.recordMetadata.offset()
+                )
+            }
+            .exceptionally { ex ->
+                logger.error(
+                    "Failed to publish ReactivationRequested event for user {}. " +
                     "Event is persisted in event store but not published to Kafka. " +
                     "Manual intervention may be required.",
                     event.payload.userId,

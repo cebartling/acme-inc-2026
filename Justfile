@@ -44,6 +44,15 @@ demo-invalid-credentials:
 demo-invalid-credentials-record:
     cd demos && bun run src/run.ts invalid-credentials --mode=record
 
+# Live headed walkthrough of inactive-account handling (US-0003-11):
+# PENDING_VERIFICATION, SUSPENDED, DEACTIVATED card variants + reactivation.
+demo-inactive-account:
+    cd demos && bun run src/run.ts inactive-account
+
+# Recorded inactive-account walkthrough; .webm lands in demos/recordings/.
+demo-inactive-account-record:
+    cd demos && bun run src/run.ts inactive-account --mode=record
+
 # Run all demos sequentially in live mode.
 demo-all: demo-register demo-signin demo-logout
 

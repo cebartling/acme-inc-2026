@@ -93,10 +93,14 @@ data class SigninResponse(
  * @property remainingAttempts Number of signin attempts remaining before lockout (optional).
  * @property reason Additional reason code for account status errors (optional).
  * @property supportUrl URL for customer support (optional).
+ * @property supportEmail Support contact email (optional, for SUSPENDED accounts).
  * @property lockedUntil Timestamp when the lockout expires (optional, for 423 responses).
  * @property lockoutRemainingSeconds Seconds remaining until lockout expires (optional, for 423 responses).
  * @property passwordResetUrl URL for password reset to bypass lockout (optional, for 423 responses).
  * @property retryAfterSeconds Seconds until the rate limit resets (optional, for 429 responses).
+ * @property deactivatedAt ISO-8601 timestamp the account was deactivated (optional, for DEACTIVATED accounts).
+ * @property reactivationAvailable Whether self-service reactivation is offered (optional, for DEACTIVATED accounts).
+ * @property resendAvailableIn Seconds until the verification email can be resent (optional, for PENDING_VERIFICATION accounts).
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 data class SigninErrorResponse(
@@ -105,8 +109,12 @@ data class SigninErrorResponse(
     val remainingAttempts: Int? = null,
     val reason: String? = null,
     val supportUrl: String? = null,
+    val supportEmail: String? = null,
     val lockedUntil: String? = null,
     val lockoutRemainingSeconds: Long? = null,
     val passwordResetUrl: String? = null,
-    val retryAfterSeconds: Long? = null
+    val retryAfterSeconds: Long? = null,
+    val deactivatedAt: String? = null,
+    val reactivationAvailable: Boolean? = null,
+    val resendAvailableIn: Long? = null
 )

@@ -13,7 +13,13 @@ export interface RegisterAndVerifyParams {
   lastName?: string;
 }
 
-export async function registerAndVerifyUser(params: RegisterAndVerifyParams): Promise<void> {
+export interface RegisterAndVerifyResult {
+  userId: string;
+}
+
+export async function registerAndVerifyUser(
+  params: RegisterAndVerifyParams
+): Promise<RegisterAndVerifyResult> {
   const { email, password, firstName = 'Demo', lastName = 'User' } = params;
 
   const registerRes = await fetch(`${config.identityApiUrl}/api/v1/users/register`, {
@@ -66,6 +72,35 @@ export async function registerAndVerifyUser(params: RegisterAndVerifyParams): Pr
   if (!verified) {
     throw new Error(
       `Email verification did not succeed; identity service redirected to ${location}`
+    );
+  }
+
+  return { userId };
+}
+
+export type UserStatus =
+  | 'PENDING_VERIFICATION'
+  | 'ACTIVE'
+  | 'SUSPENDED'
+  | 'DEACTIVATED'
+  | 'LOCKED';
+
+// Drives a user directly into the requested status via the test-only
+// POST /api/v1/test/users/{userId}/status endpoint. The inactive-account
+// demo uses this to flip one throwaway account through PENDING_VERIFICATION,
+// SUSPENDED, and DEACTIVATED without re-registering each time.
+export async function setUserStatus(userId: string, status: UserStatus): Promise<void> {
+  const res = await fetch(`${config.identityApiUrl}/api/v1/test/users/${userId}/status`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Test-Api-Key': config.testApiKey,
+    },
+    body: JSON.stringify({ status }),
+  });
+  if (!res.ok) {
+    throw new Error(
+      `Setting user status to ${status} failed: ${res.status} ${await res.text()}`
     );
   }
 }
