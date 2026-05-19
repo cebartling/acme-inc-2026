@@ -38,6 +38,8 @@ just demo-logout             # Live headed walkthrough of logout
 just demo-logout-record      # Same flow, recorded
 just demo-invalid-credentials        # Live walkthrough of the invalid-credentials error UX
 just demo-invalid-credentials-record # Same flow, recorded
+just demo-inactive-account           # Live walkthrough of the inactive-account UX (PIN-91)
+just demo-inactive-account-record    # Same flow, recorded
 just demo-all                # Sequence: register → signin → logout (live)
 just demo-all-record         # Sequence: register → signin → logout (recorded)
 just demo-down               # Stop services when finished
