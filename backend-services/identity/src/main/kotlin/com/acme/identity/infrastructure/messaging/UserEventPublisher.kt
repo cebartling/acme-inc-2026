@@ -640,7 +640,10 @@ class UserEventPublisher(
 
         return kafkaTemplate.send(TokenReuseDetected.TOPIC, key, value)
             .thenAccept { result ->
-                logger.warn(
+                // Success branch logs at INFO — Kafka publishing the event
+                // is normal flow. The reuse detection itself is logged at
+                // WARN by the use case; we don't double-flag dashboards.
+                logger.info(
                     "Published TokenReuseDetected event for session {} user {} to topic {} partition {} offset {} " +
                             "(sessions invalidated: {})",
                     event.payload.sessionId,
