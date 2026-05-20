@@ -56,6 +56,29 @@ class TokenService(
     }
 
     /**
+     * Looks up the signing key referenced by a JWT's `kid` header so tokens
+     * issued before a recent rotation still validate (`SigningKeyProvider`
+     * retains a bounded LRU of previous keys). Falls back to the current
+     * key when the JWT carries no `kid` header — defensive, since every
+     * token this service mints includes one.
+     */
+    private fun resolveSigningKey(jwt: SignedJWT): com.acme.identity.infrastructure.security.SigningKey? {
+        val kid = jwt.header.keyID
+        if (kid.isNullOrBlank()) {
+            // No kid in the header — likely a malformed or foreign token.
+            // Fall back to the current key so a missing kid still verifies
+            // against the active signature; if signature verification then
+            // fails, the caller's existing guard turns it into a null.
+            return keyProvider.getCurrentKey()
+        }
+        val key = keyProvider.getKey(kid)
+        if (key == null) {
+            logger.warn("No signing key found for kid={} (likely rotated out)", kid)
+        }
+        return key
+    }
+
+    /**
      * Creates a pair of access and refresh tokens for the given user and session.
      *
      * The access token contains:
@@ -219,7 +242,7 @@ class TokenService(
     fun parseAccessToken(token: String): UUID? {
         return try {
             val jwt = SignedJWT.parse(token)
-            val signingKey = keyProvider.getCurrentKey()
+            val signingKey = resolveSigningKey(jwt) ?: return null
 
             // Verify signature
             val verifier = RSASSAVerifier(signingKey.publicKey as RSAPublicKey)
@@ -270,7 +293,7 @@ class TokenService(
     fun parseAccessTokenClaims(token: String): JWTClaimsSet? {
         return try {
             val jwt = SignedJWT.parse(token)
-            val signingKey = keyProvider.getCurrentKey()
+            val signingKey = resolveSigningKey(jwt) ?: return null
 
             val verifier = RSASSAVerifier(signingKey.publicKey as RSAPublicKey)
             if (!jwt.verify(verifier)) {
@@ -323,7 +346,7 @@ class TokenService(
     fun parseRefreshTokenClaims(token: String): JWTClaimsSet? {
         return try {
             val jwt = SignedJWT.parse(token)
-            val signingKey = keyProvider.getCurrentKey()
+            val signingKey = resolveSigningKey(jwt) ?: return null
 
             val verifier = RSASSAVerifier(signingKey.publicKey as RSAPublicKey)
             if (!jwt.verify(verifier)) {

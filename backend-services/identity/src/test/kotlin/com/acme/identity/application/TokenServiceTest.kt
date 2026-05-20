@@ -254,6 +254,23 @@ class TokenServiceTest {
     }
 
     @Test
+    fun `parseRefreshTokenClaims accepts a token signed under the previous key after rotation`() {
+        // Real-world value of multi-key verification: a refresh token issued
+        // before a key rotation (which happens every 30 days) must still
+        // validate. Without this, every rotation evicts every active
+        // 7-day-TTL session.
+        val user = createTestUser()
+        val tokensBeforeRotation = tokenService.createTokens(user, testSessionId, testTokenFamily)
+
+        signingKeyProvider.rotateKey()
+
+        val claims = tokenService.parseRefreshTokenClaims(tokensBeforeRotation.refreshToken)
+        assertNotNull(claims, "refresh token from prior key should still verify after rotation")
+        assertEquals(user.id.toString(), claims.subject)
+        assertEquals(testTokenFamily, claims.getStringClaim("tokenFamily"))
+    }
+
+    @Test
     fun `parseAccessTokenClaims should reject a refresh token (token_use mismatch)`() {
         val user = createTestUser()
         val tokens = tokenService.createTokens(user, testSessionId, testTokenFamily)
