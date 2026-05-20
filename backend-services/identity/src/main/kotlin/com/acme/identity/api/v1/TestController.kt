@@ -210,12 +210,13 @@ class TestController(
             }
         }
 
-        // Clean up any resend requests by email
+        // Clean up any email-keyed records (resend requests, rate-limit logs)
         for (email in session.emails) {
             try {
                 resendRequestRepository.deleteByEmail(email)
+                passwordResetRequestLogRepository.deleteByEmail(email)
             } catch (e: Exception) {
-                logger.warn("Failed to delete resend requests for {}: {}", email, e.message)
+                logger.warn("Failed to delete email-keyed records for {}: {}", email, e.message)
             }
         }
 
@@ -308,8 +309,9 @@ class TestController(
         return if (user != null) {
             // Delete all related data
             deleteUserData(user.id)
-            // Also clean up resend requests
+            // Also clean up email-keyed records (resend requests, rate-limit logs)
             resendRequestRepository.deleteByEmail(email.lowercase())
+            passwordResetRequestLogRepository.deleteByEmail(email.lowercase())
             logger.info("Deleted user {} with email {}", user.id, email)
             ResponseEntity.noContent().build()
         } else {
