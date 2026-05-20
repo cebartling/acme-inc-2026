@@ -752,5 +752,43 @@ describe("token-refresh interceptor", () => {
     // Exactly 3 calls — no second refresh attempt.
     expect(mockFetch).toHaveBeenCalledTimes(3);
   });
+
+  it("a parallel non-401 request resolves immediately without queueing on the refresh", async () => {
+    // Locks the short-circuit invariant: when one request triggers a
+    // refresh, another concurrent request that happens to return 200
+    // must NOT be held up waiting for the refresh to complete. The
+    // current interceptor handles this because the 200 path returns
+    // before reaching the 401-detection branch — without a test, a
+    // future re-ordering of the queueing logic could silently regress.
+    const profile = { customerId: "c", userId: "u" };
+    const prefs = { customerId: "c", preferences: {}, updatedAt: "x" };
+
+    // Sequence:
+    //   1) first caller's request → 401 (triggers refresh)
+    //   2) second caller's request → 200 (short-circuits, no queue)
+    //   3) /refresh → 200
+    //   4) first caller retry → 200
+    mockFetch
+      .mockResolvedValueOnce(tokenExpired())
+      .mockResolvedValueOnce(okJson(prefs))
+      .mockResolvedValueOnce(okJson({ status: "SUCCESS", expiresIn: 900 }))
+      .mockResolvedValueOnce(okJson(profile));
+
+    const [profileResult, prefsResult] = await Promise.all([
+      customerApi.getCurrentCustomer(),
+      customerApi.getPreferences("c", "u"),
+    ]);
+
+    expect(profileResult).toEqual(profile);
+    expect(prefsResult).toEqual(prefs);
+    // 1 initial 401 + 1 short-circuited 200 + 1 refresh + 1 retry = 4 calls.
+    expect(mockFetch).toHaveBeenCalledTimes(4);
+
+    // Exactly one /refresh call (no second one piggybacked by the 200 call).
+    const refreshCalls = mockFetch.mock.calls.filter((args) =>
+      String(args[0]).includes("/api/v1/auth/refresh")
+    );
+    expect(refreshCalls.length).toBe(1);
+  });
 });
 
