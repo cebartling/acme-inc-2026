@@ -53,6 +53,17 @@ demo-inactive-account:
 demo-inactive-account-record:
     cd demos && bun run src/run.ts inactive-account --mode=record
 
+# Live headed walkthrough of token-refresh + OWASP reuse-detection (US-0003-12).
+# Drives the /api/v1/auth/refresh endpoint from inside the customer-app
+# browser context; shows tokenFamily rotation on the happy path and
+# TOKEN_REUSE_DETECTED on replay of an old refresh cookie.
+demo-token-refresh:
+    cd demos && bun run src/run.ts token-refresh
+
+# Recorded token-refresh walkthrough; .webm lands in demos/recordings/.
+demo-token-refresh-record:
+    cd demos && bun run src/run.ts token-refresh --mode=record
+
 # Run all demos sequentially in live mode.
 demo-all: demo-register demo-signin demo-logout
 
