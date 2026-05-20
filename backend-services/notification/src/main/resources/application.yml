@@ -68,6 +68,7 @@ notification:
     input-topic: identity.user.events
     customer-input-topic: ${CUSTOMER_EVENTS_TOPIC:customer.events}
     output-topic: notification.events
+    password-reset-group-id: ${PASSWORD_RESET_GROUP_ID:notification-password-reset}
   retry:
     max-attempts: 3
     initial-interval-ms: 300000
@@ -84,6 +85,10 @@ notification:
       subject: "Verify your ACME account"
       expiration-hours: 24
       base-url: ${VERIFICATION_BASE_URL:https://www.acme.com/verify}
+    password-reset:
+      subject: "Reset your ACME password"
+      expiration-minutes: 60
+      base-url: ${PASSWORD_RESET_BASE_URL:https://www.acme.com/reset-password}
     welcome:
       shop-url: ${SHOP_URL:https://www.acme.com/shop}
       profile-url: ${PROFILE_URL:https://www.acme.com/profile}

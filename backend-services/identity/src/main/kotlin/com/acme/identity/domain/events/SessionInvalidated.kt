@@ -84,6 +84,9 @@ class SessionInvalidated(
         /** Reason: Session invalidated for security reasons. */
         const val REASON_SECURITY = "SECURITY"
 
+        /** Reason: Session invalidated as part of a completed password reset. */
+        const val REASON_PASSWORD_RESET = "PASSWORD_RESET"
+
         /**
          * Factory method to create a new [SessionInvalidated] event.
          *
