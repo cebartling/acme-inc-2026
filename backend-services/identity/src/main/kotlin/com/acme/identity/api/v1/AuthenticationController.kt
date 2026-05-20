@@ -188,13 +188,16 @@ class AuthenticationController(
      * 401 with all auth cookies cleared, so the client falls back to a
      * fresh signin.
      *
-     * Failure modes are intentionally collapsed to a single
-     * `TOKEN_EXPIRED` error code from the client's perspective —
-     * distinguishing them would leak information about session state.
-     * Reuse detection (`TOKEN_REUSE_DETECTED`) is added in a later commit
-     * once the matching events and all-session invalidation are wired up;
-     * for now the use case rejects the stale token without issuing new
-     * ones, which is already secure.
+     * Failure mapping (per US-0003-12 AC-07):
+     * - `TOKEN_REUSE_DETECTED` — refresh JWT's `tokenFamily` didn't match
+     *   the session's current family. The use case has already invalidated
+     *   every session for the user (OWASP) and published a
+     *   `TokenReuseDetected` event before this branch fires. Distinct
+     *   error code so client-side analytics / future security UX can
+     *   surface the reuse signal; the spec explicitly calls for this code.
+     * - `TOKEN_EXPIRED` — every other failure (missing cookie, invalid
+     *   JWT, evicted session). Collapsed deliberately so the response
+     *   doesn't disclose session-state details.
      *
      * @param refreshToken Optional refresh-token JWT from the cookie.
      * @return 200 OK with `RefreshTokenResponse` and rotated `Set-Cookie`
