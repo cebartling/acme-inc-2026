@@ -219,6 +219,48 @@ class RefreshTokensUseCaseTest {
     }
 
     @Test
+    fun `reuse sweep does not publish SessionInvalidated when delete throws`() {
+        // A delete failure during a reuse sweep is security-relevant. The use
+        // case must NOT lie to downstream consumers by publishing a
+        // SessionInvalidated event for a session that's still in Redis, and
+        // the TokenReuseDetected.sessionsInvalidatedCount must reflect only
+        // the sessions actually deleted.
+        val triggering = sessionFixture(tokenFamily = "fam_CURRENT_$originalFamily")
+        val otherSessionId = "sess_${UUID.randomUUID()}"
+        val other = Session(
+            id = otherSessionId,
+            userId = userId,
+            deviceId = "other_device",
+            ipAddress = "10.0.0.1",
+            userAgent = "other-agent",
+            tokenFamily = "fam_OTHER",
+            createdAt = Instant.now(),
+            expiresAt = Instant.now().plusSeconds(604800),
+            ttl = 604800
+        )
+        every { tokenService.parseRefreshTokenClaims(any()) } returns claims(userId, sessionId, originalFamily)
+        every { sessionRepository.findById(sessionId) } returns Optional.of(triggering)
+        every { sessionRepository.findByUserId(userId) } returns listOf(triggering, other)
+        // First delete succeeds; second throws (e.g. Redis hiccup).
+        every { sessionRepository.delete(triggering) } returns Unit
+        every { sessionRepository.delete(other) } throws RuntimeException("Redis unavailable")
+        every { publisher.publish(any<SessionInvalidated>()) } returns CompletableFuture.completedFuture(null)
+        every { publisher.publishTokenReuseDetected(any()) } returns CompletableFuture.completedFuture(null)
+
+        val result = useCase.execute("stale_token")
+
+        assertEquals(RefreshResult.TokenReuse, result)
+        // Exactly ONE SessionInvalidated event (for the successfully deleted session).
+        val invalidationSlots = mutableListOf<SessionInvalidated>()
+        verify(exactly = 1) { publisher.publish(capture(invalidationSlots)) }
+        assertEquals(sessionId, invalidationSlots[0].payload.sessionId)
+        // TokenReuseDetected count matches the actual sweep size, not the attempt count.
+        val reuseSlot = slot<TokenReuseDetected>()
+        verify(exactly = 1) { publisher.publishTokenReuseDetected(capture(reuseSlot)) }
+        assertEquals(1, reuseSlot.captured.payload.sessionsInvalidatedCount)
+    }
+
+    @Test
     fun `returns InvalidToken when the user no longer exists`() {
         val session = sessionFixture(tokenFamily = originalFamily)
         every {

@@ -175,11 +175,21 @@ class RefreshTokensUseCase(
         presentedTokenFamily: String
     ) {
         val userSessions = sessionRepository.findByUserId(userId)
+        var sessionsInvalidated = 0
         userSessions.forEach { s ->
             try {
                 sessionRepository.delete(s)
             } catch (e: Exception) {
-                logger.warn("Failed to delete session {} during reuse sweep: {}", s.id, e.message)
+                // A delete failure during a reuse sweep is security-relevant:
+                // a stolen refresh token can still rotate the un-deleted
+                // session. Log loudly and skip the corresponding
+                // SessionInvalidated event so downstream consumers aren't
+                // told a session is gone when it isn't.
+                logger.error(
+                    "Failed to delete session {} during reuse sweep — session remains active: {}",
+                    s.id, e.message, e
+                )
+                return@forEach
             }
             val invalidated = SessionInvalidated.create(
                 sessionId = s.id,
@@ -188,6 +198,7 @@ class RefreshTokensUseCase(
             )
             eventStoreRepository.append(invalidated)
             userEventPublisher.publish(invalidated)
+            sessionsInvalidated++
         }
 
         val reuseEvent = TokenReuseDetected.create(
@@ -195,7 +206,7 @@ class RefreshTokensUseCase(
             userId = userId,
             sessionTokenFamily = triggeringSession.tokenFamily,
             presentedTokenFamily = presentedTokenFamily,
-            sessionsInvalidatedCount = userSessions.size
+            sessionsInvalidatedCount = sessionsInvalidated
         )
         eventStoreRepository.append(reuseEvent)
         userEventPublisher.publishTokenReuseDetected(reuseEvent)
