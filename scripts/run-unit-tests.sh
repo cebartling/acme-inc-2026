@@ -94,6 +94,27 @@ record_result() {
 }
 
 # -----------------------------------------------------------------------------
+# SDKMAN! Setup
+# -----------------------------------------------------------------------------
+
+# Source SDKMAN! init so the `sdk` shell function is available. Safe to call
+# multiple times; no-op if SDKMAN! is not installed.
+setup_sdkman() {
+    if command -v sdk &> /dev/null; then
+        return 0
+    fi
+
+    export SDKMAN_DIR="${SDKMAN_DIR:-$HOME/.sdkman}"
+    if [[ -s "${SDKMAN_DIR}/bin/sdkman-init.sh" ]]; then
+        # sdkman-init.sh references unset vars; relax errexit while sourcing.
+        set +u
+        # shellcheck disable=SC1091
+        source "${SDKMAN_DIR}/bin/sdkman-init.sh"
+        set -u
+    fi
+}
+
+# -----------------------------------------------------------------------------
 # Node.js Setup
 # -----------------------------------------------------------------------------
 
@@ -293,6 +314,9 @@ run_gradle_tests() {
         return 1
     fi
 
+    # Ensure SDKMAN! is sourced so `sdk env` is available in subshells below.
+    setup_sdkman
+
     # Determine gradle command (prefer wrapper, fallback to system gradle)
     if [[ -x "${service_dir}/gradlew" ]]; then
         gradle_cmd="./gradlew"
@@ -310,13 +334,22 @@ run_gradle_tests() {
 
     start_time=$(date +%s)
 
+    # If the project pins JDK/Gradle via SDKMAN! (.sdkmanrc), apply it so the
+    # build runs against the versions the project expects. `sdk env` references
+    # unset positional params internally, so relax `nounset` around the call.
+    local sdk_env_cmd=":"
+    if [[ -f "${service_dir}/.sdkmanrc" ]] && command -v sdk &> /dev/null; then
+        print_info "Applying SDKMAN! environment from ${service_dir}/.sdkmanrc"
+        sdk_env_cmd="set +u; sdk env; set -u"
+    fi
+
     # Run Gradle clean and tests (always run fresh, no caching)
     if [[ "$VERBOSE" == "true" ]]; then
-        (cd "$service_dir" && $gradle_cmd clean test --info) || exit_code=$?
+        (cd "$service_dir" && eval "$sdk_env_cmd" && $gradle_cmd clean test --info) || exit_code=$?
     elif [[ "$QUIET" == "true" ]]; then
-        (cd "$service_dir" && $gradle_cmd clean test --quiet) || exit_code=$?
+        (cd "$service_dir" && eval "$sdk_env_cmd" && $gradle_cmd clean test --quiet) || exit_code=$?
     else
-        (cd "$service_dir" && $gradle_cmd clean test) || exit_code=$?
+        (cd "$service_dir" && eval "$sdk_env_cmd" && $gradle_cmd clean test) || exit_code=$?
     fi
 
     end_time=$(date +%s)
@@ -443,6 +476,15 @@ run_npm_tests() {
     fi
 
     local total_tests=$((tests_passed + tests_failed + tests_skipped))
+
+    # Vitest exits 0 when no test files exist; surface that as SKIPPED so it
+    # isn't mistaken for a passing suite.
+    if [[ $exit_code -eq 0 && $total_tests -eq 0 ]] \
+       && echo "$clean_output" | grep -q "No test files found"; then
+        print_warning "${app_name} skipped: no test files found (${duration}s)"
+        record_result "$app_name" "SKIPPED" 0 0 0 0
+        return 0
+    fi
 
     if [[ $exit_code -eq 0 ]]; then
         print_success "${app_name} tests passed (${duration}s)"
