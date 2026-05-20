@@ -24,6 +24,7 @@ Feature: Password Reset API (US-0003-13)
     And no PasswordResetRequested event is persisted for that email
 
   # AC-0003-13-02: Rate limit 3/hour per email
+  @rate-limiting
   Scenario: Fourth password-reset request within an hour is rate limited but indistinguishable
     Given an active user exists with email "reset-ratelimit@acme.com" and password "ValidP@ss123!"
     When I submit 3 password reset requests for "reset-ratelimit@acme.com"
@@ -44,7 +45,7 @@ Feature: Password Reset API (US-0003-13)
     Given an expired password reset token exists
     When I validate the reset token
     Then the API should respond with status 400
-    And the response should contain "INVALID_RESET_TOKEN"
+    And the response should contain "error" with value "INVALID_RESET_TOKEN"
 
   # AC-0003-13-04: Single use
   Scenario: A reset token can only be used once
@@ -52,14 +53,14 @@ Feature: Password Reset API (US-0003-13)
     And the password reset has already been completed with that token
     When I validate the reset token
     Then the API should respond with status 400
-    And the response should contain "INVALID_RESET_TOKEN"
+    And the response should contain "error" with value "INVALID_RESET_TOKEN"
 
   # AC-0003-13-05: Password requirements validation
   Scenario: Confirming reset with a weak password returns the unmet requirements
     Given a password reset token has been issued for an active user
     When I submit a password reset confirmation with new password "weak"
     Then the API should respond with status 400
-    And the response should contain "PASSWORD_REQUIREMENTS_NOT_MET"
+    And the response should contain "error" with value "PASSWORD_REQUIREMENTS_NOT_MET"
     And the response should contain "requirements"
 
   # AC-0003-13-06 / AC-0003-13-07 / AC-0003-13-08: Successful reset invalidates sessions/devices/lockout

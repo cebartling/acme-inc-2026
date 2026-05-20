@@ -20,6 +20,69 @@ interface PasswordResetTokenResponse {
   userId: string;
 }
 
+interface VerificationTokenResponse {
+  token: string;
+  userId: string;
+}
+
+function makeUniqueEmail(base: string): string {
+  if (!base.includes('@')) {
+    return base;
+  }
+  const [local, domain] = base.split('@');
+  return `${local}-${Date.now()}@${domain}`;
+}
+
+/**
+ * Creates an ACTIVE test user and stores testUserId/testUserEmail in the world.
+ * Mirrors the createTestUser helper in authentication-api.steps.ts.
+ */
+async function createActiveUser(world: CustomWorld): Promise<string> {
+  if (!world.identityApiClient) {
+    world.initializeApiClients();
+  }
+  if (!world.testSessionId) {
+    await world.createTestSession();
+  }
+
+  const email = makeUniqueEmail('password-reset-fixture@acme.com');
+  const password = 'ValidP@ss123!';
+
+  const regResponse = await world.identityApiClient.post<{ userId: string }>(
+    '/api/v1/users/register',
+    {
+      email,
+      password,
+      firstName: 'Test',
+      lastName: 'User',
+      tosAccepted: true,
+      tosAcceptedAt: new Date().toISOString(),
+      marketingOptIn: false,
+    }
+  );
+  if (regResponse.status !== 201 && regResponse.status !== 200) {
+    throw new Error(`Failed to register test user: ${regResponse.status} - ${JSON.stringify(regResponse.data)}`);
+  }
+
+  const userId = regResponse.data.userId;
+  await world.registerUserWithSession(userId, email);
+  world.setTestData('testUserId', userId);
+  world.setTestData('testUserEmail', email);
+  world.setTestData('testUserPassword', password);
+
+  // Activate the user via the test verification-token endpoint
+  const tokenResponse = await world.identityApiClient.get<VerificationTokenResponse>(
+    `/api/v1/test/users/${userId}/verification-token`
+  );
+  if (tokenResponse.status === 200 && tokenResponse.data.token) {
+    await world.identityApiClient.get<void>(
+      `/api/v1/users/verify?token=${tokenResponse.data.token}`
+    );
+  }
+
+  return userId;
+}
+
 When(
   'I submit a password reset request for {string}',
   async function (this: CustomWorld, email: string) {
@@ -72,12 +135,10 @@ When(
 Given(
   'a password reset token has been issued for an active user',
   async function (this: CustomWorld) {
-    // Relies on the test profile exposing a fixture endpoint that issues
-    // (and returns) a reset token. Mirrors the verification-token fixture
-    // pattern used elsewhere.
-    const userId = this.getTestData<string>('testUserId');
+    // Auto-create an active user if one hasn't been set up by a prior Given step.
+    let userId = this.getTestData<string>('testUserId');
     if (!userId) {
-      throw new Error('A test user must be created first');
+      userId = await createActiveUser(this);
     }
     const response = await this.identityApiClient.post<PasswordResetTokenResponse>(
       `/api/v1/test/password-reset-tokens`,
@@ -91,7 +152,11 @@ Given(
 Given(
   'an expired password reset token exists',
   async function (this: CustomWorld) {
-    const userId = this.getTestData<string>('testUserId');
+    // Auto-create an active user if one hasn't been set up by a prior Given step.
+    let userId = this.getTestData<string>('testUserId');
+    if (!userId) {
+      userId = await createActiveUser(this);
+    }
     const response = await this.identityApiClient.post<PasswordResetTokenResponse>(
       `/api/v1/test/password-reset-tokens`,
       { userId, expired: true }

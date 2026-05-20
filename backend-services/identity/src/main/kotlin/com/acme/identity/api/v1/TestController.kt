@@ -1,15 +1,19 @@
 package com.acme.identity.api.v1
 
+import com.acme.identity.domain.PasswordResetToken
 import com.acme.identity.domain.SmsRateLimit
 import com.acme.identity.domain.UserStatus
 import com.acme.identity.infrastructure.persistence.DeviceTrustRepository
 import com.acme.identity.infrastructure.persistence.EventStoreRepository
 import com.acme.identity.infrastructure.persistence.MfaChallengeRepository
+import com.acme.identity.infrastructure.persistence.PasswordResetRequestLogRepository
+import com.acme.identity.infrastructure.persistence.PasswordResetTokenRepository
 import com.acme.identity.infrastructure.persistence.ResendRequestRepository
 import com.acme.identity.infrastructure.persistence.SmsRateLimitRepository
 import com.acme.identity.infrastructure.persistence.UsedTotpCodeRepository
 import com.acme.identity.infrastructure.persistence.UserRepository
 import com.acme.identity.infrastructure.persistence.VerificationTokenRepository
+import com.acme.identity.infrastructure.security.PasswordResetTokenGenerator
 import com.acme.identity.infrastructure.sms.MockSmsProvider
 import com.acme.identity.infrastructure.sms.SmsProvider
 import com.acme.identity.infrastructure.util.PhoneNumberUtils
@@ -65,6 +69,9 @@ class TestController(
     private val redisTemplate: org.springframework.data.redis.core.RedisTemplate<String, Any>,
     private val deviceTrustRepository: DeviceTrustRepository,
     private val objectMapper: ObjectMapper,
+    private val passwordResetTokenRepository: PasswordResetTokenRepository,
+    private val passwordResetRequestLogRepository: PasswordResetRequestLogRepository,
+    private val passwordResetTokenGenerator: PasswordResetTokenGenerator,
     @Value("\${identity.test.api-key:test-api-key-for-acceptance-tests}")
     private val testApiKey: String
 ) {
@@ -231,6 +238,7 @@ class TestController(
         usedTotpCodeRepository.deleteByUserId(userId)
         smsRateLimitRepository.deleteByUserId(userId)
         verificationTokenRepository.deleteByUserId(userId)
+        passwordResetTokenRepository.deleteByUserId(userId)
 
         // Delete device trusts from Redis
         val deviceTrusts = deviceTrustRepository.findByUserId(userId)
@@ -1031,6 +1039,77 @@ class TestController(
                 sessionId = sessionId,
                 previousTokenFamily = previousFamily,
                 newTokenFamily = newFamily
+            )
+        )
+    }
+
+    // =========================================================================
+    // Password Reset Token Fixture Endpoints
+    // =========================================================================
+
+    /**
+     * Request DTO for creating a test password-reset token.
+     */
+    data class CreatePasswordResetTokenRequest(
+        val userId: String,
+        val expired: Boolean? = null   // null → false; explicit true → create expired token
+    )
+
+    /**
+     * Response DTO for a test password-reset token.
+     */
+    data class PasswordResetTokenResponse(
+        val token: String,
+        val userId: String,
+        val expiresAt: String
+    )
+
+    /**
+     * Creates a password-reset token for a given user, bypassing the normal
+     * request flow. Used by acceptance tests that need a token already in
+     * place without triggering an email.
+     *
+     * Pass `expired: true` to get a token whose `expiresAt` is in the past,
+     * for testing the expiry-rejection path.
+     */
+    @PostMapping("/password-reset-tokens")
+    @Transactional
+    fun createPasswordResetToken(
+        @RequestBody request: CreatePasswordResetTokenRequest
+    ): ResponseEntity<Any> {
+        logger.debug("Test endpoint: Creating password-reset token for user {}", request.userId)
+
+        val userId = try {
+            UUID.fromString(request.userId)
+        } catch (e: IllegalArgumentException) {
+            return ResponseEntity.badRequest().body(
+                ValidationErrorResponse("INVALID_USER_ID", "userId must be a valid UUID")
+            )
+        }
+
+        userRepository.findById(userId).orElse(null)
+            ?: return ResponseEntity.notFound().build()
+
+        val expiresAt = if (request.expired == true) {
+            java.time.Instant.now().minusSeconds(3600) // 1 hour in the past
+        } else {
+            passwordResetTokenGenerator.calculateExpiration()
+        }
+
+        val token = PasswordResetToken(
+            id = UUID.randomUUID(),
+            userId = userId,
+            token = passwordResetTokenGenerator.generate(),
+            expiresAt = expiresAt
+        )
+        passwordResetTokenRepository.save(token)
+
+        logger.info("Created {} password-reset token for user {}", if (request.expired == true) "expired" else "fresh", userId)
+        return ResponseEntity.ok(
+            PasswordResetTokenResponse(
+                token = token.token,
+                userId = userId.toString(),
+                expiresAt = expiresAt.toString()
             )
         )
     }
