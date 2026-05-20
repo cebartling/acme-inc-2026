@@ -205,7 +205,7 @@ class AuthenticationController(
         httpRequest: HttpServletRequest,
         @RequestHeader("X-Correlation-ID", required = false) correlationId: String?
     ): ResponseEntity<PasswordResetResponse> {
-        val corrId = correlationId?.let { UUID.fromString(it) } ?: UUID.randomUUID()
+        val corrId = parseCorrelationId(correlationId)
         requestPasswordResetUseCase.execute(
             email = request.email,
             ipAddress = getClientIp(httpRequest),
@@ -250,7 +250,7 @@ class AuthenticationController(
         httpRequest: HttpServletRequest,
         @RequestHeader("X-Correlation-ID", required = false) correlationId: String?
     ): ResponseEntity<Any> {
-        val corrId = correlationId?.let { UUID.fromString(it) } ?: UUID.randomUUID()
+        val corrId = parseCorrelationId(correlationId)
         return when (val result = confirmPasswordResetUseCase.execute(
             token = request.token,
             newPassword = request.newPassword,
@@ -634,6 +634,23 @@ class AuthenticationController(
         UserStatus.DEACTIVATED -> "Your account has been deactivated. Would you like to reactivate it?"
         else -> "Account is not active"
     }
+
+    /**
+     * Parses an optional X-Correlation-ID header value into a UUID.
+     *
+     * If the header is absent or not a valid UUID (e.g. a malformed value sent
+     * by a client) a fresh random UUID is generated rather than propagating an
+     * [IllegalArgumentException] as a 500. Correlation IDs are observability
+     * aids; a bad value from the client should never surface as a server error.
+     */
+    private fun parseCorrelationId(raw: String?): UUID =
+        raw?.let {
+            try {
+                UUID.fromString(it)
+            } catch (_: IllegalArgumentException) {
+                UUID.randomUUID()
+            }
+        } ?: UUID.randomUUID()
 
     /**
      * Extracts the client IP address from the request.
