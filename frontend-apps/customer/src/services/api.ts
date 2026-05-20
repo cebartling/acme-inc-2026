@@ -97,17 +97,22 @@ function flushWaiters(error?: unknown): void {
  * avoid a static-import cycle (auth.store imports api types).
  */
 async function handleRefreshFailure(): Promise<void> {
+  // Dynamic imports avoid a static cycle (stores import API types). The
+  // catch branches log a warning rather than swallowing silently — a
+  // bundler quirk or future store rename that breaks the import path
+  // would otherwise leak stale Zustand state past the redirect and
+  // flash an authenticated UI to a signed-out user.
   try {
     const { useAuthStore } = await import("@/stores/auth.store");
     useAuthStore.getState().clearUser();
-  } catch {
-    // Store import can fail in non-browser test contexts; ignore.
+  } catch (err) {
+    console.warn("refresh-cleanup: failed to clear auth store", err);
   }
   try {
     const { useCustomerStore } = await import("@/stores/customer.store");
     useCustomerStore.getState().clearProfile();
-  } catch {
-    // Same as above.
+  } catch (err) {
+    console.warn("refresh-cleanup: failed to clear customer store", err);
   }
   if (typeof window !== "undefined") {
     window.location.href = "/signin?logout=true";
