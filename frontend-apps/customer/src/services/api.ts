@@ -149,13 +149,17 @@ async function apiRequest<T>(
 
   // Token-refresh interception: only on 401 + TOKEN_EXPIRED, only when
   // this isn't itself the refresh call, and only once per original
-  // request.
+  // request. The path-suffix check is defense-in-depth backing up
+  // __skipRefresh — using `endsWith` instead of strict URL equality means
+  // the guard survives variations in base URL (proxy paths, trailing
+  // slashes) that would otherwise silently regress the loop-prevention
+  // invariant.
   if (
     response.status === 401 &&
     errorData?.error === "TOKEN_EXPIRED" &&
     !__skipRefresh &&
     !__isRetry &&
-    url !== REFRESH_URL
+    !url.endsWith("/api/v1/auth/refresh")
   ) {
     if (isRefreshing) {
       // Another request is already refreshing. Queue up; once the
