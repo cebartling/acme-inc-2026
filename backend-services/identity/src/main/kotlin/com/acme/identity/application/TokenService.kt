@@ -39,6 +39,45 @@ class TokenService(
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
+    companion object {
+        /**
+         * Discriminator claim value that marks a JWT as an access token.
+         * Tied with [TOKEN_USE_REFRESH] to prevent token-confusion: access
+         * and refresh tokens share an issuer + signing key, so without an
+         * explicit discriminator an attacker can present one as the other.
+         */
+        const val TOKEN_USE_ACCESS = "access"
+
+        /** Discriminator claim value that marks a JWT as a refresh token. */
+        const val TOKEN_USE_REFRESH = "refresh"
+
+        /** Claim name carrying the token-use discriminator. */
+        const val TOKEN_USE_CLAIM = "token_use"
+    }
+
+    /**
+     * Looks up the signing key referenced by a JWT's `kid` header so tokens
+     * issued before a recent rotation still validate (`SigningKeyProvider`
+     * retains a bounded LRU of previous keys). Falls back to the current
+     * key when the JWT carries no `kid` header — defensive, since every
+     * token this service mints includes one.
+     */
+    private fun resolveSigningKey(jwt: SignedJWT): com.acme.identity.infrastructure.security.SigningKey? {
+        val kid = jwt.header.keyID
+        if (kid.isNullOrBlank()) {
+            // No kid in the header — likely a malformed or foreign token.
+            // Fall back to the current key so a missing kid still verifies
+            // against the active signature; if signature verification then
+            // fails, the caller's existing guard turns it into a null.
+            return keyProvider.getCurrentKey()
+        }
+        val key = keyProvider.getKey(kid)
+        if (key == null) {
+            logger.warn("No signing key found for kid={} (likely rotated out)", kid)
+        }
+        return key
+    }
+
     /**
      * Creates a pair of access and refresh tokens for the given user and session.
      *
@@ -122,6 +161,7 @@ class TokenService(
             .claim("email", user.email)
             .claim("roles", listOf("CUSTOMER")) // User roles - hardcoded for now, can be expanded
             .claim("sessionId", sessionId)
+            .claim("token_use", TOKEN_USE_ACCESS)
             .issueTime(Date.from(issuedAt))
             .expirationTime(Date.from(issuedAt.plus(config.accessTokenExpiry)))
             .issuer(config.issuer)
@@ -152,6 +192,7 @@ class TokenService(
             .subject(user.id.toString())
             .claim("sessionId", sessionId)
             .claim("tokenFamily", tokenFamily)
+            .claim("token_use", TOKEN_USE_REFRESH)
             .issueTime(Date.from(issuedAt))
             .expirationTime(Date.from(issuedAt.plus(config.refreshTokenExpiry)))
             .issuer(config.issuer)
@@ -201,7 +242,7 @@ class TokenService(
     fun parseAccessToken(token: String): UUID? {
         return try {
             val jwt = SignedJWT.parse(token)
-            val signingKey = keyProvider.getCurrentKey()
+            val signingKey = resolveSigningKey(jwt) ?: return null
 
             // Verify signature
             val verifier = RSASSAVerifier(signingKey.publicKey as RSAPublicKey)
@@ -252,7 +293,7 @@ class TokenService(
     fun parseAccessTokenClaims(token: String): JWTClaimsSet? {
         return try {
             val jwt = SignedJWT.parse(token)
-            val signingKey = keyProvider.getCurrentKey()
+            val signingKey = resolveSigningKey(jwt) ?: return null
 
             val verifier = RSASSAVerifier(signingKey.publicKey as RSAPublicKey)
             if (!jwt.verify(verifier)) {
@@ -273,9 +314,74 @@ class TokenService(
                 return null
             }
 
+            // Reject refresh tokens (or anything that isn't explicitly an
+            // access token) presented at access-token verification points.
+            // Tokens minted before the token_use discriminator was added are
+            // accepted for backward compatibility (claim == null branch).
+            val tokenUse = claims.getStringClaim(TOKEN_USE_CLAIM)
+            if (tokenUse != null && tokenUse != TOKEN_USE_ACCESS) {
+                logger.warn("JWT token_use mismatch: expected access, got $tokenUse")
+                return null
+            }
+
             claims
         } catch (e: Exception) {
             logger.warn("Failed to parse JWT token: ${e.message}")
+            null
+        }
+    }
+
+    /**
+     * Parses and validates a refresh-token JWT.
+     *
+     * Mirrors [parseAccessTokenClaims] but enforces the refresh-token claim
+     * shape (no `audience` claim is set on refresh tokens — see
+     * [generateRefreshToken]). Performs the same signature, expiration, and
+     * issuer checks.
+     *
+     * @param token The refresh-token JWT string.
+     * @return The [JWTClaimsSet] when the token is structurally valid and
+     *         unexpired, null otherwise.
+     */
+    fun parseRefreshTokenClaims(token: String): JWTClaimsSet? {
+        return try {
+            val jwt = SignedJWT.parse(token)
+            val signingKey = resolveSigningKey(jwt) ?: return null
+
+            val verifier = RSASSAVerifier(signingKey.publicKey as RSAPublicKey)
+            if (!jwt.verify(verifier)) {
+                logger.warn("Refresh JWT signature verification failed")
+                return null
+            }
+
+            val claims = jwt.jwtClaimsSet
+
+            val expiration = claims.expirationTime
+            if (expiration == null || expiration.before(Date())) {
+                logger.debug("Refresh JWT expired")
+                return null
+            }
+
+            if (claims.issuer != config.issuer) {
+                logger.warn(
+                    "Refresh JWT issuer mismatch: expected ${config.issuer}, got ${claims.issuer}"
+                )
+                return null
+            }
+
+            // Reject access tokens (or anything other than a refresh token)
+            // presented at the refresh endpoint. Tokens minted before the
+            // token_use discriminator existed pass for backward compat
+            // (claim == null branch).
+            val tokenUse = claims.getStringClaim(TOKEN_USE_CLAIM)
+            if (tokenUse != null && tokenUse != TOKEN_USE_REFRESH) {
+                logger.warn("Refresh JWT token_use mismatch: expected refresh, got $tokenUse")
+                return null
+            }
+
+            claims
+        } catch (e: Exception) {
+            logger.warn("Failed to parse refresh JWT: ${e.message}")
             null
         }
     }

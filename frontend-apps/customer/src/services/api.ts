@@ -24,37 +24,182 @@ export class ApiError extends Error {
   }
 }
 
+// =============================================================================
+// Token-refresh interceptor state (PIN-92 / US-0003-12)
+//
+// When the identity service rejects a request with 401 + TOKEN_EXPIRED, we
+// transparently call POST /api/v1/auth/refresh (which sets new HttpOnly
+// auth cookies) and retry the original request. Concurrent expired
+// requests must share a single refresh: anything that arrives while a
+// refresh is in flight queues onto `refreshWaiters` and retries after the
+// refresh resolves.
+//
+// State lives at module scope because there's no AuthProvider in the
+// customer app. The `__resetRefreshStateForTests` export is a deliberate
+// test seam — vitest calls it in `beforeEach` so module-level state
+// doesn't leak between cases.
+// =============================================================================
+
+const REFRESH_URL = `${IDENTITY_SERVICE_URL}/api/v1/auth/refresh`;
+
+let isRefreshing = false;
+let refreshWaiters: Array<{
+  resolve: () => void;
+  reject: (err: unknown) => void;
+}> = [];
+
+/**
+ * Test-only: reset module-level refresh state between vitest cases. NOT
+ * used by application code.
+ */
+export function __resetRefreshStateForTests(): void {
+  isRefreshing = false;
+  refreshWaiters = [];
+}
+
+interface RefreshAwareRequestInit extends RequestInit {
+  /** Internal flag set when apiRequest is retrying after a successful refresh. */
+  __isRetry?: boolean;
+  /** Internal flag set on the refresh-call itself so it never triggers a nested refresh. */
+  __skipRefresh?: boolean;
+}
+
+/**
+ * Waits in line behind the in-flight refresh. Resolves when the refresh
+ * succeeds (caller should re-invoke apiRequest with __isRetry=true) or
+ * rejects with the refresh error if it fails.
+ */
+function waitForRefresh(): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    refreshWaiters.push({ resolve, reject });
+  });
+}
+
+/**
+ * Flushes the waiter queue. Called from both success and failure paths
+ * inside the active refresh.
+ */
+function flushWaiters(error?: unknown): void {
+  const waiters = refreshWaiters;
+  refreshWaiters = [];
+  for (const waiter of waiters) {
+    if (error !== undefined) {
+      waiter.reject(error);
+    } else {
+      waiter.resolve();
+    }
+  }
+}
+
+/**
+ * Best-effort: clear local auth state and bounce the user to /signin
+ * after a refresh failure. Stores and window are imported lazily to
+ * avoid a static-import cycle (auth.store imports api types).
+ */
+async function handleRefreshFailure(): Promise<void> {
+  // Dynamic imports avoid a static cycle (stores import API types). The
+  // catch branches log a warning rather than swallowing silently — a
+  // bundler quirk or future store rename that breaks the import path
+  // would otherwise leak stale Zustand state past the redirect and
+  // flash an authenticated UI to a signed-out user.
+  try {
+    const { useAuthStore } = await import("@/stores/auth.store");
+    useAuthStore.getState().clearUser();
+  } catch (err) {
+    console.warn("refresh-cleanup: failed to clear auth store", err);
+  }
+  try {
+    const { useCustomerStore } = await import("@/stores/customer.store");
+    useCustomerStore.getState().clearProfile();
+  } catch (err) {
+    console.warn("refresh-cleanup: failed to clear customer store", err);
+  }
+  if (typeof window !== "undefined") {
+    window.location.href = "/signin?logout=true";
+  }
+}
+
 /**
  * Makes a fetch request with standard headers and error handling.
+ *
+ * Intercepts 401 + { error: "TOKEN_EXPIRED" }: single-flights a
+ * `POST /api/v1/auth/refresh` and retries the original request once.
+ * Concurrent expired requests share the same refresh. On any failure
+ * the auth store is cleared and the browser is redirected to
+ * `/signin?logout=true`.
  */
 async function apiRequest<T>(
   url: string,
-  options: RequestInit = {}
+  options: RefreshAwareRequestInit = {}
 ): Promise<T> {
+  const { __isRetry, __skipRefresh, ...fetchOptions } = options;
   const headers: HeadersInit = {
     "Content-Type": "application/json",
-    ...options.headers,
+    ...fetchOptions.headers,
   };
 
   const response = await fetch(url, {
-    ...options,
+    ...fetchOptions,
     headers,
   });
 
-  // Handle non-JSON responses
   const contentType = response.headers.get("content-type");
   const isJson = contentType?.includes("application/json");
 
-  if (!response.ok) {
-    const errorData = isJson ? await response.json() : null;
-    throw new ApiError(
-      errorData?.error || errorData?.message || `HTTP ${response.status}`,
-      response.status,
-      errorData
-    );
+  if (response.ok) {
+    return isJson ? response.json() : (null as T);
   }
 
-  return isJson ? response.json() : (null as T);
+  const errorData = isJson ? await response.json() : null;
+
+  // Token-refresh interception: only on 401 + TOKEN_EXPIRED, only when
+  // this isn't itself the refresh call, and only once per original
+  // request. The path-suffix check is defense-in-depth backing up
+  // __skipRefresh — using `endsWith` instead of strict URL equality means
+  // the guard survives variations in base URL (proxy paths, trailing
+  // slashes) that would otherwise silently regress the loop-prevention
+  // invariant.
+  if (
+    response.status === 401 &&
+    errorData?.error === "TOKEN_EXPIRED" &&
+    !__skipRefresh &&
+    !__isRetry &&
+    !url.endsWith("/api/v1/auth/refresh")
+  ) {
+    if (isRefreshing) {
+      // Another request is already refreshing. Queue up; once the
+      // refresh resolves we retry our original request.
+      try {
+        await waitForRefresh();
+      } catch (refreshError) {
+        throw refreshError;
+      }
+      return apiRequest<T>(url, { ...options, __isRetry: true });
+    }
+
+    isRefreshing = true;
+    try {
+      await apiRequest<unknown>(REFRESH_URL, {
+        method: "POST",
+        credentials: "include",
+        __skipRefresh: true,
+      });
+      flushWaiters();
+      return apiRequest<T>(url, { ...options, __isRetry: true });
+    } catch (refreshError) {
+      flushWaiters(refreshError);
+      await handleRefreshFailure();
+      throw refreshError;
+    } finally {
+      isRefreshing = false;
+    }
+  }
+
+  throw new ApiError(
+    errorData?.error || errorData?.message || `HTTP ${response.status}`,
+    response.status,
+    errorData
+  );
 }
 
 /**

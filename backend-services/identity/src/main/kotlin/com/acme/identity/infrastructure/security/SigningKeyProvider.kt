@@ -46,6 +46,26 @@ class SigningKeyProvider(
     @Volatile
     private var lastRotationDate: LocalDate
 
+    /**
+     * Bounded LRU of previously-active signing keys, keyed by kid. Retained
+     * so refresh / access tokens issued before a recent rotation can still
+     * be verified by their JWT `kid` header. Synchronized on [previousKeys]
+     * for the rotation path; reads from [getKey] are safe because
+     * LinkedHashMap reads are themselves single-pointer lookups and the
+     * map is only mutated under the same lock during rotation.
+     */
+    private val previousKeys: LinkedHashMap<String, SigningKey> = LinkedHashMap()
+
+    companion object {
+        /**
+         * Number of recent (rotated-out) signing keys to retain for
+         * verification. Tokens signed under any of these still verify;
+         * older keys are evicted on rotation. Chosen so a 7-day refresh
+         * token survives ~PREVIOUS_KEY_CAPACITY rotations.
+         */
+        const val PREVIOUS_KEY_CAPACITY = 3
+    }
+
     init {
         // Initialize RSA key pair generator with 2048-bit key size
         keyPairGenerator = KeyPairGenerator.getInstance("RSA").apply {
@@ -72,24 +92,24 @@ class SigningKeyProvider(
     }
 
     /**
-     * Gets a specific signing key by its key ID.
-     *
-     * Used during token verification to find the correct key for
-     * validating the signature. Supports multiple keys for rotation.
-     *
-     * For this initial implementation, only the current key is supported.
-     * Future enhancement: Maintain a cache of recent keys for verification.
+     * Gets a signing key by its key ID, checking the current key first and
+     * then the retained previous keys. Used during token verification so
+     * tokens issued before a recent key rotation still validate.
      *
      * @param keyId The key ID from the JWT header.
      * @return The [SigningKey] if found, null otherwise.
      */
     fun getKey(keyId: String): SigningKey? {
-        return if (keyId == currentKey.keyId) {
-            currentKey
-        } else {
-            logger.warn("Requested key ID $keyId not found (current: ${currentKey.keyId})")
-            null
+        if (keyId == currentKey.keyId) return currentKey
+        synchronized(previousKeys) {
+            val previous = previousKeys[keyId]
+            if (previous != null) return previous
         }
+        logger.warn(
+            "Requested key ID $keyId not found (current: ${currentKey.keyId}, " +
+                    "previous: ${previousKeys.keys})"
+        )
+        return null
     }
 
     /**
@@ -104,10 +124,29 @@ class SigningKeyProvider(
      * - Maintain previous keys for verification
      */
     fun rotateKey() {
-        val oldKeyId = currentKey.keyId
-        currentKey = generateKey()
+        val oldKey = currentKey
+        val newKey = generateKey()
+        // generateKeyId() includes a randomized hex suffix so two rotations
+        // within the same calendar month produce distinct kids — duplicate
+        // kids would shadow the outgoing key in previousKeys, so the
+        // uniqueness is a load-bearing precondition here, not just a tidy
+        // human convention.
+        check(newKey.keyId != oldKey.keyId) {
+            "rotateKey produced a duplicate kid: ${oldKey.keyId}"
+        }
+        synchronized(previousKeys) {
+            previousKeys[oldKey.keyId] = oldKey
+            // LinkedHashMap is insertion-ordered, so the oldest key is the
+            // first entry. Evict to keep the retained set bounded.
+            while (previousKeys.size > PREVIOUS_KEY_CAPACITY) {
+                val evicted = previousKeys.keys.iterator().next()
+                previousKeys.remove(evicted)
+                logger.info("Evicted previous signing key {} from verification cache", evicted)
+            }
+        }
+        currentKey = newKey
         lastRotationDate = LocalDate.now()
-        logger.info("Rotated signing key from $oldKeyId to ${currentKey.keyId}")
+        logger.info("Rotated signing key from ${oldKey.keyId} to ${currentKey.keyId}")
     }
 
     /**
@@ -151,15 +190,23 @@ class SigningKeyProvider(
     }
 
     /**
-     * Generates a unique key ID based on the current date.
+     * Generates a unique key ID based on the current date plus a short
+     * randomized suffix so two rotations within the same calendar month
+     * still produce distinct identifiers. Without the suffix, a same-month
+     * rotation would silently shadow the outgoing kid in [previousKeys]
+     * (defensive branch in [rotateKey]) and tokens signed under the old
+     * material would fail verification.
      *
-     * Format: "key-YYYY-MM" (e.g., "key-2026-01")
+     * Format: "key-YYYY-MM-XXXXXXXX" (e.g., "key-2026-01-a1b2c3d4")
      *
      * @return The generated key ID string.
      */
     private fun generateKeyId(): String {
         val now = LocalDate.now()
         val formatter = DateTimeFormatter.ofPattern("yyyy-MM")
-        return "key-${now.format(formatter)}"
+        val suffix = java.lang.Long.toHexString(SecureRandom().nextLong())
+            .padStart(16, '0')
+            .substring(0, 8)
+        return "key-${now.format(formatter)}-$suffix"
     }
 }

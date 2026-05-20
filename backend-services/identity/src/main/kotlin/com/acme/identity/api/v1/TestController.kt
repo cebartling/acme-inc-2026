@@ -992,6 +992,49 @@ class TestController(
         )
     }
 
+    /**
+     * Response DTO for rotating a session's tokenFamily.
+     */
+    data class RotateTokenFamilyResponse(
+        val sessionId: String,
+        val previousTokenFamily: String,
+        val newTokenFamily: String
+    )
+
+    /**
+     * Test-only: rotate a session's `tokenFamily` to a fresh value, simulating
+     * the server-side rotation that happens during a normal refresh.
+     *
+     * Acceptance tests use this to drive the refresh-token reuse-detection
+     * scenario without minting JWTs: sign in normally → capture the real
+     * refresh cookie → call this endpoint to mark the captured cookie as
+     * stale → re-present the cookie to `/api/v1/auth/refresh` and observe
+     * the reuse-detection path. This keeps token-signing capabilities out
+     * of the test surface.
+     */
+    @PostMapping("/sessions/{sessionId}/rotate-family")
+    fun rotateTokenFamily(
+        @PathVariable sessionId: String
+    ): ResponseEntity<Any> {
+        logger.debug("Test endpoint: Rotating tokenFamily for session {}", sessionId)
+
+        val session = sessionRepository.findById(sessionId).orElse(null)
+            ?: return ResponseEntity.notFound().build()
+
+        val previousFamily = session.tokenFamily
+        val newFamily = "fam_rotated_${UUID.randomUUID()}"
+        sessionRepository.save(session.copy(tokenFamily = newFamily))
+
+        logger.info("Rotated tokenFamily for session {} ({} -> {})", sessionId, previousFamily, newFamily)
+        return ResponseEntity.ok(
+            RotateTokenFamilyResponse(
+                sessionId = sessionId,
+                previousTokenFamily = previousFamily,
+                newTokenFamily = newFamily
+            )
+        )
+    }
+
     // =========================================================================
     // Event Store Testing Endpoints
     // =========================================================================
