@@ -261,6 +261,30 @@ class RefreshTokensUseCaseTest {
     }
 
     @Test
+    fun `reuse sweep returns TokenReuse even when Kafka publish throws`() {
+        // The use case's docstring claims a Kafka failure does NOT prevent
+        // the security 401 going back to the client. Stub the publisher to
+        // throw on every invocation and assert: sweep still completes,
+        // sessions still deleted, and the result is still TokenReuse.
+        val triggering = sessionFixture(tokenFamily = "fam_CURRENT_$originalFamily")
+        every { tokenService.parseRefreshTokenClaims(any()) } returns claims(userId, sessionId, originalFamily)
+        every { sessionRepository.findById(sessionId) } returns Optional.of(triggering)
+        every { sessionRepository.findByUserId(userId) } returns listOf(triggering)
+        every { publisher.publish(any<SessionInvalidated>()) } throws RuntimeException("kafka down")
+        every { publisher.publishTokenReuseDetected(any()) } throws RuntimeException("kafka down")
+
+        val result = useCase.execute("stale_token")
+
+        assertEquals(RefreshResult.TokenReuse, result)
+        // Session was still deleted even though Kafka failed.
+        verify(exactly = 1) { sessionRepository.delete(triggering) }
+        // The event store append for the reuse event was still attempted —
+        // when Kafka is down, the audit trail in the event store is the
+        // durable record we fall back on.
+        verify(atLeast = 1) { eventStore.append(any<TokenReuseDetected>()) }
+    }
+
+    @Test
     fun `returns InvalidToken when the user no longer exists`() {
         val session = sessionFixture(tokenFamily = originalFamily)
         every {

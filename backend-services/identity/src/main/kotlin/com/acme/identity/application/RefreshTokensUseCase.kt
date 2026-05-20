@@ -196,8 +196,26 @@ class RefreshTokensUseCase(
                 userId = userId,
                 reason = SessionInvalidated.REASON_SECURITY
             )
-            eventStoreRepository.append(invalidated)
-            userEventPublisher.publish(invalidated)
+            // Event store and Kafka publish failures are non-fatal: the
+            // session is already deleted (durable), and the security 401
+            // must still go back to the client. Catch and log so the
+            // forEach doesn't bail mid-sweep.
+            try {
+                eventStoreRepository.append(invalidated)
+            } catch (e: Exception) {
+                logger.error(
+                    "Failed to append SessionInvalidated event for session {}: {}",
+                    s.id, e.message, e
+                )
+            }
+            try {
+                userEventPublisher.publish(invalidated)
+            } catch (e: Exception) {
+                logger.error(
+                    "Failed to publish SessionInvalidated event for session {}: {}",
+                    s.id, e.message, e
+                )
+            }
             sessionsInvalidated++
         }
 
@@ -208,8 +226,22 @@ class RefreshTokensUseCase(
             presentedTokenFamily = presentedTokenFamily,
             sessionsInvalidatedCount = sessionsInvalidated
         )
-        eventStoreRepository.append(reuseEvent)
-        userEventPublisher.publishTokenReuseDetected(reuseEvent)
+        try {
+            eventStoreRepository.append(reuseEvent)
+        } catch (e: Exception) {
+            logger.error(
+                "Failed to append TokenReuseDetected event for session {}: {}",
+                triggeringSession.id, e.message, e
+            )
+        }
+        try {
+            userEventPublisher.publishTokenReuseDetected(reuseEvent)
+        } catch (e: Exception) {
+            logger.error(
+                "Failed to publish TokenReuseDetected event for session {}: {}",
+                triggeringSession.id, e.message, e
+            )
+        }
     }
 
     private fun incrementCounter(result: String) {
