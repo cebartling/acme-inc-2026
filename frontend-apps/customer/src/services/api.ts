@@ -500,6 +500,61 @@ export interface ReactivateAccountResponse {
 }
 
 /**
+ * Response from the password-reset request endpoint. Always 200 with a
+ * generic message regardless of whether the email maps to an account.
+ */
+export interface PasswordResetResponse {
+  message: string;
+}
+
+/**
+ * Response from the validate-reset-token endpoint on success.
+ */
+export interface PasswordResetTokenValidResponse {
+  valid: true;
+  expiresIn: number;
+}
+
+/**
+ * Response from the validate-reset-token endpoint when the token is
+ * invalid, expired, or already used.
+ */
+export interface PasswordResetTokenErrorResponse {
+  error: "INVALID_RESET_TOKEN";
+  message: string;
+  requestNewUrl: string;
+}
+
+/**
+ * Per-rule check returned when a new password does not satisfy the
+ * password-strength requirements.
+ */
+export interface PasswordRequirement {
+  rule: string;
+  met: boolean;
+  detail: string;
+}
+
+/**
+ * Response from the confirm-password-reset endpoint on success.
+ */
+export interface PasswordResetConfirmResponse {
+  message: string;
+  sessionsInvalidated: number;
+  deviceTrustsRevoked: number;
+}
+
+/**
+ * Response from the confirm-password-reset endpoint when the submitted
+ * password fails one or more requirement checks.
+ */
+export interface PasswordRequirementsErrorResponse {
+  error: "PASSWORD_REQUIREMENTS_NOT_MET";
+  message: string;
+  requirements: PasswordRequirement[];
+}
+
+/**
  * Request type for MFA verification.
  */
 export interface MfaVerifyRequest {
@@ -768,6 +823,53 @@ export const identityApi = {
       {
         method: "POST",
         body: JSON.stringify({ email, password }),
+      }
+    );
+  },
+
+  /**
+   * Initiates a password reset for the given email. Always resolves to
+   * the same generic message regardless of whether the email is known —
+   * the backend rate-limits to 3/hour per email and returns 200 in
+   * either case to prevent enumeration.
+   */
+  async requestPasswordReset(email: string): Promise<PasswordResetResponse> {
+    return apiRequest<PasswordResetResponse>(
+      `${IDENTITY_SERVICE_URL}/api/v1/auth/password-reset`,
+      {
+        method: "POST",
+        body: JSON.stringify({ email }),
+      }
+    );
+  },
+
+  /**
+   * Validates a password-reset token without consuming it. Rejects (via
+   * ApiError) if the token is invalid, expired, or already used.
+   */
+  async validatePasswordResetToken(
+    token: string
+  ): Promise<PasswordResetTokenValidResponse> {
+    return apiRequest<PasswordResetTokenValidResponse>(
+      `${IDENTITY_SERVICE_URL}/api/v1/auth/password-reset/${encodeURIComponent(token)}`,
+      { method: "GET" }
+    );
+  },
+
+  /**
+   * Completes a password reset. On success the account's sessions and
+   * device trusts are all invalidated; the response payload reports
+   * how many of each were affected.
+   */
+  async confirmPasswordReset(
+    token: string,
+    newPassword: string
+  ): Promise<PasswordResetConfirmResponse> {
+    return apiRequest<PasswordResetConfirmResponse>(
+      `${IDENTITY_SERVICE_URL}/api/v1/auth/password-reset/confirm`,
+      {
+        method: "POST",
+        body: JSON.stringify({ token, newPassword }),
       }
     );
   },
