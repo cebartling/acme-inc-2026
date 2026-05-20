@@ -78,6 +78,27 @@ export async function registerAndVerifyUser(
   return { userId };
 }
 
+// Issues a password-reset token for a given user via the test-only fixture
+// endpoint, bypassing the normal "send an email" flow so demos can drive the
+// reset-password UI without a real mail relay.
+export async function getPasswordResetToken(userId: string): Promise<string> {
+  const res = await fetch(`${config.identityApiUrl}/api/v1/test/password-reset-tokens`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Test-Api-Key': config.testApiKey,
+    },
+    body: JSON.stringify({ userId }),
+  });
+  if (!res.ok) {
+    throw new Error(
+      `Fetching password-reset token failed: ${res.status} ${await res.text()}`
+    );
+  }
+  const { token } = (await res.json()) as { token: string };
+  return token;
+}
+
 export type UserStatus =
   | 'PENDING_VERIFICATION'
   | 'ACTIVE'
