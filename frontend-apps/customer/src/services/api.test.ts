@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   ApiError,
   customerApi,
+  identityApi,
   __resetRefreshStateForTests,
 } from "./api";
 
@@ -789,6 +790,110 @@ describe("token-refresh interceptor", () => {
       String(args[0]).includes("/api/v1/auth/refresh")
     );
     expect(refreshCalls.length).toBe(1);
+  });
+});
+
+describe("identityApi password reset", () => {
+  const mockFetch = vi.fn();
+  const originalFetch = global.fetch;
+
+  beforeEach(() => {
+    global.fetch = mockFetch;
+    mockFetch.mockReset();
+    __resetRefreshStateForTests();
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  const okJson = (body: unknown) => ({
+    ok: true,
+    status: 200,
+    headers: new Headers({ "content-type": "application/json" }),
+    json: () => Promise.resolve(body),
+  });
+
+  it("requestPasswordReset POSTs the email to /api/v1/auth/password-reset", async () => {
+    mockFetch.mockResolvedValueOnce(
+      okJson({ message: "If an account exists, …" }),
+    );
+
+    const result = await identityApi.requestPasswordReset("user@example.com");
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/v1/auth/password-reset"),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ email: "user@example.com" }),
+      }),
+    );
+    expect(result.message).toMatch(/If an account exists/);
+  });
+
+  it("validatePasswordResetToken GETs the token-scoped URL and URL-encodes it", async () => {
+    mockFetch.mockResolvedValueOnce(
+      okJson({ valid: true, expiresIn: 3540 }),
+    );
+
+    const result = await identityApi.validatePasswordResetToken("rst_abc def");
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining(
+        "/api/v1/auth/password-reset/rst_abc%20def",
+      ),
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(result).toEqual({ valid: true, expiresIn: 3540 });
+  });
+
+  it("confirmPasswordReset POSTs token and newPassword to /confirm", async () => {
+    mockFetch.mockResolvedValueOnce(
+      okJson({
+        message: "Your password has been updated.",
+        sessionsInvalidated: 2,
+        deviceTrustsRevoked: 1,
+      }),
+    );
+
+    const result = await identityApi.confirmPasswordReset(
+      "rst_token",
+      "NewSecureP@ss123",
+    );
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/v1/auth/password-reset/confirm"),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          token: "rst_token",
+          newPassword: "NewSecureP@ss123",
+        }),
+      }),
+    );
+    expect(result.sessionsInvalidated).toBe(2);
+    expect(result.deviceTrustsRevoked).toBe(1);
+  });
+
+  it("confirmPasswordReset throws ApiError on PASSWORD_REQUIREMENTS_NOT_MET", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: () =>
+        Promise.resolve({
+          error: "PASSWORD_REQUIREMENTS_NOT_MET",
+          message: "Password does not meet requirements",
+          requirements: [
+            { rule: "MIN_LENGTH", met: true, detail: "At least 8 characters" },
+            { rule: "UPPERCASE", met: false, detail: "At least one uppercase letter" },
+          ],
+        }),
+    });
+
+    await expect(
+      identityApi.confirmPasswordReset("rst_token", "weak"),
+    ).rejects.toBeInstanceOf(ApiError);
   });
 });
 

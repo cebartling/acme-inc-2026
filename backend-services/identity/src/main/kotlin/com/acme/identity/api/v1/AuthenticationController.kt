@@ -5,6 +5,13 @@ import com.acme.identity.api.v1.dto.ChangePasswordResponse
 import com.acme.identity.api.v1.dto.ErrorResponse
 import com.acme.identity.api.v1.dto.LogoutAllResponse
 import com.acme.identity.api.v1.dto.LogoutResponse
+import com.acme.identity.api.v1.dto.PasswordRequirementsErrorResponse
+import com.acme.identity.api.v1.dto.PasswordResetConfirmRequest
+import com.acme.identity.api.v1.dto.PasswordResetConfirmResponse
+import com.acme.identity.api.v1.dto.PasswordResetRequest
+import com.acme.identity.api.v1.dto.PasswordResetResponse
+import com.acme.identity.api.v1.dto.PasswordResetTokenErrorResponse
+import com.acme.identity.api.v1.dto.PasswordResetTokenValidResponse
 import com.acme.identity.api.v1.dto.ReactivateAccountRequest
 import com.acme.identity.api.v1.dto.ReactivateAccountResponse
 import com.acme.identity.api.v1.dto.RefreshTokenResponse
@@ -17,9 +24,14 @@ import com.acme.identity.application.AuthenticationError
 import com.acme.identity.application.AuthenticationSessionService
 import com.acme.identity.application.ChangePasswordResult
 import com.acme.identity.application.ChangePasswordUseCase
+import com.acme.identity.application.ConfirmPasswordResetResult
+import com.acme.identity.application.ConfirmPasswordResetUseCase
+import com.acme.identity.application.PasswordResetTokenValidation
 import com.acme.identity.application.ReactivateAccountUseCase
 import com.acme.identity.application.RefreshResult
 import com.acme.identity.application.RefreshTokensUseCase
+import com.acme.identity.application.RequestPasswordResetUseCase
+import com.acme.identity.application.ValidatePasswordResetTokenUseCase
 import com.acme.identity.application.SessionService
 import com.acme.identity.application.TokenService
 import com.acme.identity.domain.UserStatus
@@ -52,6 +64,9 @@ class AuthenticationController(
     private val authenticateUserUseCase: AuthenticateUserUseCase,
     private val changePasswordUseCase: ChangePasswordUseCase,
     private val reactivateAccountUseCase: ReactivateAccountUseCase,
+    private val requestPasswordResetUseCase: RequestPasswordResetUseCase,
+    private val validatePasswordResetTokenUseCase: ValidatePasswordResetTokenUseCase,
+    private val confirmPasswordResetUseCase: ConfirmPasswordResetUseCase,
     private val refreshTokensUseCase: RefreshTokensUseCase,
     private val tokenService: TokenService,
     private val rateLimiter: RateLimiter,
@@ -174,6 +189,90 @@ class AuthenticationController(
             correlationId = corrId
         )
         return ResponseEntity.ok(ReactivateAccountResponse())
+    }
+
+    /**
+     * Initiates a password reset for the given email.
+     *
+     * Always returns 200 with a generic message regardless of whether the
+     * email maps to a real account (no enumeration). Rate-limited to 3
+     * requests per hour per email; rate-limited requests still produce
+     * the same 200 response.
+     */
+    @PostMapping("/password-reset")
+    fun requestPasswordReset(
+        @Valid @RequestBody request: PasswordResetRequest,
+        httpRequest: HttpServletRequest,
+        @RequestHeader("X-Correlation-ID", required = false) correlationId: String?
+    ): ResponseEntity<PasswordResetResponse> {
+        val corrId = parseCorrelationId(correlationId)
+        requestPasswordResetUseCase.execute(
+            email = request.email,
+            ipAddress = getClientIp(httpRequest),
+            correlationId = corrId
+        )
+        return ResponseEntity.ok(PasswordResetResponse())
+    }
+
+    /**
+     * Validates a password-reset token without consuming it. Used by the
+     * frontend to decide whether to render the new-password form or an
+     * expired-link message.
+     */
+    @GetMapping("/password-reset/{token}")
+    fun validatePasswordResetToken(
+        @PathVariable("token") token: String
+    ): ResponseEntity<Any> {
+        return when (val result = validatePasswordResetTokenUseCase.execute(token)) {
+            is PasswordResetTokenValidation.Valid ->
+                ResponseEntity.ok(
+                    PasswordResetTokenValidResponse(
+                        valid = true,
+                        expiresIn = result.expiresInSeconds
+                    )
+                )
+            PasswordResetTokenValidation.Expired,
+            PasswordResetTokenValidation.AlreadyUsed,
+            PasswordResetTokenValidation.Invalid ->
+                ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(PasswordResetTokenErrorResponse())
+        }
+    }
+
+    /**
+     * Completes a password reset. On success the user's password is
+     * updated, all sessions are invalidated, all device trusts are
+     * revoked, and any account lockout is cleared.
+     */
+    @PostMapping("/password-reset/confirm")
+    fun confirmPasswordReset(
+        @Valid @RequestBody request: PasswordResetConfirmRequest,
+        httpRequest: HttpServletRequest,
+        @RequestHeader("X-Correlation-ID", required = false) correlationId: String?
+    ): ResponseEntity<Any> {
+        val corrId = parseCorrelationId(correlationId)
+        return when (val result = confirmPasswordResetUseCase.execute(
+            token = request.token,
+            newPassword = request.newPassword,
+            ipAddress = getClientIp(httpRequest),
+            correlationId = corrId
+        )) {
+            is ConfirmPasswordResetResult.Success ->
+                ResponseEntity.ok(
+                    PasswordResetConfirmResponse(
+                        sessionsInvalidated = result.sessionsInvalidated,
+                        deviceTrustsRevoked = result.deviceTrustsRevoked
+                    )
+                )
+            ConfirmPasswordResetResult.InvalidToken,
+            ConfirmPasswordResetResult.TokenExpired,
+            ConfirmPasswordResetResult.TokenAlreadyUsed ->
+                ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(PasswordResetTokenErrorResponse())
+            is ConfirmPasswordResetResult.PasswordRequirementsNotMet ->
+                ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(PasswordRequirementsErrorResponse(requirements = result.requirements))
+        }
     }
 
     /**
@@ -535,6 +634,23 @@ class AuthenticationController(
         UserStatus.DEACTIVATED -> "Your account has been deactivated. Would you like to reactivate it?"
         else -> "Account is not active"
     }
+
+    /**
+     * Parses an optional X-Correlation-ID header value into a UUID.
+     *
+     * If the header is absent or not a valid UUID (e.g. a malformed value sent
+     * by a client) a fresh random UUID is generated rather than propagating an
+     * [IllegalArgumentException] as a 500. Correlation IDs are observability
+     * aids; a bad value from the client should never surface as a server error.
+     */
+    private fun parseCorrelationId(raw: String?): UUID =
+        raw?.let {
+            try {
+                UUID.fromString(it)
+            } catch (_: IllegalArgumentException) {
+                UUID.randomUUID()
+            }
+        } ?: UUID.randomUUID()
 
     /**
      * Extracts the client IP address from the request.

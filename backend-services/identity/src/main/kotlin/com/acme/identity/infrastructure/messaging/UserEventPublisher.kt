@@ -10,6 +10,8 @@ import com.acme.identity.domain.events.EmailVerified
 import com.acme.identity.domain.events.MFAChallengeInitiated
 import com.acme.identity.domain.events.MFAVerificationFailed
 import com.acme.identity.domain.events.MFAVerificationSucceeded
+import com.acme.identity.domain.events.PasswordChanged
+import com.acme.identity.domain.events.PasswordResetRequested
 import com.acme.identity.domain.events.ReactivationRequested
 import com.acme.identity.domain.events.SessionCreated
 import com.acme.identity.domain.events.SessionInvalidated
@@ -696,6 +698,70 @@ class UserEventPublisher(
             .exceptionally { ex ->
                 logger.error(
                     "Failed to publish DeviceRevoked event for user {}. " +
+                    "Event is persisted in event store but not published to Kafka. " +
+                    "Manual intervention may be required.",
+                    event.payload.userId,
+                    ex
+                )
+                null
+            }
+    }
+
+    /**
+     * Publishes a [PasswordResetRequested] event so the notification service
+     * can send a password-reset email to the customer.
+     */
+    fun publishPasswordResetRequested(event: PasswordResetRequested): CompletableFuture<Void> {
+        val key = event.aggregateId.toString()
+        val value = objectMapper.writeValueAsString(event)
+
+        logger.debug("Publishing PasswordResetRequested event for user: {}", event.payload.userId)
+
+        return kafkaTemplate.send(PasswordResetRequested.TOPIC, key, value)
+            .thenAccept { result ->
+                logger.info(
+                    "Published PasswordResetRequested event for user {} to topic {} partition {} offset {}",
+                    event.payload.userId,
+                    result.recordMetadata.topic(),
+                    result.recordMetadata.partition(),
+                    result.recordMetadata.offset()
+                )
+            }
+            .exceptionally { ex ->
+                logger.error(
+                    "Failed to publish PasswordResetRequested event for user {}. " +
+                    "Event is persisted in event store but not published to Kafka. " +
+                    "Manual intervention may be required.",
+                    event.payload.userId,
+                    ex
+                )
+                null
+            }
+    }
+
+    /**
+     * Publishes a [PasswordChanged] event after a successful password update
+     * (reset or authenticated change).
+     */
+    fun publishPasswordChanged(event: PasswordChanged): CompletableFuture<Void> {
+        val key = event.aggregateId.toString()
+        val value = objectMapper.writeValueAsString(event)
+
+        logger.debug("Publishing PasswordChanged event for user: {}", event.payload.userId)
+
+        return kafkaTemplate.send(PasswordChanged.TOPIC, key, value)
+            .thenAccept { result ->
+                logger.info(
+                    "Published PasswordChanged event for user {} to topic {} partition {} offset {}",
+                    event.payload.userId,
+                    result.recordMetadata.topic(),
+                    result.recordMetadata.partition(),
+                    result.recordMetadata.offset()
+                )
+            }
+            .exceptionally { ex ->
+                logger.error(
+                    "Failed to publish PasswordChanged event for user {}. " +
                     "Event is persisted in event store but not published to Kafka. " +
                     "Manual intervention may be required.",
                     event.payload.userId,

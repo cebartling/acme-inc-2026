@@ -10,10 +10,12 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SigninRouteImport } from './routes/signin'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as ReactivateRouteImport } from './routes/reactivate'
 import { Route as PreferencesRouteImport } from './routes/preferences'
 import { Route as MfaVerifyRouteImport } from './routes/mfa-verify'
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as DevicesRouteImport } from './routes/devices'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
@@ -30,6 +32,11 @@ import { Route as DemoStartSsrDataOnlyRouteImport } from './routes/demo/start.ss
 const SigninRoute = SigninRouteImport.update({
   id: '/signin',
   path: '/signin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RegisterRoute = RegisterRouteImport.update({
@@ -50,6 +57,11 @@ const PreferencesRoute = PreferencesRouteImport.update({
 const MfaVerifyRoute = MfaVerifyRouteImport.update({
   id: '/mfa-verify',
   path: '/mfa-verify',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DevicesRoute = DevicesRouteImport.update({
@@ -117,10 +129,12 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
   '/devices': typeof DevicesRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/mfa-verify': typeof MfaVerifyRoute
   '/preferences': typeof PreferencesRoute
   '/reactivate': typeof ReactivateRoute
   '/register': typeof RegisterRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/signin': typeof SigninRoute
   '/api/health': typeof ApiHealthRoute
   '/profile/complete': typeof ProfileCompleteRoute
@@ -136,10 +150,12 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
   '/devices': typeof DevicesRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/mfa-verify': typeof MfaVerifyRoute
   '/preferences': typeof PreferencesRoute
   '/reactivate': typeof ReactivateRoute
   '/register': typeof RegisterRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/signin': typeof SigninRoute
   '/api/health': typeof ApiHealthRoute
   '/profile/complete': typeof ProfileCompleteRoute
@@ -156,10 +172,12 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
   '/devices': typeof DevicesRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/mfa-verify': typeof MfaVerifyRoute
   '/preferences': typeof PreferencesRoute
   '/reactivate': typeof ReactivateRoute
   '/register': typeof RegisterRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/signin': typeof SigninRoute
   '/api/health': typeof ApiHealthRoute
   '/profile/complete': typeof ProfileCompleteRoute
@@ -177,10 +195,12 @@ export interface FileRouteTypes {
     | '/'
     | '/dashboard'
     | '/devices'
+    | '/forgot-password'
     | '/mfa-verify'
     | '/preferences'
     | '/reactivate'
     | '/register'
+    | '/reset-password'
     | '/signin'
     | '/api/health'
     | '/profile/complete'
@@ -196,10 +216,12 @@ export interface FileRouteTypes {
     | '/'
     | '/dashboard'
     | '/devices'
+    | '/forgot-password'
     | '/mfa-verify'
     | '/preferences'
     | '/reactivate'
     | '/register'
+    | '/reset-password'
     | '/signin'
     | '/api/health'
     | '/profile/complete'
@@ -215,10 +237,12 @@ export interface FileRouteTypes {
     | '/'
     | '/dashboard'
     | '/devices'
+    | '/forgot-password'
     | '/mfa-verify'
     | '/preferences'
     | '/reactivate'
     | '/register'
+    | '/reset-password'
     | '/signin'
     | '/api/health'
     | '/profile/complete'
@@ -235,10 +259,12 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DashboardRoute: typeof DashboardRoute
   DevicesRoute: typeof DevicesRoute
+  ForgotPasswordRoute: typeof ForgotPasswordRoute
   MfaVerifyRoute: typeof MfaVerifyRoute
   PreferencesRoute: typeof PreferencesRoute
   ReactivateRoute: typeof ReactivateRoute
   RegisterRoute: typeof RegisterRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
   SigninRoute: typeof SigninRoute
   ApiHealthRoute: typeof ApiHealthRoute
   ProfileCompleteRoute: typeof ProfileCompleteRoute
@@ -258,6 +284,13 @@ declare module '@tanstack/react-router' {
       path: '/signin'
       fullPath: '/signin'
       preLoaderRoute: typeof SigninRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/register': {
@@ -286,6 +319,13 @@ declare module '@tanstack/react-router' {
       path: '/mfa-verify'
       fullPath: '/mfa-verify'
       preLoaderRoute: typeof MfaVerifyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/devices': {
@@ -379,10 +419,12 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardRoute: DashboardRoute,
   DevicesRoute: DevicesRoute,
+  ForgotPasswordRoute: ForgotPasswordRoute,
   MfaVerifyRoute: MfaVerifyRoute,
   PreferencesRoute: PreferencesRoute,
   ReactivateRoute: ReactivateRoute,
   RegisterRoute: RegisterRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
   SigninRoute: SigninRoute,
   ApiHealthRoute: ApiHealthRoute,
   ProfileCompleteRoute: ProfileCompleteRoute,

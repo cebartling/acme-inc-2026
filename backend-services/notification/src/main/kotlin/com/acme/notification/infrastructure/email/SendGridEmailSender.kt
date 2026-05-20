@@ -35,6 +35,12 @@ class SendGridEmailSender(
     private val verificationBaseUrl: String,
     @Value("\${notification.email.verification.expiration-hours}")
     private val expirationHours: Int,
+    @Value("\${notification.email.password-reset.subject:Reset your password}")
+    private val passwordResetSubject: String,
+    @Value("\${notification.email.password-reset.base-url:https://www.acme.com/reset-password}")
+    private val passwordResetBaseUrl: String,
+    @Value("\${notification.email.password-reset.expiration-minutes:60}")
+    private val passwordResetExpirationMinutes: Long,
     @Value("\${notification.email.support-email}")
     private val supportEmail: String,
     @Value("\${notification.email.company-name}")
@@ -62,6 +68,16 @@ class SendGridEmailSender(
 
     private val welcomeEmailFailedCounter: Counter = Counter.builder("email_delivery_status_total")
         .tag("type", "WELCOME")
+        .tag("status", "failed")
+        .register(meterRegistry)
+
+    private val passwordResetEmailSentCounter: Counter = Counter.builder("email_delivery_status_total")
+        .tag("type", "PASSWORD_RESET")
+        .tag("status", "sent")
+        .register(meterRegistry)
+
+    private val passwordResetEmailFailedCounter: Counter = Counter.builder("email_delivery_status_total")
+        .tag("type", "PASSWORD_RESET")
         .tag("status", "failed")
         .register(meterRegistry)
 
@@ -266,6 +282,82 @@ class SendGridEmailSender(
                 recipientEmail,
                 e.message,
                 e
+            )
+            return EmailSendResult.Failure("Failed to send email: ${e.message}", cause = e)
+        }
+    }
+
+    /**
+     * Sends a password-reset email to the specified recipient.
+     */
+    fun sendPasswordResetEmail(
+        recipientEmail: String,
+        recipientName: String,
+        resetToken: String,
+        correlationId: String
+    ): EmailSendResult {
+        try {
+            val resetUrl = "$passwordResetBaseUrl?token=$resetToken"
+
+            val htmlContent = templateService.renderPasswordResetEmail(
+                recipientName = recipientName,
+                resetUrl = resetUrl,
+                expirationMinutes = passwordResetExpirationMinutes
+            )
+
+            if (this.sandboxMode) {
+                val simulatedMessageId = "sandbox-${java.util.UUID.randomUUID()}"
+                passwordResetEmailSentCounter.increment()
+                logger.info(
+                    "Password reset email simulated (sandbox mode) to {} with message ID {}",
+                    recipientEmail,
+                    simulatedMessageId
+                )
+                return EmailSendResult.Success(simulatedMessageId, 202)
+            }
+
+            val mail = Mail().apply {
+                from = Email(fromAddress, fromName)
+                subject = passwordResetSubject
+                addPersonalization(Personalization().apply {
+                    addTo(Email(recipientEmail, recipientName))
+                })
+                addContent(Content("text/html", htmlContent))
+                addHeader("X-Correlation-ID", correlationId)
+            }
+
+            val request = Request().apply {
+                method = Method.POST
+                endpoint = "mail/send"
+                body = mail.build()
+            }
+
+            val response = sendGrid.api(request)
+
+            return if (response.statusCode in 200..299) {
+                val messageId = response.headers["X-Message-Id"]
+                passwordResetEmailSentCounter.increment()
+                logger.info(
+                    "Password reset email sent to {} with message ID {} (status: {})",
+                    recipientEmail, messageId, response.statusCode
+                )
+                EmailSendResult.Success(messageId, response.statusCode)
+            } else {
+                passwordResetEmailFailedCounter.increment()
+                logger.error(
+                    "Failed to send password reset email to {}: status={}, body={}",
+                    recipientEmail, response.statusCode, response.body
+                )
+                EmailSendResult.Failure(
+                    "SendGrid returned status ${response.statusCode}: ${response.body}",
+                    response.statusCode
+                )
+            }
+        } catch (e: Exception) {
+            passwordResetEmailFailedCounter.increment()
+            logger.error(
+                "Exception sending password reset email to {}: {}",
+                recipientEmail, e.message, e
             )
             return EmailSendResult.Failure("Failed to send email: ${e.message}", cause = e)
         }

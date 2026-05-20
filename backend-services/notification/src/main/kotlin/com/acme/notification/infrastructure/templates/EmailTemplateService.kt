@@ -109,4 +109,23 @@ class EmailTemplateService(
 
         return templateEngine.process(templateName, context)
     }
+
+    /**
+     * Renders the password-reset email template.
+     */
+    fun renderPasswordResetEmail(
+        recipientName: String,
+        resetUrl: String,
+        expirationMinutes: Long
+    ): String {
+        val context = Context(Locale.US).apply {
+            setVariable("recipientName", recipientName)
+            setVariable("resetUrl", resetUrl)
+            setVariable("expirationMinutes", expirationMinutes)
+            setVariable("supportEmail", supportEmail)
+            setVariable("companyName", companyName)
+            setVariable("currentYear", Year.now().value)
+        }
+        return templateEngine.process("email/password-reset", context)
+    }
 }
