@@ -117,10 +117,14 @@ class RefreshTokensUseCase(
         }
 
         if (session.tokenFamily != claimTokenFamily) {
+            // Don't log the tokenFamily values: they're not credentials,
+            // but printing them lets anyone with log-read access
+            // cross-correlate stolen-token attempts with the legitimate
+            // sessions they targeted. sessionId is enough for correlation.
             logger.warn(
-                "Refresh: tokenFamily mismatch for session {} (presented={}, session={}) — " +
+                "Refresh: tokenFamily mismatch for session {} — " +
                         "invalidating every session for user {} per OWASP guidance",
-                sessionId, claimTokenFamily, session.tokenFamily, userId
+                sessionId, userId
             )
             handleTokenReuse(
                 triggeringSession = session,
