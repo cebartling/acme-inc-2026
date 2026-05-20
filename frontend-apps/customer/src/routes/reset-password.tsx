@@ -21,7 +21,7 @@ export const Route = createFileRoute("/reset-password")({
   validateSearch: resetPasswordSearchSchema,
 });
 
-type Phase = "validating" | "form" | "submitting" | "done" | "expired";
+type Phase = "validating" | "form" | "submitting" | "done" | "expired" | "error";
 
 function ResetPasswordPage() {
   const { token } = useSearch({ from: "/reset-password" });
@@ -34,6 +34,8 @@ function ResetPasswordPage() {
   const [requirements, setRequirements] = useState<PasswordRequirement[] | null>(
     null,
   );
+  // Incrementing this triggers a fresh token-validation attempt (retry).
+  const [validationKey, setValidationKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -41,14 +43,25 @@ function ResetPasswordPage() {
       try {
         await identityApi.validatePasswordResetToken(token);
         if (!cancelled) setPhase("form");
-      } catch {
-        if (!cancelled) setPhase("expired");
+      } catch (err) {
+        if (!cancelled) {
+          // Only show "expired" when the API explicitly says the token is
+          // invalid. Network failures, 5xx responses, etc. show a retryable
+          // error state instead of misleading the user into thinking their
+          // link is gone.
+          if (err instanceof ApiError) {
+            const data = err.data as { error?: string } | undefined;
+            setPhase(data?.error === "INVALID_RESET_TOKEN" ? "expired" : "error");
+          } else {
+            setPhase("error");
+          }
+        }
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, [token, validationKey]);
 
   useEffect(() => {
     if (phase !== "done") return;
@@ -125,6 +138,29 @@ function ResetPasswordPage() {
               <Link to="/forgot-password" className="font-medium underline">
                 Request a new link
               </Link>
+            </p>
+          </div>
+        )}
+
+        {phase === "error" && (
+          <div
+            className="p-4 bg-yellow-50 dark:bg-yellow-950/50 border border-yellow-200 dark:border-yellow-800 rounded-md text-sm text-yellow-800 dark:text-yellow-200"
+            role="alert"
+            data-testid="reset-password-load-error"
+          >
+            <p className="font-medium">Something went wrong checking your reset link.</p>
+            <p className="mt-1">This is a temporary problem — please try again.</p>
+            <p className="mt-3">
+              <button
+                type="button"
+                className="font-medium underline"
+                onClick={() => {
+                  setPhase("validating");
+                  setValidationKey((k) => k + 1);
+                }}
+              >
+                Try again
+              </button>
             </p>
           </div>
         )}
