@@ -39,6 +39,22 @@ class TokenService(
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
+    companion object {
+        /**
+         * Discriminator claim value that marks a JWT as an access token.
+         * Tied with [TOKEN_USE_REFRESH] to prevent token-confusion: access
+         * and refresh tokens share an issuer + signing key, so without an
+         * explicit discriminator an attacker can present one as the other.
+         */
+        const val TOKEN_USE_ACCESS = "access"
+
+        /** Discriminator claim value that marks a JWT as a refresh token. */
+        const val TOKEN_USE_REFRESH = "refresh"
+
+        /** Claim name carrying the token-use discriminator. */
+        const val TOKEN_USE_CLAIM = "token_use"
+    }
+
     /**
      * Creates a pair of access and refresh tokens for the given user and session.
      *
@@ -122,6 +138,7 @@ class TokenService(
             .claim("email", user.email)
             .claim("roles", listOf("CUSTOMER")) // User roles - hardcoded for now, can be expanded
             .claim("sessionId", sessionId)
+            .claim("token_use", TOKEN_USE_ACCESS)
             .issueTime(Date.from(issuedAt))
             .expirationTime(Date.from(issuedAt.plus(config.accessTokenExpiry)))
             .issuer(config.issuer)
@@ -152,6 +169,7 @@ class TokenService(
             .subject(user.id.toString())
             .claim("sessionId", sessionId)
             .claim("tokenFamily", tokenFamily)
+            .claim("token_use", TOKEN_USE_REFRESH)
             .issueTime(Date.from(issuedAt))
             .expirationTime(Date.from(issuedAt.plus(config.refreshTokenExpiry)))
             .issuer(config.issuer)
@@ -273,6 +291,16 @@ class TokenService(
                 return null
             }
 
+            // Reject refresh tokens (or anything that isn't explicitly an
+            // access token) presented at access-token verification points.
+            // Tokens minted before the token_use discriminator was added are
+            // accepted for backward compatibility (claim == null branch).
+            val tokenUse = claims.getStringClaim(TOKEN_USE_CLAIM)
+            if (tokenUse != null && tokenUse != TOKEN_USE_ACCESS) {
+                logger.warn("JWT token_use mismatch: expected access, got $tokenUse")
+                return null
+            }
+
             claims
         } catch (e: Exception) {
             logger.warn("Failed to parse JWT token: ${e.message}")
@@ -315,6 +343,16 @@ class TokenService(
                 logger.warn(
                     "Refresh JWT issuer mismatch: expected ${config.issuer}, got ${claims.issuer}"
                 )
+                return null
+            }
+
+            // Reject access tokens (or anything other than a refresh token)
+            // presented at the refresh endpoint. Tokens minted before the
+            // token_use discriminator existed pass for backward compat
+            // (claim == null branch).
+            val tokenUse = claims.getStringClaim(TOKEN_USE_CLAIM)
+            if (tokenUse != null && tokenUse != TOKEN_USE_REFRESH) {
+                logger.warn("Refresh JWT token_use mismatch: expected refresh, got $tokenUse")
                 return null
             }
 

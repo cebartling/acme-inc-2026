@@ -253,6 +253,30 @@ class TokenServiceTest {
         assertNull(claims)
     }
 
+    @Test
+    fun `parseAccessTokenClaims should reject a refresh token (token_use mismatch)`() {
+        val user = createTestUser()
+        val tokens = tokenService.createTokens(user, testSessionId, testTokenFamily)
+
+        // Presenting the refresh-token JWT at an access-token verification
+        // point must fail — defense-in-depth against token confusion.
+        val claims = tokenService.parseAccessTokenClaims(tokens.refreshToken)
+
+        assertNull(claims)
+    }
+
+    @Test
+    fun `parseRefreshTokenClaims should reject an access token (token_use mismatch)`() {
+        val user = createTestUser()
+        val tokens = tokenService.createTokens(user, testSessionId, testTokenFamily)
+
+        // The symmetric guard: an access-token JWT presented at the refresh
+        // endpoint must fail even though it shares issuer and signing key.
+        val claims = tokenService.parseRefreshTokenClaims(tokens.accessToken)
+
+        assertNull(claims)
+    }
+
     private fun createTestUser(): User {
         return User(
             id = testUserId,
