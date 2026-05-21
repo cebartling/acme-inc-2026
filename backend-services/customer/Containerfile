@@ -9,7 +9,7 @@
 # -----------------------------------------------------------------------------
 # Stage 1: Build
 # -----------------------------------------------------------------------------
-FROM eclipse-temurin:24-jdk AS builder
+FROM eclipse-temurin:25-jdk AS builder
 
 WORKDIR /app
 
@@ -41,12 +41,17 @@ RUN gradle build -x test --no-daemon --parallel
 # -----------------------------------------------------------------------------
 # Stage 2: Runtime
 # -----------------------------------------------------------------------------
-FROM eclipse-temurin:24-jre
+FROM eclipse-temurin:25-jre
 
 LABEL org.opencontainers.image.title="ACME Customer Service"
 LABEL org.opencontainers.image.description="Customer profile management service for ACME Inc. e-commerce platform"
 LABEL org.opencontainers.image.vendor="ACME Inc."
 LABEL org.opencontainers.image.source="https://github.com/cebartling/acme-inc-2026"
+
+# Install wget for the HEALTHCHECK probe (not present in temurin:25-jre)
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends wget \
+    && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user for security (using 1001 to avoid conflicts with existing users)
 RUN groupadd --gid 1001 acme \
