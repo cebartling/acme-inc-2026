@@ -60,7 +60,7 @@ class SigninRateLimiter(
     @Suppress("UNCHECKED_CAST")
     private val checkScript: DefaultRedisScript<List<*>> = DefaultRedisScript(
         """
-        redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', ARGV[2])
+        redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', '(' .. ARGV[2])
         redis.call('ZADD', KEYS[1], ARGV[1], ARGV[4])
         redis.call('EXPIRE', KEYS[1], ARGV[3])
         local count = redis.call('ZCARD', KEYS[1])
