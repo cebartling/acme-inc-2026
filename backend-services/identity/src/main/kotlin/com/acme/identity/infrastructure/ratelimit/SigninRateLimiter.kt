@@ -80,9 +80,12 @@ class SigninRateLimiter(
                 return emailResult
             }
 
-            // Both scopes allowed. Surface the more restrictive (email) so
-            // clients self-pace conservatively per AC-04 / response headers.
-            emailResult
+            // Both scopes allowed. Surface whichever has fewer remaining so
+            // clients self-pace conservatively. Ties broken on earlier resetAt.
+            mostRestrictive(
+                ipResult as SigninRateLimitResult.Allowed,
+                emailResult as SigninRateLimitResult.Allowed
+            )
         } catch (e: Exception) {
             logger.error(
                 "Rate limit check failed for ip={} emailHash={}; failing open",
@@ -134,6 +137,14 @@ class SigninRateLimiter(
             remaining = (limit - count).coerceAtLeast(0),
             resetAt = now.plusSeconds(ttlSeconds)
         )
+    }
+
+    private fun mostRestrictive(
+        a: SigninRateLimitResult.Allowed,
+        b: SigninRateLimitResult.Allowed
+    ): SigninRateLimitResult.Allowed = when {
+        a.remaining != b.remaining -> if (a.remaining < b.remaining) a else b
+        else -> if (a.resetAt.isBefore(b.resetAt)) a else b
     }
 
     private fun hashEmail(email: String): String =
