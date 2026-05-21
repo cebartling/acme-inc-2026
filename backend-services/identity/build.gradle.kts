@@ -22,13 +22,6 @@ repositories {
     maven { url = uri("https://packages.confluent.io/maven/") }
 }
 
-extra["springCloudVersion"] = "2024.0.0"
-
-dependencyManagement {
-    imports {
-        mavenBom("org.springframework.cloud:spring-cloud-dependencies:${property("springCloudVersion")}")
-    }
-}
 
 dependencies {
     // Spring Boot starters
