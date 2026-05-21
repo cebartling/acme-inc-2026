@@ -7,6 +7,7 @@ import com.acme.identity.domain.UserStatus
 import com.acme.identity.infrastructure.persistence.UserRepository
 import com.acme.identity.infrastructure.security.PasswordHasher
 import com.acme.identity.infrastructure.security.RateLimiter
+import org.springframework.data.redis.core.StringRedisTemplate
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -54,6 +55,9 @@ class AuthenticationControllerIntegrationTest {
     @Autowired
     private lateinit var rateLimiter: RateLimiter
 
+    @Autowired
+    private lateinit var stringRedisTemplate: StringRedisTemplate
+
     companion object {
         @Container
         val postgres = PostgreSQLContainer("postgres:16-alpine")
@@ -86,6 +90,10 @@ class AuthenticationControllerIntegrationTest {
     fun setUp() {
         userRepository.deleteAll()
         rateLimiter.reset("127.0.0.1")
+        // Clear signin rate-limit sliding-window sorted sets between tests.
+        stringRedisTemplate.connectionFactory?.connection?.use { conn ->
+            conn.serverCommands().flushAll()
+        }
     }
 
     @Test
@@ -595,5 +603,68 @@ class AuthenticationControllerIntegrationTest {
         user.totpSecret = "JBSWY3DPEHPK3PXP" // Base32 encoded test secret
         user.failedAttempts = 0
         return userRepository.save(user)
+    }
+
+    @Test
+    fun `POST signin includes X-RateLimit headers on successful response`() {
+        val email = "ratelimit-headers@example.com"
+        val password = "ValidP@ss123!"
+        createUserWithNoMfa(email, password)
+
+        val request = SigninRequest(
+            email = email,
+            password = password,
+            rememberMe = false,
+            deviceFingerprint = null,
+            deviceTrustToken = null
+        )
+
+        mockMvc.perform(
+            post("/api/v1/auth/signin")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request))
+        )
+            .andExpect(status().isOk)
+            .andExpect(header().exists("X-RateLimit-Limit"))
+            .andExpect(header().exists("X-RateLimit-Remaining"))
+            .andExpect(header().exists("X-RateLimit-Reset"))
+    }
+
+    @Test
+    fun `POST signin returns 429 with rate-limit headers and body after exceeding email limit`() {
+        val email = "ratelimit-burst@example.com"
+        val password = "ValidP@ss123!"
+        createUserWithNoMfa(email, password)
+
+        val request = SigninRequest(
+            email = email,
+            password = "WrongPassword!",
+            rememberMe = false,
+            deviceFingerprint = null,
+            deviceTrustToken = null
+        )
+        val body = objectMapper.writeValueAsString(request)
+
+        // 5 attempts allowed per email per minute; the 6th must return 429.
+        repeat(5) {
+            mockMvc.perform(
+                post("/api/v1/auth/signin")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(body)
+            )
+        }
+
+        mockMvc.perform(
+            post("/api/v1/auth/signin")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body)
+        )
+            .andExpect(status().isTooManyRequests)
+            .andExpect(header().exists("Retry-After"))
+            .andExpect(header().exists("X-RateLimit-Limit"))
+            .andExpect(header().string("X-RateLimit-Remaining", "0"))
+            .andExpect(header().exists("X-RateLimit-Reset"))
+            .andExpect(jsonPath("$.error").value("RATE_LIMITED"))
+            .andExpect(jsonPath("$.retryAfter").isNumber)
     }
 }
