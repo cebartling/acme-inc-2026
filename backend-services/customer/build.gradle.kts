@@ -47,20 +47,20 @@ dependencies {
     implementation("org.jetbrains.kotlin:kotlin-reflect")
 
     // Arrow - Functional Programming
-    implementation("io.arrow-kt:arrow-core:2.1.0")
-    implementation("io.arrow-kt:arrow-fx-coroutines:2.1.0")
-    implementation("io.arrow-kt:arrow-core-serialization:2.1.0")
+    implementation("io.arrow-kt:arrow-core:2.2.2.1")
+    implementation("io.arrow-kt:arrow-fx-coroutines:2.2.2.1")
+    implementation("io.arrow-kt:arrow-core-serialization:2.2.2.1")
 
     // Database & Migrations
     runtimeOnly("org.postgresql:postgresql")
-    implementation("org.flywaydb:flyway-core:11.5.0")
-    implementation("org.flywaydb:flyway-database-postgresql:11.5.0")
+    implementation("org.flywaydb:flyway-core:12.6.2")
+    implementation("org.flywaydb:flyway-database-postgresql:12.6.2")
 
     // UUID v7 support
-    implementation("com.fasterxml.uuid:java-uuid-generator:5.1.0")
+    implementation("com.fasterxml.uuid:java-uuid-generator:5.2.0")
 
     // Phone number validation
-    implementation("com.googlecode.libphonenumber:libphonenumber:8.13.50")
+    implementation("com.googlecode.libphonenumber:libphonenumber:9.0.30")
 
     // Kafka
     implementation("org.springframework.kafka:spring-kafka")
@@ -70,7 +70,7 @@ dependencies {
     implementation("io.opentelemetry:opentelemetry-exporter-otlp")
 
     // Testing - JUnit 6
-    testImplementation(platform("org.junit:junit-bom:6.0.1"))
+    testImplementation(platform("org.junit:junit-bom:6.1.0"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testImplementation("org.springframework.boot:spring-boot-starter-test") {
         exclude(group = "org.junit.jupiter")
@@ -80,12 +80,12 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-webmvc-test")
     testImplementation("org.springframework.kafka:spring-kafka-test")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
-    testImplementation("io.mockk:mockk:1.13.13")
-    testImplementation("org.testcontainers:testcontainers-junit-jupiter:2.0.3")
-    testImplementation("org.testcontainers:testcontainers-postgresql:2.0.3")
-    testImplementation("org.testcontainers:testcontainers-kafka:2.0.3")
-    testImplementation("org.testcontainers:testcontainers-mongodb:2.0.3")
-    testImplementation("com.redis:testcontainers-redis:2.2.3")
+    testImplementation("io.mockk:mockk:1.14.9")
+    testImplementation("org.testcontainers:testcontainers-junit-jupiter:2.0.5")
+    testImplementation("org.testcontainers:testcontainers-postgresql:2.0.5")
+    testImplementation("org.testcontainers:testcontainers-kafka:2.0.5")
+    testImplementation("org.testcontainers:testcontainers-mongodb:2.0.5")
+    testImplementation("com.redis:testcontainers-redis:2.2.4")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
