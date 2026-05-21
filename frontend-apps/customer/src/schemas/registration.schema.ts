@@ -37,7 +37,8 @@ export const registrationSchema = z
     path: ["confirmPassword"],
   });
 
-export type RegistrationFormData = z.infer<typeof registrationSchema>;
+export type RegistrationFormInput = z.input<typeof registrationSchema>;
+export type RegistrationFormData = z.output<typeof registrationSchema>;
 
 export interface PasswordStrength {
   score: number;

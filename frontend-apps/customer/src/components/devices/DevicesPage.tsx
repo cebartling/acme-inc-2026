@@ -23,9 +23,7 @@ export function DevicesPage({ devices, onDevicesChanged }: DevicesPageProps) {
       await onDevicesChanged();
     } catch (err) {
       console.error("Failed to revoke device:", err);
-      setError(
-        err instanceof Error ? err.message : "Failed to revoke device"
-      );
+      setError(err instanceof Error ? err.message : "Failed to revoke device");
     } finally {
       setRevokingDevice(null);
     }
@@ -42,7 +40,7 @@ export function DevicesPage({ devices, onDevicesChanged }: DevicesPageProps) {
     } catch (err) {
       console.error("Failed to revoke all devices:", err);
       setError(
-        err instanceof Error ? err.message : "Failed to revoke all devices"
+        err instanceof Error ? err.message : "Failed to revoke all devices",
       );
     } finally {
       setRevokingAll(false);
@@ -77,7 +75,8 @@ export function DevicesPage({ devices, onDevicesChanged }: DevicesPageProps) {
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900">Trusted Devices</h1>
         <p className="mt-2 text-gray-600">
-          Manage devices that can bypass multi-factor authentication for 30 days.
+          Manage devices that can bypass multi-factor authentication for 30
+          days.
         </p>
       </div>
 

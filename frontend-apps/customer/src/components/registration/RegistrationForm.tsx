@@ -23,6 +23,7 @@ import {
   registrationSchema,
   calculatePasswordStrength,
   type RegistrationFormData,
+  type RegistrationFormInput,
 } from "@/schemas/registration.schema";
 
 interface RegistrationFormProps {
@@ -39,7 +40,7 @@ export function RegistrationForm({ onSubmit }: RegistrationFormProps) {
     formState: { errors, touchedFields, isValid, dirtyFields },
     setValue,
     trigger,
-  } = useForm<RegistrationFormData>({
+  } = useForm<RegistrationFormInput, unknown, RegistrationFormData>({
     resolver: zodResolver(registrationSchema),
     mode: "onBlur",
     defaultValues: {

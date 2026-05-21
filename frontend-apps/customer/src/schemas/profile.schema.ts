@@ -109,7 +109,8 @@ export type CommunicationPreferencesData = z.infer<
 >;
 export type PrivacyPreferencesData = z.infer<typeof privacyPreferencesSchema>;
 export type DisplayPreferencesData = z.infer<typeof displayPreferencesSchema>;
-export type FullPreferencesData = z.infer<typeof fullPreferencesSchema>;
+export type FullPreferencesInput = z.input<typeof fullPreferencesSchema>;
+export type FullPreferencesData = z.output<typeof fullPreferencesSchema>;
 
 // Combined Profile Data for API submission
 export const profileUpdateSchema = z.object({
@@ -126,8 +127,10 @@ export const profileUpdateSchema = z.object({
 });
 
 export type PersonalDetailsFormData = z.infer<typeof personalDetailsSchema>;
-export type AddressFormData = z.infer<typeof addressSchema>;
-export type PreferencesFormData = z.infer<typeof preferencesSchema>;
+export type AddressFormInput = z.input<typeof addressSchema>;
+export type AddressFormData = z.output<typeof addressSchema>;
+export type PreferencesFormInput = z.input<typeof preferencesSchema>;
+export type PreferencesFormData = z.output<typeof preferencesSchema>;
 export type ProfileUpdateData = z.infer<typeof profileUpdateSchema>;
 
 // Wizard data combines all steps

@@ -9,4 +9,5 @@ export const signinSchema = z.object({
   rememberMe: z.boolean().default(false),
 });
 
-export type SigninFormData = z.infer<typeof signinSchema>;
+export type SigninFormInput = z.input<typeof signinSchema>;
+export type SigninFormData = z.output<typeof signinSchema>;

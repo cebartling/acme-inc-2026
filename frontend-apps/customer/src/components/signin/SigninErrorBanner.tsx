@@ -9,8 +9,7 @@ export function SigninErrorBanner({
   message,
   remainingAttempts,
 }: SigninErrorBannerProps) {
-  const isUrgent =
-    remainingAttempts !== undefined && remainingAttempts <= 2;
+  const isUrgent = remainingAttempts !== undefined && remainingAttempts <= 2;
 
   const containerClasses = isUrgent
     ? "p-4 bg-red-100 dark:bg-red-950/60 border-2 border-red-500 dark:border-red-700 rounded-md"

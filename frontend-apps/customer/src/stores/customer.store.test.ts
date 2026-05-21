@@ -101,7 +101,7 @@ describe("useCustomerStore", () => {
   describe("fetchProfile", () => {
     it("sets loading to true when fetching starts", async () => {
       vi.mocked(customerApi.getCurrentCustomer).mockImplementation(
-        () => new Promise(() => {}) // Never resolves
+        () => new Promise(() => {}), // Never resolves
       );
 
       const { result } = renderHook(() => useCustomerStore());
@@ -116,7 +116,7 @@ describe("useCustomerStore", () => {
 
     it("sets profile and loading to false on success", async () => {
       vi.mocked(customerApi.getCurrentCustomer).mockResolvedValueOnce(
-        mockProfile
+        mockProfile,
       );
 
       const { result } = renderHook(() => useCustomerStore());
@@ -133,7 +133,7 @@ describe("useCustomerStore", () => {
     it("sets error and loading to false on failure", async () => {
       const errorMessage = "Network error";
       vi.mocked(customerApi.getCurrentCustomer).mockRejectedValueOnce(
-        new Error(errorMessage)
+        new Error(errorMessage),
       );
 
       const { result } = renderHook(() => useCustomerStore());
@@ -160,7 +160,7 @@ describe("useCustomerStore", () => {
       await expect(
         act(async () => {
           await result.current.fetchProfile();
-        })
+        }),
       ).rejects.toThrow("API Error");
     });
 
@@ -175,7 +175,7 @@ describe("useCustomerStore", () => {
 
       // Fetch should clear error
       vi.mocked(customerApi.getCurrentCustomer).mockResolvedValueOnce(
-        mockProfile
+        mockProfile,
       );
 
       await act(async () => {
@@ -315,7 +315,7 @@ describe("useCustomerStore", () => {
   describe("persistence", () => {
     it("persists profile to localStorage", async () => {
       vi.mocked(customerApi.getCurrentCustomer).mockResolvedValueOnce(
-        mockProfile
+        mockProfile,
       );
 
       await act(async () => {

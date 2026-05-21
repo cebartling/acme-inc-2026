@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   fullPreferencesSchema,
   FullPreferencesData,
+  FullPreferencesInput,
   NOTIFICATION_FREQUENCY_OPTIONS,
   CURRENCY_OPTIONS,
   LANGUAGE_OPTIONS,
@@ -75,7 +76,7 @@ export function PreferencesPage({
     control,
     handleSubmit,
     formState: { isDirty },
-  } = useForm<FullPreferencesData>({
+  } = useForm<FullPreferencesInput, unknown, FullPreferencesData>({
     resolver: zodResolver(fullPreferencesSchema),
     defaultValues,
   });
@@ -121,7 +122,7 @@ export function PreferencesPage({
         // Handle specific API errors
         if (error.data?.error === "PHONE_NOT_VERIFIED") {
           setErrorMessage(
-            "Please verify your phone number to enable SMS notifications"
+            "Please verify your phone number to enable SMS notifications",
           );
         } else if (error.data?.error === "UNSUPPORTED_LANGUAGE") {
           setErrorMessage("The selected language is not supported");
@@ -130,7 +131,7 @@ export function PreferencesPage({
         }
       } else {
         setErrorMessage(
-          error instanceof Error ? error.message : "Failed to save preferences"
+          error instanceof Error ? error.message : "Failed to save preferences",
         );
       }
     } finally {

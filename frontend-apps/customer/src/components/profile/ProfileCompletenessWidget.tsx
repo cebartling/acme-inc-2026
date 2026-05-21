@@ -135,7 +135,7 @@ function SectionItem({
           <span
             className={cn(
               "text-sm",
-              section.isComplete ? "text-green-400" : "text-gray-400"
+              section.isComplete ? "text-green-400" : "text-gray-400",
             )}
           >
             {section.score}%
@@ -143,7 +143,7 @@ function SectionItem({
           <svg
             className={cn(
               "h-4 w-4 text-gray-400 transition-transform",
-              expanded && "rotate-180"
+              expanded && "rotate-180",
             )}
             fill="none"
             viewBox="0 0 24 24"
@@ -199,7 +199,7 @@ function SectionItem({
               )}
               <span
                 className={cn(
-                  item.complete ? "text-gray-300" : "text-gray-400"
+                  item.complete ? "text-gray-300" : "text-gray-400",
                 )}
               >
                 {formatItemName(item.name)}
@@ -254,7 +254,7 @@ export function ProfileCompletenessWidget({
         setData(response);
       } catch (err) {
         setError(
-          err instanceof Error ? err.message : "Failed to load profile data"
+          err instanceof Error ? err.message : "Failed to load profile data",
         );
       } finally {
         setLoading(false);
@@ -368,7 +368,7 @@ export function ProfileCompletenessWidget({
               expanded={expandedSection === section.name}
               onToggle={() =>
                 setExpandedSection(
-                  expandedSection === section.name ? null : section.name
+                  expandedSection === section.name ? null : section.name,
                 )
               }
             />

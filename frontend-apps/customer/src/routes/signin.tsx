@@ -187,7 +187,7 @@ function SigninPage() {
             email: data.email,
             redirect: search.redirect,
             mfaMethods: response.mfaMethods,
-          })
+          }),
         );
 
         // Navigate to MFA verification page
@@ -204,14 +204,20 @@ function SigninPage() {
         // Store user info from customer profile
         setUser({
           userId: response.userId,
-          customerId: useCustomerStore.getState().profile?.customerId || response.userId,
-          email: useCustomerStore.getState().profile?.email.address || data.email,
-          firstName: useCustomerStore.getState().profile?.name.firstName || "User",
+          customerId:
+            useCustomerStore.getState().profile?.customerId || response.userId,
+          email:
+            useCustomerStore.getState().profile?.email.address || data.email,
+          firstName:
+            useCustomerStore.getState().profile?.name.firstName || "User",
           lastName: useCustomerStore.getState().profile?.name.lastName || "",
         });
       } catch (profileErr) {
         // Log error but don't block navigation - profile can be fetched later on dashboard
-        console.error("Failed to fetch customer profile after signin:", profileErr);
+        console.error(
+          "Failed to fetch customer profile after signin:",
+          profileErr,
+        );
 
         // Set minimal user info to allow navigation
         setUser({
@@ -278,8 +284,7 @@ function SigninPage() {
         }
 
         // Handle invalid credentials
-        const message =
-          errorData?.message || "Invalid email or password.";
+        const message = errorData?.message || "Invalid email or password.";
         const remainingAttempts = errorData?.remainingAttempts;
         setError({ message, remainingAttempts });
 
@@ -291,7 +296,9 @@ function SigninPage() {
               : undefined,
         });
       } else {
-        setError({ message: "An unexpected error occurred. Please try again." });
+        setError({
+          message: "An unexpected error occurred. Please try again.",
+        });
       }
       console.error("Signin error:", err);
     }
@@ -342,11 +349,14 @@ function SigninPage() {
                 </h3>
                 <div className="mt-1 text-sm text-red-700 dark:text-red-300">
                   <p>
-                    Your account has been temporarily locked due to too many failed
-                    signin attempts.
+                    Your account has been temporarily locked due to too many
+                    failed signin attempts.
                   </p>
                   {lockout.remainingSeconds > 0 && (
-                    <p className="mt-2 font-medium" data-testid="lockout-countdown">
+                    <p
+                      className="mt-2 font-medium"
+                      data-testid="lockout-countdown"
+                    >
                       Please try again in{" "}
                       <span className="tabular-nums">
                         {formatRemainingTime(lockout.remainingSeconds)}
@@ -382,7 +392,11 @@ function SigninPage() {
           />
         )}
 
-        <SigninForm onSubmit={handleSubmit} error={error} isDisabled={lockout?.isLocked} />
+        <SigninForm
+          onSubmit={handleSubmit}
+          error={error}
+          isDisabled={lockout?.isLocked}
+        />
       </div>
     </div>
   );

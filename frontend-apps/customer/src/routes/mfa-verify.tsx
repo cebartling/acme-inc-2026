@@ -51,7 +51,9 @@ function MfaVerifyPage() {
   const search = useSearch({ from: "/mfa-verify" });
   const setUser = useAuthStore((state) => state.setUser);
   const [error, setError] = useState<string | undefined>(undefined);
-  const [remainingAttempts, setRemainingAttempts] = useState<number | undefined>(undefined);
+  const [remainingAttempts, setRemainingAttempts] = useState<
+    number | undefined
+  >(undefined);
   const [isExpired, setIsExpired] = useState(false);
 
   // Get MFA state from search params or session storage
@@ -155,9 +157,14 @@ function MfaVerifyPage() {
           retryAfter?: number;
         };
 
-        if (errorData?.error === "MFA_EXPIRED" || errorData?.error === "INVALID_MFA_TOKEN") {
+        if (
+          errorData?.error === "MFA_EXPIRED" ||
+          errorData?.error === "INVALID_MFA_TOKEN"
+        ) {
           setIsExpired(true);
-          setError("Your verification session has expired. Please sign in again.");
+          setError(
+            "Your verification session has expired. Please sign in again.",
+          );
           sessionStorage.removeItem("mfaState");
           return;
         }
@@ -170,7 +177,9 @@ function MfaVerifyPage() {
           setResendCooldown(errorData.retryAfter);
         }
 
-        setError(errorData?.message || "Failed to resend code. Please try again.");
+        setError(
+          errorData?.message || "Failed to resend code. Please try again.",
+        );
       } else {
         setError("An unexpected error occurred. Please try again.");
       }
@@ -217,9 +226,14 @@ function MfaVerifyPage() {
         };
 
         // Check for expired challenge
-        if (errorData?.error === "MFA_EXPIRED" || errorData?.error === "INVALID_MFA_TOKEN") {
+        if (
+          errorData?.error === "MFA_EXPIRED" ||
+          errorData?.error === "INVALID_MFA_TOKEN"
+        ) {
           setIsExpired(true);
-          setError("Your verification session has expired. Please sign in again.");
+          setError(
+            "Your verification session has expired. Please sign in again.",
+          );
           // Clear MFA state
           sessionStorage.removeItem("mfaState");
           return;
@@ -237,7 +251,9 @@ function MfaVerifyPage() {
           }
         }
 
-        setError(errorData?.message || "Invalid verification code. Please try again.");
+        setError(
+          errorData?.message || "Invalid verification code. Please try again.",
+        );
       } else {
         setError("An unexpected error occurred. Please try again.");
       }
@@ -271,8 +287,8 @@ function MfaVerifyPage() {
             </div>
             <CardTitle>Session Expired</CardTitle>
             <CardDescription>
-              Your verification session is missing or has expired.
-              Please sign in again to continue.
+              Your verification session is missing or has expired. Please sign
+              in again to continue.
             </CardDescription>
           </CardHeader>
           <CardContent className="text-center text-sm text-muted-foreground">
@@ -309,41 +325,44 @@ function MfaVerifyPage() {
         {isResending
           ? "Sending..."
           : resendCooldown > 0
-          ? `Resend code in ${resendCooldown}s`
-          : "Resend code"}
+            ? `Resend code in ${resendCooldown}s`
+            : "Resend code"}
       </Button>
     </div>
   ) : undefined;
 
   // Method switcher component (only show if multiple methods available)
-  const methodSwitcher = hasTOTP && hasSMS ? (
-    <div className="flex justify-center gap-2 mb-6">
-      <Button
-        variant={currentMethod === "TOTP" ? "default" : "outline"}
-        size="sm"
-        onClick={() => handleSwitchMethod("TOTP")}
-        disabled={isExpired}
-      >
-        <Smartphone className="w-4 h-4 mr-2" />
-        Authenticator
-      </Button>
-      <Button
-        variant={currentMethod === "SMS" ? "default" : "outline"}
-        size="sm"
-        onClick={() => handleSwitchMethod("SMS")}
-        disabled={isExpired}
-      >
-        <MessageSquare className="w-4 h-4 mr-2" />
-        SMS
-      </Button>
-    </div>
-  ) : null;
+  const methodSwitcher =
+    hasTOTP && hasSMS ? (
+      <div className="flex justify-center gap-2 mb-6">
+        <Button
+          variant={currentMethod === "TOTP" ? "default" : "outline"}
+          size="sm"
+          onClick={() => handleSwitchMethod("TOTP")}
+          disabled={isExpired}
+        >
+          <Smartphone className="w-4 h-4 mr-2" />
+          Authenticator
+        </Button>
+        <Button
+          variant={currentMethod === "SMS" ? "default" : "outline"}
+          size="sm"
+          onClick={() => handleSwitchMethod("SMS")}
+          disabled={isExpired}
+        >
+          <MessageSquare className="w-4 h-4 mr-2" />
+          SMS
+        </Button>
+      </div>
+    ) : null;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 py-12 px-4">
       <div className="max-w-md mx-auto">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2">Verify Your Identity</h1>
+          <h1 className="text-3xl font-bold text-white mb-2">
+            Verify Your Identity
+          </h1>
           <p className="text-gray-400">
             We need to verify it&apos;s really you
           </p>

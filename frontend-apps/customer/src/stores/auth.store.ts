@@ -68,8 +68,8 @@ export const useAuthStore = create<AuthState>()(
         // Set loading to false after hydration completes
         state?.setLoading(false);
       },
-    }
-  )
+    },
+  ),
 );
 
 // Selector hooks for common selections

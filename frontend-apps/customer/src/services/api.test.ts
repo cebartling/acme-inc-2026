@@ -51,8 +51,18 @@ describe("customerApi", () => {
           Promise.resolve({
             customerId,
             preferences: {
-              communication: { email: true, sms: false, push: false, marketing: false, frequency: "IMMEDIATE" },
-              privacy: { shareDataWithPartners: false, allowAnalytics: true, allowPersonalization: true },
+              communication: {
+                email: true,
+                sms: false,
+                push: false,
+                marketing: false,
+                frequency: "IMMEDIATE",
+              },
+              privacy: {
+                shareDataWithPartners: false,
+                allowAnalytics: true,
+                allowPersonalization: true,
+              },
               display: { language: "en-US", currency: "USD", timezone: "UTC" },
             },
             updatedAt: "2024-01-15T10:00:00Z",
@@ -69,7 +79,7 @@ describe("customerApi", () => {
             "Content-Type": "application/json",
             "X-User-Id": userId,
           }),
-        })
+        }),
       );
     });
 
@@ -77,8 +87,18 @@ describe("customerApi", () => {
       const expectedResponse = {
         customerId,
         preferences: {
-          communication: { email: true, sms: false, push: false, marketing: false, frequency: "IMMEDIATE" },
-          privacy: { shareDataWithPartners: false, allowAnalytics: true, allowPersonalization: true },
+          communication: {
+            email: true,
+            sms: false,
+            push: false,
+            marketing: false,
+            frequency: "IMMEDIATE",
+          },
+          privacy: {
+            shareDataWithPartners: false,
+            allowAnalytics: true,
+            allowPersonalization: true,
+          },
           display: { language: "en-US", currency: "USD", timezone: "UTC" },
         },
         updatedAt: "2024-01-15T10:00:00Z",
@@ -102,9 +122,9 @@ describe("customerApi", () => {
         json: () => Promise.resolve({ error: "Customer not found" }),
       });
 
-      await expect(customerApi.getPreferences(customerId, userId)).rejects.toThrow(
-        ApiError
-      );
+      await expect(
+        customerApi.getPreferences(customerId, userId),
+      ).rejects.toThrow(ApiError);
     });
 
     it("throws ApiError with correct status code", async () => {
@@ -186,7 +206,7 @@ describe("customerApi", () => {
         expect.objectContaining({
           method: "GET",
           credentials: "include",
-        })
+        }),
       );
     });
 
@@ -269,7 +289,7 @@ describe("customerApi", () => {
         expect.any(String),
         expect.objectContaining({
           credentials: "include",
-        })
+        }),
       );
     });
 
@@ -412,8 +432,18 @@ describe("customerApi", () => {
           Promise.resolve({
             customerId,
             preferences: {
-              communication: { email: false, sms: false, push: false, marketing: false, frequency: "IMMEDIATE" },
-              privacy: { shareDataWithPartners: false, allowAnalytics: false, allowPersonalization: true },
+              communication: {
+                email: false,
+                sms: false,
+                push: false,
+                marketing: false,
+                frequency: "IMMEDIATE",
+              },
+              privacy: {
+                shareDataWithPartners: false,
+                allowAnalytics: false,
+                allowPersonalization: true,
+              },
               display: { language: "en-US", currency: "USD", timezone: "UTC" },
             },
             updatedAt: "2024-01-15T10:00:00Z",
@@ -431,7 +461,7 @@ describe("customerApi", () => {
             "X-User-Id": userId,
           }),
           body: JSON.stringify(preferences),
-        })
+        }),
       );
     });
 
@@ -439,9 +469,23 @@ describe("customerApi", () => {
       const expectedResponse = {
         customerId,
         preferences: {
-          communication: { email: false, sms: true, push: false, marketing: false, frequency: "DAILY_DIGEST" },
-          privacy: { shareDataWithPartners: false, allowAnalytics: false, allowPersonalization: true },
-          display: { language: "es-ES", currency: "EUR", timezone: "Europe/Madrid" },
+          communication: {
+            email: false,
+            sms: true,
+            push: false,
+            marketing: false,
+            frequency: "DAILY_DIGEST",
+          },
+          privacy: {
+            shareDataWithPartners: false,
+            allowAnalytics: false,
+            allowPersonalization: true,
+          },
+          display: {
+            language: "es-ES",
+            currency: "EUR",
+            timezone: "Europe/Madrid",
+          },
         },
         updatedAt: "2024-01-15T11:00:00Z",
       };
@@ -455,7 +499,7 @@ describe("customerApi", () => {
       const result = await customerApi.updatePreferences(
         customerId,
         userId,
-        preferences
+        preferences,
       );
       expect(result).toEqual(expectedResponse);
     });
@@ -473,7 +517,7 @@ describe("customerApi", () => {
       });
 
       await expect(
-        customerApi.updatePreferences(customerId, userId, preferences)
+        customerApi.updatePreferences(customerId, userId, preferences),
       ).rejects.toThrow(ApiError);
     });
 
@@ -665,7 +709,7 @@ describe("token-refresh interceptor", () => {
 
     // Exactly one refresh call.
     const refreshCalls = mockFetch.mock.calls.filter((args) =>
-      String(args[0]).includes("/api/v1/auth/refresh")
+      String(args[0]).includes("/api/v1/auth/refresh"),
     );
     expect(refreshCalls.length).toBe(1);
   });
@@ -709,7 +753,7 @@ describe("token-refresh interceptor", () => {
       .mockResolvedValueOnce(tokenExpired());
 
     await expect(customerApi.getCurrentCustomer()).rejects.toBeInstanceOf(
-      ApiError
+      ApiError,
     );
 
     expect(clearUser).toHaveBeenCalledOnce();
@@ -727,11 +771,11 @@ describe("token-refresh interceptor", () => {
 
   it("401 with a non-TOKEN_EXPIRED error code does not trigger refresh", async () => {
     mockFetch.mockResolvedValueOnce(
-      errorJson(401, { error: "UNAUTHORIZED", message: "Not authenticated" })
+      errorJson(401, { error: "UNAUTHORIZED", message: "Not authenticated" }),
     );
 
     await expect(customerApi.getCurrentCustomer()).rejects.toBeInstanceOf(
-      ApiError
+      ApiError,
     );
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
@@ -747,7 +791,7 @@ describe("token-refresh interceptor", () => {
       .mockResolvedValueOnce(tokenExpired());
 
     await expect(customerApi.getCurrentCustomer()).rejects.toBeInstanceOf(
-      ApiError
+      ApiError,
     );
 
     // Exactly 3 calls — no second refresh attempt.
@@ -787,7 +831,7 @@ describe("token-refresh interceptor", () => {
 
     // Exactly one /refresh call (no second one piggybacked by the 200 call).
     const refreshCalls = mockFetch.mock.calls.filter((args) =>
-      String(args[0]).includes("/api/v1/auth/refresh")
+      String(args[0]).includes("/api/v1/auth/refresh"),
     );
     expect(refreshCalls.length).toBe(1);
   });
@@ -832,16 +876,12 @@ describe("identityApi password reset", () => {
   });
 
   it("validatePasswordResetToken GETs the token-scoped URL and URL-encodes it", async () => {
-    mockFetch.mockResolvedValueOnce(
-      okJson({ valid: true, expiresIn: 3540 }),
-    );
+    mockFetch.mockResolvedValueOnce(okJson({ valid: true, expiresIn: 3540 }));
 
     const result = await identityApi.validatePasswordResetToken("rst_abc def");
 
     expect(mockFetch).toHaveBeenCalledWith(
-      expect.stringContaining(
-        "/api/v1/auth/password-reset/rst_abc%20def",
-      ),
+      expect.stringContaining("/api/v1/auth/password-reset/rst_abc%20def"),
       expect.objectContaining({ method: "GET" }),
     );
     expect(result).toEqual({ valid: true, expiresIn: 3540 });
@@ -886,7 +926,11 @@ describe("identityApi password reset", () => {
           message: "Password does not meet requirements",
           requirements: [
             { rule: "MIN_LENGTH", met: true, detail: "At least 8 characters" },
-            { rule: "UPPERCASE", met: false, detail: "At least one uppercase letter" },
+            {
+              rule: "UPPERCASE",
+              met: false,
+              detail: "At least one uppercase letter",
+            },
           ],
         }),
     });
@@ -896,4 +940,3 @@ describe("identityApi password reset", () => {
     ).rejects.toBeInstanceOf(ApiError);
   });
 });
-
