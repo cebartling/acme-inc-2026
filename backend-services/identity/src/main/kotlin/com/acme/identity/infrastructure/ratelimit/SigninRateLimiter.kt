@@ -3,13 +3,12 @@ package com.acme.identity.infrastructure.ratelimit
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.data.redis.core.StringRedisTemplate
+import org.springframework.data.redis.core.script.DefaultRedisScript
 import org.springframework.stereotype.Component
 import java.security.MessageDigest
 import java.time.Clock
-import java.time.Duration
 import java.time.Instant
 import java.util.UUID
-import java.util.concurrent.TimeUnit
 
 /**
  * Redis-backed sliding-window rate limiter for the customer signin endpoint.
@@ -46,6 +45,32 @@ class SigninRateLimiter(
     private val clock: Clock = Clock.systemUTC()
 ) {
     private val logger = LoggerFactory.getLogger(SigninRateLimiter::class.java)
+
+    /**
+     * Atomic sliding-window check executed as a single Redis Lua script.
+     * Prune → add → expire → count → oldest happen under one keyspace lock,
+     * preventing the race that would otherwise let concurrent callers exceed
+     * the configured limit.
+     *
+     * KEYS[1] = sorted-set key
+     * ARGV[1] = now (ms), ARGV[2] = windowStart (ms),
+     * ARGV[3] = windowSeconds, ARGV[4] = unique member
+     * Returns: { count, oldestScoreMs }
+     */
+    @Suppress("UNCHECKED_CAST")
+    private val checkScript: DefaultRedisScript<List<*>> = DefaultRedisScript(
+        """
+        redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', ARGV[2])
+        redis.call('ZADD', KEYS[1], ARGV[1], ARGV[4])
+        redis.call('EXPIRE', KEYS[1], ARGV[3])
+        local count = redis.call('ZCARD', KEYS[1])
+        local oldest = redis.call('ZRANGE', KEYS[1], 0, 0, 'WITHSCORES')
+        local oldestScore = ARGV[1]
+        if oldest[2] then oldestScore = oldest[2] end
+        return { tostring(count), tostring(oldestScore) }
+        """.trimIndent(),
+        List::class.java as Class<List<*>>
+    )
 
     fun checkLimit(ipAddress: String, email: String): SigninRateLimitResult {
         val now = Instant.now(clock)
@@ -108,17 +133,20 @@ class SigninRateLimiter(
     ): SigninRateLimitResult {
         val nowMs = now.toEpochMilli()
         val windowStartMs = nowMs - windowSeconds * 1000
+        val member = "$nowMs:${UUID.randomUUID()}"
 
-        val zset = redisTemplate.opsForZSet()
-        zset.removeRangeByScore(key, Double.NEGATIVE_INFINITY, windowStartMs.toDouble())
-        zset.add(key, "$nowMs:${UUID.randomUUID()}", nowMs.toDouble())
-        redisTemplate.expire(key, Duration.ofSeconds(windowSeconds))
-
-        val count = (zset.zCard(key) ?: 0L).toInt()
+        val result = redisTemplate.execute(
+            checkScript,
+            listOf(key),
+            nowMs.toString(),
+            windowStartMs.toString(),
+            windowSeconds.toString(),
+            member
+        )
+        val count = (result?.getOrNull(0) as? String)?.toIntOrNull() ?: 0
+        val oldestMs = (result?.getOrNull(1) as? String)?.toLongOrNull() ?: nowMs
 
         if (count > limit) {
-            val oldest = zset.rangeWithScores(key, 0, 0)?.firstOrNull()
-            val oldestMs = oldest?.score?.toLong() ?: nowMs
             val retryAfterMs = (oldestMs + windowSeconds * 1000) - nowMs
             val retryAfterSeconds = ((retryAfterMs + 999) / 1000).coerceAtLeast(1).toInt()
             return SigninRateLimitResult.Limited(
@@ -130,12 +158,10 @@ class SigninRateLimiter(
             )
         }
 
-        val ttlSeconds = redisTemplate.getExpire(key, TimeUnit.SECONDS).takeIf { it > 0 }
-            ?: windowSeconds
         return SigninRateLimitResult.Allowed(
             limit = limit,
             remaining = (limit - count).coerceAtLeast(0),
-            resetAt = now.plusSeconds(ttlSeconds)
+            resetAt = Instant.ofEpochMilli(oldestMs + windowSeconds * 1000)
         )
     }
 
