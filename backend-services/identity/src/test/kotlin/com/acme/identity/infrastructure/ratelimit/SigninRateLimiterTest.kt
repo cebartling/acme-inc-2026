@@ -66,7 +66,9 @@ class SigninRateLimiterTest {
 
     @BeforeEach
     fun setUp() {
-        redisTemplate.connectionFactory?.connection?.serverCommands()?.flushAll()
+        redisTemplate.connectionFactory?.connection?.use { conn ->
+            conn.serverCommands().flushAll()
+        }
         clock = MutableClock(Instant.parse("2026-05-20T12:00:00Z"))
     }
 
