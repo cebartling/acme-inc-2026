@@ -48,14 +48,20 @@ class SigninRateLimiter(
 
     /**
      * Atomic sliding-window check executed as a single Redis Lua script.
-     * Prune → add → expire → count → oldest happen under one keyspace lock,
-     * preventing the race that would otherwise let concurrent callers exceed
-     * the configured limit.
+     * Prune → add → expire → count → reset-score happen under one keyspace
+     * lock, preventing the race that would otherwise let concurrent callers
+     * exceed the configured limit.
+     *
+     * When count > limit, the returned score is the (count-limit-1)-th
+     * oldest entry — the one whose expiry will bring the in-window count
+     * back down to the limit. Using the absolute oldest would underestimate
+     * Retry-After under bursts. When count <= limit, the oldest is returned
+     * so X-RateLimit-Reset reflects when the window frees capacity.
      *
      * KEYS[1] = sorted-set key
      * ARGV[1] = now (ms), ARGV[2] = windowStart (ms),
-     * ARGV[3] = windowSeconds, ARGV[4] = unique member
-     * Returns: { count, oldestScoreMs }
+     * ARGV[3] = windowSeconds, ARGV[4] = unique member, ARGV[5] = limit
+     * Returns: { count, resetScoreMs }
      */
     @Suppress("UNCHECKED_CAST")
     private val checkScript: DefaultRedisScript<List<*>> = DefaultRedisScript(
@@ -64,10 +70,17 @@ class SigninRateLimiter(
         redis.call('ZADD', KEYS[1], ARGV[1], ARGV[4])
         redis.call('EXPIRE', KEYS[1], ARGV[3])
         local count = redis.call('ZCARD', KEYS[1])
-        local oldest = redis.call('ZRANGE', KEYS[1], 0, 0, 'WITHSCORES')
-        local oldestScore = ARGV[1]
-        if oldest[2] then oldestScore = oldest[2] end
-        return { tostring(count), tostring(oldestScore) }
+        local limit = tonumber(ARGV[5])
+        local resetScore = ARGV[1]
+        if count > limit then
+            local rank = count - limit - 1
+            local entry = redis.call('ZRANGE', KEYS[1], rank, rank, 'WITHSCORES')
+            if entry[2] then resetScore = entry[2] end
+        else
+            local oldest = redis.call('ZRANGE', KEYS[1], 0, 0, 'WITHSCORES')
+            if oldest[2] then resetScore = oldest[2] end
+        end
+        return { tostring(count), tostring(resetScore) }
         """.trimIndent(),
         List::class.java as Class<List<*>>
     )
@@ -141,17 +154,19 @@ class SigninRateLimiter(
             nowMs.toString(),
             windowStartMs.toString(),
             windowSeconds.toString(),
-            member
+            member,
+            limit.toString()
         )
         val count = (result?.getOrNull(0) as? String)?.toIntOrNull() ?: 0
-        val oldestMs = (result?.getOrNull(1) as? String)?.toLongOrNull() ?: nowMs
+        val resetScoreMs = (result?.getOrNull(1) as? String)?.toLongOrNull() ?: nowMs
+        val resetAt = Instant.ofEpochMilli(resetScoreMs + windowSeconds * 1000)
 
         if (count > limit) {
-            val retryAfterMs = (oldestMs + windowSeconds * 1000) - nowMs
+            val retryAfterMs = resetAt.toEpochMilli() - nowMs
             val retryAfterSeconds = ((retryAfterMs + 999) / 1000).coerceAtLeast(1).toInt()
             return SigninRateLimitResult.Limited(
                 limit = limit,
-                resetAt = Instant.ofEpochMilli(oldestMs + windowSeconds * 1000),
+                resetAt = resetAt,
                 retryAfterSeconds = retryAfterSeconds,
                 scope = scope,
                 currentCount = count
@@ -161,7 +176,7 @@ class SigninRateLimiter(
         return SigninRateLimitResult.Allowed(
             limit = limit,
             remaining = (limit - count).coerceAtLeast(0),
-            resetAt = Instant.ofEpochMilli(oldestMs + windowSeconds * 1000)
+            resetAt = resetAt
         )
     }
 

@@ -162,6 +162,27 @@ class SigninRateLimiterTest {
     }
 
     @Test
+    fun `retryAfter under burst reflects when capacity actually returns`() {
+        val limiter = newLimiter(ipLimit = 10, windowSeconds = 60)
+
+        // 10 requests at t=0 saturate the IP.
+        repeat(10) { limiter.checkLimit("8.8.8.8", "u$it@example.com") }
+        // 10 more at t=10s create a burst beyond the limit.
+        clock.advance(10)
+        repeat(10) { limiter.checkLimit("8.8.8.8", "burst$it@example.com") }
+
+        // 21st request: count=21, rank (count-limit-1)=10 — the first burst entry
+        // at t=10s. Its expiry at t=70s (60s window) is what truly frees capacity,
+        // so Retry-After should be ~60s, NOT ~50s (the oldest at t=0 expires at t=60).
+        val limited = limiter.checkLimit("8.8.8.8", "extra@example.com")
+        val result = assertIs<SigninRateLimitResult.Limited>(limited)
+        assertTrue(
+            result.retryAfterSeconds in 55..60,
+            "expected retryAfter ~60s for burst, got ${result.retryAfterSeconds}"
+        )
+    }
+
+    @Test
     fun `disabled limiter does not touch redis and returns Allowed`() {
         val template = mockk<StringRedisTemplate>()
         val limiter = newLimiter(enabled = false, template = template)
