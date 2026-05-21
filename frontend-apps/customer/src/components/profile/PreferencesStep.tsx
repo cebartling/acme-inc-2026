@@ -13,6 +13,7 @@ import {
 import {
   preferencesSchema,
   type PreferencesFormData,
+  type PreferencesFormInput,
   NOTIFICATION_FREQUENCY_OPTIONS,
 } from "@/schemas/profile.schema";
 import {
@@ -28,7 +29,11 @@ export function PreferencesStep() {
     (state) => state.goToPreviousStep,
   );
 
-  const { handleSubmit, control } = useForm<PreferencesFormData>({
+  const { handleSubmit, control } = useForm<
+    PreferencesFormInput,
+    unknown,
+    PreferencesFormData
+  >({
     resolver: zodResolver(preferencesSchema),
     defaultValues: existingData || {
       emailNotifications: true,

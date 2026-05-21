@@ -89,11 +89,16 @@ export function InactiveAccountMessage({
     } catch (err) {
       setResendStatus("error");
       if (err instanceof ApiError) {
-        const data = err.data as { retryAfter?: number; message?: string } | undefined;
+        const data = err.data as
+          | { retryAfter?: number; message?: string }
+          | undefined;
         if (err.status === 429 && data?.retryAfter) {
           setCooldown(data.retryAfter);
         }
-        setResendError(data?.message ?? "Unable to resend right now. Please try again later.");
+        setResendError(
+          data?.message ??
+            "Unable to resend right now. Please try again later.",
+        );
       } else {
         setResendError("Unable to resend right now. Please try again later.");
       }

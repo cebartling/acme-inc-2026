@@ -21,7 +21,13 @@ export const Route = createFileRoute("/reset-password")({
   validateSearch: resetPasswordSearchSchema,
 });
 
-type Phase = "validating" | "form" | "submitting" | "done" | "expired" | "error";
+type Phase =
+  | "validating"
+  | "form"
+  | "submitting"
+  | "done"
+  | "expired"
+  | "error";
 
 function ResetPasswordPage() {
   const { token } = useSearch({ from: "/reset-password" });
@@ -31,9 +37,9 @@ function ResetPasswordPage() {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [requirements, setRequirements] = useState<PasswordRequirement[] | null>(
-    null,
-  );
+  const [requirements, setRequirements] = useState<
+    PasswordRequirement[] | null
+  >(null);
   // Incrementing this triggers a fresh token-validation attempt (retry).
   const [validationKey, setValidationKey] = useState(0);
 
@@ -51,7 +57,9 @@ function ResetPasswordPage() {
           // link is gone.
           if (err instanceof ApiError) {
             const data = err.data as { error?: string } | undefined;
-            setPhase(data?.error === "INVALID_RESET_TOKEN" ? "expired" : "error");
+            setPhase(
+              data?.error === "INVALID_RESET_TOKEN" ? "expired" : "error",
+            );
           } else {
             setPhase("error");
           }
@@ -95,7 +103,10 @@ function ResetPasswordPage() {
               requirements?: PasswordRequirement[];
             }
           | undefined;
-        if (data?.error === "PASSWORD_REQUIREMENTS_NOT_MET" && data.requirements) {
+        if (
+          data?.error === "PASSWORD_REQUIREMENTS_NOT_MET" &&
+          data.requirements
+        ) {
           setRequirements(data.requirements);
           setError(data.message ?? "Password does not meet requirements.");
         } else if (data?.error === "INVALID_RESET_TOKEN") {
@@ -133,7 +144,9 @@ function ResetPasswordPage() {
             role="alert"
             data-testid="reset-password-expired"
           >
-            <p className="font-medium">This password reset link is invalid or has expired.</p>
+            <p className="font-medium">
+              This password reset link is invalid or has expired.
+            </p>
             <p className="mt-3">
               <Link to="/forgot-password" className="font-medium underline">
                 Request a new link
@@ -148,8 +161,12 @@ function ResetPasswordPage() {
             role="alert"
             data-testid="reset-password-load-error"
           >
-            <p className="font-medium">Something went wrong checking your reset link.</p>
-            <p className="mt-1">This is a temporary problem — please try again.</p>
+            <p className="font-medium">
+              Something went wrong checking your reset link.
+            </p>
+            <p className="mt-1">
+              This is a temporary problem — please try again.
+            </p>
             <p className="mt-3">
               <button
                 type="button"

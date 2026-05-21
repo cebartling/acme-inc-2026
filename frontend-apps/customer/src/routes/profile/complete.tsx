@@ -20,7 +20,7 @@ function ProfileCompletePage() {
   // Redirect to login if not authenticated
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
-      navigate({ to: "/login" });
+      navigate({ to: "/signin" });
     }
   }, [isLoading, isAuthenticated, navigate]);
 

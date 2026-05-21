@@ -1,10 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { DevicesPage } from "@/components/devices/DevicesPage";
-import {
-  useIsAuthenticated,
-  useIsAuthLoading,
-} from "@/stores/auth.store";
+import { useIsAuthenticated, useIsAuthLoading } from "@/stores/auth.store";
 import { identityApi, type TrustedDevice } from "@/services/api";
 
 export const Route = createFileRoute("/devices")({
@@ -41,7 +38,7 @@ function DevicesPageRoute() {
         setLoadError(
           error instanceof Error
             ? error.message
-            : "Failed to load trusted devices."
+            : "Failed to load trusted devices.",
         );
       } finally {
         setIsLoadingDevices(false);
@@ -70,7 +67,9 @@ function DevicesPageRoute() {
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto" />
           <p className="mt-2 text-sm text-gray-600">
-            {isAuthLoading ? "Checking authentication..." : "Loading devices..."}
+            {isAuthLoading
+              ? "Checking authentication..."
+              : "Loading devices..."}
           </p>
         </div>
       </div>

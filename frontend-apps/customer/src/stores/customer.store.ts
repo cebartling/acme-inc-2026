@@ -42,7 +42,9 @@ export const useCustomerStore = create<CustomerStore>()(
           set({ profile, isLoading: false, error: null });
         } catch (err) {
           const error =
-            err instanceof Error ? err.message : "Failed to load customer profile";
+            err instanceof Error
+              ? err.message
+              : "Failed to load customer profile";
           set({ error, isLoading: false, profile: null });
           throw err; // Re-throw to allow callers to handle
         }
@@ -62,8 +64,8 @@ export const useCustomerStore = create<CustomerStore>()(
         // Only persist the profile, not loading/error states
         profile: state.profile,
       }),
-    }
-  )
+    },
+  ),
 );
 
 // Selector hooks for convenience

@@ -5,7 +5,7 @@ import type { PasswordStrength } from "@/schemas/registration.schema";
 
 describe("PasswordStrengthIndicator", () => {
   const createStrength = (
-    overrides: Partial<PasswordStrength> = {}
+    overrides: Partial<PasswordStrength> = {},
   ): PasswordStrength => ({
     score: 0,
     label: "Weak",
@@ -23,14 +23,14 @@ describe("PasswordStrengthIndicator", () => {
   describe("visibility", () => {
     it("renders nothing when show is false", () => {
       const { container } = render(
-        <PasswordStrengthIndicator strength={createStrength()} show={false} />
+        <PasswordStrengthIndicator strength={createStrength()} show={false} />,
       );
       expect(container.firstChild).toBeNull();
     });
 
     it("renders content when show is true", () => {
       render(
-        <PasswordStrengthIndicator strength={createStrength()} show={true} />
+        <PasswordStrengthIndicator strength={createStrength()} show={true} />,
       );
       expect(screen.getByText("Weak")).toBeInTheDocument();
     });
@@ -42,7 +42,7 @@ describe("PasswordStrengthIndicator", () => {
         <PasswordStrengthIndicator
           strength={createStrength({ label: "Weak" })}
           show={true}
-        />
+        />,
       );
       const label = screen.getByText("Weak");
       expect(label).toBeInTheDocument();
@@ -58,7 +58,7 @@ describe("PasswordStrengthIndicator", () => {
             color: "bg-orange-500",
           })}
           show={true}
-        />
+        />,
       );
       const label = screen.getByText("Fair");
       expect(label).toBeInTheDocument();
@@ -74,7 +74,7 @@ describe("PasswordStrengthIndicator", () => {
             color: "bg-yellow-500",
           })}
           show={true}
-        />
+        />,
       );
       const label = screen.getByText("Good");
       expect(label).toBeInTheDocument();
@@ -90,7 +90,7 @@ describe("PasswordStrengthIndicator", () => {
             color: "bg-green-500",
           })}
           show={true}
-        />
+        />,
       );
       const label = screen.getByText("Strong");
       expect(label).toBeInTheDocument();
@@ -101,20 +101,20 @@ describe("PasswordStrengthIndicator", () => {
   describe("requirements display", () => {
     it("displays all requirement labels", () => {
       render(
-        <PasswordStrengthIndicator strength={createStrength()} show={true} />
+        <PasswordStrengthIndicator strength={createStrength()} show={true} />,
       );
       expect(screen.getByText("Minimum 8 characters")).toBeInTheDocument();
       expect(
-        screen.getByText("At least one uppercase letter")
+        screen.getByText("At least one uppercase letter"),
       ).toBeInTheDocument();
       expect(
-        screen.getByText("At least one lowercase letter")
+        screen.getByText("At least one lowercase letter"),
       ).toBeInTheDocument();
       expect(screen.getByText("At least one digit")).toBeInTheDocument();
       expect(
         screen.getByText(
-          "At least one special character (!@#$%^&*()_+-=[]{}|;:,.<>?)"
-        )
+          "At least one special character (!@#$%^&*()_+-=[]{}|;:,.<>?)",
+        ),
       ).toBeInTheDocument();
     });
 
@@ -131,7 +131,7 @@ describe("PasswordStrengthIndicator", () => {
             },
           })}
           show={true}
-        />
+        />,
       );
       // Requirements that are met should have green text
       const minLengthText = screen.getByText("Minimum 8 characters");
@@ -158,20 +158,20 @@ describe("PasswordStrengthIndicator", () => {
             },
           })}
           show={true}
-        />
+        />,
       );
       // All requirements should have gray text (not met)
       expect(screen.getByText("Minimum 8 characters")).toHaveClass(
-        "text-gray-600"
+        "text-gray-600",
       );
       expect(screen.getByText("At least one uppercase letter")).toHaveClass(
-        "text-gray-600"
+        "text-gray-600",
       );
       expect(screen.getByText("At least one lowercase letter")).toHaveClass(
-        "text-gray-600"
+        "text-gray-600",
       );
       expect(screen.getByText("At least one digit")).toHaveClass(
-        "text-gray-600"
+        "text-gray-600",
       );
     });
   });
@@ -182,7 +182,7 @@ describe("PasswordStrengthIndicator", () => {
         <PasswordStrengthIndicator
           strength={createStrength({ score: 0 })}
           show={true}
-        />
+        />,
       );
       const progressBar = container.querySelector('[class*="h-full"]');
       expect(progressBar).toHaveStyle({ width: "25%" });
@@ -193,7 +193,7 @@ describe("PasswordStrengthIndicator", () => {
         <PasswordStrengthIndicator
           strength={createStrength({ score: 1 })}
           show={true}
-        />
+        />,
       );
       const progressBar = container.querySelector('[class*="h-full"]');
       expect(progressBar).toHaveStyle({ width: "50%" });
@@ -204,7 +204,7 @@ describe("PasswordStrengthIndicator", () => {
         <PasswordStrengthIndicator
           strength={createStrength({ score: 2 })}
           show={true}
-        />
+        />,
       );
       const progressBar = container.querySelector('[class*="h-full"]');
       expect(progressBar).toHaveStyle({ width: "75%" });
@@ -215,7 +215,7 @@ describe("PasswordStrengthIndicator", () => {
         <PasswordStrengthIndicator
           strength={createStrength({ score: 3 })}
           show={true}
-        />
+        />,
       );
       const progressBar = container.querySelector('[class*="h-full"]');
       expect(progressBar).toHaveStyle({ width: "100%" });
@@ -226,7 +226,7 @@ describe("PasswordStrengthIndicator", () => {
         <PasswordStrengthIndicator
           strength={createStrength({ color: "bg-green-500" })}
           show={true}
-        />
+        />,
       );
       const progressBar = container.querySelector('[class*="h-full"]');
       expect(progressBar).toHaveClass("bg-green-500");

@@ -41,7 +41,7 @@ describe("cn", () => {
       const isActive = true;
       const isDisabled = false;
       expect(cn("base", isActive && "active", isDisabled && "disabled")).toBe(
-        "base active"
+        "base active",
       );
     });
   });
@@ -133,10 +133,10 @@ describe("cn", () => {
         "px-4 py-2",
         isError && "border-red-500 text-red-500",
         isDisabled && "opacity-50 cursor-not-allowed",
-        { "hover:bg-gray-100": !isDisabled }
+        { "hover:bg-gray-100": !isDisabled },
       );
       expect(result).toBe(
-        "base-class px-4 py-2 border-red-500 text-red-500 hover:bg-gray-100"
+        "base-class px-4 py-2 border-red-500 text-red-500 hover:bg-gray-100",
       );
     });
 
@@ -144,14 +144,14 @@ describe("cn", () => {
       // Base styles with override
       const result = cn(
         "p-4 text-gray-500 bg-white",
-        "text-red-500" // Override text color
+        "text-red-500", // Override text color
       );
       expect(result).toBe("p-4 bg-white text-red-500");
     });
 
     it("handles component variant pattern", () => {
-      const variant = "primary";
-      const size = "lg";
+      const variant = "primary" as "primary" | "secondary";
+      const size = "lg" as "sm" | "lg";
       const result = cn(
         "btn",
         {
@@ -161,7 +161,7 @@ describe("cn", () => {
         {
           "btn-sm": size === "sm",
           "btn-lg": size === "lg",
-        }
+        },
       );
       expect(result).toBe("btn btn-primary btn-lg");
     });

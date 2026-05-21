@@ -15,6 +15,7 @@ import { FormField } from "@/components/registration/FormField";
 import {
   addressSchema,
   type AddressFormData,
+  type AddressFormInput,
   ADDRESS_TYPE_OPTIONS,
   COUNTRY_OPTIONS,
   US_STATES,
@@ -38,7 +39,7 @@ export function AddressStep() {
     control,
     watch,
     formState: { errors, touchedFields, dirtyFields, isSubmitted },
-  } = useForm<AddressFormData>({
+  } = useForm<AddressFormInput, unknown, AddressFormData>({
     resolver: zodResolver(addressSchema),
     mode: "onBlur",
     defaultValues: existingData || {

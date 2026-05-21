@@ -17,7 +17,7 @@ export class ApiError extends Error {
   constructor(
     message: string,
     public status: number,
-    public data?: Record<string, unknown>
+    public data?: Record<string, unknown>,
   ) {
     super(message);
     this.name = "ApiError";
@@ -130,7 +130,7 @@ async function handleRefreshFailure(): Promise<void> {
  */
 async function apiRequest<T>(
   url: string,
-  options: RefreshAwareRequestInit = {}
+  options: RefreshAwareRequestInit = {},
 ): Promise<T> {
   const { __isRetry, __skipRefresh, ...fetchOptions } = options;
   const headers: HeadersInit = {
@@ -169,11 +169,7 @@ async function apiRequest<T>(
     if (isRefreshing) {
       // Another request is already refreshing. Queue up; once the
       // refresh resolves we retry our original request.
-      try {
-        await waitForRefresh();
-      } catch (refreshError) {
-        throw refreshError;
-      }
+      await waitForRefresh();
       return apiRequest<T>(url, { ...options, __isRetry: true });
     }
 
@@ -198,7 +194,7 @@ async function apiRequest<T>(
   throw new ApiError(
     errorData?.error || errorData?.message || `HTTP ${response.status}`,
     response.status,
-    errorData
+    errorData,
   );
 }
 
@@ -211,7 +207,7 @@ export const customerApi = {
    */
   async getPreferences(
     customerId: string,
-    userId: string
+    userId: string,
   ): Promise<PreferencesResponse> {
     return apiRequest<PreferencesResponse>(
       `${CUSTOMER_SERVICE_URL}/api/v1/customers/${customerId}/preferences`,
@@ -220,7 +216,7 @@ export const customerApi = {
         headers: {
           "X-User-Id": userId,
         },
-      }
+      },
     );
   },
 
@@ -230,7 +226,7 @@ export const customerApi = {
   async updatePreferences(
     customerId: string,
     userId: string,
-    preferences: UpdatePreferencesRequest
+    preferences: UpdatePreferencesRequest,
   ): Promise<PreferencesResponse> {
     return apiRequest<PreferencesResponse>(
       `${CUSTOMER_SERVICE_URL}/api/v1/customers/${customerId}/preferences`,
@@ -240,7 +236,7 @@ export const customerApi = {
           "X-User-Id": userId,
         },
         body: JSON.stringify(preferences),
-      }
+      },
     );
   },
 
@@ -248,13 +244,13 @@ export const customerApi = {
    * Gets a customer's profile completeness breakdown.
    */
   async getProfileCompleteness(
-    customerId: string
+    customerId: string,
   ): Promise<ProfileCompletenessResponse> {
     return apiRequest<ProfileCompletenessResponse>(
       `${CUSTOMER_SERVICE_URL}/api/v1/customers/${customerId}/profile/completeness`,
       {
         method: "GET",
-      }
+      },
     );
   },
 
@@ -273,7 +269,7 @@ export const customerApi = {
       {
         method: "GET",
         credentials: "include", // Include cookies for authentication
-      }
+      },
     );
   },
 };
@@ -669,7 +665,7 @@ export const identityApi = {
         method: "POST",
         body: JSON.stringify(credentials),
         credentials: "include", // Include cookies for device trust
-      }
+      },
     );
   },
 
@@ -687,7 +683,7 @@ export const identityApi = {
         method: "POST",
         body: JSON.stringify(request),
         credentials: "include", // Include cookies for device trust
-      }
+      },
     );
   },
 
@@ -704,7 +700,7 @@ export const identityApi = {
       {
         method: "POST",
         body: JSON.stringify(request),
-      }
+      },
     );
   },
 
@@ -720,7 +716,7 @@ export const identityApi = {
       {
         method: "GET",
         credentials: "include", // Include cookies for authentication
-      }
+      },
     );
   },
 
@@ -736,7 +732,7 @@ export const identityApi = {
       {
         method: "DELETE",
         credentials: "include", // Include cookies for authentication
-      }
+      },
     );
   },
 
@@ -746,13 +742,10 @@ export const identityApi = {
    * @throws ApiError on failure (401 if not authenticated).
    */
   async revokeAllDevices(): Promise<void> {
-    return apiRequest<void>(
-      `${IDENTITY_SERVICE_URL}/api/v1/auth/devices`,
-      {
-        method: "DELETE",
-        credentials: "include", // Include cookies for authentication
-      }
-    );
+    return apiRequest<void>(`${IDENTITY_SERVICE_URL}/api/v1/auth/devices`, {
+      method: "DELETE",
+      credentials: "include", // Include cookies for authentication
+    });
   },
 
   /**
@@ -767,7 +760,7 @@ export const identityApi = {
       {
         method: "POST",
         credentials: "include",
-      }
+      },
     );
   },
 
@@ -784,7 +777,7 @@ export const identityApi = {
       {
         method: "POST",
         credentials: "include",
-      }
+      },
     );
   },
 
@@ -794,15 +787,13 @@ export const identityApi = {
    * regardless of whether the email maps to a real account, to prevent
    * enumeration.
    */
-  async resendVerification(
-    email: string
-  ): Promise<ResendVerificationResponse> {
+  async resendVerification(email: string): Promise<ResendVerificationResponse> {
     return apiRequest<ResendVerificationResponse>(
       `${IDENTITY_SERVICE_URL}/api/v1/users/verify/resend`,
       {
         method: "POST",
         body: JSON.stringify({ email }),
-      }
+      },
     );
   },
 
@@ -816,14 +807,14 @@ export const identityApi = {
    */
   async reactivateAccount(
     email: string,
-    password: string
+    password: string,
   ): Promise<ReactivateAccountResponse> {
     return apiRequest<ReactivateAccountResponse>(
       `${IDENTITY_SERVICE_URL}/api/v1/auth/reactivate`,
       {
         method: "POST",
         body: JSON.stringify({ email, password }),
-      }
+      },
     );
   },
 
@@ -839,7 +830,7 @@ export const identityApi = {
       {
         method: "POST",
         body: JSON.stringify({ email }),
-      }
+      },
     );
   },
 
@@ -848,11 +839,11 @@ export const identityApi = {
    * ApiError) if the token is invalid, expired, or already used.
    */
   async validatePasswordResetToken(
-    token: string
+    token: string,
   ): Promise<PasswordResetTokenValidResponse> {
     return apiRequest<PasswordResetTokenValidResponse>(
       `${IDENTITY_SERVICE_URL}/api/v1/auth/password-reset/${encodeURIComponent(token)}`,
-      { method: "GET" }
+      { method: "GET" },
     );
   },
 
@@ -863,14 +854,14 @@ export const identityApi = {
    */
   async confirmPasswordReset(
     token: string,
-    newPassword: string
+    newPassword: string,
   ): Promise<PasswordResetConfirmResponse> {
     return apiRequest<PasswordResetConfirmResponse>(
       `${IDENTITY_SERVICE_URL}/api/v1/auth/password-reset/confirm`,
       {
         method: "POST",
         body: JSON.stringify({ token, newPassword }),
-      }
+      },
     );
   },
 };

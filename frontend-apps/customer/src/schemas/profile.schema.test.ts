@@ -43,7 +43,7 @@ describe("personalDetailsSchema", () => {
       expect(result.success).toBe(false);
       if (!result.success) {
         expect(result.error.issues[0].message).toBe(
-          "Invalid phone number format"
+          "Invalid phone number format",
         );
       }
     });
@@ -92,7 +92,7 @@ describe("personalDetailsSchema", () => {
       expect(result.success).toBe(false);
       if (!result.success) {
         expect(result.error.issues[0].message).toBe(
-          "You must be at least 13 years old"
+          "You must be at least 13 years old",
         );
       }
     });
@@ -176,7 +176,7 @@ describe("addressSchema", () => {
     });
 
     it("rejects missing street address", () => {
-      const { streetLine1, ...incomplete } = validAddress;
+      const { streetLine1: _streetLine1, ...incomplete } = validAddress;
       const result = addressSchema.safeParse(incomplete);
       expect(result.success).toBe(false);
     });
@@ -190,7 +190,7 @@ describe("addressSchema", () => {
     });
 
     it("rejects missing city", () => {
-      const { city, ...incomplete } = validAddress;
+      const { city: _city, ...incomplete } = validAddress;
       const result = addressSchema.safeParse(incomplete);
       expect(result.success).toBe(false);
     });
@@ -207,7 +207,7 @@ describe("addressSchema", () => {
     });
 
     it("rejects missing state/province", () => {
-      const { stateProvince, ...incomplete } = validAddress;
+      const { stateProvince: _stateProvince, ...incomplete } = validAddress;
       const result = addressSchema.safeParse(incomplete);
       expect(result.success).toBe(false);
     });
@@ -220,13 +220,13 @@ describe("addressSchema", () => {
       expect(result.success).toBe(false);
       if (!result.success) {
         expect(result.error.issues[0].message).toBe(
-          "State/Province is required"
+          "State/Province is required",
         );
       }
     });
 
     it("rejects missing postal code", () => {
-      const { postalCode, ...incomplete } = validAddress;
+      const { postalCode: _postalCode, ...incomplete } = validAddress;
       const result = addressSchema.safeParse(incomplete);
       expect(result.success).toBe(false);
     });
@@ -243,7 +243,7 @@ describe("addressSchema", () => {
     });
 
     it("rejects missing country", () => {
-      const { country, ...incomplete } = validAddress;
+      const { country: _country, ...incomplete } = validAddress;
       const result = addressSchema.safeParse(incomplete);
       expect(result.success).toBe(false);
     });

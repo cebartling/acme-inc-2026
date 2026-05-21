@@ -1,4 +1,11 @@
-import { useRef, useState, useEffect, useCallback, KeyboardEvent, ClipboardEvent } from "react";
+import {
+  useRef,
+  useState,
+  useEffect,
+  useCallback,
+  KeyboardEvent,
+  ClipboardEvent,
+} from "react";
 import { Input } from "@/components/ui/input";
 
 export interface OtpInputProps {
@@ -66,7 +73,7 @@ export function OtpInput({
         onComplete(code);
       }
     },
-    [length, onComplete]
+    [length, onComplete],
   );
 
   const handleChange = (index: number, value: string) => {
@@ -133,7 +140,11 @@ export function OtpInput({
   };
 
   return (
-    <div className="flex justify-center gap-2" role="group" aria-label="One-time password input">
+    <div
+      className="flex justify-center gap-2"
+      role="group"
+      aria-label="One-time password input"
+    >
       {values.map((value, index) => (
         <Input
           key={index}

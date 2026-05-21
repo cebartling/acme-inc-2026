@@ -18,7 +18,7 @@ export const Route = createFileRoute("/preferences")({
  * Transforms API response to form data format.
  */
 function transformPreferencesResponse(
-  response: PreferencesResponse
+  response: PreferencesResponse,
 ): FullPreferencesData {
   return {
     communication: {
@@ -50,7 +50,7 @@ function PreferencesPageRoute() {
   const isAuthLoading = useIsAuthLoading();
 
   const [preferences, setPreferences] = useState<FullPreferencesData | null>(
-    null
+    null,
   );
   const [isLoadingPreferences, setIsLoadingPreferences] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -58,7 +58,7 @@ function PreferencesPageRoute() {
   // Redirect to login if not authenticated
   useEffect(() => {
     if (!isAuthLoading && !isAuthenticated) {
-      navigate({ to: "/login" });
+      navigate({ to: "/signin" });
     }
   }, [isAuthLoading, isAuthenticated, navigate]);
 
@@ -78,7 +78,7 @@ function PreferencesPageRoute() {
         setLoadError(
           error instanceof Error
             ? error.message
-            : "Failed to load preferences. Using default values."
+            : "Failed to load preferences. Using default values.",
         );
         // Don't block rendering - component will use defaults
       } finally {
@@ -98,7 +98,9 @@ function PreferencesPageRoute() {
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto" />
           <p className="mt-2 text-sm text-gray-600">
-            {isAuthLoading ? "Checking authentication..." : "Loading preferences..."}
+            {isAuthLoading
+              ? "Checking authentication..."
+              : "Loading preferences..."}
           </p>
         </div>
       </div>

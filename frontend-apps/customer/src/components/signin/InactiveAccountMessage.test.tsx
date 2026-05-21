@@ -5,9 +5,8 @@ import { InactiveAccountMessage } from "./InactiveAccountMessage";
 import { identityApi } from "@/services/api";
 
 vi.mock("@/services/api", async () => {
-  const actual = await vi.importActual<typeof import("@/services/api")>(
-    "@/services/api",
-  );
+  const actual =
+    await vi.importActual<typeof import("@/services/api")>("@/services/api");
   return {
     ...actual,
     identityApi: {
@@ -73,9 +72,7 @@ describe("InactiveAccountMessage", () => {
         await screen.findByTestId("resend-verification-success"),
       ).toBeInTheDocument();
       // Cooldown begins after a successful resend.
-      expect(
-        screen.getByTestId("resend-verification-button"),
-      ).toBeDisabled();
+      expect(screen.getByTestId("resend-verification-button")).toBeDisabled();
     });
 
     it("counts the cooldown down by one second per tick", () => {

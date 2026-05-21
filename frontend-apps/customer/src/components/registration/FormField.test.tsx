@@ -8,7 +8,7 @@ describe("FormField", () => {
       render(
         <FormField label="Email" htmlFor="email">
           <input id="email" />
-        </FormField>
+        </FormField>,
       );
       expect(screen.getByText("Email")).toBeInTheDocument();
     });
@@ -17,7 +17,7 @@ describe("FormField", () => {
       render(
         <FormField label="Email" htmlFor="email">
           <input id="email" />
-        </FormField>
+        </FormField>,
       );
       const label = screen.getByText("Email");
       expect(label).toHaveAttribute("for", "email");
@@ -27,7 +27,7 @@ describe("FormField", () => {
       render(
         <FormField label="Email" htmlFor="email" required>
           <input id="email" />
-        </FormField>
+        </FormField>,
       );
       expect(screen.getByText("*")).toBeInTheDocument();
     });
@@ -36,7 +36,7 @@ describe("FormField", () => {
       render(
         <FormField label="Email" htmlFor="email" required={false}>
           <input id="email" />
-        </FormField>
+        </FormField>,
       );
       expect(screen.queryByText("*")).not.toBeInTheDocument();
     });
@@ -52,7 +52,7 @@ describe("FormField", () => {
           touched={false}
         >
           <input id="email" />
-        </FormField>
+        </FormField>,
       );
       expect(screen.queryByText("Invalid email")).not.toBeInTheDocument();
     });
@@ -66,7 +66,7 @@ describe("FormField", () => {
           touched={true}
         >
           <input id="email" />
-        </FormField>
+        </FormField>,
       );
       expect(screen.getByText("Invalid email")).toBeInTheDocument();
     });
@@ -80,7 +80,7 @@ describe("FormField", () => {
           touched={true}
         >
           <input id="email" />
-        </FormField>
+        </FormField>,
       );
       expect(screen.getByRole("alert")).toBeInTheDocument();
     });
@@ -94,7 +94,7 @@ describe("FormField", () => {
           touched={true}
         >
           <input id="email" />
-        </FormField>
+        </FormField>,
       );
       const label = screen.getByText("Email");
       expect(label).toHaveClass("text-red-600");
@@ -106,7 +106,7 @@ describe("FormField", () => {
       render(
         <FormField label="Email" htmlFor="email" touched={true} valid={true}>
           <input id="email" />
-        </FormField>
+        </FormField>,
       );
       expect(screen.getByLabelText("Valid")).toBeInTheDocument();
     });
@@ -115,7 +115,7 @@ describe("FormField", () => {
       render(
         <FormField label="Email" htmlFor="email" touched={false} valid={true}>
           <input id="email" />
-        </FormField>
+        </FormField>,
       );
       expect(screen.queryByLabelText("Valid")).not.toBeInTheDocument();
     });
@@ -130,7 +130,7 @@ describe("FormField", () => {
           error="Invalid"
         >
           <input id="email" />
-        </FormField>
+        </FormField>,
       );
       expect(screen.queryByLabelText("Valid")).not.toBeInTheDocument();
     });
@@ -145,7 +145,7 @@ describe("FormField", () => {
           characterCount={{ current: 10, max: 50 }}
         >
           <input id="name" />
-        </FormField>
+        </FormField>,
       );
       expect(screen.getByText("10/50")).toBeInTheDocument();
     });
@@ -158,7 +158,7 @@ describe("FormField", () => {
           characterCount={{ current: 50, max: 50 }}
         >
           <input id="name" />
-        </FormField>
+        </FormField>,
       );
       const countText = screen.getByText("50/50");
       expect(countText).toHaveClass("text-orange-600");
@@ -172,7 +172,7 @@ describe("FormField", () => {
           characterCount={{ current: 25, max: 50 }}
         >
           <input id="name" />
-        </FormField>
+        </FormField>,
       );
       const countText = screen.getByText("25/50");
       expect(countText).toHaveClass("text-gray-500");
@@ -182,7 +182,7 @@ describe("FormField", () => {
       render(
         <FormField label="Name" htmlFor="name">
           <input id="name" />
-        </FormField>
+        </FormField>,
       );
       expect(screen.queryByText(/\/\d+/)).not.toBeInTheDocument();
     });
@@ -193,7 +193,7 @@ describe("FormField", () => {
       render(
         <FormField label="Email" htmlFor="email">
           <input id="email" data-testid="email-input" />
-        </FormField>
+        </FormField>,
       );
       expect(screen.getByTestId("email-input")).toBeInTheDocument();
     });
@@ -203,7 +203,7 @@ describe("FormField", () => {
         <FormField label="Email" htmlFor="email">
           <input id="email" data-testid="email-input" />
           <span data-testid="helper-text">Enter your email</span>
-        </FormField>
+        </FormField>,
       );
       expect(screen.getByTestId("email-input")).toBeInTheDocument();
       expect(screen.getByTestId("helper-text")).toBeInTheDocument();
@@ -215,7 +215,7 @@ describe("FormField", () => {
       const { container } = render(
         <FormField label="Email" htmlFor="email" className="custom-class">
           <input id="email" />
-        </FormField>
+        </FormField>,
       );
       expect(container.firstChild).toHaveClass("custom-class");
     });

@@ -83,9 +83,7 @@ export function MfaVerificationForm({
           <Icon className="w-6 h-6 text-primary" />
         </div>
         <CardTitle>Two-Factor Authentication</CardTitle>
-        <CardDescription>
-          {description || defaultDescription}
-        </CardDescription>
+        <CardDescription>{description || defaultDescription}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         {error && (
@@ -148,10 +146,7 @@ export function MfaVerificationForm({
           {helpText || defaultHelpText}
         </p>
         <div className="text-center">
-          <Link
-            to="/signin"
-            className="text-sm text-primary hover:underline"
-          >
+          <Link to="/signin" className="text-sm text-primary hover:underline">
             Back to sign in
           </Link>
           {" | "}

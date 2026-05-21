@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { OtpInput } from "./OtpInput";
+import { OtpInput, type OtpInputProps } from "./OtpInput";
 
 /**
  * OtpInput Component Tests
@@ -53,8 +53,8 @@ describe("OtpInput", () => {
       const mockOnComplete = (_code: string) => {};
 
       // Type checking - these should compile without errors
-      const _minimalProps = { onComplete: mockOnComplete };
-      const _fullProps = {
+      const minimalProps: OtpInputProps = { onComplete: mockOnComplete };
+      const fullProps: OtpInputProps = {
         length: 4,
         onComplete: mockOnComplete,
         disabled: true,
@@ -62,7 +62,8 @@ describe("OtpInput", () => {
         error: true,
       };
 
-      expect(true).toBe(true); // Placeholder assertion - compilation is the test
+      expect(minimalProps.onComplete).toBe(mockOnComplete);
+      expect(fullProps.length).toBe(4);
     });
   });
 });

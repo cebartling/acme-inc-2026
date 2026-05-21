@@ -64,7 +64,9 @@ function DashboardPage() {
       <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
         <div className="max-w-md mx-auto text-center">
           <div className="bg-red-900/20 border border-red-500 rounded-lg p-6">
-            <h2 className="text-xl font-semibold text-red-400 mb-2">Error Loading Profile</h2>
+            <h2 className="text-xl font-semibold text-red-400 mb-2">
+              Error Loading Profile
+            </h2>
             <p className="text-gray-300 mb-4">{profileError}</p>
             <button
               onClick={() => fetchProfile()}

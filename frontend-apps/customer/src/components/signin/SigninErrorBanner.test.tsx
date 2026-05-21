@@ -16,14 +16,14 @@ describe("SigninErrorBanner", () => {
     it("renders the generic error message", () => {
       render(<SigninErrorBanner message="Invalid email or password." />);
       expect(
-        screen.getByText("Invalid email or password.")
+        screen.getByText("Invalid email or password."),
       ).toBeInTheDocument();
     });
 
     it("does not show remaining attempts when undefined", () => {
       render(<SigninErrorBanner message="Invalid email or password." />);
       expect(
-        screen.queryByTestId("signin-remaining-attempts")
+        screen.queryByTestId("signin-remaining-attempts"),
       ).not.toBeInTheDocument();
     });
   });
@@ -34,11 +34,11 @@ describe("SigninErrorBanner", () => {
         <SigninErrorBanner
           message="Invalid email or password."
           remainingAttempts={3}
-        />
+        />,
       );
-      expect(
-        screen.getByTestId("signin-remaining-attempts")
-      ).toHaveTextContent("3 attempts remaining.");
+      expect(screen.getByTestId("signin-remaining-attempts")).toHaveTextContent(
+        "3 attempts remaining.",
+      );
     });
 
     it("renders singular attempt when one remaining", () => {
@@ -46,11 +46,11 @@ describe("SigninErrorBanner", () => {
         <SigninErrorBanner
           message="Invalid email or password."
           remainingAttempts={1}
-        />
+        />,
       );
-      expect(
-        screen.getByTestId("signin-remaining-attempts")
-      ).toHaveTextContent("1 attempt remaining before account lockout.");
+      expect(screen.getByTestId("signin-remaining-attempts")).toHaveTextContent(
+        "1 attempt remaining before account lockout.",
+      );
     });
   });
 
@@ -60,13 +60,13 @@ describe("SigninErrorBanner", () => {
         <SigninErrorBanner
           message="Invalid email or password."
           remainingAttempts={2}
-        />
+        />,
       );
-      expect(
-        screen.getByTestId("signin-remaining-attempts")
-      ).toHaveTextContent("before account lockout.");
+      expect(screen.getByTestId("signin-remaining-attempts")).toHaveTextContent(
+        "before account lockout.",
+      );
       expect(screen.getByTestId("signin-error-reset-link")).toHaveTextContent(
-        "Reset Password"
+        "Reset Password",
       );
     });
 
@@ -75,10 +75,10 @@ describe("SigninErrorBanner", () => {
         <SigninErrorBanner
           message="Invalid email or password."
           remainingAttempts={3}
-        />
+        />,
       );
       expect(screen.getByTestId("signin-error-reset-link")).toHaveTextContent(
-        "Reset it here"
+        "Reset it here",
       );
     });
   });
@@ -88,7 +88,7 @@ describe("SigninErrorBanner", () => {
       render(<SigninErrorBanner message="Invalid email or password." />);
       expect(screen.getByTestId("signin-error-reset-link")).toHaveAttribute(
         "href",
-        "/forgot-password"
+        "/forgot-password",
       );
     });
   });

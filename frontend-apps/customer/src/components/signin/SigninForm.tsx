@@ -21,7 +21,11 @@ import { FormField } from "@/components/registration/FormField";
 import { PasswordInput } from "@/components/registration/PasswordInput";
 import { SigninErrorBanner } from "@/components/signin/SigninErrorBanner";
 
-import { signinSchema, type SigninFormData } from "@/schemas/signin.schema";
+import {
+  signinSchema,
+  type SigninFormData,
+  type SigninFormInput,
+} from "@/schemas/signin.schema";
 
 export interface SigninFormError {
   message: string;
@@ -34,7 +38,11 @@ export interface SigninFormProps {
   isDisabled?: boolean;
 }
 
-export function SigninForm({ onSubmit, error, isDisabled = false }: SigninFormProps) {
+export function SigninForm({
+  onSubmit,
+  error,
+  isDisabled = false,
+}: SigninFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const {
@@ -45,7 +53,7 @@ export function SigninForm({ onSubmit, error, isDisabled = false }: SigninFormPr
     trigger,
     resetField,
     setFocus,
-  } = useForm<SigninFormData>({
+  } = useForm<SigninFormInput, unknown, SigninFormData>({
     resolver: zodResolver(signinSchema),
     mode: "onBlur",
     defaultValues: {
