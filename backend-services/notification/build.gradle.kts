@@ -1,7 +1,7 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
-    id("org.springframework.boot") version "4.0.1"
+    id("org.springframework.boot") version "4.0.6"
     id("io.spring.dependency-management") version "1.1.7"
     kotlin("jvm") version "2.3.21"
     kotlin("plugin.spring") version "2.3.21"
@@ -19,9 +19,6 @@ java {
 
 repositories {
     mavenCentral()
-    // Note: Spring milestone repository required for Spring Boot 4.x
-    // which is not yet GA. Remove this once Spring Boot 4 is released to Maven Central.
-    maven { url = uri("https://repo.spring.io/milestone") }
 }
 
 extra["springCloudVersion"] = "2024.0.0"
