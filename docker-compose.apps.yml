@@ -246,6 +246,9 @@ services:
       # Kafka configuration
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
 
+      # Customer service client
+      CUSTOMER_SERVICE_URL: http://customer-service:10301
+
       # SendGrid configuration
       SENDGRID_API_KEY: ${SENDGRID_API_KEY:-SG.test-key}
       SENDGRID_SANDBOX_MODE: ${SENDGRID_SANDBOX_MODE:-true}
