@@ -97,8 +97,7 @@ data class SigninResponse(
  * @property lockedUntil Timestamp when the lockout expires (optional, for 423 responses).
  * @property lockoutRemainingSeconds Seconds remaining until lockout expires (optional, for 423 responses).
  * @property passwordResetUrl URL for password reset to bypass lockout (optional, for 423 responses).
- * @property retryAfterSeconds Seconds until the rate limit resets (optional, for SMS 429 responses).
- * @property retryAfter Seconds until the signin rate limit resets (optional, for signin 429 responses per US-0003-03).
+ * @property retryAfterSeconds Seconds until the rate limit resets (optional, for 429 responses).
  * @property deactivatedAt ISO-8601 timestamp the account was deactivated (optional, for DEACTIVATED accounts).
  * @property reactivationAvailable Whether self-service reactivation is offered (optional, for DEACTIVATED accounts).
  * @property resendAvailableIn Seconds until the verification email can be resent (optional, for PENDING_VERIFICATION accounts).
@@ -115,7 +114,6 @@ data class SigninErrorResponse(
     val lockoutRemainingSeconds: Long? = null,
     val passwordResetUrl: String? = null,
     val retryAfterSeconds: Long? = null,
-    val retryAfter: Int? = null,
     val deactivatedAt: String? = null,
     val reactivationAvailable: Boolean? = null,
     val resendAvailableIn: Long? = null

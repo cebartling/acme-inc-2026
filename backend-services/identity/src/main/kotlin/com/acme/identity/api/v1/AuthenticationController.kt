@@ -136,7 +136,7 @@ class AuthenticationController(
                     SigninErrorResponse(
                         error = "RATE_LIMITED",
                         message = message,
-                        retryAfter = rateLimitResult.retryAfterSeconds
+                        retryAfterSeconds = rateLimitResult.retryAfterSeconds.toLong()
                     )
                 ),
                 rateLimitResult

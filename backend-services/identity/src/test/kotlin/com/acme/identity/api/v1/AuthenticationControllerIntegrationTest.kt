@@ -665,6 +665,6 @@ class AuthenticationControllerIntegrationTest {
             .andExpect(header().string("X-RateLimit-Remaining", "0"))
             .andExpect(header().exists("X-RateLimit-Reset"))
             .andExpect(jsonPath("$.error").value("RATE_LIMITED"))
-            .andExpect(jsonPath("$.retryAfter").isNumber)
+            .andExpect(jsonPath("$.retryAfterSeconds").isNumber)
     }
 }
