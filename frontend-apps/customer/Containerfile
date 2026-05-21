@@ -72,9 +72,5 @@ ENV PORT=3000
 ENV NITRO_PORT=3000
 ENV NITRO_HOST=0.0.0.0
 
-# Health check using Node.js (guaranteed to be available)
-HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD node -e "fetch('http://localhost:3000/api/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"
-
 # Run the Nitro server
 CMD ["node", ".output/server/index.mjs"]
