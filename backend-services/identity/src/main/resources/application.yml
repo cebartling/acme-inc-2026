@@ -77,7 +77,12 @@ identity:
     resend:
       requests-per-hour: 3
     signin:
-      requests-per-minute: 10
+      ip:
+        limit: 10
+        window-seconds: 60
+      email:
+        limit: 5
+        window-seconds: 60
   authentication:
     max-failed-attempts: 5
     lockout-duration-minutes: 15

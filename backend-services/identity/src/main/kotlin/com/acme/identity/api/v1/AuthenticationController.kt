@@ -36,8 +36,9 @@ import com.acme.identity.application.SessionService
 import com.acme.identity.application.TokenService
 import com.acme.identity.domain.UserStatus
 import com.acme.identity.domain.events.SessionInvalidated
+import com.acme.identity.infrastructure.ratelimit.SigninRateLimitResult
+import com.acme.identity.infrastructure.ratelimit.SigninRateLimiter
 import com.acme.identity.infrastructure.security.AuthCookieBuilder
-import com.acme.identity.infrastructure.security.RateLimiter
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.validation.Valid
 import org.slf4j.LoggerFactory
@@ -55,7 +56,7 @@ import java.util.UUID
  * All endpoints are versioned under `/api/v1/auth`.
  *
  * @property authenticateUserUseCase The use case for user authentication.
- * @property rateLimiter The rate limiter for preventing brute force attacks.
+ * @property signinRateLimiter The signin rate limiter (Redis-backed, per IP and per email).
  * @property supportUrl URL for customer support.
  */
 @RestController
@@ -69,7 +70,7 @@ class AuthenticationController(
     private val confirmPasswordResetUseCase: ConfirmPasswordResetUseCase,
     private val refreshTokensUseCase: RefreshTokensUseCase,
     private val tokenService: TokenService,
-    private val rateLimiter: RateLimiter,
+    private val signinRateLimiter: SigninRateLimiter,
     private val authenticationSessionService: AuthenticationSessionService,
     private val sessionService: SessionService,
     private val authCookieBuilder: AuthCookieBuilder,
@@ -113,18 +114,33 @@ class AuthenticationController(
     ): ResponseEntity<Any> {
         val clientIp = getClientIp(httpRequest)
         val userAgent = httpRequest.getHeader("User-Agent") ?: "unknown"
-        val rateLimitKey = "$clientIp:${request.email.lowercase()}"
 
-        // Rate limiting check
-        if (!rateLimiter.tryAcquire(rateLimitKey)) {
-            logger.warn("Rate limit exceeded for IP: {} email: {}", clientIp, request.email)
-            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                .body(
+        // Rate limiting check (per IP and per email, sliding window via Redis)
+        val rateLimitResult = signinRateLimiter.checkLimit(clientIp, request.email)
+        if (rateLimitResult is SigninRateLimitResult.Limited) {
+            logger.warn(
+                "Rate limit exceeded ip={} emailHash={} scope={} count={}",
+                clientIp,
+                hashEmailForLog(request.email),
+                rateLimitResult.scope,
+                rateLimitResult.currentCount
+            )
+            val message = when (rateLimitResult.scope) {
+                SigninRateLimitResult.Scope.EMAIL ->
+                    "Too many signin attempts for this account. Please try again later."
+                SigninRateLimitResult.Scope.IP ->
+                    "Too many signin attempts. Please try again later."
+            }
+            return withRateLimitHeaders(
+                ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(
                     SigninErrorResponse(
                         error = "RATE_LIMITED",
-                        message = "Too many signin attempts. Please try again later."
+                        message = message,
+                        retryAfterSeconds = rateLimitResult.retryAfterSeconds.toLong()
                     )
-                )
+                ),
+                rateLimitResult
+            )
         }
 
         // Create request with device trust token from cookie
@@ -136,7 +152,7 @@ class AuthenticationController(
             correlationId = correlationId?.let { UUID.fromString(it) } ?: UUID.randomUUID()
         )
 
-        return authenticateUserUseCase.execute(requestWithDeviceTrust, context).fold(
+        val response = authenticateUserUseCase.execute(requestWithDeviceTrust, context).fold(
             ifLeft = { error ->
                 mapErrorToResponse(error)
             },
@@ -165,7 +181,38 @@ class AuthenticationController(
                 }
             }
         )
+        return withRateLimitHeaders(response, rateLimitResult)
     }
+
+    /**
+     * Adds the US-0003-03 rate-limit headers to [entity], preserving any
+     * existing headers (e.g. Set-Cookie). Adds Retry-After only when the
+     * request was actually rate limited.
+     */
+    private fun withRateLimitHeaders(
+        entity: ResponseEntity<out Any>,
+        result: SigninRateLimitResult
+    ): ResponseEntity<Any> {
+        val headers = org.springframework.http.HttpHeaders()
+        headers.addAll(entity.headers)
+        headers.set("X-RateLimit-Limit", result.limit.toString())
+        headers.set("X-RateLimit-Remaining", result.remaining.toString())
+        headers.set("X-RateLimit-Reset", result.resetAt.epochSecond.toString())
+        if (result is SigninRateLimitResult.Limited) {
+            headers.set(HttpHeaders.RETRY_AFTER, result.retryAfterSeconds.toString())
+        }
+        return ResponseEntity.status(entity.statusCode).headers(headers).body(entity.body)
+    }
+
+    /**
+     * SHA-256 of the lowercased email, truncated to 16 hex chars — used in
+     * warning logs so PII is not persisted with rate-limit events.
+     */
+    private fun hashEmailForLog(email: String): String =
+        java.security.MessageDigest.getInstance("SHA-256")
+            .digest(email.lowercase().toByteArray())
+            .joinToString("") { "%02x".format(it) }
+            .take(16)
 
     /**
      * Requests reactivation of a DEACTIVATED account.
