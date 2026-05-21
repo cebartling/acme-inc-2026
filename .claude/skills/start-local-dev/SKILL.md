@@ -62,3 +62,4 @@ Bring up the full ACME Inc. local development environment using `scripts/docker-
 - Do not pass `-v`/`--volumes` to stop — preserve data volumes unless the user explicitly asks to wipe them.
 - Do not edit the script or compose files as part of this skill — only invoke it.
 - If any step exits non-zero, surface the error output and stop; do not proceed to subsequent steps.
+- This skill targets Docker. For Podman-based stacks, use `scripts/podman-manage.sh` with the same command names (`stop`, `apps-build`, `infra-up`, `apps-up`).

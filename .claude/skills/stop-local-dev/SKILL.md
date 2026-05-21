@@ -37,3 +37,4 @@ Bring down the full ACME Inc. local development environment using `scripts/docke
 - The `-v` flag permanently deletes all data volumes. **Do not omit it** — this skill's purpose is a clean teardown including volume removal. If the user wants to preserve data, they should use a different command and not invoke this skill.
 - Do not edit the script or compose files as part of this skill — only invoke it.
 - If either step exits non-zero, surface the error output immediately; do not proceed to the next step.
+- This skill targets Docker. For Podman-based stacks, use `scripts/podman-manage.sh` with the same command names (`apps-down`, `infra-down -v`).
