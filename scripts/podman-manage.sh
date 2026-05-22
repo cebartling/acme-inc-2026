@@ -662,7 +662,7 @@ ${YELLOW}Infrastructure Commands:${NC}
   infra-logs [options]       View infrastructure logs (use -f to follow)
 
 ${YELLOW}Application Commands:${NC}
-  apps-up [services...]      Build and start application services
+  apps-up [services...]      Start application services (builds missing images only)
   apps-down [options]        Stop application services
   apps-status                Show application services status
   apps-logs [options]        View application logs (use -f to follow)
