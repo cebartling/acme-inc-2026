@@ -311,7 +311,7 @@ apps_build() {
 
     for svc in "${services[@]}"; do
         print_info "Building $svc..."
-        podman-compose -f "$APPS_COMPOSE" build --no-cache "$svc"
+        podman-compose -f "$APPS_COMPOSE" build "$svc"
     done
 
     print_success "Application services built"
