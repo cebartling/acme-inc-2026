@@ -1,11 +1,11 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
-    id("org.springframework.boot") version "4.0.1"
+    id("org.springframework.boot") version "4.0.6"
     id("io.spring.dependency-management") version "1.1.7"
-    kotlin("jvm") version "2.2.0"
-    kotlin("plugin.spring") version "2.2.0"
-    kotlin("plugin.jpa") version "2.2.0"
+    kotlin("jvm") version "2.3.21"
+    kotlin("plugin.spring") version "2.3.21"
+    kotlin("plugin.jpa") version "2.3.21"
 }
 
 group = "com.acme"
@@ -13,25 +13,15 @@ version = "0.0.1-SNAPSHOT"
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(24)
+        languageVersion = JavaLanguageVersion.of(25)
     }
 }
 
 repositories {
     mavenCentral()
-    // Note: Spring milestone repository required for Spring Boot 4.x
-    // which is not yet GA. Remove this once Spring Boot 4 is released to Maven Central.
-    maven { url = uri("https://repo.spring.io/milestone") }
     maven { url = uri("https://packages.confluent.io/maven/") }
 }
 
-extra["springCloudVersion"] = "2024.0.0"
-
-dependencyManagement {
-    imports {
-        mavenBom("org.springframework.cloud:spring-cloud-dependencies:${property("springCloudVersion")}")
-    }
-}
 
 dependencies {
     // Spring Boot starters
@@ -46,48 +36,48 @@ dependencies {
     implementation("org.jetbrains.kotlin:kotlin-reflect")
 
     // Arrow - Functional Programming
-    implementation("io.arrow-kt:arrow-core:2.1.0")
-    implementation("io.arrow-kt:arrow-fx-coroutines:2.1.0")
-    implementation("io.arrow-kt:arrow-core-serialization:2.1.0")
+    implementation("io.arrow-kt:arrow-core:2.2.2.1")
+    implementation("io.arrow-kt:arrow-fx-coroutines:2.2.2.1")
+    implementation("io.arrow-kt:arrow-core-serialization:2.2.2.1")
 
     // Database & Migrations
     runtimeOnly("org.postgresql:postgresql")
-    implementation("org.flywaydb:flyway-core:11.5.0")
-    implementation("org.flywaydb:flyway-database-postgresql:11.5.0")
+    implementation("org.flywaydb:flyway-core:12.6.2")
+    implementation("org.flywaydb:flyway-database-postgresql:12.6.2")
 
     // Password hashing - Argon2id via Password4j
-    implementation("com.password4j:password4j:1.8.2")
+    implementation("com.password4j:password4j:1.8.4")
 
     // UUID v7 support
-    implementation("com.fasterxml.uuid:java-uuid-generator:5.1.0")
+    implementation("com.fasterxml.uuid:java-uuid-generator:5.2.0")
 
     // Kafka with Avro
     implementation("org.springframework.kafka:spring-kafka")
     implementation("io.confluent:kafka-avro-serializer:7.7.1")
-    implementation("org.apache.avro:avro:1.12.0")
+    implementation("org.apache.avro:avro:1.12.1")
 
     // Observability
     implementation("io.micrometer:micrometer-tracing-bridge-otel")
     implementation("io.opentelemetry:opentelemetry-exporter-otlp")
 
     // Rate limiting
-    implementation("com.bucket4j:bucket4j_jdk17-core:8.16.0")
-    implementation("com.github.ben-manes.caffeine:caffeine:3.1.8")
+    implementation("com.bucket4j:bucket4j_jdk17-core:8.19.0")
+    implementation("com.github.ben-manes.caffeine:caffeine:3.2.4")
 
     // TOTP (Time-based One-Time Password) for MFA
     implementation("dev.samstevens.totp:totp:1.7.1")
 
     // Twilio SDK for SMS MFA
-    implementation("com.twilio.sdk:twilio:10.7.0")
+    implementation("com.twilio.sdk:twilio:12.1.1")
 
     // JWT - Nimbus JOSE JWT for RS256 token generation
-    implementation("com.nimbusds:nimbus-jose-jwt:9.47")
+    implementation("com.nimbusds:nimbus-jose-jwt:10.9")
 
     // Redis for session storage (lettuce-core is transitively included)
     implementation("org.springframework.boot:spring-boot-starter-data-redis")
 
     // Testing - JUnit 6
-    testImplementation(platform("org.junit:junit-bom:6.0.1"))
+    testImplementation(platform("org.junit:junit-bom:6.1.0"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testImplementation("org.springframework.boot:spring-boot-starter-test") {
         exclude(group = "org.junit.jupiter")
@@ -97,10 +87,10 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-webmvc-test")
     testImplementation("org.springframework.kafka:spring-kafka-test")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
-    testImplementation("io.mockk:mockk:1.13.13")
-    testImplementation("org.testcontainers:testcontainers-junit-jupiter:2.0.3")
-    testImplementation("org.testcontainers:testcontainers-postgresql:2.0.3")
-    testImplementation("org.testcontainers:testcontainers-kafka:2.0.3")
+    testImplementation("io.mockk:mockk:1.14.9")
+    testImplementation("org.testcontainers:testcontainers-junit-jupiter:2.0.5")
+    testImplementation("org.testcontainers:testcontainers-postgresql:2.0.5")
+    testImplementation("org.testcontainers:testcontainers-kafka:2.0.5")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 

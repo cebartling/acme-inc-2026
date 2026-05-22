@@ -9,13 +9,13 @@
 # -----------------------------------------------------------------------------
 # Stage 1: Build
 # -----------------------------------------------------------------------------
-FROM eclipse-temurin:24-jdk AS builder
+FROM eclipse-temurin:25-jdk AS builder
 
 WORKDIR /app
 
 # Install Gradle
-ARG GRADLE_VERSION=9.2.1
-ARG GRADLE_SHA256=72f44c9f8ebcb1af43838f45ee5c4aa9c5444898b3468ab3f4af7b6076c5bc3f
+ARG GRADLE_VERSION=9.5.0
+ARG GRADLE_SHA256=553c78f50dafcd54d65b9a444649057857469edf836431389695608536d6b746
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     unzip \
@@ -41,7 +41,7 @@ RUN gradle build -x test --no-daemon --parallel
 # -----------------------------------------------------------------------------
 # Stage 2: Runtime
 # -----------------------------------------------------------------------------
-FROM eclipse-temurin:24-jre
+FROM eclipse-temurin:25-jre
 
 LABEL org.opencontainers.image.title="ACME Notification Service"
 LABEL org.opencontainers.image.description="Notification service for ACME Inc. e-commerce platform"
@@ -65,10 +65,6 @@ USER acme
 
 # Expose the application port
 EXPOSE 10302
-
-# Health check using Spring Boot Actuator
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD wget -qO- http://localhost:10302/actuator/health >/dev/null 2>&1 || exit 1
 
 # JVM options for containerized environments
 ENV JAVA_OPTS="-XX:+UseContainerSupport \
