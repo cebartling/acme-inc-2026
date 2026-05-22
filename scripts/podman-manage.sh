@@ -228,6 +228,7 @@ infra_logs() {
 apps_up() {
     print_header "Starting Application Services"
     check_compose_file "$APPS_COMPOSE"
+    cd "$PROJECT_ROOT"
 
     # Check if infrastructure network exists
     if ! podman network inspect acme-network &> /dev/null; then
@@ -264,7 +265,6 @@ apps_up() {
         print_info "All app images present — skipping build (use 'apps-build' to force a rebuild)"
     fi
 
-    cd "$PROJECT_ROOT"
     podman-compose -f "$APPS_COMPOSE" up -d "$@"
 
     print_success "Application services started"
