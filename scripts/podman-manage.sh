@@ -77,13 +77,21 @@ check_podman() {
         exit 1
     fi
 
-    # On macOS, Podman runs inside a VM. Confirm the machine is running.
-    local state
-    state="$(podman machine inspect "$PODMAN_MACHINE" --format '{{.State}}' 2>/dev/null || true)"
-    if [[ "$state" != "running" ]]; then
-        print_error "Podman machine '$PODMAN_MACHINE' is not running (state: ${state:-unknown})"
-        print_info "Start it with: podman machine start $PODMAN_MACHINE"
-        exit 1
+    # On macOS/Windows, Podman runs inside a VM. Confirm the machine is running.
+    # On Linux, podman machine is not used — skip this check.
+    if [[ "$OSTYPE" == darwin* || "$OSTYPE" == msys* || "$OSTYPE" == cygwin* ]]; then
+        local state
+        state="$(podman machine inspect "$PODMAN_MACHINE" --format '{{.State}}' 2>/dev/null || true)"
+        if [[ -z "$state" ]]; then
+            print_error "Podman machine '$PODMAN_MACHINE' not found"
+            print_info "Create it with: podman machine init $PODMAN_MACHINE"
+            exit 1
+        fi
+        if [[ "$state" != "running" ]]; then
+            print_error "Podman machine '$PODMAN_MACHINE' is not running (state: $state)"
+            print_info "Start it with: podman machine start $PODMAN_MACHINE"
+            exit 1
+        fi
     fi
 
     if ! podman info &> /dev/null; then
