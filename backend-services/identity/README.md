@@ -12,8 +12,8 @@ This service handles:
 
 ## Tech Stack
 
-- **Language**: Kotlin 2.2
-- **Runtime**: Java 24 with Project Loom (virtual threads)
+- **Language**: Kotlin 2.3
+- **Runtime**: Java 25 with Project Loom (virtual threads)
 - **Framework**: Spring Boot 4 with Spring MVC
 - **Database**: PostgreSQL 16+
 - **Messaging**: Apache Kafka with Avro/Schema Registry
@@ -21,7 +21,7 @@ This service handles:
 
 ## Prerequisites
 
-- Java 24 (recommend using SDKMAN)
+- Java 25 (recommend using SDKMAN)
 - Gradle 9.2
 - PostgreSQL 16+
 - Apache Kafka with Schema Registry
@@ -121,8 +121,8 @@ docker run -d \
 ### Container Details
 
 The Containerfile uses a multi-stage build:
-- **Stage 1 (builder)**: Eclipse Temurin Java 24 JDK with Gradle 9.2
-- **Stage 2 (runtime)**: Eclipse Temurin Java 24 JRE (slim)
+- **Stage 1 (builder)**: Eclipse Temurin Java 25 JDK with Gradle 9.2
+- **Stage 2 (runtime)**: Eclipse Temurin Java 25 JRE (slim)
 
 Features:
 - Non-root user (`acme:acme`) for security

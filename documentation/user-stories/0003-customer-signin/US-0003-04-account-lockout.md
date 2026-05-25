@@ -224,7 +224,7 @@ Content-Type: application/json
 
 ### Backend Stack
 
-- **Framework**: Spring Boot 4 with Kotlin 2.2
+- **Framework**: Spring Boot 4 with Kotlin 2.3
 - **Database**: PostgreSQL 16+ for account state
 - **Events**: Kafka for AccountLocked/AccountUnlocked events
 - **Notifications**: Notification Service consumes events

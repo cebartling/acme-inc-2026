@@ -231,7 +231,7 @@ interface AddToCartRequest {
 ### Backend: Shopping Cart Service
 
 - **Service**: `/backend-services/shopping-cart`
-- **Language**: Kotlin 2.2 / Java 24
+- **Language**: Kotlin 2.3 / Java 25
 - **Framework**: Spring Boot 4, Spring MVC
 - **Store**: PostgreSQL (command store)
 - **Error Handling**: Arrow Kotlin `Either<CartError, Cart>`

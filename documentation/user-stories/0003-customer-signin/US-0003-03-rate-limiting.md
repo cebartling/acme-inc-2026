@@ -219,7 +219,7 @@ All signin responses include rate limit headers:
 
 ### Backend Stack
 
-- **Framework**: Spring Boot 4 with Kotlin 2.2
+- **Framework**: Spring Boot 4 with Kotlin 2.3
 - **Rate Limiter**: Custom implementation with Redis
 - **Cache**: Redis for distributed rate limiting state
 - **Configuration**: Spring properties for limits

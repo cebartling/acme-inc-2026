@@ -340,7 +340,7 @@ Content-Type: application/json
 
 ### Backend Stack
 
-- **Framework**: Spring Boot 4 with Kotlin 2.2
+- **Framework**: Spring Boot 4 with Kotlin 2.3
 - **Token Storage**: Redis with TTL
 - **Email**: Notification Service
 - **Password Hashing**: Argon2id

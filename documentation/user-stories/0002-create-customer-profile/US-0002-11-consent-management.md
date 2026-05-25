@@ -268,7 +268,7 @@ Authorization: Bearer <jwt>
 
 ### Backend Stack
 
-- **Language**: Kotlin 2.2
+- **Language**: Kotlin 2.3
 - **Framework**: Spring Boot 4
 - **Database**: PostgreSQL 16+
 - **Messaging**: Confluent Kafka

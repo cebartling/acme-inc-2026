@@ -304,7 +304,7 @@ HTTP/1.1 204 No Content
 
 ### Backend Stack
 
-- **Framework**: Spring Boot 4 with Kotlin 2.2
+- **Framework**: Spring Boot 4 with Kotlin 2.3
 - **Storage**: Redis for device trust records
 - **Events**: Kafka for DeviceRemembered/DeviceRevoked events
 

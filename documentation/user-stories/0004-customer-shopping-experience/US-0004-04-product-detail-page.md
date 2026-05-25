@@ -219,7 +219,7 @@ function useProductDetailPage(slug: string) {
 ### Backend: Product Catalog Service
 
 - **Service**: `/backend-services/product`
-- **Language**: Kotlin 2.2 / Java 24
+- **Language**: Kotlin 2.3 / Java 25
 - **Framework**: Spring Boot 4, Spring MVC
 - **Endpoint**: `GET /api/v1/products/{slug}`
 - **Caching**: Caffeine cache for product data (5-minute TTL)

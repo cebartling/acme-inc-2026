@@ -298,7 +298,7 @@ Set-Cookie: refresh_token=<jwt>; HttpOnly; Secure; SameSite=Strict; Path=/api/v1
 
 ### Backend Stack
 
-- **Framework**: Spring Boot 4 with Kotlin 2.2
+- **Framework**: Spring Boot 4 with Kotlin 2.3
 - **JWT Library**: Nimbus JOSE + JWT
 - **Key Management**: HashiCorp Vault
 - **Session Store**: Redis

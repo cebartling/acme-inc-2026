@@ -189,7 +189,7 @@ interface SearchResponse {
 ### Backend Stack
 
 - **Service**: Search Service (`/backend-services/product`)
-- **Language**: Kotlin 2.2 / Java 24
+- **Language**: Kotlin 2.3 / Java 25
 - **Framework**: Spring Boot 4, Spring MVC
 - **Search Engine**: Full-text search with facet calculation
 - **Error Handling**: Arrow Kotlin `Either` for typed errors
