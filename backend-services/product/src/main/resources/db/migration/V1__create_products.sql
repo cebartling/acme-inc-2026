@@ -1,6 +1,7 @@
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
-CREATE TABLE products (
+CREATE TABLE IF NOT EXISTS products (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     slug VARCHAR(255) NOT NULL UNIQUE,
     name VARCHAR(500) NOT NULL,
@@ -18,6 +19,6 @@ CREATE TABLE products (
     ) STORED
 );
 
-CREATE INDEX products_search_vector_idx ON products USING GIN (search_vector);
-CREATE INDEX products_name_trgm_idx ON products USING GIN (name gin_trgm_ops);
-CREATE INDEX products_status_idx ON products (status);
+CREATE INDEX IF NOT EXISTS products_search_vector_idx ON products USING GIN (search_vector);
+CREATE INDEX IF NOT EXISTS products_name_trgm_idx ON products USING GIN (name gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS products_status_idx ON products (status);

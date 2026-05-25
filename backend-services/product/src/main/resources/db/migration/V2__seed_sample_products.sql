@@ -13,7 +13,8 @@ INSERT INTO products (id, slug, name, description, price, status, category, tags
 (gen_random_uuid(), 'widget-ultra', 'Widget Ultra', 'Ultra-thin widget product with cutting-edge technology and sleek profile.', 149.99, 'PUBLISHED', 'Electronics', 'widget,ultra,thin'),
 (gen_random_uuid(), 'widget-starter-kit', 'Widget Starter Kit', 'Complete starter kit with widgets and accessories. Everything you need to get started with widget products.', 59.99, 'PUBLISHED', 'Electronics', 'widget,kit,starter'),
 (gen_random_uuid(), 'industrial-widget', 'Industrial Widget', 'Heavy-duty industrial widget product built for demanding environments.', 199.99, 'PUBLISHED', 'Tools', 'widget,industrial,heavy-duty'),
-(gen_random_uuid(), 'wireless-widget', 'Wireless Widget', 'Cable-free wireless widget product with long battery life.', 69.99, 'PUBLISHED', 'Electronics', 'widget,wireless,portable');
+(gen_random_uuid(), 'wireless-widget', 'Wireless Widget', 'Cable-free wireless widget product with long battery life.', 69.99, 'PUBLISHED', 'Electronics', 'widget,wireless,portable')
+ON CONFLICT (slug) DO NOTHING;
 
 -- Gadget products (6 items)
 INSERT INTO products (id, slug, name, description, price, status, category, tags) VALUES
@@ -22,7 +23,8 @@ INSERT INTO products (id, slug, name, description, price, status, category, tags
 (gen_random_uuid(), 'pocket-gadget', 'Pocket Gadget', 'Portable pocket-sized gadget product. Take this handy product anywhere you go.', 24.99, 'PUBLISHED', 'Electronics', 'gadget,pocket,portable'),
 (gen_random_uuid(), 'gadget-pro', 'Gadget Pro', 'Professional-grade gadget product with advanced capabilities and robust build.', 119.99, 'PUBLISHED', 'Tools', 'gadget,pro,professional'),
 (gen_random_uuid(), 'home-gadget', 'Home Gadget', 'Essential home gadget product that simplifies daily tasks around the house.', 39.99, 'PUBLISHED', 'Home', 'gadget,home,essential'),
-(gen_random_uuid(), 'travel-gadget', 'Travel Gadget', 'Must-have travel gadget product. Compact, lightweight, and versatile for any trip.', 29.99, 'PUBLISHED', 'Electronics', 'gadget,travel,compact');
+(gen_random_uuid(), 'travel-gadget', 'Travel Gadget', 'Must-have travel gadget product. Compact, lightweight, and versatile for any trip.', 29.99, 'PUBLISHED', 'Electronics', 'gadget,travel,compact')
+ON CONFLICT (slug) DO NOTHING;
 
 -- Product-themed items (13 items - ensures "product" search yields >24 results with widgets/gadgets)
 INSERT INTO products (id, slug, name, description, price, status, category, tags) VALUES
@@ -38,10 +40,12 @@ INSERT INTO products (id, slug, name, description, price, status, category, tags
 (gen_random_uuid(), 'smart-thermostat', 'Smart Thermostat', 'Energy-saving smart thermostat product with learning capabilities.', 129.99, 'PUBLISHED', 'Home', 'thermostat,smart,product'),
 (gen_random_uuid(), 'portable-charger', 'Portable Charger', 'High-capacity portable charger product for all your devices.', 35.99, 'PUBLISHED', 'Electronics', 'charger,portable,product'),
 (gen_random_uuid(), 'webcam-hd', 'Webcam HD', 'Full HD webcam product with built-in microphone and privacy shutter.', 59.99, 'PUBLISHED', 'Electronics', 'webcam,video,product'),
-(gen_random_uuid(), 'keyboard-mechanical', 'Mechanical Keyboard', 'Premium mechanical keyboard product with customizable RGB lighting.', 109.99, 'PUBLISHED', 'Electronics', 'keyboard,mechanical,product');
+(gen_random_uuid(), 'keyboard-mechanical', 'Mechanical Keyboard', 'Premium mechanical keyboard product with customizable RGB lighting.', 109.99, 'PUBLISHED', 'Electronics', 'keyboard,mechanical,product')
+ON CONFLICT (slug) DO NOTHING;
 
 -- Archived products (3 items)
 INSERT INTO products (id, slug, name, description, price, status, category, tags) VALUES
 (gen_random_uuid(), 'legacy-widget-v1', 'Legacy Widget V1', 'Original widget product, now discontinued and archived.', 5.99, 'ARCHIVED', 'Electronics', 'widget,legacy,discontinued'),
 (gen_random_uuid(), 'old-gadget-classic', 'Old Gadget Classic', 'Classic gadget product no longer in production.', 14.99, 'ARCHIVED', 'Electronics', 'gadget,classic,archived'),
-(gen_random_uuid(), 'retired-tool-basic', 'Retired Tool Basic', 'Basic tool product that has been retired from the catalog.', 299.99, 'ARCHIVED', 'Tools', 'tool,retired,archived');
+(gen_random_uuid(), 'retired-tool-basic', 'Retired Tool Basic', 'Basic tool product that has been retired from the catalog.', 299.99, 'ARCHIVED', 'Tools', 'tool,retired,archived')
+ON CONFLICT (slug) DO NOTHING;
