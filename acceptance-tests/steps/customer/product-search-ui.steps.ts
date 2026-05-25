@@ -3,13 +3,8 @@ import { expect } from '@playwright/test';
 import { CustomWorld } from '../../support/world.js';
 import { SearchPage } from '../../pages/customer/search.page.js';
 
-let searchPage: SearchPage;
-
 function getSearchPage(world: CustomWorld): SearchPage {
-  if (!searchPage || searchPage['page'] !== world.page) {
-    searchPage = new SearchPage(world.page);
-  }
-  return searchPage;
+  return new SearchPage(world.page);
 }
 
 Given('I am on the home page', async function (this: CustomWorld) {
