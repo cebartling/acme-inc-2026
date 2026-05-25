@@ -129,8 +129,8 @@ sequenceDiagram
 
 ### Backend Stack
 
-- **Language**: Kotlin 2.2
-- **Runtime**: Java 24 with Project Loom
+- **Language**: Kotlin 2.3
+- **Runtime**: Java 25 with Project Loom
 - **Framework**: Spring Boot 4
 - **Email Provider**: SendGrid API v3
 - **Template Engine**: Thymeleaf

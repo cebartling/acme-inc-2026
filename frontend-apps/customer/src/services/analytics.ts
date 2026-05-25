@@ -46,3 +46,24 @@ export function trackInactiveAccountDisplayed(
     resolutionOffered: properties.resolutionOffered,
   });
 }
+
+export interface SearchExecutedProperties {
+  query: string;
+  totalResults: number;
+  page: number;
+  executionTimeMs: number;
+  sessionId?: string;
+}
+
+export function trackSearchExecuted(
+  properties: SearchExecutedProperties,
+): void {
+  trackEvent("SearchExecuted", {
+    source: "WEB",
+    query: properties.query,
+    totalResults: properties.totalResults,
+    page: properties.page,
+    executionTimeMs: properties.executionTimeMs,
+    sessionId: properties.sessionId,
+  });
+}

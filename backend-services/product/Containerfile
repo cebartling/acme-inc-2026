@@ -1,0 +1,84 @@
+# =============================================================================
+# ACME Product Service Container
+# =============================================================================
+# Multi-stage build for optimized container size
+# - Stage 1: Build the application with Gradle
+# - Stage 2: Create slim runtime image with JRE
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Stage 1: Build
+# -----------------------------------------------------------------------------
+FROM eclipse-temurin:25-jdk AS builder
+
+WORKDIR /app
+
+# Install Gradle
+ARG GRADLE_VERSION=9.5.0
+ARG GRADLE_SHA256=553c78f50dafcd54d65b9a444649057857469edf836431389695608536d6b746
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    unzip \
+    && rm -rf /var/lib/apt/lists/* \
+    && curl -fsSL "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" -o gradle.zip \
+    && echo "${GRADLE_SHA256}  gradle.zip" | sha256sum -c - \
+    && unzip -q gradle.zip \
+    && rm gradle.zip \
+    && mv "gradle-${GRADLE_VERSION}" /opt/gradle
+
+ENV GRADLE_HOME=/opt/gradle
+ENV PATH="${GRADLE_HOME}/bin:${PATH}"
+
+# Copy build configuration first (for better layer caching)
+COPY build.gradle.kts settings.gradle.kts ./
+
+# Copy source code
+COPY src ./src
+
+# Build the application (skip tests as they require containers)
+RUN gradle build -x test --no-daemon --parallel
+
+# -----------------------------------------------------------------------------
+# Stage 2: Runtime
+# -----------------------------------------------------------------------------
+FROM eclipse-temurin:25-jre
+
+LABEL org.opencontainers.image.title="ACME Product Service"
+LABEL org.opencontainers.image.description="Product search service"
+LABEL org.opencontainers.image.vendor="ACME Inc."
+LABEL org.opencontainers.image.source="https://github.com/cebartling/acme-inc-2026"
+
+# Create non-root user for security (using 1001 to avoid conflicts with existing users)
+RUN groupadd --gid 1001 acme \
+    && useradd --uid 1001 --gid acme --shell /bin/bash --create-home acme
+
+# Install curl for health checks
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy the built JAR from builder stage
+COPY --from=builder /app/build/libs/*.jar app.jar
+
+# Change ownership to non-root user
+RUN chown -R acme:acme /app
+
+# Switch to non-root user
+USER acme
+
+# Expose the application port
+EXPOSE 10303
+
+# JVM options for containerized environments
+ENV JAVA_OPTS="-XX:+UseContainerSupport \
+    -XX:MaxRAMPercentage=75.0 \
+    -XX:InitialRAMPercentage=50.0 \
+    -XX:+ExitOnOutOfMemoryError \
+    -Djava.security.egd=file:/dev/./urandom"
+
+# Spring Boot configuration via environment variables
+ENV SERVER_PORT=10303
+ENV SPRING_PROFILES_ACTIVE=docker
+
+# Run the application
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]

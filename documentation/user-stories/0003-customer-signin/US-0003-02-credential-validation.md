@@ -293,7 +293,7 @@ Content-Type: application/json
 
 ### Backend Stack
 
-- **Framework**: Spring Boot 4 with Kotlin 2.2
+- **Framework**: Spring Boot 4 with Kotlin 2.3
 - **Password Hashing**: Spring Security Argon2PasswordEncoder
 - **Database**: PostgreSQL 16+ (Command Store)
 - **Caching**: Caffeine for user lookup caching

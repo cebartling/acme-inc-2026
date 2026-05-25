@@ -214,8 +214,8 @@ Example: `ACME-202601-000142`
 
 ### Backend Stack
 
-- **Language**: Kotlin 2.2
-- **Runtime**: Java 24 with Project Loom (virtual threads)
+- **Language**: Kotlin 2.3
+- **Runtime**: Java 25 with Project Loom (virtual threads)
 - **Framework**: Spring Boot 4 with Spring MVC
 - **Command Store**: PostgreSQL 16+
 - **Query Store**: MongoDB 8.2+

@@ -277,7 +277,7 @@ Content-Type: application/json
 
 ### Backend Stack
 
-- **Framework**: Spring Boot 4 with Kotlin 2.2
+- **Framework**: Spring Boot 4 with Kotlin 2.3
 - **TOTP Library**: dev.samstevens.totp (or similar)
 - **Cache**: Redis for MFA challenge state
 - **Events**: Kafka for MFA events

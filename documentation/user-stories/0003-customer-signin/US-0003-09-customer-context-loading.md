@@ -223,7 +223,7 @@ Content-Type: application/json
 
 ### Backend Stack
 
-- **Framework**: Spring Boot 4 with Kotlin 2.2
+- **Framework**: Spring Boot 4 with Kotlin 2.3
 - **Database**: MongoDB for customer profile (read store)
 - **Cache**: Caffeine (local) + Redis (distributed)
 - **Gateway**: API Gateway validates tokens

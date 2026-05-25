@@ -237,7 +237,7 @@ GET /api/v1/customers/{customerId}/addresses
 
 ### Backend Stack
 
-- **Language**: Kotlin 2.2
+- **Language**: Kotlin 2.3
 - **Framework**: Spring Boot 4
 - **Address Validation**: SmartyStreets or Google Address Validation API
 - **Geocoding**: Google Maps Geocoding API

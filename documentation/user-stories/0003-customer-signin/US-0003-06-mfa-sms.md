@@ -254,7 +254,7 @@ Content-Type: application/json
 
 ### Backend Stack
 
-- **Framework**: Spring Boot 4 with Kotlin 2.2
+- **Framework**: Spring Boot 4 with Kotlin 2.3
 - **SMS Provider**: Twilio or AWS SNS
 - **Cache**: Redis for challenge state
 - **Rate Limiting**: Redis sliding window
