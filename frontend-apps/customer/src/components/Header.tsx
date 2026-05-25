@@ -1,6 +1,7 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 
 import { useState } from "react";
+import { SearchBar } from "@/components/search";
 import {
   ChevronDown,
   ChevronRight,
@@ -22,6 +23,16 @@ export default function Header() {
     Record<string, boolean>
   >({});
   const isAuthenticated = useIsAuthenticated();
+  const navigate = useNavigate();
+
+  const handleHeaderSearch = (query: string) => {
+    if (query.trim()) {
+      navigate({
+        to: "/search",
+        search: { q: query, page: 1, sort: "relevance" },
+      });
+    }
+  };
 
   return (
     <>
@@ -42,6 +53,9 @@ export default function Header() {
             />
           </Link>
         </h1>
+        <div className="flex-1 max-w-md mx-4">
+          <SearchBar onSearch={handleHeaderSearch} />
+        </div>
         {isAuthenticated && (
           <div className="ml-auto">
             <UserMenu />

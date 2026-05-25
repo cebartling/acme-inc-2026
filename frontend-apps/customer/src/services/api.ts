@@ -9,6 +9,8 @@ const IDENTITY_SERVICE_URL =
   import.meta.env.VITE_IDENTITY_SERVICE_URL || "http://localhost:10300";
 const CUSTOMER_SERVICE_URL =
   import.meta.env.VITE_CUSTOMER_SERVICE_URL || "http://localhost:10301";
+const PRODUCT_SERVICE_URL =
+  import.meta.env.VITE_PRODUCT_SERVICE_URL || "http://localhost:10303";
 
 /**
  * Custom error class for API errors with status code and response data.
@@ -863,5 +865,52 @@ export const identityApi = {
         body: JSON.stringify({ token, newPassword }),
       },
     );
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Product Service types
+// ---------------------------------------------------------------------------
+
+export interface ProductSummary {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  price: number;
+  category: string | null;
+}
+
+export interface SearchFacets {
+  categories: Array<{ name: string; count: number }>;
+}
+
+export interface SearchRequest {
+  query: string;
+  page: number;
+  pageSize: number;
+  sort: "relevance" | "price_asc" | "price_desc" | "newest";
+  filters: Record<string, unknown>;
+}
+
+export interface SearchResponse {
+  query: string;
+  totalResults: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  results: ProductSummary[];
+  facets: SearchFacets;
+  spellingSuggestion: string | null;
+  executionTimeMs: number;
+}
+
+export const productApi = {
+  async search(request: SearchRequest): Promise<SearchResponse> {
+    return apiRequest<SearchResponse>(`${PRODUCT_SERVICE_URL}/api/v1/search`, {
+      method: "POST",
+      body: JSON.stringify(request),
+      credentials: "include",
+    });
   },
 };

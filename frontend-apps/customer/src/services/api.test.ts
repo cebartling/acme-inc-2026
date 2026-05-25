@@ -3,6 +3,7 @@ import {
   ApiError,
   customerApi,
   identityApi,
+  productApi,
   __resetRefreshStateForTests,
 } from "./api";
 
@@ -937,6 +938,108 @@ describe("identityApi password reset", () => {
 
     await expect(
       identityApi.confirmPasswordReset("rst_token", "weak"),
+    ).rejects.toBeInstanceOf(ApiError);
+  });
+});
+
+describe("api.search", () => {
+  const mockFetch = vi.fn();
+  const originalFetch = global.fetch;
+
+  beforeEach(() => {
+    global.fetch = mockFetch;
+    mockFetch.mockReset();
+    __resetRefreshStateForTests();
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  const okJson = (body: unknown) => ({
+    ok: true,
+    status: 200,
+    headers: new Headers({ "content-type": "application/json" }),
+    json: () => Promise.resolve(body),
+  });
+
+  it("POSTs the search request to /api/v1/search", async () => {
+    const searchResponse = {
+      results: [],
+      totalResults: 0,
+      page: 1,
+      pageSize: 24,
+      facets: {},
+      executionTimeMs: 5,
+    };
+    mockFetch.mockResolvedValueOnce(okJson(searchResponse));
+
+    const request = {
+      query: "widget",
+      page: 1,
+      pageSize: 24,
+      sort: "relevance" as const,
+      filters: {},
+    };
+    const result = await productApi.search(request);
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/v1/search"),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify(request),
+      }),
+    );
+    expect(result.totalResults).toBe(0);
+  });
+
+  it("returns a typed SearchResponse with results", async () => {
+    const product = {
+      id: "prod-1",
+      slug: "widget-pro",
+      name: "Widget Pro",
+      price: 29.99,
+      category: "Widgets",
+      imageUrl: null,
+    };
+    const searchResponse = {
+      results: [product],
+      totalResults: 1,
+      page: 1,
+      pageSize: 24,
+      facets: { categories: [{ name: "Widgets", count: 1 }] },
+      executionTimeMs: 12,
+      spellingSuggestion: null,
+    };
+    mockFetch.mockResolvedValueOnce(okJson(searchResponse));
+
+    const result = await productApi.search({
+      query: "widget",
+      page: 1,
+      pageSize: 24,
+      sort: "relevance" as const,
+      filters: {},
+    });
+    expect(result.results).toHaveLength(1);
+    expect(result.results[0].name).toBe("Widget Pro");
+  });
+
+  it("throws ApiError on non-OK response", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: () => Promise.resolve({ message: "Internal Server Error" }),
+    });
+
+    await expect(
+      productApi.search({
+        query: "widget",
+        page: 1,
+        pageSize: 24,
+        sort: "relevance" as const,
+        filters: {},
+      }),
     ).rejects.toBeInstanceOf(ApiError);
   });
 });

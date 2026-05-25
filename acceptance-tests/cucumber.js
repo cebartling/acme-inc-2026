@@ -11,6 +11,7 @@ const common = {
     // Customer step definitions
     'steps/customer/registration.steps.ts',
     'steps/customer/customer-logout.steps.ts',
+    'steps/customer/product-search-ui.steps.ts',
     // API step definitions
     'steps/api/address-api.steps.ts',
     'steps/api/authentication-api.steps.ts',

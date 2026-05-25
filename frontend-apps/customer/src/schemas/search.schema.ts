@@ -1,0 +1,11 @@
+import { z } from "zod";
+
+export const searchParamsSchema = z.object({
+  q: z.string().max(200).optional().default(""),
+  page: z.coerce.number().int().min(1).default(1),
+  sort: z
+    .enum(["relevance", "price_asc", "price_desc", "newest"])
+    .default("relevance"),
+});
+
+export type SearchParams = z.infer<typeof searchParamsSchema>;
