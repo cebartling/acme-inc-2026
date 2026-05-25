@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 interface SearchBarProps {
   defaultValue?: string;
@@ -7,6 +7,10 @@ interface SearchBarProps {
 
 export function SearchBar({ defaultValue = "", onSearch }: SearchBarProps) {
   const [value, setValue] = useState(defaultValue);
+
+  useEffect(() => {
+    setValue(defaultValue);
+  }, [defaultValue]);
 
   const handleSubmit = () => {
     onSearch(value);
