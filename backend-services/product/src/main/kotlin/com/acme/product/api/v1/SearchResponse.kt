@@ -17,7 +17,6 @@ data class ProductSummaryResponse(
     val id: UUID,
     val slug: String,
     val name: String,
-    val description: String? = null,
     val price: BigDecimal,
     val category: String? = null
 )

@@ -876,13 +876,8 @@ export interface ProductSummary {
   id: string;
   slug: string;
   name: string;
-  description: string | null;
   price: number;
   category: string | null;
-}
-
-export interface SearchFacets {
-  categories: Array<{ name: string; count: number }>;
 }
 
 export interface SearchRequest {
@@ -900,7 +895,6 @@ export interface SearchResponse {
   pageSize: number;
   totalPages: number;
   results: ProductSummary[];
-  facets: SearchFacets;
   spellingSuggestion: string | null;
   executionTimeMs: number;
 }
