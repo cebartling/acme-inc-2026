@@ -1,5 +1,7 @@
 package com.acme.product.api.v1
 
+import jakarta.validation.constraints.Max
+import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Size
 
@@ -14,8 +16,8 @@ import jakarta.validation.constraints.Size
  */
 data class SearchRequest(
     @field:NotBlank @field:Size(max = 200) val query: String,
-    val page: Int = 1,
-    val pageSize: Int = 24,
+    @field:Min(1) val page: Int = 1,
+    @field:Min(1) @field:Max(100) val pageSize: Int = 24,
     val sort: String = "relevance",
     val filters: Map<String, Any> = emptyMap()
 )
