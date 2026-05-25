@@ -965,11 +965,13 @@ describe("api.search", () => {
 
   it("POSTs the search request to /api/v1/search", async () => {
     const searchResponse = {
+      query: "widget",
       results: [],
       totalResults: 0,
       page: 1,
       pageSize: 24,
-      facets: {},
+      totalPages: 0,
+      spellingSuggestion: null,
       executionTimeMs: 5,
     };
     mockFetch.mockResolvedValueOnce(okJson(searchResponse));
@@ -1000,14 +1002,14 @@ describe("api.search", () => {
       name: "Widget Pro",
       price: 29.99,
       category: "Widgets",
-      imageUrl: null,
     };
     const searchResponse = {
+      query: "widget",
       results: [product],
       totalResults: 1,
       page: 1,
       pageSize: 24,
-      facets: { categories: [{ name: "Widgets", count: 1 }] },
+      totalPages: 1,
       executionTimeMs: 12,
       spellingSuggestion: null,
     };
