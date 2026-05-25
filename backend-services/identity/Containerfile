@@ -52,6 +52,9 @@ LABEL org.opencontainers.image.source="https://github.com/cebartling/acme-inc-20
 RUN groupadd --gid 1001 acme \
     && useradd --uid 1001 --gid acme --shell /bin/bash --create-home acme
 
+# Install curl for health checks
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 # Copy the built JAR from builder stage

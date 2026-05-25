@@ -76,7 +76,7 @@ services:
     networks:
       - acme-network
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:10300/actuator/health >/dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "curl -f -s http://localhost:10300/actuator/health > /dev/null 2>&1 || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -180,7 +180,7 @@ services:
     networks:
       - acme-network
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:10301/actuator/health >/dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "curl -f -s http://localhost:10301/actuator/health > /dev/null 2>&1 || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -266,7 +266,7 @@ services:
     networks:
       - acme-network
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:10302/actuator/health >/dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "curl -f -s http://localhost:10302/actuator/health > /dev/null 2>&1 || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
