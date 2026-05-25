@@ -3,9 +3,13 @@ import { BasePage } from '../base.page.js';
 import { config } from '../../playwright.config.js';
 
 export class SearchPage extends BasePage {
-  readonly searchInput: Locator;
-  readonly searchSubmitButton: Locator;
-  readonly searchClearButton: Locator;
+  readonly headerSearchInput: Locator;
+  readonly headerSearchSubmit: Locator;
+
+  readonly pageContainer: Locator;
+  readonly pageSearchInput: Locator;
+  readonly pageSearchClearButton: Locator;
+  readonly pageSearchSubmitButton: Locator;
   readonly resultCount: Locator;
   readonly resultsGrid: Locator;
   readonly resultCards: Locator;
@@ -19,9 +23,18 @@ export class SearchPage extends BasePage {
   constructor(page: Page) {
     super(page);
 
-    this.searchInput = page.getByTestId('searchInput');
-    this.searchSubmitButton = page.getByTestId('searchSubmitButton');
-    this.searchClearButton = page.getByTestId('searchClearButton');
+    // Header search bar (visible on all pages)
+    const header = page.locator('header');
+    this.headerSearchInput = header.getByTestId('searchInput');
+    this.headerSearchSubmit = header.getByTestId('searchSubmitButton');
+
+    // Search page container (only on /search route)
+    this.pageContainer = page.getByTestId('searchPage');
+    this.pageSearchInput = this.pageContainer.getByTestId('searchInput');
+    this.pageSearchClearButton = this.pageContainer.getByTestId('searchClearButton');
+    this.pageSearchSubmitButton = this.pageContainer.getByTestId('searchSubmitButton');
+
+    // Results (always on search page)
     this.resultCount = page.getByTestId('searchResultCount');
     this.resultsGrid = page.getByTestId('searchResultsGrid');
     this.resultCards = page.getByTestId('searchResultCard');
@@ -38,15 +51,19 @@ export class SearchPage extends BasePage {
   }
 
   async enterSearchQuery(query: string): Promise<void> {
-    await this.fill(this.searchInput, query);
+    const onSearchPage = await this.pageContainer.isVisible().catch(() => false);
+    const input = onSearchPage ? this.pageSearchInput : this.headerSearchInput;
+    await this.fill(input, query);
   }
 
   async submitSearch(): Promise<void> {
-    await this.click(this.searchSubmitButton);
+    const onSearchPage = await this.pageContainer.isVisible().catch(() => false);
+    const button = onSearchPage ? this.pageSearchSubmitButton : this.headerSearchSubmit;
+    await this.click(button);
   }
 
   async clearSearch(): Promise<void> {
-    await this.click(this.searchClearButton);
+    await this.click(this.pageSearchClearButton);
   }
 
   async selectSortOption(optionLabel: string): Promise<void> {
@@ -62,7 +79,7 @@ export class SearchPage extends BasePage {
   }
 
   async getInputValue(): Promise<string> {
-    return await this.searchInput.inputValue();
+    return await this.pageSearchInput.inputValue();
   }
 
   async getResultCardCount(): Promise<number> {

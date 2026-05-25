@@ -55,7 +55,9 @@ When('I select sort option {string}', async function (this: CustomWorld, optionL
 
 When('I click the spelling suggestion link', async function (this: CustomWorld) {
   const page = getSearchPage(this);
+  const currentUrl = this.page.url();
   await page.clickSpellingSuggestion();
+  await this.page.waitForURL((url) => url.toString() !== currentUrl, { timeout: 10000 });
   await this.page.waitForLoadState('networkidle');
 });
 
@@ -114,11 +116,9 @@ Then('I should see a spelling suggestion', async function (this: CustomWorld) {
 });
 
 Then('a new search is executed', async function (this: CustomWorld) {
-  // After clicking the spelling suggestion, the URL should update with the suggested query
-  // and either results or empty state should be visible.
-  await expect(this.page).toHaveURL(/\/search\?q=/);
+  // The URL should have changed to contain the suggested query (not "widgit")
+  await expect(this.page).toHaveURL(/\/search\?q=(?!widgit)/);
+  // Wait for either results or empty state to appear (loading is done)
   const page = getSearchPage(this);
-  const hasResults = await page.resultsGrid.isVisible().catch(() => false);
-  const hasEmptyState = await page.emptyState.isVisible().catch(() => false);
-  expect(hasResults || hasEmptyState).toBe(true);
+  await expect(page.resultsGrid.or(page.emptyState)).toBeVisible({ timeout: 10000 });
 });
