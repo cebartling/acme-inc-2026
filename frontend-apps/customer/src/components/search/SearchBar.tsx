@@ -18,6 +18,7 @@ export function SearchBar({ defaultValue = "", onSearch }: SearchBarProps) {
   const isAuthenticated = useIsAuthenticated();
   const customerId = useCustomerId();
 
+  const [activeDescendant, setActiveDescendant] = useState<string | undefined>();
   const { suggestions, isLoading, isOpen, setIsOpen } = useAutocomplete(value);
 
   useEffect(() => {
@@ -100,6 +101,7 @@ export function SearchBar({ defaultValue = "", onSearch }: SearchBarProps) {
           aria-haspopup="listbox"
           aria-expanded={isOpen}
           aria-controls={isOpen ? dropdownId : undefined}
+          aria-activedescendant={isOpen ? activeDescendant : undefined}
           data-testid="searchInput"
           className="w-full rounded-lg bg-gray-800 px-4 py-2 text-white placeholder-gray-400 outline-none focus:ring-2 focus:ring-cyan-500"
         />
@@ -132,6 +134,7 @@ export function SearchBar({ defaultValue = "", onSearch }: SearchBarProps) {
             suggestions={suggestions}
             isLoading={isLoading}
             onSelect={handleSelect}
+            onHighlightChange={setActiveDescendant}
           />
         </div>
       )}
