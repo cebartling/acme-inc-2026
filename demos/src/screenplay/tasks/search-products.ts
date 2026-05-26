@@ -8,7 +8,7 @@ const NavigateToSearch = Interaction.where(
     const page = await BrowseTheWeb.as(actor).currentPage();
     const nativePage = await (page as any).nativePage();
     await nativePage.goto(`${config.customerAppUrl}/search`);
-    await nativePage.getByTestId('searchInput').waitFor({ timeout: 5000 });
+    await nativePage.getByTestId('searchPage').waitFor({ timeout: 5000 });
   }
 );
 
@@ -17,11 +17,12 @@ const SearchFor = (query: string) =>
     const page = await BrowseTheWeb.as(actor).currentPage();
     const nativePage = await (page as any).nativePage();
 
-    const input = nativePage.getByTestId('searchInput');
+    const searchPage = nativePage.getByTestId('searchPage');
+    const input = searchPage.getByTestId('searchInput');
     await input.clear();
     await input.fill(query);
     await nativePage.waitForTimeout(300);
-    await nativePage.getByTestId('searchSubmitButton').click();
+    await searchPage.getByTestId('searchSubmitButton').click();
   });
 
 const WaitForResults = Interaction.where(
@@ -71,7 +72,8 @@ const ClearSearchInput = Interaction.where(
     const page = await BrowseTheWeb.as(actor).currentPage();
     const nativePage = await (page as any).nativePage();
     console.log('  clearing search input via × button');
-    await nativePage.getByTestId('searchClearButton').click();
+    const searchPage = nativePage.getByTestId('searchPage');
+    await searchPage.getByTestId('searchClearButton').click();
   }
 );
 
