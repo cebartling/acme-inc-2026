@@ -21,6 +21,15 @@ interface ProductSearchProjection {
 }
 
 /**
+ * Projection interface for autocomplete product suggestions.
+ */
+interface AutocompleteProductProjection {
+    fun getId(): UUID
+    fun getName(): String
+    fun getSlug(): String
+}
+
+/**
  * Spring Data JPA repository for [Product] entities.
  *
  * Includes native PostgreSQL full-text search queries using tsvector/tsquery.
@@ -139,4 +148,44 @@ interface ProductRepository : JpaRepository<Product, UUID> {
         nativeQuery = true
     )
     fun findSpellingSuggestion(@Param("query") query: String): String?
+
+    /**
+     * Autocomplete: product names matching the query prefix using ILIKE.
+     * Leverages the existing pg_trgm GIN index on name for performance.
+     */
+    @Query(
+        value = """
+            SELECT id, name, slug
+            FROM products
+            WHERE status = 'PUBLISHED'
+              AND name ILIKE :prefix || '%'
+            ORDER BY similarity(name, :prefix) DESC, name
+            LIMIT :limit
+        """,
+        nativeQuery = true
+    )
+    fun autocompleteProducts(
+        @Param("prefix") prefix: String,
+        @Param("limit") limit: Int
+    ): List<AutocompleteProductProjection>
+
+    /**
+     * Autocomplete: distinct categories matching the query prefix using ILIKE.
+     */
+    @Query(
+        value = """
+            SELECT DISTINCT category
+            FROM products
+            WHERE status = 'PUBLISHED'
+              AND category IS NOT NULL
+              AND category ILIKE :prefix || '%'
+            ORDER BY category
+            LIMIT :limit
+        """,
+        nativeQuery = true
+    )
+    fun autocompleteCategories(
+        @Param("prefix") prefix: String,
+        @Param("limit") limit: Int
+    ): List<String>
 }

@@ -19,6 +19,10 @@ export class SearchPage extends BasePage {
   readonly nextPageButton: Locator;
   readonly previousPageButton: Locator;
   readonly sortSelector: Locator;
+  readonly autocompleteDropdown: Locator;
+  readonly autocompleteProductItems: Locator;
+  readonly autocompleteCategoryItems: Locator;
+  readonly autocompleteQueryItems: Locator;
 
   constructor(page: Page) {
     super(page);
@@ -44,6 +48,12 @@ export class SearchPage extends BasePage {
     this.nextPageButton = page.getByRole('button', { name: /next/i });
     this.previousPageButton = page.getByRole('button', { name: /previous/i });
     this.sortSelector = page.getByTestId('searchSortSelector');
+
+    // Autocomplete dropdown
+    this.autocompleteDropdown = page.getByTestId('autocomplete-dropdown');
+    this.autocompleteProductItems = page.getByTestId('autocomplete-product-item');
+    this.autocompleteCategoryItems = page.getByTestId('autocomplete-category-item');
+    this.autocompleteQueryItems = page.getByTestId('autocomplete-query-item');
   }
 
   get url(): string {
@@ -84,5 +94,27 @@ export class SearchPage extends BasePage {
 
   async getResultCardCount(): Promise<number> {
     return await this.resultCards.count();
+  }
+
+  async typeInSearchBar(text: string): Promise<void> {
+    await this.headerSearchInput.click();
+    await this.headerSearchInput.fill('');
+    await this.page.keyboard.type(text, { delay: 30 });
+  }
+
+  async waitForAutocomplete(): Promise<void> {
+    await this.autocompleteDropdown.waitFor({ state: 'visible', timeout: 5000 });
+  }
+
+  async clickFirstAutocompleteSuggestion(): Promise<void> {
+    const firstItem = this.page.locator('[data-testid^="autocomplete-"][data-testid$="-item"]').first();
+    await firstItem.click();
+  }
+
+  async getAutocompleteSuggestionCount(): Promise<number> {
+    const products = await this.autocompleteProductItems.count();
+    const categories = await this.autocompleteCategoryItems.count();
+    const queries = await this.autocompleteQueryItems.count();
+    return products + categories + queries;
   }
 }

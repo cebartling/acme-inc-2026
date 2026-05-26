@@ -1,6 +1,9 @@
 package com.acme.product.api.v1
 
+import com.acme.product.application.AutocompleteUseCase
 import com.acme.product.application.SearchProductsUseCase
+import com.acme.product.domain.AutocompleteResult
+import com.acme.product.domain.AutocompleteSuggestion
 import com.acme.product.domain.ProductSummary
 import com.acme.product.domain.SearchQuery
 import com.acme.product.domain.SearchResult
@@ -21,12 +24,14 @@ import kotlin.test.assertNull
 class SearchControllerTest {
 
     private lateinit var searchProductsUseCase: SearchProductsUseCase
+    private lateinit var autocompleteUseCase: AutocompleteUseCase
     private lateinit var controller: SearchController
 
     @BeforeEach
     fun setUp() {
         searchProductsUseCase = mockk()
-        controller = SearchController(searchProductsUseCase)
+        autocompleteUseCase = mockk()
+        controller = SearchController(searchProductsUseCase, autocompleteUseCase)
     }
 
     @Test
@@ -215,5 +220,75 @@ class SearchControllerTest {
 
         // Then
         assertNotNull(correlationSlot.captured)
+    }
+
+    @Test
+    fun `autocomplete should return 200 with correct response shape`() {
+        // Given
+        val productId = UUID.randomUUID()
+        val autocompleteResult = AutocompleteResult(
+            query = "wir",
+            suggestions = listOf(
+                AutocompleteSuggestion(type = "product", text = "Wireless Router", productId = productId, productSlug = "wireless-router"),
+                AutocompleteSuggestion(type = "category", text = "Wires & Cables", categorySlug = "wires-cables")
+            )
+        )
+
+        every { autocompleteUseCase.execute("wir", 8) } returns autocompleteResult
+
+        // When
+        val response = controller.autocomplete(query = "wir", limit = 8)
+
+        // Then
+        assertEquals(HttpStatus.OK, response.statusCode)
+        val body = response.body
+        assertNotNull(body)
+        assertEquals("wir", body.query)
+        assertEquals(2, body.suggestions.size)
+
+        assertEquals("product", body.suggestions[0].type)
+        assertEquals("Wireless Router", body.suggestions[0].text)
+        assertEquals(productId, body.suggestions[0].productId)
+
+        assertEquals("category", body.suggestions[1].type)
+        assertEquals("Wires & Cables", body.suggestions[1].text)
+        assertEquals("wires-cables", body.suggestions[1].categorySlug)
+    }
+
+    @Test
+    fun `autocomplete should pass query and limit to use case`() {
+        // Given
+        val querySlot = slot<String>()
+        val limitSlot = slot<Int>()
+
+        every { autocompleteUseCase.execute(capture(querySlot), capture(limitSlot)) } returns AutocompleteResult(
+            query = "test",
+            suggestions = emptyList()
+        )
+
+        // When
+        controller.autocomplete(query = "test", limit = 5)
+
+        // Then
+        assertEquals("test", querySlot.captured)
+        assertEquals(5, limitSlot.captured)
+    }
+
+    @Test
+    fun `autocomplete should return empty suggestions when no matches`() {
+        // Given
+        every { autocompleteUseCase.execute("xyz", 8) } returns AutocompleteResult(
+            query = "xyz",
+            suggestions = emptyList()
+        )
+
+        // When
+        val response = controller.autocomplete(query = "xyz", limit = 8)
+
+        // Then
+        val body = response.body
+        assertNotNull(body)
+        assertEquals("xyz", body.query)
+        assertEquals(0, body.suggestions.size)
     }
 }
