@@ -922,10 +922,7 @@ export const productApi = {
     });
   },
 
-  async autocomplete(
-    query: string,
-    limit = 8,
-  ): Promise<AutocompleteResponse> {
+  async autocomplete(query: string, limit = 8): Promise<AutocompleteResponse> {
     return apiRequest<AutocompleteResponse>(
       `${PRODUCT_SERVICE_URL}/api/v1/search/autocomplete?q=${encodeURIComponent(query)}&limit=${limit}`,
       {
