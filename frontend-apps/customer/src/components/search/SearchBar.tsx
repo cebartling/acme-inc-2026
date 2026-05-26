@@ -18,7 +18,9 @@ export function SearchBar({ defaultValue = "", onSearch }: SearchBarProps) {
   const isAuthenticated = useIsAuthenticated();
   const customerId = useCustomerId();
 
-  const [activeDescendant, setActiveDescendant] = useState<string | undefined>();
+  const [activeDescendant, setActiveDescendant] = useState<
+    string | undefined
+  >();
   const { suggestions, isLoading, isOpen, setIsOpen } = useAutocomplete(value);
 
   useEffect(() => {

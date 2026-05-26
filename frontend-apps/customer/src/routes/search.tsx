@@ -86,7 +86,10 @@ function SearchPage() {
   const hasResults = data && data.totalResults > 0;
 
   return (
-    <div data-testid="searchPage" className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 py-8 px-4">
+    <div
+      data-testid="searchPage"
+      className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 py-8 px-4"
+    >
       <div className="max-w-6xl mx-auto">
         <div className="mb-6">
           <SearchBar defaultValue={q} onSearch={handleSearch} />
