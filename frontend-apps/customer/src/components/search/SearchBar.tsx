@@ -3,6 +3,7 @@ import { useAutocomplete } from "@/hooks/useAutocomplete";
 import { AutocompleteDropdown } from "./AutocompleteDropdown";
 import type { AutocompleteSuggestion } from "@/services/api";
 import { addRecentSearch } from "@/services/recentSearches";
+import { trackAutocompleteSelected } from "@/services/analytics";
 import { useIsAuthenticated, useCustomerId } from "@/stores/auth.store";
 
 interface SearchBarProps {
@@ -32,6 +33,12 @@ export function SearchBar({ defaultValue = "", onSearch }: SearchBarProps) {
   };
 
   const handleSelect = (suggestion: AutocompleteSuggestion) => {
+    trackAutocompleteSelected({
+      query: value,
+      selectedText: suggestion.text,
+      selectedType: suggestion.type,
+      positionIndex: suggestions.indexOf(suggestion),
+    });
     setValue(suggestion.text);
     executeSearch(suggestion.text);
   };
