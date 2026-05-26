@@ -33,7 +33,7 @@ class AutocompleteUseCase(
             AutocompleteSuggestion(
                 type = "category",
                 text = cat,
-                categorySlug = cat.lowercase().replace(" ", "-")
+                categorySlug = cat.lowercase().replace(Regex("[^a-z0-9]+"), "-").trim('-')
             )
         }
 

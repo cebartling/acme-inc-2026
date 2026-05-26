@@ -55,7 +55,7 @@ class AutocompleteUseCaseTest {
         val categorySuggestion = result.suggestions[1]
         assertEquals("category", categorySuggestion.type)
         assertEquals("Wires & Cables", categorySuggestion.text)
-        assertEquals("wires-&-cables", categorySuggestion.categorySlug)
+        assertEquals("wires-cables", categorySuggestion.categorySlug)
     }
 
     @Test
