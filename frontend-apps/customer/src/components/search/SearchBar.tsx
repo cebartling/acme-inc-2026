@@ -120,7 +120,7 @@ export function SearchBar({ defaultValue = "", onSearch }: SearchBarProps) {
         Search
       </button>
       {isOpen && (
-        <div id={dropdownId} role="listbox">
+        <div id={dropdownId}>
           <AutocompleteDropdown
             suggestions={suggestions}
             isLoading={isLoading}
