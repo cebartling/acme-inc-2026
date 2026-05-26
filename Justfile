@@ -64,6 +64,15 @@ demo-token-refresh:
 demo-token-refresh-record:
     cd demos && bun run src/run.ts token-refresh --mode=record
 
+# Live headed walkthrough of product search (US-0004-01):
+# search, sort, spelling suggestion, and clear input.
+demo-product-search:
+    cd demos && bun run src/run.ts product-search
+
+# Recorded product-search walkthrough; .webm lands in demos/recordings/.
+demo-product-search-record:
+    cd demos && bun run src/run.ts product-search --mode=record
+
 # Run all demos sequentially in live mode.
 demo-all: demo-register demo-signin demo-logout
 

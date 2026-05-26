@@ -76,6 +76,8 @@ standalone against a pre-seeded account.
 
 ## Adding a new demo
 
+### Plain scenario (simple)
+
 1. Drop `demos/src/scenarios/<name>.ts` exporting a default function
    `(page) => Promise<void>`.
 2. Add two Justfile targets to the repo root:
@@ -88,11 +90,81 @@ standalone against a pre-seeded account.
    elements. Demos intentionally do not import from acceptance-tests
    (different runtime, different package manager).
 
+### Screenplay scenario (preferred for new demos)
+
+Screenplay scenarios use the [Screenplay Pattern](https://serenity-js.org/handbook/design/screenplay-pattern/)
+via Serenity/JS. They express demos in terms of **Actors**, **Tasks**, and **Interactions**,
+making them more readable and composable.
+
+1. Define page elements in `src/screenplay/page-elements/<page>.ts`.
+2. Build Tasks in `src/screenplay/tasks/<task>.ts` composing interactions
+   from `@serenity-js/web` (Navigate, Click, Enter, Clear, Wait, etc.).
+3. Create `src/screenplay/scenarios/<name>.ts` exporting:
+   - `export const screenplay = true;` (marker for the runner)
+   - A default function `(browser, contextOptions) => Promise<void>`
+4. Add Justfile targets (same as plain demos).
+
+**Example scenario structure:**
+
+```typescript
+import { actorCalled, engage } from '@serenity-js/core';
+import type { Browser, BrowserContextOptions } from 'playwright';
+import { createDemoCast } from '../actors.ts';
+import { SomeTask } from '../tasks/some-task.ts';
+
+export const screenplay = true;
+
+export default async function myDemo(
+  browser: Browser,
+  contextOptions: BrowserContextOptions
+): Promise<void> {
+  engage(createDemoCast(browser, contextOptions));
+
+  await actorCalled('Demo User').attemptsTo(
+    SomeTask.withParams(...)
+  );
+}
+```
+
+**Directory layout:**
+
+```
+src/screenplay/
+  actors.ts               -- Cast factory (shared)
+  interactions/           -- Custom interactions (e.g., pause-for-audience)
+  page-elements/          -- PageElement definitions per page
+  tasks/                  -- Composable business-readable tasks
+  scenarios/              -- Entry points (one per demo)
+```
+
+The runner automatically prefers `src/screenplay/scenarios/<name>.ts` over
+`src/scenarios/<name>.ts` when both exist, enabling incremental migration.
+
+## Screenplay Pattern with Serenity/JS
+
+New demos use the [Screenplay Pattern](https://serenity-js.org/handbook/design/screenplay-pattern/)
+implemented via [Serenity/JS](https://serenity-js.org/). Key packages:
+
+- `@serenity-js/core` — Actors, Tasks, Interactions, the foundation
+- `@serenity-js/playwright` — `BrowseTheWebWithPlaywright` ability
+- `@serenity-js/web` — Navigate, Click, Enter, PageElement, By, Wait
+
+The pattern expresses demos as:
+
+- **Actor** — a named persona ("Demo User") that performs actions
+- **Ability** — what an actor can do (browse the web with Playwright)
+- **Task** — a high-level step (RegisterNewAccount, FillForm)
+- **Interaction** — an atomic action (Click, Enter, Navigate)
+
+This makes demo scripts read like a narrative rather than imperative
+browser automation code.
+
 ## Why a separate package?
 
 - **Different runtime.** Acceptance tests use npm + Node + Cucumber.
-  Demos use Bun and plain Playwright — no Cucumber, no World, no Page
-  Object base class. The runtime choice was a requirement of
+  Demos use Bun and Playwright with Serenity/JS — no Cucumber, no
+  World, no Page Object base class. The runtime choice was a
+  requirement of
   [PIN-116](https://linear.app/pintail-consulting/issue/PIN-116).
 - **Different intent.** Tests must be deterministic and fast. Demos
   must be readable to a human watching them.

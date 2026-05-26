@@ -8,6 +8,9 @@
     "demo": "bun run src/run.ts"
   },
   "dependencies": {
+    "@serenity-js/core": "^3.43.2",
+    "@serenity-js/playwright": "^3.43.2",
+    "@serenity-js/web": "^3.43.2",
     "playwright": "^1.49.1"
   },
   "devDependencies": {
