@@ -4,3 +4,7 @@ export { SearchResults } from "./SearchResults";
 export { SearchEmptyState } from "./SearchEmptyState";
 export { SearchPagination } from "./SearchPagination";
 export { SearchSortSelector } from "./SearchSortSelector";
+export { AutocompleteDropdown } from "./AutocompleteDropdown";
+export { AutocompleteProductItem } from "./AutocompleteProductItem";
+export { AutocompleteCategoryItem } from "./AutocompleteCategoryItem";
+export { AutocompleteQueryItem } from "./AutocompleteQueryItem";

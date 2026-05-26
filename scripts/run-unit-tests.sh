@@ -13,6 +13,7 @@
 #   --identity        Run identity service tests
 #   --customer        Run customer service tests
 #   --notification    Run notification service tests
+#   --product         Run product service tests
 #   --admin           Run admin frontend tests
 #   --customer-app    Run customer frontend tests
 #   --parallel        Run test suites in parallel (faster but mixed output)
@@ -25,6 +26,7 @@
 #   ./scripts/run-unit-tests.sh                    # Run all tests
 #   ./scripts/run-unit-tests.sh --backend          # Run all backend tests
 #   ./scripts/run-unit-tests.sh --identity         # Run identity service tests only
+#   ./scripts/run-unit-tests.sh --product          # Run product service tests only
 #   ./scripts/run-unit-tests.sh --frontend         # Run all frontend tests
 #   ./scripts/run-unit-tests.sh --parallel         # Run all tests in parallel
 # =============================================================================
@@ -41,6 +43,7 @@ PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 IDENTITY_DIR="${PROJECT_ROOT}/backend-services/identity"
 CUSTOMER_DIR="${PROJECT_ROOT}/backend-services/customer"
 NOTIFICATION_DIR="${PROJECT_ROOT}/backend-services/notification"
+PRODUCT_DIR="${PROJECT_ROOT}/backend-services/product"
 
 # Frontend app directories
 ADMIN_APP_DIR="${PROJECT_ROOT}/frontend-apps/admin"
@@ -59,6 +62,7 @@ NC='\033[0m' # No Color
 RUN_IDENTITY=false
 RUN_CUSTOMER=false
 RUN_NOTIFICATION=false
+RUN_PRODUCT=false
 RUN_ADMIN_APP=false
 RUN_CUSTOMER_APP=false
 PARALLEL=false
@@ -206,6 +210,7 @@ ${YELLOW}Individual Services:${NC}
   --identity        Run identity service tests only
   --customer        Run customer service tests only
   --notification    Run notification service tests only
+  --product         Run product service tests only
   --admin           Run admin frontend tests only
   --customer-app    Run customer frontend tests only
 
@@ -521,6 +526,11 @@ run_tests_parallel() {
         pids+=($!)
     fi
 
+    if [[ "$RUN_PRODUCT" == "true" ]]; then
+        (run_gradle_tests "product-service" "$PRODUCT_DIR" 2>&1) &
+        pids+=($!)
+    fi
+
     # Start frontend tests
     if [[ "$RUN_ADMIN_APP" == "true" ]]; then
         (run_npm_tests "admin-app" "$ADMIN_APP_DIR" 2>&1) &
@@ -552,6 +562,10 @@ run_tests_sequential() {
 
     if [[ "$RUN_NOTIFICATION" == "true" ]]; then
         run_gradle_tests "notification-service" "$NOTIFICATION_DIR" || overall_exit=1
+    fi
+
+    if [[ "$RUN_PRODUCT" == "true" ]]; then
+        run_gradle_tests "product-service" "$PRODUCT_DIR" || overall_exit=1
     fi
 
     # Run frontend tests
@@ -694,6 +708,7 @@ main() {
                 RUN_IDENTITY=true
                 RUN_CUSTOMER=true
                 RUN_NOTIFICATION=true
+                RUN_PRODUCT=true
                 RUN_ADMIN_APP=true
                 RUN_CUSTOMER_APP=true
                 any_filter_set=true
@@ -703,6 +718,7 @@ main() {
                 RUN_IDENTITY=true
                 RUN_CUSTOMER=true
                 RUN_NOTIFICATION=true
+                RUN_PRODUCT=true
                 any_filter_set=true
                 shift
                 ;;
@@ -724,6 +740,11 @@ main() {
                 ;;
             --notification)
                 RUN_NOTIFICATION=true
+                any_filter_set=true
+                shift
+                ;;
+            --product)
+                RUN_PRODUCT=true
                 any_filter_set=true
                 shift
                 ;;
@@ -770,6 +791,7 @@ main() {
         RUN_IDENTITY=true
         RUN_CUSTOMER=true
         RUN_NOTIFICATION=true
+        RUN_PRODUCT=true
         RUN_ADMIN_APP=true
         RUN_CUSTOMER_APP=true
     fi
@@ -782,6 +804,7 @@ main() {
     [[ "$RUN_IDENTITY" == "true" ]] && test_list+="identity-service "
     [[ "$RUN_CUSTOMER" == "true" ]] && test_list+="customer-service "
     [[ "$RUN_NOTIFICATION" == "true" ]] && test_list+="notification-service "
+    [[ "$RUN_PRODUCT" == "true" ]] && test_list+="product-service "
     [[ "$RUN_ADMIN_APP" == "true" ]] && test_list+="admin-app "
     [[ "$RUN_CUSTOMER_APP" == "true" ]] && test_list+="customer-app "
 

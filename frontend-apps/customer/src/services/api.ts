@@ -899,6 +899,20 @@ export interface SearchResponse {
   executionTimeMs: number;
 }
 
+export interface AutocompleteSuggestion {
+  type: "product" | "category" | "query";
+  text: string;
+  productId?: string;
+  productSlug?: string;
+  imageUrl?: string | null;
+  categorySlug?: string;
+}
+
+export interface AutocompleteResponse {
+  query: string;
+  suggestions: AutocompleteSuggestion[];
+}
+
 export const productApi = {
   async search(request: SearchRequest): Promise<SearchResponse> {
     return apiRequest<SearchResponse>(`${PRODUCT_SERVICE_URL}/api/v1/search`, {
@@ -906,5 +920,18 @@ export const productApi = {
       body: JSON.stringify(request),
       credentials: "include",
     });
+  },
+
+  async autocomplete(
+    query: string,
+    limit = 8,
+  ): Promise<AutocompleteResponse> {
+    return apiRequest<AutocompleteResponse>(
+      `${PRODUCT_SERVICE_URL}/api/v1/search/autocomplete?q=${encodeURIComponent(query)}&limit=${limit}`,
+      {
+        method: "GET",
+        credentials: "include",
+      },
+    );
   },
 };

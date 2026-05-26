@@ -48,4 +48,20 @@ export const SearchPage = {
   nextPageButton: () =>
     PageElement.located(By.css('[aria-label="Next page"]'))
       .describedAs('next page button'),
+
+  autocompleteDropdown: () =>
+    PageElement.located(By.css('[data-testid="autocomplete-dropdown"]'))
+      .describedAs('autocomplete suggestions dropdown'),
+
+  autocompleteProductItem: () =>
+    PageElement.located(By.css('[data-testid="autocomplete-product-item"]'))
+      .describedAs('autocomplete product suggestion'),
+
+  autocompleteCategoryItem: () =>
+    PageElement.located(By.css('[data-testid="autocomplete-category-item"]'))
+      .describedAs('autocomplete category suggestion'),
+
+  autocompleteQueryItem: () =>
+    PageElement.located(By.css('[data-testid="autocomplete-query-item"]'))
+      .describedAs('autocomplete recent search suggestion'),
 };

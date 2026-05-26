@@ -1,14 +1,20 @@
 package com.acme.product.api.v1
 
+import com.acme.product.application.AutocompleteUseCase
 import com.acme.product.application.SearchProductsUseCase
 import com.acme.product.domain.SearchQuery
 import com.acme.product.domain.SortOption
 import jakarta.validation.Valid
+import jakarta.validation.constraints.Max
+import jakarta.validation.constraints.Min
+import jakarta.validation.constraints.Size
 import org.springframework.http.ResponseEntity
+import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import java.util.UUID
 
@@ -20,7 +26,8 @@ import java.util.UUID
 @RestController
 @RequestMapping("/api/v1")
 class SearchController(
-    private val searchProductsUseCase: SearchProductsUseCase
+    private val searchProductsUseCase: SearchProductsUseCase,
+    private val autocompleteUseCase: AutocompleteUseCase
 ) {
 
     /**
@@ -77,6 +84,30 @@ class SearchController(
             },
             spellingSuggestion = result.spellingSuggestion,
             executionTimeMs = result.executionTimeMs
+        )
+
+        return ResponseEntity.ok(response)
+    }
+
+    @GetMapping("/search/autocomplete")
+    fun autocomplete(
+        @RequestParam("q") @Size(min = 2, max = 200) query: String,
+        @RequestParam("limit", defaultValue = "8") @Min(1) @Max(20) limit: Int
+    ): ResponseEntity<AutocompleteResponse> {
+        val result = autocompleteUseCase.execute(query, limit)
+
+        val response = AutocompleteResponse(
+            query = result.query,
+            suggestions = result.suggestions.map { s ->
+                AutocompleteSuggestionResponse(
+                    type = s.type,
+                    text = s.text,
+                    productId = s.productId,
+                    productSlug = s.productSlug,
+                    imageUrl = null,
+                    categorySlug = s.categorySlug
+                )
+            }
         )
 
         return ResponseEntity.ok(response)

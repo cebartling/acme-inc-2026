@@ -67,3 +67,22 @@ export function trackSearchExecuted(
     sessionId: properties.sessionId,
   });
 }
+
+export interface AutocompleteSelectedProperties {
+  query: string;
+  selectedText: string;
+  selectedType: "product" | "category" | "query";
+  positionIndex: number;
+}
+
+export function trackAutocompleteSelected(
+  properties: AutocompleteSelectedProperties,
+): void {
+  trackEvent("AutocompleteSelected", {
+    source: "WEB",
+    query: properties.query,
+    selectedText: properties.selectedText,
+    selectedType: properties.selectedType,
+    positionIndex: properties.positionIndex,
+  });
+}
