@@ -25,12 +25,16 @@ export function useAutocomplete(inputValue: string) {
     staleTime: 30_000,
   });
 
+  const recentSearches = useMemo(
+    () => (isAuthenticated && customerId ? getRecentSearches(customerId) : []),
+    [isAuthenticated, customerId],
+  );
+
   const suggestions = useMemo(() => {
     const backendSuggestions = data?.suggestions ?? [];
 
     if (!isAuthenticated || !customerId) return backendSuggestions;
 
-    const recentSearches = getRecentSearches(customerId);
     const matchingRecent = recentSearches
       .filter(
         (s) =>
@@ -47,7 +51,7 @@ export function useAutocomplete(inputValue: string) {
       );
 
     return [...backendSuggestions, ...matchingRecent].slice(0, 8);
-  }, [data, isAuthenticated, customerId, inputValue]);
+  }, [data, isAuthenticated, customerId, inputValue, recentSearches]);
 
   const result: UseAutocompleteReturn = {
     suggestions,
