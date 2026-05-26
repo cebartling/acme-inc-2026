@@ -158,7 +158,7 @@ interface ProductRepository : JpaRepository<Product, UUID> {
             SELECT id, name, slug
             FROM products
             WHERE status = 'PUBLISHED'
-              AND name ILIKE :prefix || '%'
+              AND name ILIKE :prefix || '%' ESCAPE '\'
             ORDER BY similarity(name, :prefix) DESC, name
             LIMIT :limit
         """,
@@ -178,7 +178,7 @@ interface ProductRepository : JpaRepository<Product, UUID> {
             FROM products
             WHERE status = 'PUBLISHED'
               AND category IS NOT NULL
-              AND category ILIKE :prefix || '%'
+              AND category ILIKE :prefix || '%' ESCAPE '\'
             ORDER BY category
             LIMIT :limit
         """,

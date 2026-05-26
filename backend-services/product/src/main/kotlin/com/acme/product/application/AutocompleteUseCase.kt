@@ -14,8 +14,9 @@ class AutocompleteUseCase(
         val productLimit = minOf(5, limit)
         val categoryLimit = minOf(3, limit)
 
-        val products = repository.autocompleteProducts(query, productLimit)
-        val categories = repository.autocompleteCategories(query, categoryLimit)
+        val safePrefix = escapeLikePattern(query)
+        val products = repository.autocompleteProducts(safePrefix, productLimit)
+        val categories = repository.autocompleteCategories(safePrefix, categoryLimit)
 
         val suggestions = mutableListOf<AutocompleteSuggestion>()
 
@@ -41,4 +42,7 @@ class AutocompleteUseCase(
             suggestions = suggestions.take(limit)
         )
     }
+
+    private fun escapeLikePattern(s: String): String =
+        s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 }
