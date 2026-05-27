@@ -4,20 +4,18 @@ import jakarta.validation.constraints.Max
 import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Size
+import java.math.BigDecimal
 
-/**
- * Request body for the product search endpoint.
- *
- * @property query The search query string.
- * @property page 1-based page number.
- * @property pageSize Number of results per page.
- * @property sort Sort option (relevance, price_asc, price_desc, newest).
- * @property filters Optional filters (reserved for future use).
- */
+data class SearchFiltersRequest(
+    val categories: List<String> = emptyList(),
+    val priceMin: BigDecimal? = null,
+    val priceMax: BigDecimal? = null
+)
+
 data class SearchRequest(
     @field:NotBlank @field:Size(max = 200) val query: String,
     @field:Min(1) val page: Int = 1,
     @field:Min(1) @field:Max(100) val pageSize: Int = 24,
     val sort: String = "relevance",
-    val filters: Map<String, Any> = emptyMap()
+    val filters: SearchFiltersRequest = SearchFiltersRequest()
 )

@@ -4,15 +4,20 @@ import {
   useSearch,
 } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { searchParamsSchema } from "@/schemas/search.schema";
 import { productApi } from "@/services/api";
-import { trackSearchExecuted } from "@/services/analytics";
+import { trackSearchExecuted, trackFiltersApplied } from "@/services/analytics";
+import { useSearchFilters } from "@/hooks/useSearchFilters";
 import {
   SearchBar,
   SearchResults,
   SearchEmptyState,
   SearchPagination,
   SearchSortSelector,
+  FilterPanel,
+  ActiveFiltersBar,
+  MobileFilterDrawer,
 } from "@/components/search";
 import type { SearchResponse } from "@/services/api";
 
@@ -25,15 +30,33 @@ function SearchPage() {
   const navigate = useNavigate();
   const { q, page, sort } = useSearch({ from: "/search" });
 
+  const {
+    filters,
+    activeCategories,
+    priceMin,
+    priceMax,
+    hasActiveFilters,
+    activeFilterCount,
+    toggleCategory,
+    removeCategory,
+    setPriceRange,
+    clearPriceRange,
+    clearAll,
+  } = useSearchFilters();
+
   const { data, isLoading } = useQuery<SearchResponse>({
-    queryKey: ["search", q, page, sort],
+    queryKey: ["search", q, page, sort, activeCategories, priceMin, priceMax],
     queryFn: async () => {
       const result = await productApi.search({
         query: q,
         page,
         pageSize: 24,
         sort: sort as "relevance" | "price_asc" | "price_desc" | "newest",
-        filters: {},
+        filters: {
+          categories: filters.categories,
+          priceMin: filters.priceMin,
+          priceMax: filters.priceMax,
+        },
       });
       trackSearchExecuted({
         query: q,
@@ -46,27 +69,45 @@ function SearchPage() {
     enabled: q.length > 0,
   });
 
+  useEffect(() => {
+    if (data && hasActiveFilters) {
+      trackFiltersApplied({
+        query: q,
+        categories: activeCategories,
+        priceMin,
+        priceMax,
+        resultCount: data.totalResults,
+      });
+    }
+  }, [data, hasActiveFilters, q, activeCategories, priceMin, priceMax]);
+
   const handleSearch = (newQuery: string) => {
-    navigate({ to: "/search", search: { q: newQuery, page: 1, sort } });
+    navigate({
+      to: "/search",
+      search: { q: newQuery, page: 1, sort, category: [] },
+    });
   };
 
   const handlePageChange = (newPage: number) => {
-    navigate({ to: "/search", search: { q, page: newPage, sort } });
+    navigate({ to: "/search", search: (prev) => ({ ...prev, page: newPage }) });
   };
 
   const handleSortChange = (newSort: string) => {
     navigate({
       to: "/search",
-      search: {
-        q,
+      search: (prev) => ({
+        ...prev,
         page: 1,
         sort: newSort as "relevance" | "price_asc" | "price_desc" | "newest",
-      },
+      }),
     });
   };
 
   const handleSuggestionClick = (suggestion: string) => {
-    navigate({ to: "/search", search: { q: suggestion, page: 1, sort } });
+    navigate({
+      to: "/search",
+      search: { q: suggestion, page: 1, sort, category: [] },
+    });
   };
 
   if (isLoading) {
@@ -96,9 +137,32 @@ function SearchPage() {
         </div>
 
         {q.length > 0 && data && (
-          <div className="mb-4 flex justify-end">
-            <SearchSortSelector value={sort} onChange={handleSortChange} />
+          <div className="mb-4 flex items-center justify-between gap-4">
+            <MobileFilterDrawer
+              facets={data.facets}
+              activeCategories={activeCategories}
+              activeFilterCount={activeFilterCount}
+              priceMin={priceMin}
+              priceMax={priceMax}
+              onToggleCategory={toggleCategory}
+              onPriceRangeApply={setPriceRange}
+              onPriceRangeClear={clearPriceRange}
+            />
+            <div className="ml-auto">
+              <SearchSortSelector value={sort} onChange={handleSortChange} />
+            </div>
           </div>
+        )}
+
+        {q.length > 0 && data && hasActiveFilters && (
+          <ActiveFiltersBar
+            activeCategories={activeCategories}
+            priceMin={priceMin}
+            priceMax={priceMax}
+            onRemoveCategory={removeCategory}
+            onClearPriceRange={clearPriceRange}
+            onClearAll={clearAll}
+          />
         )}
 
         {q.length === 0 && (
@@ -107,29 +171,45 @@ function SearchPage() {
           </p>
         )}
 
-        {q.length > 0 &&
-          data &&
-          (hasResults ? (
-            <SearchResults
-              query={q}
-              totalResults={data.totalResults}
-              results={data.results}
-            >
-              {data.totalPages > 1 && (
-                <SearchPagination
-                  currentPage={page}
-                  totalPages={data.totalPages}
-                  onPageChange={handlePageChange}
+        {q.length > 0 && data && (
+          <div className="flex gap-6">
+            {hasResults && (
+              <FilterPanel
+                facets={data.facets}
+                activeCategories={activeCategories}
+                priceMin={priceMin}
+                priceMax={priceMax}
+                onToggleCategory={toggleCategory}
+                onPriceRangeApply={setPriceRange}
+                onPriceRangeClear={clearPriceRange}
+              />
+            )}
+
+            <div className="flex-1">
+              {hasResults ? (
+                <SearchResults
+                  query={q}
+                  totalResults={data.totalResults}
+                  results={data.results}
+                >
+                  {data.totalPages > 1 && (
+                    <SearchPagination
+                      currentPage={page}
+                      totalPages={data.totalPages}
+                      onPageChange={handlePageChange}
+                    />
+                  )}
+                </SearchResults>
+              ) : (
+                <SearchEmptyState
+                  query={q}
+                  spellingSuggestion={data.spellingSuggestion}
+                  onSuggestionClick={handleSuggestionClick}
                 />
               )}
-            </SearchResults>
-          ) : (
-            <SearchEmptyState
-              query={q}
-              spellingSuggestion={data.spellingSuggestion}
-              onSuggestionClick={handleSuggestionClick}
-            />
-          ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

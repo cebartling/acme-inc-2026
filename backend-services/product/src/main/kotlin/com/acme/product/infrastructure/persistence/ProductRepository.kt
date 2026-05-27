@@ -10,6 +10,14 @@ import java.math.BigDecimal
 import java.util.UUID
 
 /**
+ * Projection interface for category facet counts.
+ */
+interface CategoryFacetProjection {
+    fun getCategory(): String
+    fun getCount(): Long
+}
+
+/**
  * Projection interface for the full-text search native query result set.
  */
 interface ProductSearchProjection {
@@ -148,6 +156,148 @@ interface ProductRepository : JpaRepository<Product, UUID> {
         nativeQuery = true
     )
     fun findSpellingSuggestion(@Param("query") query: String): String?
+
+    /**
+     * Filtered full-text search ranked by ts_rank. Supports optional category and price range filters.
+     * Pass null for categoryFilter to skip category filtering.
+     */
+    @Query(
+        value = """
+            SELECT id, slug, name, price, category
+            FROM products
+            WHERE status = 'PUBLISHED'
+              AND search_vector @@ plainto_tsquery('english', :query)
+              AND (:categoryFilter IS NULL OR category = ANY(STRING_TO_ARRAY(:categoryFilter, ',')))
+              AND (:priceMin IS NULL OR price >= CAST(:priceMin AS NUMERIC))
+              AND (:priceMax IS NULL OR price <= CAST(:priceMax AS NUMERIC))
+            ORDER BY ts_rank(search_vector, plainto_tsquery('english', :query)) DESC, id
+            LIMIT :limit OFFSET :offset
+        """,
+        nativeQuery = true
+    )
+    fun searchByRelevanceFiltered(
+        @Param("query") query: String,
+        @Param("categoryFilter") categoryFilter: String?,
+        @Param("priceMin") priceMin: BigDecimal?,
+        @Param("priceMax") priceMax: BigDecimal?,
+        @Param("limit") limit: Int,
+        @Param("offset") offset: Int
+    ): List<ProductSearchProjection>
+
+    @Query(
+        value = """
+            SELECT id, slug, name, price, category
+            FROM products
+            WHERE status = 'PUBLISHED'
+              AND search_vector @@ plainto_tsquery('english', :query)
+              AND (:categoryFilter IS NULL OR category = ANY(STRING_TO_ARRAY(:categoryFilter, ',')))
+              AND (:priceMin IS NULL OR price >= CAST(:priceMin AS NUMERIC))
+              AND (:priceMax IS NULL OR price <= CAST(:priceMax AS NUMERIC))
+            ORDER BY price ASC, id
+            LIMIT :limit OFFSET :offset
+        """,
+        nativeQuery = true
+    )
+    fun searchByPriceAscFiltered(
+        @Param("query") query: String,
+        @Param("categoryFilter") categoryFilter: String?,
+        @Param("priceMin") priceMin: BigDecimal?,
+        @Param("priceMax") priceMax: BigDecimal?,
+        @Param("limit") limit: Int,
+        @Param("offset") offset: Int
+    ): List<ProductSearchProjection>
+
+    @Query(
+        value = """
+            SELECT id, slug, name, price, category
+            FROM products
+            WHERE status = 'PUBLISHED'
+              AND search_vector @@ plainto_tsquery('english', :query)
+              AND (:categoryFilter IS NULL OR category = ANY(STRING_TO_ARRAY(:categoryFilter, ',')))
+              AND (:priceMin IS NULL OR price >= CAST(:priceMin AS NUMERIC))
+              AND (:priceMax IS NULL OR price <= CAST(:priceMax AS NUMERIC))
+            ORDER BY price DESC, id
+            LIMIT :limit OFFSET :offset
+        """,
+        nativeQuery = true
+    )
+    fun searchByPriceDescFiltered(
+        @Param("query") query: String,
+        @Param("categoryFilter") categoryFilter: String?,
+        @Param("priceMin") priceMin: BigDecimal?,
+        @Param("priceMax") priceMax: BigDecimal?,
+        @Param("limit") limit: Int,
+        @Param("offset") offset: Int
+    ): List<ProductSearchProjection>
+
+    @Query(
+        value = """
+            SELECT id, slug, name, price, category
+            FROM products
+            WHERE status = 'PUBLISHED'
+              AND search_vector @@ plainto_tsquery('english', :query)
+              AND (:categoryFilter IS NULL OR category = ANY(STRING_TO_ARRAY(:categoryFilter, ',')))
+              AND (:priceMin IS NULL OR price >= CAST(:priceMin AS NUMERIC))
+              AND (:priceMax IS NULL OR price <= CAST(:priceMax AS NUMERIC))
+            ORDER BY created_at DESC, id
+            LIMIT :limit OFFSET :offset
+        """,
+        nativeQuery = true
+    )
+    fun searchByNewestFiltered(
+        @Param("query") query: String,
+        @Param("categoryFilter") categoryFilter: String?,
+        @Param("priceMin") priceMin: BigDecimal?,
+        @Param("priceMax") priceMax: BigDecimal?,
+        @Param("limit") limit: Int,
+        @Param("offset") offset: Int
+    ): List<ProductSearchProjection>
+
+    /**
+     * Count of matching products with optional category and price range filters.
+     */
+    @Query(
+        value = """
+            SELECT COUNT(*)
+            FROM products
+            WHERE status = 'PUBLISHED'
+              AND search_vector @@ plainto_tsquery('english', :query)
+              AND (:categoryFilter IS NULL OR category = ANY(STRING_TO_ARRAY(:categoryFilter, ',')))
+              AND (:priceMin IS NULL OR price >= CAST(:priceMin AS NUMERIC))
+              AND (:priceMax IS NULL OR price <= CAST(:priceMax AS NUMERIC))
+        """,
+        nativeQuery = true
+    )
+    fun countByQueryFiltered(
+        @Param("query") query: String,
+        @Param("categoryFilter") categoryFilter: String?,
+        @Param("priceMin") priceMin: BigDecimal?,
+        @Param("priceMax") priceMax: BigDecimal?
+    ): Long
+
+    /**
+     * Category facet counts for a search query with optional price filter.
+     * Category filter is intentionally excluded so all category options remain visible.
+     */
+    @Query(
+        value = """
+            SELECT category, COUNT(*) AS count
+            FROM products
+            WHERE status = 'PUBLISHED'
+              AND category IS NOT NULL
+              AND search_vector @@ plainto_tsquery('english', :query)
+              AND (:priceMin IS NULL OR price >= CAST(:priceMin AS NUMERIC))
+              AND (:priceMax IS NULL OR price <= CAST(:priceMax AS NUMERIC))
+            GROUP BY category
+            ORDER BY count DESC
+        """,
+        nativeQuery = true
+    )
+    fun getCategoryFacets(
+        @Param("query") query: String,
+        @Param("priceMin") priceMin: BigDecimal?,
+        @Param("priceMax") priceMax: BigDecimal?
+    ): List<CategoryFacetProjection>
 
     /**
      * Autocomplete: product names matching the query prefix using ILIKE.

@@ -2,6 +2,7 @@ package com.acme.product.api.v1
 
 import com.acme.product.application.AutocompleteUseCase
 import com.acme.product.application.SearchProductsUseCase
+import com.acme.product.domain.SearchFilters
 import com.acme.product.domain.SearchQuery
 import com.acme.product.domain.SortOption
 import jakarta.validation.Valid
@@ -50,11 +51,18 @@ class SearchController(
             SortOption.RELEVANCE
         }
 
+        val filters = SearchFilters(
+            categories = request.filters.categories,
+            priceMin = request.filters.priceMin,
+            priceMax = request.filters.priceMax
+        )
+
         val query = SearchQuery(
             query = request.query,
             page = request.page,
             pageSize = request.pageSize,
-            sort = sortOption
+            sort = sortOption,
+            filters = filters
         )
 
         val parsedCorrelationId = correlationId?.let {
@@ -82,6 +90,7 @@ class SearchController(
                     category = p.category
                 )
             },
+            facets = SearchFacetsResponse(categories = result.facets.categories),
             spellingSuggestion = result.spellingSuggestion,
             executionTimeMs = result.executionTimeMs
         )

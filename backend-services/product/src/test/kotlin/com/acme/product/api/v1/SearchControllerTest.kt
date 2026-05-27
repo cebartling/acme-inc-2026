@@ -5,6 +5,7 @@ import com.acme.product.application.SearchProductsUseCase
 import com.acme.product.domain.AutocompleteResult
 import com.acme.product.domain.AutocompleteSuggestion
 import com.acme.product.domain.ProductSummary
+import com.acme.product.domain.SearchFacets
 import com.acme.product.domain.SearchQuery
 import com.acme.product.domain.SearchResult
 import com.acme.product.domain.SortOption
@@ -220,6 +221,79 @@ class SearchControllerTest {
 
         // Then
         assertNotNull(correlationSlot.captured)
+    }
+
+    @Test
+    fun `search should map category filters to SearchQuery filters`() {
+        // Given
+        val querySlot = slot<SearchQuery>()
+        val searchResult = SearchResult(
+            products = emptyList(), totalResults = 0L, page = 1, pageSize = 24, totalPages = 0,
+            spellingSuggestion = null, executionTimeMs = 3
+        )
+        every { searchProductsUseCase.execute(capture(querySlot), any(), any()) } returns searchResult
+
+        val request = SearchRequest(
+            query = "mouse",
+            filters = SearchFiltersRequest(categories = listOf("Gaming", "Electronics"))
+        )
+
+        // When
+        controller.search(request, correlationId = null, sessionId = null)
+
+        // Then
+        val captured = querySlot.captured
+        assertEquals(listOf("Gaming", "Electronics"), captured.filters.categories)
+    }
+
+    @Test
+    fun `search should map price range filter to SearchQuery filters`() {
+        // Given
+        val querySlot = slot<SearchQuery>()
+        val searchResult = SearchResult(
+            products = emptyList(), totalResults = 0L, page = 1, pageSize = 24, totalPages = 0,
+            spellingSuggestion = null, executionTimeMs = 3
+        )
+        every { searchProductsUseCase.execute(capture(querySlot), any(), any()) } returns searchResult
+
+        val request = SearchRequest(
+            query = "headset",
+            filters = SearchFiltersRequest(priceMin = java.math.BigDecimal("25.00"), priceMax = java.math.BigDecimal("75.00"))
+        )
+
+        // When
+        controller.search(request, correlationId = null, sessionId = null)
+
+        // Then
+        val captured = querySlot.captured
+        assertEquals(java.math.BigDecimal("25.00"), captured.filters.priceMin)
+        assertEquals(java.math.BigDecimal("75.00"), captured.filters.priceMax)
+    }
+
+    @Test
+    fun `search should include facets in response`() {
+        // Given
+        val searchResult = SearchResult(
+            products = emptyList(),
+            totalResults = 0L,
+            page = 1,
+            pageSize = 24,
+            totalPages = 0,
+            facets = SearchFacets(categories = mapOf("Electronics" to 5L, "Gaming" to 3L)),
+            spellingSuggestion = null,
+            executionTimeMs = 5
+        )
+        every { searchProductsUseCase.execute(any(), any(), any()) } returns searchResult
+
+        val request = SearchRequest(query = "widget")
+
+        // When
+        val response = controller.search(request, correlationId = null, sessionId = null)
+
+        // Then
+        val body = response.body
+        assertNotNull(body)
+        assertEquals(mapOf("Electronics" to 5L, "Gaming" to 3L), body.facets.categories)
     }
 
     @Test

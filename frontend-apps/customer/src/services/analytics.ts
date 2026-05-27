@@ -68,6 +68,29 @@ export function trackSearchExecuted(
   });
 }
 
+export interface FiltersAppliedProperties {
+  query: string;
+  categories: string[];
+  priceMin?: number;
+  priceMax?: number;
+  resultCount: number;
+  sessionId?: string;
+}
+
+export function trackFiltersApplied(
+  properties: FiltersAppliedProperties,
+): void {
+  trackEvent("FiltersApplied", {
+    source: "WEB",
+    query: properties.query,
+    categories: properties.categories,
+    priceMin: properties.priceMin,
+    priceMax: properties.priceMax,
+    resultCount: properties.resultCount,
+    sessionId: properties.sessionId,
+  });
+}
+
 export interface AutocompleteSelectedProperties {
   query: string;
   selectedText: string;
