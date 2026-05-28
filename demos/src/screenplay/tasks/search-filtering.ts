@@ -42,7 +42,8 @@ const ToggleCategoryFilter = (category: string) =>
   Interaction.where(the`#actor toggles category filter "${category}"`, async (actor) => {
     const nativePage = await getNativePage(actor);
     console.log(`  clicking category filter: ${category}`);
-    await nativePage.getByTestId(`filter-category-${category}`).click();
+    const slug = category.replace(/[^a-zA-Z0-9_-]/g, '-');
+    await nativePage.getByTestId(`filter-category-${slug}`).click();
   });
 
 const ApplyPricePreset = (label: string) =>

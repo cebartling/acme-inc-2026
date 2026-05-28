@@ -23,13 +23,14 @@ export function CheckboxFilter({
       {options.map((option) => {
         const isDisabled = option.count === 0;
         const isChecked = selectedValues.includes(option.value);
-        const id = `filter-${option.value}`;
+        const slug = option.value.replace(/[^a-zA-Z0-9_-]/g, "-");
+        const id = `filter-${slug}`;
 
         return (
           <li key={option.value} className="flex items-center gap-2">
             <Checkbox
               id={id}
-              data-testid={`filter-category-${option.value}`}
+              data-testid={`filter-category-${slug}`}
               checked={isChecked}
               disabled={isDisabled}
               aria-disabled={isDisabled}
