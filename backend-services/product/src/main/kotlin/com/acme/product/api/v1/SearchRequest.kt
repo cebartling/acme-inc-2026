@@ -1,5 +1,7 @@
 package com.acme.product.api.v1
 
+import jakarta.validation.Valid
+import jakarta.validation.constraints.DecimalMin
 import jakarta.validation.constraints.Max
 import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotBlank
@@ -8,8 +10,8 @@ import java.math.BigDecimal
 
 data class SearchFiltersRequest(
     val categories: List<String> = emptyList(),
-    val priceMin: BigDecimal? = null,
-    val priceMax: BigDecimal? = null
+    @field:DecimalMin("0") val priceMin: BigDecimal? = null,
+    @field:DecimalMin("0") val priceMax: BigDecimal? = null
 )
 
 data class SearchRequest(
@@ -17,5 +19,5 @@ data class SearchRequest(
     @field:Min(1) val page: Int = 1,
     @field:Min(1) @field:Max(100) val pageSize: Int = 24,
     val sort: String = "relevance",
-    val filters: SearchFiltersRequest = SearchFiltersRequest()
+    @field:Valid val filters: SearchFiltersRequest = SearchFiltersRequest()
 )
