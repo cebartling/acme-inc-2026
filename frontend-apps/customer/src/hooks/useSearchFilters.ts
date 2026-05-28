@@ -18,7 +18,7 @@ export interface UseSearchFiltersReturn {
 
 export function useSearchFilters(): UseSearchFiltersReturn {
   const navigate = useNavigate();
-  const { q, sort, category, priceMin, priceMax } = useSearch({
+  const { category, priceMin, priceMax } = useSearch({
     from: "/search",
   });
 
@@ -68,19 +68,20 @@ export function useSearchFilters(): UseSearchFiltersReturn {
   };
 
   const clearPriceRange = () => {
-    navigate({
-      to: "/search",
-      search: (prev) => {
-        const { priceMin: _min, priceMax: _max, ...rest } = prev;
-        return { ...rest, q, sort, page: 1 };
-      },
-    });
+    updateSearch({ priceMin: undefined, priceMax: undefined });
   };
 
   const clearAll = () => {
     navigate({
       to: "/search",
-      search: { q, sort, page: 1, category: [] },
+      search: (prev) => ({
+        q: prev.q,
+        sort: prev.sort,
+        page: 1,
+        category: [],
+        priceMin: undefined,
+        priceMax: undefined,
+      }),
     });
   };
 
