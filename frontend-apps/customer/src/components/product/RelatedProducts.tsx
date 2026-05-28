@@ -10,7 +10,10 @@ export function RelatedProducts({ products }: RelatedProductsProps) {
 
   return (
     <section className="mt-12" aria-labelledby="related-heading">
-      <h2 id="related-heading" className="mb-4 text-xl font-semibold text-white">
+      <h2
+        id="related-heading"
+        className="mb-4 text-xl font-semibold text-white"
+      >
         Related Products
       </h2>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

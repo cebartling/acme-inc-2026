@@ -23,7 +23,12 @@ export function ProductBreadcrumb({
         <li>
           <Link
             to="/search"
-            search={{ q: category ?? "", page: 1, sort: "relevance", category: category ? [category] : [] }}
+            search={{
+              q: category ?? "",
+              page: 1,
+              sort: "relevance",
+              category: category ? [category] : [],
+            }}
             className="hover:text-slate-200"
           >
             {category ?? "Products"}
