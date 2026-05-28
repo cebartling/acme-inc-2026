@@ -25,20 +25,15 @@ class ProductEventPublisher(
 
         logger.debug("Publishing {} event {} to topic {}", event.eventType, event.eventId, PRODUCT_EVENTS_TOPIC)
 
-        try {
-            val sendResult = kafkaTemplate.send(PRODUCT_EVENTS_TOPIC, key, value)
-                .get(publishTimeoutSeconds, TimeUnit.SECONDS)
-            logger.info(
-                "Published {} event {} to topic {} partition {} offset {}",
-                event.eventType,
-                event.eventId,
-                sendResult.recordMetadata.topic(),
-                sendResult.recordMetadata.partition(),
-                sendResult.recordMetadata.offset()
-            )
-        } catch (ex: Exception) {
-            logger.error("Failed to publish {} event {}: {}", event.eventType, event.eventId, ex.message, ex)
-            throw RuntimeException("Failed to publish event to Kafka", ex)
-        }
+        val sendResult = kafkaTemplate.send(PRODUCT_EVENTS_TOPIC, key, value)
+            .get(publishTimeoutSeconds, TimeUnit.SECONDS)
+        logger.info(
+            "Published {} event {} to topic {} partition {} offset {}",
+            event.eventType,
+            event.eventId,
+            sendResult.recordMetadata.topic(),
+            sendResult.recordMetadata.partition(),
+            sendResult.recordMetadata.offset()
+        )
     }
 }
