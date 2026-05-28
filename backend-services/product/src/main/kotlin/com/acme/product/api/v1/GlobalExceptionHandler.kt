@@ -20,6 +20,6 @@ class GlobalExceptionHandler {
     fun handleProductNotFound(ex: ProductNotFoundException): ResponseEntity<Map<String, String>> {
         return ResponseEntity
             .status(HttpStatus.NOT_FOUND)
-            .body(mapOf("error" to ex.message!!))
+            .body(mapOf("error" to (ex.message ?: "Product not found")))
     }
 }
