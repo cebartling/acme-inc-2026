@@ -29,6 +29,7 @@ export function CheckboxFilter({
           <li key={option.value} className="flex items-center gap-2">
             <Checkbox
               id={id}
+              data-testid={`filter-category-${option.value}`}
               checked={isChecked}
               disabled={isDisabled}
               aria-disabled={isDisabled}

@@ -40,8 +40,7 @@ const ToggleCategoryFilter = (category: string) =>
     const page = await BrowseTheWeb.as(actor).currentPage();
     const nativePage = await (page as any).nativePage();
     console.log(`  clicking category filter: ${category}`);
-    const checkbox = nativePage.locator(`#filter-${category}`);
-    await checkbox.click();
+    await nativePage.getByTestId(`filter-category-${category}`).click();
   });
 
 const ApplyPricePreset = (label: string) =>
