@@ -1,9 +1,9 @@
 import { Duration, Interaction, Task, the, Wait } from '@serenity-js/core';
-import type { Actor } from '@serenity-js/core';
+import type { UsesAbilities } from '@serenity-js/core';
 import { BrowseTheWeb } from '@serenity-js/web';
 import { config } from '../../config.ts';
 
-async function getNativePage(actor: Actor) {
+async function getNativePage(actor: UsesAbilities) {
   const page = await BrowseTheWeb.as(actor).currentPage();
   return (page as any).nativePage();
 }
