@@ -8,430 +8,450 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
-import { Route as rootRouteImport } from "./routes/__root";
-import { Route as SigninRouteImport } from "./routes/signin";
-import { Route as SearchRouteImport } from "./routes/search";
-import { Route as ResetPasswordRouteImport } from "./routes/reset-password";
-import { Route as RegisterRouteImport } from "./routes/register";
-import { Route as ReactivateRouteImport } from "./routes/reactivate";
-import { Route as PreferencesRouteImport } from "./routes/preferences";
-import { Route as MfaVerifyRouteImport } from "./routes/mfa-verify";
-import { Route as ForgotPasswordRouteImport } from "./routes/forgot-password";
-import { Route as DevicesRouteImport } from "./routes/devices";
-import { Route as DashboardRouteImport } from "./routes/dashboard";
-import { Route as IndexRouteImport } from "./routes/index";
-import { Route as ProfileCompleteRouteImport } from "./routes/profile/complete";
-import { Route as ApiHealthRouteImport } from "./routes/api.health";
-import { Route as DemoStartServerFuncsRouteImport } from "./routes/demo/start.server-funcs";
-import { Route as DemoStartApiRequestRouteImport } from "./routes/demo/start.api-request";
-import { Route as DemoApiNamesRouteImport } from "./routes/demo/api.names";
-import { Route as DemoStartSsrIndexRouteImport } from "./routes/demo/start.ssr.index";
-import { Route as DemoStartSsrSpaModeRouteImport } from "./routes/demo/start.ssr.spa-mode";
-import { Route as DemoStartSsrFullSsrRouteImport } from "./routes/demo/start.ssr.full-ssr";
-import { Route as DemoStartSsrDataOnlyRouteImport } from "./routes/demo/start.ssr.data-only";
+import { Route as rootRouteImport } from './routes/__root'
+import { Route as SigninRouteImport } from './routes/signin'
+import { Route as SearchRouteImport } from './routes/search'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as RegisterRouteImport } from './routes/register'
+import { Route as ReactivateRouteImport } from './routes/reactivate'
+import { Route as PreferencesRouteImport } from './routes/preferences'
+import { Route as MfaVerifyRouteImport } from './routes/mfa-verify'
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
+import { Route as DevicesRouteImport } from './routes/devices'
+import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as IndexRouteImport } from './routes/index'
+import { Route as ProfileCompleteRouteImport } from './routes/profile/complete'
+import { Route as ProductsSlugRouteImport } from './routes/products.$slug'
+import { Route as ApiHealthRouteImport } from './routes/api.health'
+import { Route as DemoStartServerFuncsRouteImport } from './routes/demo/start.server-funcs'
+import { Route as DemoStartApiRequestRouteImport } from './routes/demo/start.api-request'
+import { Route as DemoApiNamesRouteImport } from './routes/demo/api.names'
+import { Route as DemoStartSsrIndexRouteImport } from './routes/demo/start.ssr.index'
+import { Route as DemoStartSsrSpaModeRouteImport } from './routes/demo/start.ssr.spa-mode'
+import { Route as DemoStartSsrFullSsrRouteImport } from './routes/demo/start.ssr.full-ssr'
+import { Route as DemoStartSsrDataOnlyRouteImport } from './routes/demo/start.ssr.data-only'
 
 const SigninRoute = SigninRouteImport.update({
-  id: "/signin",
-  path: "/signin",
+  id: '/signin',
+  path: '/signin',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const SearchRoute = SearchRouteImport.update({
-  id: "/search",
-  path: "/search",
+  id: '/search',
+  path: '/search',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
-  id: "/reset-password",
-  path: "/reset-password",
+  id: '/reset-password',
+  path: '/reset-password',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const RegisterRoute = RegisterRouteImport.update({
-  id: "/register",
-  path: "/register",
+  id: '/register',
+  path: '/register',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const ReactivateRoute = ReactivateRouteImport.update({
-  id: "/reactivate",
-  path: "/reactivate",
+  id: '/reactivate',
+  path: '/reactivate',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const PreferencesRoute = PreferencesRouteImport.update({
-  id: "/preferences",
-  path: "/preferences",
+  id: '/preferences',
+  path: '/preferences',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const MfaVerifyRoute = MfaVerifyRouteImport.update({
-  id: "/mfa-verify",
-  path: "/mfa-verify",
+  id: '/mfa-verify',
+  path: '/mfa-verify',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
-  id: "/forgot-password",
-  path: "/forgot-password",
+  id: '/forgot-password',
+  path: '/forgot-password',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const DevicesRoute = DevicesRouteImport.update({
-  id: "/devices",
-  path: "/devices",
+  id: '/devices',
+  path: '/devices',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const DashboardRoute = DashboardRouteImport.update({
-  id: "/dashboard",
-  path: "/dashboard",
+  id: '/dashboard',
+  path: '/dashboard',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const IndexRoute = IndexRouteImport.update({
-  id: "/",
-  path: "/",
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const ProfileCompleteRoute = ProfileCompleteRouteImport.update({
-  id: "/profile/complete",
-  path: "/profile/complete",
+  id: '/profile/complete',
+  path: '/profile/complete',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
+const ProductsSlugRoute = ProductsSlugRouteImport.update({
+  id: '/products/$slug',
+  path: '/products/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiHealthRoute = ApiHealthRouteImport.update({
-  id: "/api/health",
-  path: "/api/health",
+  id: '/api/health',
+  path: '/api/health',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const DemoStartServerFuncsRoute = DemoStartServerFuncsRouteImport.update({
-  id: "/demo/start/server-funcs",
-  path: "/demo/start/server-funcs",
+  id: '/demo/start/server-funcs',
+  path: '/demo/start/server-funcs',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const DemoStartApiRequestRoute = DemoStartApiRequestRouteImport.update({
-  id: "/demo/start/api-request",
-  path: "/demo/start/api-request",
+  id: '/demo/start/api-request',
+  path: '/demo/start/api-request',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const DemoApiNamesRoute = DemoApiNamesRouteImport.update({
-  id: "/demo/api/names",
-  path: "/demo/api/names",
+  id: '/demo/api/names',
+  path: '/demo/api/names',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const DemoStartSsrIndexRoute = DemoStartSsrIndexRouteImport.update({
-  id: "/demo/start/ssr/",
-  path: "/demo/start/ssr/",
+  id: '/demo/start/ssr/',
+  path: '/demo/start/ssr/',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const DemoStartSsrSpaModeRoute = DemoStartSsrSpaModeRouteImport.update({
-  id: "/demo/start/ssr/spa-mode",
-  path: "/demo/start/ssr/spa-mode",
+  id: '/demo/start/ssr/spa-mode',
+  path: '/demo/start/ssr/spa-mode',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const DemoStartSsrFullSsrRoute = DemoStartSsrFullSsrRouteImport.update({
-  id: "/demo/start/ssr/full-ssr",
-  path: "/demo/start/ssr/full-ssr",
+  id: '/demo/start/ssr/full-ssr',
+  path: '/demo/start/ssr/full-ssr',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const DemoStartSsrDataOnlyRoute = DemoStartSsrDataOnlyRouteImport.update({
-  id: "/demo/start/ssr/data-only",
-  path: "/demo/start/ssr/data-only",
+  id: '/demo/start/ssr/data-only',
+  path: '/demo/start/ssr/data-only',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 
 export interface FileRoutesByFullPath {
-  "/": typeof IndexRoute;
-  "/dashboard": typeof DashboardRoute;
-  "/devices": typeof DevicesRoute;
-  "/forgot-password": typeof ForgotPasswordRoute;
-  "/mfa-verify": typeof MfaVerifyRoute;
-  "/preferences": typeof PreferencesRoute;
-  "/reactivate": typeof ReactivateRoute;
-  "/register": typeof RegisterRoute;
-  "/reset-password": typeof ResetPasswordRoute;
-  "/search": typeof SearchRoute;
-  "/signin": typeof SigninRoute;
-  "/api/health": typeof ApiHealthRoute;
-  "/profile/complete": typeof ProfileCompleteRoute;
-  "/demo/api/names": typeof DemoApiNamesRoute;
-  "/demo/start/api-request": typeof DemoStartApiRequestRoute;
-  "/demo/start/server-funcs": typeof DemoStartServerFuncsRoute;
-  "/demo/start/ssr/data-only": typeof DemoStartSsrDataOnlyRoute;
-  "/demo/start/ssr/full-ssr": typeof DemoStartSsrFullSsrRoute;
-  "/demo/start/ssr/spa-mode": typeof DemoStartSsrSpaModeRoute;
-  "/demo/start/ssr/": typeof DemoStartSsrIndexRoute;
+  '/': typeof IndexRoute
+  '/dashboard': typeof DashboardRoute
+  '/devices': typeof DevicesRoute
+  '/forgot-password': typeof ForgotPasswordRoute
+  '/mfa-verify': typeof MfaVerifyRoute
+  '/preferences': typeof PreferencesRoute
+  '/reactivate': typeof ReactivateRoute
+  '/register': typeof RegisterRoute
+  '/reset-password': typeof ResetPasswordRoute
+  '/search': typeof SearchRoute
+  '/signin': typeof SigninRoute
+  '/api/health': typeof ApiHealthRoute
+  '/products/$slug': typeof ProductsSlugRoute
+  '/profile/complete': typeof ProfileCompleteRoute
+  '/demo/api/names': typeof DemoApiNamesRoute
+  '/demo/start/api-request': typeof DemoStartApiRequestRoute
+  '/demo/start/server-funcs': typeof DemoStartServerFuncsRoute
+  '/demo/start/ssr/data-only': typeof DemoStartSsrDataOnlyRoute
+  '/demo/start/ssr/full-ssr': typeof DemoStartSsrFullSsrRoute
+  '/demo/start/ssr/spa-mode': typeof DemoStartSsrSpaModeRoute
+  '/demo/start/ssr/': typeof DemoStartSsrIndexRoute
 }
 export interface FileRoutesByTo {
-  "/": typeof IndexRoute;
-  "/dashboard": typeof DashboardRoute;
-  "/devices": typeof DevicesRoute;
-  "/forgot-password": typeof ForgotPasswordRoute;
-  "/mfa-verify": typeof MfaVerifyRoute;
-  "/preferences": typeof PreferencesRoute;
-  "/reactivate": typeof ReactivateRoute;
-  "/register": typeof RegisterRoute;
-  "/reset-password": typeof ResetPasswordRoute;
-  "/search": typeof SearchRoute;
-  "/signin": typeof SigninRoute;
-  "/api/health": typeof ApiHealthRoute;
-  "/profile/complete": typeof ProfileCompleteRoute;
-  "/demo/api/names": typeof DemoApiNamesRoute;
-  "/demo/start/api-request": typeof DemoStartApiRequestRoute;
-  "/demo/start/server-funcs": typeof DemoStartServerFuncsRoute;
-  "/demo/start/ssr/data-only": typeof DemoStartSsrDataOnlyRoute;
-  "/demo/start/ssr/full-ssr": typeof DemoStartSsrFullSsrRoute;
-  "/demo/start/ssr/spa-mode": typeof DemoStartSsrSpaModeRoute;
-  "/demo/start/ssr": typeof DemoStartSsrIndexRoute;
+  '/': typeof IndexRoute
+  '/dashboard': typeof DashboardRoute
+  '/devices': typeof DevicesRoute
+  '/forgot-password': typeof ForgotPasswordRoute
+  '/mfa-verify': typeof MfaVerifyRoute
+  '/preferences': typeof PreferencesRoute
+  '/reactivate': typeof ReactivateRoute
+  '/register': typeof RegisterRoute
+  '/reset-password': typeof ResetPasswordRoute
+  '/search': typeof SearchRoute
+  '/signin': typeof SigninRoute
+  '/api/health': typeof ApiHealthRoute
+  '/products/$slug': typeof ProductsSlugRoute
+  '/profile/complete': typeof ProfileCompleteRoute
+  '/demo/api/names': typeof DemoApiNamesRoute
+  '/demo/start/api-request': typeof DemoStartApiRequestRoute
+  '/demo/start/server-funcs': typeof DemoStartServerFuncsRoute
+  '/demo/start/ssr/data-only': typeof DemoStartSsrDataOnlyRoute
+  '/demo/start/ssr/full-ssr': typeof DemoStartSsrFullSsrRoute
+  '/demo/start/ssr/spa-mode': typeof DemoStartSsrSpaModeRoute
+  '/demo/start/ssr': typeof DemoStartSsrIndexRoute
 }
 export interface FileRoutesById {
-  __root__: typeof rootRouteImport;
-  "/": typeof IndexRoute;
-  "/dashboard": typeof DashboardRoute;
-  "/devices": typeof DevicesRoute;
-  "/forgot-password": typeof ForgotPasswordRoute;
-  "/mfa-verify": typeof MfaVerifyRoute;
-  "/preferences": typeof PreferencesRoute;
-  "/reactivate": typeof ReactivateRoute;
-  "/register": typeof RegisterRoute;
-  "/reset-password": typeof ResetPasswordRoute;
-  "/search": typeof SearchRoute;
-  "/signin": typeof SigninRoute;
-  "/api/health": typeof ApiHealthRoute;
-  "/profile/complete": typeof ProfileCompleteRoute;
-  "/demo/api/names": typeof DemoApiNamesRoute;
-  "/demo/start/api-request": typeof DemoStartApiRequestRoute;
-  "/demo/start/server-funcs": typeof DemoStartServerFuncsRoute;
-  "/demo/start/ssr/data-only": typeof DemoStartSsrDataOnlyRoute;
-  "/demo/start/ssr/full-ssr": typeof DemoStartSsrFullSsrRoute;
-  "/demo/start/ssr/spa-mode": typeof DemoStartSsrSpaModeRoute;
-  "/demo/start/ssr/": typeof DemoStartSsrIndexRoute;
+  __root__: typeof rootRouteImport
+  '/': typeof IndexRoute
+  '/dashboard': typeof DashboardRoute
+  '/devices': typeof DevicesRoute
+  '/forgot-password': typeof ForgotPasswordRoute
+  '/mfa-verify': typeof MfaVerifyRoute
+  '/preferences': typeof PreferencesRoute
+  '/reactivate': typeof ReactivateRoute
+  '/register': typeof RegisterRoute
+  '/reset-password': typeof ResetPasswordRoute
+  '/search': typeof SearchRoute
+  '/signin': typeof SigninRoute
+  '/api/health': typeof ApiHealthRoute
+  '/products/$slug': typeof ProductsSlugRoute
+  '/profile/complete': typeof ProfileCompleteRoute
+  '/demo/api/names': typeof DemoApiNamesRoute
+  '/demo/start/api-request': typeof DemoStartApiRequestRoute
+  '/demo/start/server-funcs': typeof DemoStartServerFuncsRoute
+  '/demo/start/ssr/data-only': typeof DemoStartSsrDataOnlyRoute
+  '/demo/start/ssr/full-ssr': typeof DemoStartSsrFullSsrRoute
+  '/demo/start/ssr/spa-mode': typeof DemoStartSsrSpaModeRoute
+  '/demo/start/ssr/': typeof DemoStartSsrIndexRoute
 }
 export interface FileRouteTypes {
-  fileRoutesByFullPath: FileRoutesByFullPath;
+  fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    | "/"
-    | "/dashboard"
-    | "/devices"
-    | "/forgot-password"
-    | "/mfa-verify"
-    | "/preferences"
-    | "/reactivate"
-    | "/register"
-    | "/reset-password"
-    | "/search"
-    | "/signin"
-    | "/api/health"
-    | "/profile/complete"
-    | "/demo/api/names"
-    | "/demo/start/api-request"
-    | "/demo/start/server-funcs"
-    | "/demo/start/ssr/data-only"
-    | "/demo/start/ssr/full-ssr"
-    | "/demo/start/ssr/spa-mode"
-    | "/demo/start/ssr/";
-  fileRoutesByTo: FileRoutesByTo;
+    | '/'
+    | '/dashboard'
+    | '/devices'
+    | '/forgot-password'
+    | '/mfa-verify'
+    | '/preferences'
+    | '/reactivate'
+    | '/register'
+    | '/reset-password'
+    | '/search'
+    | '/signin'
+    | '/api/health'
+    | '/products/$slug'
+    | '/profile/complete'
+    | '/demo/api/names'
+    | '/demo/start/api-request'
+    | '/demo/start/server-funcs'
+    | '/demo/start/ssr/data-only'
+    | '/demo/start/ssr/full-ssr'
+    | '/demo/start/ssr/spa-mode'
+    | '/demo/start/ssr/'
+  fileRoutesByTo: FileRoutesByTo
   to:
-    | "/"
-    | "/dashboard"
-    | "/devices"
-    | "/forgot-password"
-    | "/mfa-verify"
-    | "/preferences"
-    | "/reactivate"
-    | "/register"
-    | "/reset-password"
-    | "/search"
-    | "/signin"
-    | "/api/health"
-    | "/profile/complete"
-    | "/demo/api/names"
-    | "/demo/start/api-request"
-    | "/demo/start/server-funcs"
-    | "/demo/start/ssr/data-only"
-    | "/demo/start/ssr/full-ssr"
-    | "/demo/start/ssr/spa-mode"
-    | "/demo/start/ssr";
+    | '/'
+    | '/dashboard'
+    | '/devices'
+    | '/forgot-password'
+    | '/mfa-verify'
+    | '/preferences'
+    | '/reactivate'
+    | '/register'
+    | '/reset-password'
+    | '/search'
+    | '/signin'
+    | '/api/health'
+    | '/products/$slug'
+    | '/profile/complete'
+    | '/demo/api/names'
+    | '/demo/start/api-request'
+    | '/demo/start/server-funcs'
+    | '/demo/start/ssr/data-only'
+    | '/demo/start/ssr/full-ssr'
+    | '/demo/start/ssr/spa-mode'
+    | '/demo/start/ssr'
   id:
-    | "__root__"
-    | "/"
-    | "/dashboard"
-    | "/devices"
-    | "/forgot-password"
-    | "/mfa-verify"
-    | "/preferences"
-    | "/reactivate"
-    | "/register"
-    | "/reset-password"
-    | "/search"
-    | "/signin"
-    | "/api/health"
-    | "/profile/complete"
-    | "/demo/api/names"
-    | "/demo/start/api-request"
-    | "/demo/start/server-funcs"
-    | "/demo/start/ssr/data-only"
-    | "/demo/start/ssr/full-ssr"
-    | "/demo/start/ssr/spa-mode"
-    | "/demo/start/ssr/";
-  fileRoutesById: FileRoutesById;
+    | '__root__'
+    | '/'
+    | '/dashboard'
+    | '/devices'
+    | '/forgot-password'
+    | '/mfa-verify'
+    | '/preferences'
+    | '/reactivate'
+    | '/register'
+    | '/reset-password'
+    | '/search'
+    | '/signin'
+    | '/api/health'
+    | '/products/$slug'
+    | '/profile/complete'
+    | '/demo/api/names'
+    | '/demo/start/api-request'
+    | '/demo/start/server-funcs'
+    | '/demo/start/ssr/data-only'
+    | '/demo/start/ssr/full-ssr'
+    | '/demo/start/ssr/spa-mode'
+    | '/demo/start/ssr/'
+  fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute;
-  DashboardRoute: typeof DashboardRoute;
-  DevicesRoute: typeof DevicesRoute;
-  ForgotPasswordRoute: typeof ForgotPasswordRoute;
-  MfaVerifyRoute: typeof MfaVerifyRoute;
-  PreferencesRoute: typeof PreferencesRoute;
-  ReactivateRoute: typeof ReactivateRoute;
-  RegisterRoute: typeof RegisterRoute;
-  ResetPasswordRoute: typeof ResetPasswordRoute;
-  SearchRoute: typeof SearchRoute;
-  SigninRoute: typeof SigninRoute;
-  ApiHealthRoute: typeof ApiHealthRoute;
-  ProfileCompleteRoute: typeof ProfileCompleteRoute;
-  DemoApiNamesRoute: typeof DemoApiNamesRoute;
-  DemoStartApiRequestRoute: typeof DemoStartApiRequestRoute;
-  DemoStartServerFuncsRoute: typeof DemoStartServerFuncsRoute;
-  DemoStartSsrDataOnlyRoute: typeof DemoStartSsrDataOnlyRoute;
-  DemoStartSsrFullSsrRoute: typeof DemoStartSsrFullSsrRoute;
-  DemoStartSsrSpaModeRoute: typeof DemoStartSsrSpaModeRoute;
-  DemoStartSsrIndexRoute: typeof DemoStartSsrIndexRoute;
+  IndexRoute: typeof IndexRoute
+  DashboardRoute: typeof DashboardRoute
+  DevicesRoute: typeof DevicesRoute
+  ForgotPasswordRoute: typeof ForgotPasswordRoute
+  MfaVerifyRoute: typeof MfaVerifyRoute
+  PreferencesRoute: typeof PreferencesRoute
+  ReactivateRoute: typeof ReactivateRoute
+  RegisterRoute: typeof RegisterRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
+  SearchRoute: typeof SearchRoute
+  SigninRoute: typeof SigninRoute
+  ApiHealthRoute: typeof ApiHealthRoute
+  ProductsSlugRoute: typeof ProductsSlugRoute
+  ProfileCompleteRoute: typeof ProfileCompleteRoute
+  DemoApiNamesRoute: typeof DemoApiNamesRoute
+  DemoStartApiRequestRoute: typeof DemoStartApiRequestRoute
+  DemoStartServerFuncsRoute: typeof DemoStartServerFuncsRoute
+  DemoStartSsrDataOnlyRoute: typeof DemoStartSsrDataOnlyRoute
+  DemoStartSsrFullSsrRoute: typeof DemoStartSsrFullSsrRoute
+  DemoStartSsrSpaModeRoute: typeof DemoStartSsrSpaModeRoute
+  DemoStartSsrIndexRoute: typeof DemoStartSsrIndexRoute
 }
 
-declare module "@tanstack/react-router" {
+declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    "/signin": {
-      id: "/signin";
-      path: "/signin";
-      fullPath: "/signin";
-      preLoaderRoute: typeof SigninRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
-    "/search": {
-      id: "/search";
-      path: "/search";
-      fullPath: "/search";
-      preLoaderRoute: typeof SearchRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
-    "/reset-password": {
-      id: "/reset-password";
-      path: "/reset-password";
-      fullPath: "/reset-password";
-      preLoaderRoute: typeof ResetPasswordRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
-    "/register": {
-      id: "/register";
-      path: "/register";
-      fullPath: "/register";
-      preLoaderRoute: typeof RegisterRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
-    "/reactivate": {
-      id: "/reactivate";
-      path: "/reactivate";
-      fullPath: "/reactivate";
-      preLoaderRoute: typeof ReactivateRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
-    "/preferences": {
-      id: "/preferences";
-      path: "/preferences";
-      fullPath: "/preferences";
-      preLoaderRoute: typeof PreferencesRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
-    "/mfa-verify": {
-      id: "/mfa-verify";
-      path: "/mfa-verify";
-      fullPath: "/mfa-verify";
-      preLoaderRoute: typeof MfaVerifyRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
-    "/forgot-password": {
-      id: "/forgot-password";
-      path: "/forgot-password";
-      fullPath: "/forgot-password";
-      preLoaderRoute: typeof ForgotPasswordRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
-    "/devices": {
-      id: "/devices";
-      path: "/devices";
-      fullPath: "/devices";
-      preLoaderRoute: typeof DevicesRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
-    "/dashboard": {
-      id: "/dashboard";
-      path: "/dashboard";
-      fullPath: "/dashboard";
-      preLoaderRoute: typeof DashboardRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
-    "/": {
-      id: "/";
-      path: "/";
-      fullPath: "/";
-      preLoaderRoute: typeof IndexRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
-    "/profile/complete": {
-      id: "/profile/complete";
-      path: "/profile/complete";
-      fullPath: "/profile/complete";
-      preLoaderRoute: typeof ProfileCompleteRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
-    "/api/health": {
-      id: "/api/health";
-      path: "/api/health";
-      fullPath: "/api/health";
-      preLoaderRoute: typeof ApiHealthRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
-    "/demo/start/server-funcs": {
-      id: "/demo/start/server-funcs";
-      path: "/demo/start/server-funcs";
-      fullPath: "/demo/start/server-funcs";
-      preLoaderRoute: typeof DemoStartServerFuncsRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
-    "/demo/start/api-request": {
-      id: "/demo/start/api-request";
-      path: "/demo/start/api-request";
-      fullPath: "/demo/start/api-request";
-      preLoaderRoute: typeof DemoStartApiRequestRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
-    "/demo/api/names": {
-      id: "/demo/api/names";
-      path: "/demo/api/names";
-      fullPath: "/demo/api/names";
-      preLoaderRoute: typeof DemoApiNamesRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
-    "/demo/start/ssr/": {
-      id: "/demo/start/ssr/";
-      path: "/demo/start/ssr";
-      fullPath: "/demo/start/ssr/";
-      preLoaderRoute: typeof DemoStartSsrIndexRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
-    "/demo/start/ssr/spa-mode": {
-      id: "/demo/start/ssr/spa-mode";
-      path: "/demo/start/ssr/spa-mode";
-      fullPath: "/demo/start/ssr/spa-mode";
-      preLoaderRoute: typeof DemoStartSsrSpaModeRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
-    "/demo/start/ssr/full-ssr": {
-      id: "/demo/start/ssr/full-ssr";
-      path: "/demo/start/ssr/full-ssr";
-      fullPath: "/demo/start/ssr/full-ssr";
-      preLoaderRoute: typeof DemoStartSsrFullSsrRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
-    "/demo/start/ssr/data-only": {
-      id: "/demo/start/ssr/data-only";
-      path: "/demo/start/ssr/data-only";
-      fullPath: "/demo/start/ssr/data-only";
-      preLoaderRoute: typeof DemoStartSsrDataOnlyRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+    '/signin': {
+      id: '/signin'
+      path: '/signin'
+      fullPath: '/signin'
+      preLoaderRoute: typeof SigninRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/search': {
+      id: '/search'
+      path: '/search'
+      fullPath: '/search'
+      preLoaderRoute: typeof SearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/register': {
+      id: '/register'
+      path: '/register'
+      fullPath: '/register'
+      preLoaderRoute: typeof RegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reactivate': {
+      id: '/reactivate'
+      path: '/reactivate'
+      fullPath: '/reactivate'
+      preLoaderRoute: typeof ReactivateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/preferences': {
+      id: '/preferences'
+      path: '/preferences'
+      fullPath: '/preferences'
+      preLoaderRoute: typeof PreferencesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/mfa-verify': {
+      id: '/mfa-verify'
+      path: '/mfa-verify'
+      fullPath: '/mfa-verify'
+      preLoaderRoute: typeof MfaVerifyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/devices': {
+      id: '/devices'
+      path: '/devices'
+      fullPath: '/devices'
+      preLoaderRoute: typeof DevicesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboard': {
+      id: '/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/profile/complete': {
+      id: '/profile/complete'
+      path: '/profile/complete'
+      fullPath: '/profile/complete'
+      preLoaderRoute: typeof ProfileCompleteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/products/$slug': {
+      id: '/products/$slug'
+      path: '/products/$slug'
+      fullPath: '/products/$slug'
+      preLoaderRoute: typeof ProductsSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/health': {
+      id: '/api/health'
+      path: '/api/health'
+      fullPath: '/api/health'
+      preLoaderRoute: typeof ApiHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/demo/start/server-funcs': {
+      id: '/demo/start/server-funcs'
+      path: '/demo/start/server-funcs'
+      fullPath: '/demo/start/server-funcs'
+      preLoaderRoute: typeof DemoStartServerFuncsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/demo/start/api-request': {
+      id: '/demo/start/api-request'
+      path: '/demo/start/api-request'
+      fullPath: '/demo/start/api-request'
+      preLoaderRoute: typeof DemoStartApiRequestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/demo/api/names': {
+      id: '/demo/api/names'
+      path: '/demo/api/names'
+      fullPath: '/demo/api/names'
+      preLoaderRoute: typeof DemoApiNamesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/demo/start/ssr/': {
+      id: '/demo/start/ssr/'
+      path: '/demo/start/ssr'
+      fullPath: '/demo/start/ssr/'
+      preLoaderRoute: typeof DemoStartSsrIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/demo/start/ssr/spa-mode': {
+      id: '/demo/start/ssr/spa-mode'
+      path: '/demo/start/ssr/spa-mode'
+      fullPath: '/demo/start/ssr/spa-mode'
+      preLoaderRoute: typeof DemoStartSsrSpaModeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/demo/start/ssr/full-ssr': {
+      id: '/demo/start/ssr/full-ssr'
+      path: '/demo/start/ssr/full-ssr'
+      fullPath: '/demo/start/ssr/full-ssr'
+      preLoaderRoute: typeof DemoStartSsrFullSsrRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/demo/start/ssr/data-only': {
+      id: '/demo/start/ssr/data-only'
+      path: '/demo/start/ssr/data-only'
+      fullPath: '/demo/start/ssr/data-only'
+      preLoaderRoute: typeof DemoStartSsrDataOnlyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -448,6 +468,7 @@ const rootRouteChildren: RootRouteChildren = {
   SearchRoute: SearchRoute,
   SigninRoute: SigninRoute,
   ApiHealthRoute: ApiHealthRoute,
+  ProductsSlugRoute: ProductsSlugRoute,
   ProfileCompleteRoute: ProfileCompleteRoute,
   DemoApiNamesRoute: DemoApiNamesRoute,
   DemoStartApiRequestRoute: DemoStartApiRequestRoute,
@@ -456,16 +477,16 @@ const rootRouteChildren: RootRouteChildren = {
   DemoStartSsrFullSsrRoute: DemoStartSsrFullSsrRoute,
   DemoStartSsrSpaModeRoute: DemoStartSsrSpaModeRoute,
   DemoStartSsrIndexRoute: DemoStartSsrIndexRoute,
-};
+}
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
-  ._addFileTypes<FileRouteTypes>();
+  ._addFileTypes<FileRouteTypes>()
 
-import type { getRouter } from "./router.tsx";
-import type { createStart } from "@tanstack/react-start";
-declare module "@tanstack/react-start" {
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
   interface Register {
-    ssr: true;
-    router: Awaited<ReturnType<typeof getRouter>>;
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
   }
 }
