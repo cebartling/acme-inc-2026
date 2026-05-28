@@ -69,10 +69,14 @@ function SearchPage() {
     enabled: q.length > 0,
   });
 
-  const prevFilterSig = useRef('');
+  const prevFilterSig = useRef("");
   useEffect(() => {
     if (!data || !hasActiveFilters) return;
-    const sig = JSON.stringify({ categories: activeCategories, priceMin, priceMax });
+    const sig = JSON.stringify({
+      categories: activeCategories,
+      priceMin,
+      priceMax,
+    });
     if (sig === prevFilterSig.current) return;
     prevFilterSig.current = sig;
     trackFiltersApplied({
