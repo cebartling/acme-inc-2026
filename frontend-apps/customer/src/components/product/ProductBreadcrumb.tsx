@@ -24,7 +24,7 @@ export function ProductBreadcrumb({
           <Link
             to="/search"
             search={{
-              q: category ?? "",
+              q: "",
               page: 1,
               sort: "relevance",
               category: category ? [category] : [],
