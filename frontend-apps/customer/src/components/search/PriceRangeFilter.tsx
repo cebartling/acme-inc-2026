@@ -42,8 +42,11 @@ export function PriceRangeFilter({
   };
 
   const handleCustomApply = () => {
-    const min = customMin !== "" ? Number(customMin) : undefined;
-    const max = customMax !== "" ? Number(customMax) : undefined;
+    let min = customMin !== "" ? Math.max(0, Number(customMin)) : undefined;
+    let max = customMax !== "" ? Math.max(0, Number(customMax)) : undefined;
+    if (min !== undefined && max !== undefined && min > max) {
+      [min, max] = [max, min];
+    }
     if (min !== undefined || max !== undefined) {
       onApply(min, max);
     }
