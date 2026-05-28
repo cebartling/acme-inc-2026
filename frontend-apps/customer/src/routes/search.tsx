@@ -53,7 +53,7 @@ function SearchPage() {
         pageSize: 24,
         sort: sort as "relevance" | "price_asc" | "price_desc" | "newest",
         filters: {
-          categories: filters.categories,
+          categories: filters.categories ?? [],
           priceMin: filters.priceMin,
           priceMax: filters.priceMax,
         },
