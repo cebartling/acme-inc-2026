@@ -2,6 +2,7 @@ package com.acme.product.application
 
 import com.acme.product.domain.Product
 import com.acme.product.domain.ProductNotFoundException
+import com.acme.product.domain.ProductStatus
 import com.acme.product.domain.events.ProductViewed
 import com.acme.product.infrastructure.messaging.ProductEventPublisher
 import com.acme.product.infrastructure.persistence.ProductRepository
@@ -27,7 +28,7 @@ class GetProductDetailUseCase(
         sessionId: String? = null,
         correlationId: UUID = UUID.randomUUID()
     ): Result {
-        val product = repository.findBySlug(slug)
+        val product = repository.findBySlugAndStatus(slug, ProductStatus.PUBLISHED)
             .orElseThrow { ProductNotFoundException(slug) }
 
         val category = product.category

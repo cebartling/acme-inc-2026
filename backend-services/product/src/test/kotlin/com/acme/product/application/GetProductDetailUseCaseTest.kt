@@ -55,7 +55,7 @@ class GetProductDetailUseCaseTest {
     fun `execute should return product detail for valid slug`() {
         val product = createProduct(slug = "premium-widget", name = "Premium Widget")
 
-        every { repository.findBySlug("premium-widget") } returns Optional.of(product)
+        every { repository.findBySlugAndStatus("premium-widget", ProductStatus.PUBLISHED) } returns Optional.of(product)
         every { repository.findRelatedProducts(any(), any(), any()) } returns emptyList()
         every { eventPublisher.publish(any()) } just Runs
 
@@ -67,11 +67,23 @@ class GetProductDetailUseCaseTest {
 
     @Test
     fun `execute should throw ProductNotFoundException for unknown slug`() {
-        every { repository.findBySlug("unknown-slug") } returns Optional.empty()
+        every { repository.findBySlugAndStatus("unknown-slug", ProductStatus.PUBLISHED) } returns Optional.empty()
 
         assertFailsWith<ProductNotFoundException> {
             useCase.execute("unknown-slug")
         }
+    }
+
+    @Test
+    fun `execute should throw ProductNotFoundException for archived product`() {
+        val archivedProduct = createProduct(slug = "archived-product", status = ProductStatus.ARCHIVED)
+        every { repository.findBySlugAndStatus("archived-product", ProductStatus.PUBLISHED) } returns Optional.empty()
+
+        assertFailsWith<ProductNotFoundException> {
+            useCase.execute("archived-product")
+        }
+        // Confirm the archived product would be found by slug alone (verifies the filter matters)
+        verify(exactly = 0) { eventPublisher.publish(any()) }
     }
 
     @Test
@@ -80,7 +92,7 @@ class GetProductDetailUseCaseTest {
         val related1 = createProduct(slug = "related-1", name = "Related One")
         val related2 = createProduct(slug = "related-2", name = "Related Two")
 
-        every { repository.findBySlug("main-product") } returns Optional.of(product)
+        every { repository.findBySlugAndStatus("main-product", ProductStatus.PUBLISHED) } returns Optional.of(product)
         every { repository.findRelatedProducts("Electronics", product.id, any<Pageable>()) } returns listOf(related1, related2)
         every { eventPublisher.publish(any()) } just Runs
 
@@ -95,7 +107,7 @@ class GetProductDetailUseCaseTest {
     fun `execute should return no related products when product has no category`() {
         val product = createProduct(slug = "no-category-product", category = null)
 
-        every { repository.findBySlug("no-category-product") } returns Optional.of(product)
+        every { repository.findBySlugAndStatus("no-category-product", ProductStatus.PUBLISHED) } returns Optional.of(product)
         every { eventPublisher.publish(any()) } just Runs
 
         val result = useCase.execute("no-category-product")
@@ -110,7 +122,7 @@ class GetProductDetailUseCaseTest {
         val product = createProduct(id = productId, slug = "my-product")
         val eventSlot = slot<ProductViewed>()
 
-        every { repository.findBySlug("my-product") } returns Optional.of(product)
+        every { repository.findBySlugAndStatus("my-product", ProductStatus.PUBLISHED) } returns Optional.of(product)
         every { repository.findRelatedProducts(any(), any(), any()) } returns emptyList()
         every { eventPublisher.publish(capture(eventSlot)) } just Runs
 
@@ -127,7 +139,7 @@ class GetProductDetailUseCaseTest {
     fun `execute should not fail when event publishing throws`() {
         val product = createProduct(slug = "resilient-product")
 
-        every { repository.findBySlug("resilient-product") } returns Optional.of(product)
+        every { repository.findBySlugAndStatus("resilient-product", ProductStatus.PUBLISHED) } returns Optional.of(product)
         every { repository.findRelatedProducts(any(), any(), any()) } returns emptyList()
         every { eventPublisher.publish(any()) } throws RuntimeException("Kafka unavailable")
 

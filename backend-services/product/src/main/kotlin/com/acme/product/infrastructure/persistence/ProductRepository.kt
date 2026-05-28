@@ -1,6 +1,7 @@
 package com.acme.product.infrastructure.persistence
 
 import com.acme.product.domain.Product
+import com.acme.product.domain.ProductStatus
 import com.acme.product.domain.ProductSummary
 import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
@@ -303,8 +304,9 @@ interface ProductRepository : JpaRepository<Product, UUID> {
 
     /**
      * Finds a published product by its URL slug.
+     * Returns empty if the product does not exist or is not PUBLISHED.
      */
-    fun findBySlug(slug: String): Optional<Product>
+    fun findBySlugAndStatus(slug: String, status: ProductStatus): Optional<Product>
 
     /**
      * Finds published products in the same category, excluding the given product.
