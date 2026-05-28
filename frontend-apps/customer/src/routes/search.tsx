@@ -4,7 +4,7 @@ import {
   useSearch,
 } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { searchParamsSchema } from "@/schemas/search.schema";
 import { productApi } from "@/services/api";
 import { trackSearchExecuted, trackFiltersApplied } from "@/services/analytics";
@@ -69,16 +69,19 @@ function SearchPage() {
     enabled: q.length > 0,
   });
 
+  const prevFilterSig = useRef('');
   useEffect(() => {
-    if (data && hasActiveFilters) {
-      trackFiltersApplied({
-        query: q,
-        categories: activeCategories,
-        priceMin,
-        priceMax,
-        resultCount: data.totalResults,
-      });
-    }
+    if (!data || !hasActiveFilters) return;
+    const sig = JSON.stringify({ categories: activeCategories, priceMin, priceMax });
+    if (sig === prevFilterSig.current) return;
+    prevFilterSig.current = sig;
+    trackFiltersApplied({
+      query: q,
+      categories: activeCategories,
+      priceMin,
+      priceMax,
+      resultCount: data.totalResults,
+    });
   }, [data, hasActiveFilters, q, activeCategories, priceMin, priceMax]);
 
   const handleSearch = (newQuery: string) => {
