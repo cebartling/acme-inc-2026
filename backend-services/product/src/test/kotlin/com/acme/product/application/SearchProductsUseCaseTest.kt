@@ -123,7 +123,7 @@ class SearchProductsUseCaseTest {
         useCase.execute(query, sessionId = "session-123")
 
         // Then
-        verify(atLeast = 1) { eventPublisher.publish(any()) }
+        verify(exactly = 1) { eventPublisher.publish(any()) }
         val event = eventSlot.captured
         assertEquals("gadget", event.payload.query)
         assertEquals(1L, event.payload.totalResults)
