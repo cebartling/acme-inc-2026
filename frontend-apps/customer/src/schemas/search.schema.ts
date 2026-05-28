@@ -11,6 +11,9 @@ export const searchParamsSchema = z.object({
   sort: z
     .enum(["relevance", "price_asc", "price_desc", "newest"])
     .default("relevance"),
+  category: z.array(z.string()).default([]),
+  priceMin: z.coerce.number().min(0).optional(),
+  priceMax: z.coerce.number().min(0).optional(),
 });
 
 export type SearchParams = z.infer<typeof searchParamsSchema>;

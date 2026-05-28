@@ -880,12 +880,22 @@ export interface ProductSummary {
   category: string | null;
 }
 
+export interface SearchFilters {
+  categories?: string[];
+  priceMin?: number;
+  priceMax?: number;
+}
+
 export interface SearchRequest {
   query: string;
   page: number;
   pageSize: number;
   sort: "relevance" | "price_asc" | "price_desc" | "newest";
-  filters: Record<string, unknown>;
+  filters: SearchFilters;
+}
+
+export interface SearchFacets {
+  categories: Record<string, number>;
 }
 
 export interface SearchResponse {
@@ -895,6 +905,7 @@ export interface SearchResponse {
   pageSize: number;
   totalPages: number;
   results: ProductSummary[];
+  facets: SearchFacets;
   spellingSuggestion: string | null;
   executionTimeMs: number;
 }

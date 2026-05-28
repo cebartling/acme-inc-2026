@@ -22,7 +22,8 @@ data class SearchQuery(
     val query: String,
     val page: Int = 1,
     val pageSize: Int = 24,
-    val sort: SortOption = SortOption.RELEVANCE
+    val sort: SortOption = SortOption.RELEVANCE,
+    val filters: SearchFilters = SearchFilters()
 ) {
     val offset: Int get() = (page - 1) * pageSize
 }

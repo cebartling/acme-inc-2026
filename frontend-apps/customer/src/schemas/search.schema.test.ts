@@ -96,7 +96,51 @@ describe("searchParamsSchema", () => {
           q: "widget",
           page: 1,
           sort: "relevance",
+          category: [],
         });
+      }
+    });
+
+    it("parses category filter as an array", () => {
+      const result = searchParamsSchema.safeParse({
+        q: "widget",
+        page: 1,
+        sort: "relevance",
+        category: ["Gaming", "Electronics"],
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.category).toEqual(["Gaming", "Electronics"]);
+      }
+    });
+
+    it("defaults category to empty array when omitted", () => {
+      const result = searchParamsSchema.safeParse({ q: "widget" });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.category).toEqual([]);
+      }
+    });
+
+    it("parses priceMin and priceMax as numbers", () => {
+      const result = searchParamsSchema.safeParse({
+        q: "widget",
+        priceMin: "25",
+        priceMax: "75",
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.priceMin).toBe(25);
+        expect(result.data.priceMax).toBe(75);
+      }
+    });
+
+    it("leaves priceMin and priceMax undefined when omitted", () => {
+      const result = searchParamsSchema.safeParse({ q: "widget" });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.priceMin).toBeUndefined();
+        expect(result.data.priceMax).toBeUndefined();
       }
     });
   });
