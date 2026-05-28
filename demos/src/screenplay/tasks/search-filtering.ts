@@ -1,12 +1,17 @@
 import { Duration, Interaction, Task, the, Wait } from '@serenity-js/core';
+import type { Actor } from '@serenity-js/core';
 import { BrowseTheWeb } from '@serenity-js/web';
 import { config } from '../../config.ts';
+
+async function getNativePage(actor: Actor) {
+  const page = await BrowseTheWeb.as(actor).currentPage();
+  return (page as any).nativePage();
+}
 
 const NavigateToSearch = Interaction.where(
   the`#actor navigates to the search page`,
   async (actor) => {
-    const page = await BrowseTheWeb.as(actor).currentPage();
-    const nativePage = await (page as any).nativePage();
+    const nativePage = await getNativePage(actor);
     await nativePage.goto(`${config.customerAppUrl}/search`);
     await nativePage.getByTestId('searchPage').waitFor({ timeout: 5000 });
   }
@@ -14,8 +19,7 @@ const NavigateToSearch = Interaction.where(
 
 const SearchFor = (query: string) =>
   Interaction.where(the`#actor searches for "${query}"`, async (actor) => {
-    const page = await BrowseTheWeb.as(actor).currentPage();
-    const nativePage = await (page as any).nativePage();
+    const nativePage = await getNativePage(actor);
     const searchPage = nativePage.getByTestId('searchPage');
     const input = searchPage.getByTestId('searchInput');
     await input.clear();
@@ -27,8 +31,7 @@ const SearchFor = (query: string) =>
 const WaitForResults = Interaction.where(
   the`#actor waits for search results to load`,
   async (actor) => {
-    const page = await BrowseTheWeb.as(actor).currentPage();
-    const nativePage = await (page as any).nativePage();
+    const nativePage = await getNativePage(actor);
     await nativePage.getByTestId('searchResultsGrid').waitFor({ timeout: 8000 });
     const count = await nativePage.getByTestId('searchResultCount').textContent();
     console.log(`  results: ${count}`);
@@ -37,16 +40,14 @@ const WaitForResults = Interaction.where(
 
 const ToggleCategoryFilter = (category: string) =>
   Interaction.where(the`#actor toggles category filter "${category}"`, async (actor) => {
-    const page = await BrowseTheWeb.as(actor).currentPage();
-    const nativePage = await (page as any).nativePage();
+    const nativePage = await getNativePage(actor);
     console.log(`  clicking category filter: ${category}`);
     await nativePage.getByTestId(`filter-category-${category}`).click();
   });
 
 const ApplyPricePreset = (label: string) =>
   Interaction.where(the`#actor applies price preset "${label}"`, async (actor) => {
-    const page = await BrowseTheWeb.as(actor).currentPage();
-    const nativePage = await (page as any).nativePage();
+    const nativePage = await getNativePage(actor);
     console.log(`  applying price preset: ${label}`);
     const filterPanel = nativePage.getByTestId('filterPanel');
     await filterPanel.getByRole('button', { name: label }).click();
@@ -55,8 +56,7 @@ const ApplyPricePreset = (label: string) =>
 const WaitForActiveFiltersBar = Interaction.where(
   the`#actor waits for the active filters bar`,
   async (actor) => {
-    const page = await BrowseTheWeb.as(actor).currentPage();
-    const nativePage = await (page as any).nativePage();
+    const nativePage = await getNativePage(actor);
     await nativePage.getByTestId('activeFiltersBar').waitFor({ timeout: 5000 });
     console.log('  active filters bar is visible');
   }
@@ -64,8 +64,7 @@ const WaitForActiveFiltersBar = Interaction.where(
 
 const RemoveFilterBadge = (filterLabel: string) =>
   Interaction.where(the`#actor removes the filter badge "${filterLabel}"`, async (actor) => {
-    const page = await BrowseTheWeb.as(actor).currentPage();
-    const nativePage = await (page as any).nativePage();
+    const nativePage = await getNativePage(actor);
     console.log(`  removing filter badge: ${filterLabel}`);
     await nativePage.getByRole('button', { name: `Remove filter: ${filterLabel}` }).click();
   });
@@ -73,8 +72,7 @@ const RemoveFilterBadge = (filterLabel: string) =>
 const ClearAllFilters = Interaction.where(
   the`#actor clears all filters`,
   async (actor) => {
-    const page = await BrowseTheWeb.as(actor).currentPage();
-    const nativePage = await (page as any).nativePage();
+    const nativePage = await getNativePage(actor);
     console.log('  clicking Clear All Filters');
     await nativePage.getByRole('button', { name: 'Clear All Filters' }).click();
   }
@@ -83,8 +81,7 @@ const ClearAllFilters = Interaction.where(
 const LogFilteredCount = Interaction.where(
   the`#actor checks filtered result count`,
   async (actor) => {
-    const page = await BrowseTheWeb.as(actor).currentPage();
-    const nativePage = await (page as any).nativePage();
+    const nativePage = await getNativePage(actor);
     const count = await nativePage.getByTestId('searchResultCount').textContent();
     console.log(`  filtered results: ${count}`);
   }
