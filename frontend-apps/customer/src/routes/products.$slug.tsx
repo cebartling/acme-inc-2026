@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { ProductDetailPage } from "@/components/product/ProductDetailPage";
-import { productApi } from "@/services/api";
+import { productApi, ApiError } from "@/services/api";
 import { trackProductViewed } from "@/services/analytics";
 
 export const Route = createFileRoute("/products/$slug")({
@@ -12,7 +12,7 @@ export const Route = createFileRoute("/products/$slug")({
 function ProductPage() {
   const { slug } = Route.useParams();
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, error } = useQuery({
     queryKey: ["product", slug],
     queryFn: () => productApi.getProduct(slug),
   });
@@ -38,15 +38,17 @@ function ProductPage() {
   }
 
   if (isError || !data) {
+    const isNotFound = error instanceof ApiError && error.status === 404;
     return (
       <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 py-8 px-4">
         <div className="mx-auto max-w-5xl text-center">
           <h1 className="mb-4 text-2xl font-bold text-white">
-            Product not found
+            {isNotFound ? "Product not found" : "Something went wrong"}
           </h1>
           <p className="mb-6 text-slate-400">
-            The product you&apos;re looking for doesn&apos;t exist or has been
-            removed.
+            {isNotFound
+              ? "The product you’re looking for doesn’t exist or has been removed."
+              : "We couldn’t load this product. Please try again."}
           </p>
           <Link
             to="/search"
