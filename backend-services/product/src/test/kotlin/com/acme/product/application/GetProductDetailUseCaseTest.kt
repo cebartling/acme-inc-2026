@@ -126,13 +126,15 @@ class GetProductDetailUseCaseTest {
         every { repository.findRelatedProducts(any(), any(), any()) } returns emptyList()
         every { eventPublisher.publish(capture(eventSlot)) } just Runs
 
-        useCase.execute("my-product", sessionId = "session-xyz")
+        val correlationId = UUID.randomUUID()
+        useCase.execute("my-product", sessionId = "session-xyz", correlationId = correlationId)
 
         verify(exactly = 1) { eventPublisher.publish(any()) }
         val event = eventSlot.captured
         assertEquals(productId, event.payload.productId)
         assertEquals("my-product", event.payload.slug)
         assertEquals("session-xyz", event.payload.sessionId)
+        assertEquals(correlationId, event.correlationId)
     }
 
     @Test
