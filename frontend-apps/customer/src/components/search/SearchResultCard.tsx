@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import type { ProductSummary } from "@/services/api";
 
 interface SearchResultCardProps {
@@ -6,9 +7,11 @@ interface SearchResultCardProps {
 
 export function SearchResultCard({ product }: SearchResultCardProps) {
   return (
-    <div
+    <Link
+      to="/products/$slug"
+      params={{ slug: product.slug }}
+      className="block rounded-lg bg-gray-800 p-4 shadow-md transition-colors hover:bg-gray-700"
       data-testid="searchResultCard"
-      className="rounded-lg bg-gray-800 p-4 shadow-md"
     >
       <h3 className="text-lg font-semibold text-white">{product.name}</h3>
       <p className="mt-1 text-xl font-bold text-cyan-400">
@@ -19,6 +22,6 @@ export function SearchResultCard({ product }: SearchResultCardProps) {
           {product.category}
         </span>
       )}
-    </div>
+    </Link>
   );
 }

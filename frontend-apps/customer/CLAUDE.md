@@ -51,6 +51,12 @@ npm run preview  # Preview production build
 - **Prettier**: Available via node_modules
 - **TypeScript**: Strict mode enabled
 
+## Pre-commit Hook (Husky + lint-staged)
+
+Prettier formatting is enforced on every commit via Husky + lint-staged. The hook runs automatically after `npm install` (via the `prepare` script).
+
+**Important — single owner of `core.hooksPath`:** The `prepare` script does `cd ../.. && husky frontend-apps/customer/.husky`, which sets the repo-level `git config core.hooksPath` to this package's `.husky/_` directory. Because `core.hooksPath` is a single git config key, **only one package in this monorepo should own it**. If a second frontend package ever needs its own pre-commit hook, consolidate both into a single root-level Husky setup rather than letting two `prepare` scripts overwrite the same key.
+
 ## File Structure
 
 - `src/routes/` - File-based routing (TanStack Router)

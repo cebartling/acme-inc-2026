@@ -91,6 +91,20 @@ export function trackFiltersApplied(
   });
 }
 
+export interface ProductViewedProperties {
+  productId: string;
+  slug: string;
+  source?: string;
+}
+
+export function trackProductViewed(properties: ProductViewedProperties): void {
+  trackEvent("ProductViewed", {
+    source: properties.source ?? "WEB",
+    productId: properties.productId,
+    slug: properties.slug,
+  });
+}
+
 export interface AutocompleteSelectedProperties {
   query: string;
   selectedText: string;

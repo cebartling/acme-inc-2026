@@ -1,12 +1,15 @@
 package com.acme.product.infrastructure.persistence
 
 import com.acme.product.domain.Product
+import com.acme.product.domain.ProductStatus
 import com.acme.product.domain.ProductSummary
+import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
 import org.springframework.stereotype.Repository
 import java.math.BigDecimal
+import java.util.Optional
 import java.util.UUID
 
 /**
@@ -298,6 +301,23 @@ interface ProductRepository : JpaRepository<Product, UUID> {
         @Param("priceMin") priceMin: BigDecimal?,
         @Param("priceMax") priceMax: BigDecimal?
     ): List<CategoryFacetProjection>
+
+    /**
+     * Finds a published product by its URL slug.
+     * Returns empty if the product does not exist or is not PUBLISHED.
+     */
+    fun findBySlugAndStatus(slug: String, status: ProductStatus): Optional<Product>
+
+    /**
+     * Finds published products in the same category, excluding the given product.
+     * Used for the related products section on the product detail page.
+     */
+    @Query("SELECT p FROM Product p WHERE p.category = :category AND p.id <> :excludeId AND p.status = com.acme.product.domain.ProductStatus.PUBLISHED ORDER BY p.createdAt DESC")
+    fun findRelatedProducts(
+        @Param("category") category: String,
+        @Param("excludeId") excludeId: UUID,
+        pageable: Pageable
+    ): List<Product>
 
     /**
      * Autocomplete: product names matching the query prefix using ILIKE.

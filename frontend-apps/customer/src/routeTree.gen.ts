@@ -21,6 +21,7 @@ import { Route as DevicesRouteImport } from "./routes/devices";
 import { Route as DashboardRouteImport } from "./routes/dashboard";
 import { Route as IndexRouteImport } from "./routes/index";
 import { Route as ProfileCompleteRouteImport } from "./routes/profile/complete";
+import { Route as ProductsSlugRouteImport } from "./routes/products.$slug";
 import { Route as ApiHealthRouteImport } from "./routes/api.health";
 import { Route as DemoStartServerFuncsRouteImport } from "./routes/demo/start.server-funcs";
 import { Route as DemoStartApiRequestRouteImport } from "./routes/demo/start.api-request";
@@ -90,6 +91,11 @@ const ProfileCompleteRoute = ProfileCompleteRouteImport.update({
   path: "/profile/complete",
   getParentRoute: () => rootRouteImport,
 } as any);
+const ProductsSlugRoute = ProductsSlugRouteImport.update({
+  id: "/products/$slug",
+  path: "/products/$slug",
+  getParentRoute: () => rootRouteImport,
+} as any);
 const ApiHealthRoute = ApiHealthRouteImport.update({
   id: "/api/health",
   path: "/api/health",
@@ -144,6 +150,7 @@ export interface FileRoutesByFullPath {
   "/search": typeof SearchRoute;
   "/signin": typeof SigninRoute;
   "/api/health": typeof ApiHealthRoute;
+  "/products/$slug": typeof ProductsSlugRoute;
   "/profile/complete": typeof ProfileCompleteRoute;
   "/demo/api/names": typeof DemoApiNamesRoute;
   "/demo/start/api-request": typeof DemoStartApiRequestRoute;
@@ -166,6 +173,7 @@ export interface FileRoutesByTo {
   "/search": typeof SearchRoute;
   "/signin": typeof SigninRoute;
   "/api/health": typeof ApiHealthRoute;
+  "/products/$slug": typeof ProductsSlugRoute;
   "/profile/complete": typeof ProfileCompleteRoute;
   "/demo/api/names": typeof DemoApiNamesRoute;
   "/demo/start/api-request": typeof DemoStartApiRequestRoute;
@@ -189,6 +197,7 @@ export interface FileRoutesById {
   "/search": typeof SearchRoute;
   "/signin": typeof SigninRoute;
   "/api/health": typeof ApiHealthRoute;
+  "/products/$slug": typeof ProductsSlugRoute;
   "/profile/complete": typeof ProfileCompleteRoute;
   "/demo/api/names": typeof DemoApiNamesRoute;
   "/demo/start/api-request": typeof DemoStartApiRequestRoute;
@@ -213,6 +222,7 @@ export interface FileRouteTypes {
     | "/search"
     | "/signin"
     | "/api/health"
+    | "/products/$slug"
     | "/profile/complete"
     | "/demo/api/names"
     | "/demo/start/api-request"
@@ -235,6 +245,7 @@ export interface FileRouteTypes {
     | "/search"
     | "/signin"
     | "/api/health"
+    | "/products/$slug"
     | "/profile/complete"
     | "/demo/api/names"
     | "/demo/start/api-request"
@@ -257,6 +268,7 @@ export interface FileRouteTypes {
     | "/search"
     | "/signin"
     | "/api/health"
+    | "/products/$slug"
     | "/profile/complete"
     | "/demo/api/names"
     | "/demo/start/api-request"
@@ -280,6 +292,7 @@ export interface RootRouteChildren {
   SearchRoute: typeof SearchRoute;
   SigninRoute: typeof SigninRoute;
   ApiHealthRoute: typeof ApiHealthRoute;
+  ProductsSlugRoute: typeof ProductsSlugRoute;
   ProfileCompleteRoute: typeof ProfileCompleteRoute;
   DemoApiNamesRoute: typeof DemoApiNamesRoute;
   DemoStartApiRequestRoute: typeof DemoStartApiRequestRoute;
@@ -376,6 +389,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof ProfileCompleteRouteImport;
       parentRoute: typeof rootRouteImport;
     };
+    "/products/$slug": {
+      id: "/products/$slug";
+      path: "/products/$slug";
+      fullPath: "/products/$slug";
+      preLoaderRoute: typeof ProductsSlugRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     "/api/health": {
       id: "/api/health";
       path: "/api/health";
@@ -448,6 +468,7 @@ const rootRouteChildren: RootRouteChildren = {
   SearchRoute: SearchRoute,
   SigninRoute: SigninRoute,
   ApiHealthRoute: ApiHealthRoute,
+  ProductsSlugRoute: ProductsSlugRoute,
   ProfileCompleteRoute: ProfileCompleteRoute,
   DemoApiNamesRoute: DemoApiNamesRoute,
   DemoStartApiRequestRoute: DemoStartApiRequestRoute,

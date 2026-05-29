@@ -1,0 +1,1 @@
+cd frontend-apps/customer && npx lint-staged

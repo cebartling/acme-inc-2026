@@ -924,7 +924,26 @@ export interface AutocompleteResponse {
   suggestions: AutocompleteSuggestion[];
 }
 
+export interface ProductDetail {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  price: number;
+  category: string | null;
+  tags: string[];
+  availability: "IN_STOCK" | "OUT_OF_STOCK";
+  relatedProducts: ProductSummary[];
+}
+
 export const productApi = {
+  async getProduct(slug: string): Promise<ProductDetail> {
+    return apiRequest<ProductDetail>(
+      `${PRODUCT_SERVICE_URL}/api/v1/products/${encodeURIComponent(slug)}`,
+      { method: "GET", credentials: "include" },
+    );
+  },
+
   async search(request: SearchRequest): Promise<SearchResponse> {
     return apiRequest<SearchResponse>(`${PRODUCT_SERVICE_URL}/api/v1/search`, {
       method: "POST",
