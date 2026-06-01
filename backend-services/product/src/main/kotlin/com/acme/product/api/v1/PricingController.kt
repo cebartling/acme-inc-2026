@@ -20,8 +20,10 @@ class PricingController(
         val variant = variantRepository.findById(variantId)
             .orElseThrow { VariantNotFoundException(variantId) }
 
-        val effectivePrice = variant.priceOverride ?: variant.product.price
-        val originalPrice = if (variant.priceOverride != null) variant.product.price else null
+        val override = variant.priceOverride
+        val effectivePrice = override ?: variant.product.price
+        val originalPrice = if (override != null && override < variant.product.price)
+            variant.product.price else null
 
         val response = VariantPriceResponse(
             variantId = variantId,

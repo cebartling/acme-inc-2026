@@ -63,7 +63,7 @@ class PricingControllerTest {
     }
 
     @Test
-    fun `getPrice returns override price and original product price when override is set`() {
+    fun `getPrice returns override price and original product price when override is a discount`() {
         val variantId = UUID.randomUUID()
         val product = makeProduct(BigDecimal("199.99"))
         val variant = ProductVariant(
@@ -83,6 +83,29 @@ class PricingControllerTest {
         assertNotNull(body)
         assertEquals(BigDecimal("189.99"), body.price)
         assertEquals(BigDecimal("199.99"), body.originalPrice)
+    }
+
+    @Test
+    fun `getPrice does not set originalPrice when override is higher than base price`() {
+        val variantId = UUID.randomUUID()
+        val product = makeProduct(BigDecimal("199.99"))
+        val variant = ProductVariant(
+            id = variantId,
+            product = product,
+            sku = "ACME-NCH-NVY-LTD",
+            name = "Navy Limited Edition",
+            isDefault = false,
+            inStock = false,
+            priceOverride = BigDecimal("219.99")
+        )
+        every { variantRepository.findById(variantId) } returns Optional.of(variant)
+
+        val response = controller.getPrice(variantId)
+
+        val body = response.body
+        assertNotNull(body)
+        assertEquals(BigDecimal("219.99"), body.price)
+        assertNull(body.originalPrice)
     }
 
     @Test
