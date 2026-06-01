@@ -30,6 +30,7 @@ export function ProductDetailPage({ product }: ProductDetailPageProps) {
     availability,
     price,
     isLoading,
+    isError,
   } = useVariantSelection(product);
 
   const hasVariants = product.variants.length > 0;
@@ -107,6 +108,10 @@ export function ProductDetailPage({ product }: ProductDetailPageProps) {
               <PriceSkeleton />
               <AvailabilitySkeleton />
             </>
+          ) : isError ? (
+            <p className="text-sm text-red-400">
+              Could not load variant details. Please try again.
+            </p>
           ) : (
             <>
               <ProductPriceDisplay
@@ -122,14 +127,14 @@ export function ProductDetailPage({ product }: ProductDetailPageProps) {
         {/* Add to Cart */}
         <button
           type="button"
-          disabled={isOutOfStock || isLoading}
+          disabled={isOutOfStock || isLoading || isError}
           className={[
             "mb-6 rounded-lg px-6 py-2.5 text-sm font-semibold transition-colors",
-            isOutOfStock || isLoading
+            isOutOfStock || isLoading || isError
               ? "cursor-not-allowed bg-slate-700 text-slate-500"
               : "bg-indigo-600 text-white hover:bg-indigo-500",
           ].join(" ")}
-          aria-disabled={isOutOfStock || isLoading}
+          aria-disabled={isOutOfStock || isLoading || isError}
         >
           {isOutOfStock ? "Out of Stock" : "Add to Cart"}
         </button>

@@ -16,6 +16,7 @@ export interface UseVariantSelectionResult {
   availability: VariantAvailability | undefined;
   price: VariantPrice | undefined;
   isLoading: boolean;
+  isError: boolean;
 }
 
 export function useVariantSelection(
@@ -66,5 +67,6 @@ export function useVariantSelection(
     availability: availabilityQuery.data,
     price: priceQuery.data,
     isLoading: availabilityQuery.isLoading || priceQuery.isLoading,
+    isError: availabilityQuery.isError || priceQuery.isError,
   };
 }
