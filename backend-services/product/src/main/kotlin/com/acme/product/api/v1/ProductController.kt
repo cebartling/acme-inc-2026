@@ -50,6 +50,22 @@ class ProductController(
                     price = p.price,
                     category = p.category
                 )
+            },
+            variants = product.variants.map { v ->
+                ProductVariantResponse(
+                    id = v.id,
+                    sku = v.sku,
+                    name = v.name,
+                    color = v.color,
+                    size = v.size,
+                    isDefault = v.isDefault,
+                    inStock = v.inStock,
+                    priceOverride = v.priceOverride,
+                    images = v.images.map { it.url },
+                    tierPricing = v.tierPricing.map { tp ->
+                        TierPricingEntry(minQuantity = tp.minQuantity, price = tp.price)
+                    }
+                )
             }
         )
 

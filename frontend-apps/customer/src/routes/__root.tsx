@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import Header from "../components/Header";
 
-import appCss from "../styles.css?url";
+import "../styles.css";
 
 export const Route = createRootRoute({
   head: () => ({
@@ -20,12 +20,6 @@ export const Route = createRootRoute({
       },
       {
         title: "ACME, Inc. - Your Trusted E-commerce Partner",
-      },
-    ],
-    links: [
-      {
-        rel: "stylesheet",
-        href: appCss,
       },
     ],
   }),
