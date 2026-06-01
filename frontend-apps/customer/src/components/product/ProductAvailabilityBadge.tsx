@@ -5,28 +5,19 @@ interface ProductAvailabilityBadgeProps {
 export function ProductAvailabilityBadge({
   availability,
 }: ProductAvailabilityBadgeProps) {
-  if (availability === "IN_STOCK") {
-    return (
-      <span
-        data-testid="availabilityBadge"
-        className="inline-flex items-center gap-1.5 text-sm font-medium text-green-400"
-      >
-        <span
-          className="h-2 w-2 rounded-full bg-green-400"
-          aria-hidden="true"
-        />
-        In Stock
-      </span>
-    );
-  }
+  const isInStock = availability === "IN_STOCK";
 
   return (
     <span
       data-testid="availabilityBadge"
-      className="inline-flex items-center gap-1.5 text-sm font-medium text-red-400"
+      aria-live={isInStock ? "polite" : "assertive"}
+      className={`inline-flex items-center gap-1.5 text-sm font-medium ${isInStock ? "text-green-400" : "text-red-400"}`}
     >
-      <span className="h-2 w-2 rounded-full bg-red-400" aria-hidden="true" />
-      Out of Stock
+      <span
+        className={`h-2 w-2 rounded-full ${isInStock ? "bg-green-400" : "bg-red-400"}`}
+        aria-hidden="true"
+      />
+      {isInStock ? "In Stock" : "Out of Stock"}
     </span>
   );
 }

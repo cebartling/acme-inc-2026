@@ -12,5 +12,6 @@ data class ProductDetailResponse(
     val category: String?,
     val tags: List<String>,
     val availability: String,
-    val relatedProducts: List<ProductSummaryResponse>
+    val relatedProducts: List<ProductSummaryResponse>,
+    val variants: List<ProductVariantResponse> = emptyList()
 )

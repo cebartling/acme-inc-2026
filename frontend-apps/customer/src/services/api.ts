@@ -11,6 +11,10 @@ const CUSTOMER_SERVICE_URL =
   import.meta.env.VITE_CUSTOMER_SERVICE_URL || "http://localhost:10301";
 const PRODUCT_SERVICE_URL =
   import.meta.env.VITE_PRODUCT_SERVICE_URL || "http://localhost:10303";
+const INVENTORY_SERVICE_URL =
+  import.meta.env.VITE_INVENTORY_SERVICE_URL || "http://localhost:10303";
+const PRICING_SERVICE_URL =
+  import.meta.env.VITE_PRICING_SERVICE_URL || "http://localhost:10303";
 
 /**
  * Custom error class for API errors with status code and response data.
@@ -924,6 +928,36 @@ export interface AutocompleteResponse {
   suggestions: AutocompleteSuggestion[];
 }
 
+export interface TierPricingEntry {
+  minQuantity: number;
+  price: number;
+}
+
+export interface ProductVariant {
+  id: string;
+  sku: string;
+  name: string;
+  color: string | null;
+  size: string | null;
+  isDefault: boolean;
+  inStock: boolean;
+  priceOverride: number | null;
+  images: string[];
+  tierPricing: TierPricingEntry[];
+}
+
+export interface VariantAvailability {
+  variantId: string;
+  availability: "IN_STOCK" | "OUT_OF_STOCK";
+}
+
+export interface VariantPrice {
+  variantId: string;
+  price: number;
+  originalPrice: number | null;
+  tierPricing: TierPricingEntry[];
+}
+
 export interface ProductDetail {
   id: string;
   slug: string;
@@ -934,6 +968,7 @@ export interface ProductDetail {
   tags: string[];
   availability: "IN_STOCK" | "OUT_OF_STOCK";
   relatedProducts: ProductSummary[];
+  variants: ProductVariant[];
 }
 
 export const productApi = {
@@ -959,6 +994,24 @@ export const productApi = {
         method: "GET",
         credentials: "include",
       },
+    );
+  },
+};
+
+export const inventoryApi = {
+  async getAvailability(variantId: string): Promise<VariantAvailability> {
+    return apiRequest<VariantAvailability>(
+      `${INVENTORY_SERVICE_URL}/api/v1/inventory/availability/${encodeURIComponent(variantId)}`,
+      { method: "GET", credentials: "include" },
+    );
+  },
+};
+
+export const pricingApi = {
+  async getPrice(variantId: string): Promise<VariantPrice> {
+    return apiRequest<VariantPrice>(
+      `${PRICING_SERVICE_URL}/api/v1/prices/${encodeURIComponent(variantId)}`,
+      { method: "GET", credentials: "include" },
     );
   },
 };

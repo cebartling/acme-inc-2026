@@ -60,5 +60,14 @@ class Product(
     val createdAt: Instant = Instant.now(),
 
     @Column(name = "updated_at", nullable = false)
-    val updatedAt: Instant = Instant.now()
+    val updatedAt: Instant = Instant.now(),
+
+    @OneToMany(
+        mappedBy = "product",
+        fetch = FetchType.LAZY,
+        cascade = [CascadeType.ALL],
+        orphanRemoval = true
+    )
+    @OrderBy("isDefault DESC, createdAt ASC")
+    val variants: List<ProductVariant> = emptyList()
 )

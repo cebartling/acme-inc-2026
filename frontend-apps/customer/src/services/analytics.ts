@@ -123,3 +123,18 @@ export function trackAutocompleteSelected(
     positionIndex: properties.positionIndex,
   });
 }
+
+export interface VariantSelectedProperties {
+  productId: string;
+  variantId: string;
+}
+
+export function trackVariantSelected(
+  properties: VariantSelectedProperties,
+): void {
+  trackEvent("VariantSelected", {
+    source: "WEB",
+    productId: properties.productId,
+    variantId: properties.variantId,
+  });
+}
