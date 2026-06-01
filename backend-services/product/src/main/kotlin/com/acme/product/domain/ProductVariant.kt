@@ -1,6 +1,7 @@
 package com.acme.product.domain
 
 import jakarta.persistence.*
+import org.hibernate.annotations.BatchSize
 import java.math.BigDecimal
 import java.time.Instant
 import java.util.UUID
@@ -42,19 +43,21 @@ class ProductVariant(
 
     @OneToMany(
         mappedBy = "variant",
-        fetch = FetchType.EAGER,
+        fetch = FetchType.LAZY,
         cascade = [CascadeType.ALL],
         orphanRemoval = true
     )
     @OrderBy("displayOrder ASC")
+    @BatchSize(size = 10)
     val images: List<ProductVariantImage> = emptyList(),
 
     @OneToMany(
         mappedBy = "variant",
-        fetch = FetchType.EAGER,
+        fetch = FetchType.LAZY,
         cascade = [CascadeType.ALL],
         orphanRemoval = true
     )
     @OrderBy("minQuantity ASC")
+    @BatchSize(size = 10)
     val tierPricing: List<ProductVariantTierPricing> = emptyList()
 )
