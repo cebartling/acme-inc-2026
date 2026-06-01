@@ -36,7 +36,9 @@ export function SizeButtonSelector({
               variant.id === selectedVariantId
                 ? "border-indigo-400 bg-indigo-600 text-white"
                 : "bg-slate-700 text-slate-200 hover:bg-slate-600",
-              !variant.inStock ? "line-through opacity-50 cursor-pointer" : "",
+              !variant.inStock
+                ? "line-through opacity-50 cursor-not-allowed"
+                : "",
             ]
               .filter(Boolean)
               .join(" ")}

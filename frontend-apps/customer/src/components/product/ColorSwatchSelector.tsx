@@ -53,7 +53,7 @@ export function ColorSwatchSelector({
                 isSelected
                   ? "ring-2 ring-indigo-400 ring-offset-2 ring-offset-slate-800"
                   : "",
-                !variant.inStock ? "opacity-40 cursor-pointer" : "",
+                !variant.inStock ? "opacity-40 cursor-not-allowed" : "",
               ]
                 .filter(Boolean)
                 .join(" ")}
