@@ -4,6 +4,9 @@ import com.acme.product.application.GetProductDetailUseCase
 import com.acme.product.domain.Product
 import com.acme.product.domain.ProductNotFoundException
 import com.acme.product.domain.ProductStatus
+import com.acme.product.domain.ProductVariant
+import com.acme.product.domain.ProductVariantImage
+import com.acme.product.domain.ProductVariantTierPricing
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -15,6 +18,8 @@ import java.math.BigDecimal
 import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class ProductControllerTest {
 
@@ -193,5 +198,70 @@ class ProductControllerTest {
 
         // Then
         assertEquals(emptyList(), response.body?.tags)
+    }
+
+    @Test
+    fun `getProduct should map variants with images and tier pricing into response`() {
+        // Given
+        val productId = UUID.randomUUID()
+        val variantId = UUID.randomUUID()
+        val imageId = UUID.randomUUID()
+        val tierId = UUID.randomUUID()
+
+        val product = mockk<Product>(relaxed = true)
+        every { product.id } returns productId
+        every { product.slug } returns "gadget-pro"
+        every { product.name } returns "Gadget Pro"
+        every { product.description } returns null
+        every { product.price } returns BigDecimal("119.99")
+        every { product.status } returns ProductStatus.PUBLISHED
+        every { product.category } returns "Electronics"
+        every { product.tags } returns "gadget,pro"
+
+        val image = mockk<ProductVariantImage>(relaxed = true)
+        every { image.url } returns "https://example.com/black.jpg"
+
+        val tierEntry = mockk<ProductVariantTierPricing>(relaxed = true)
+        every { tierEntry.minQuantity } returns 3
+        every { tierEntry.price } returns BigDecimal("109.99")
+
+        val variant = mockk<ProductVariant>(relaxed = true)
+        every { variant.id } returns variantId
+        every { variant.sku } returns "ACME-GP-BLK"
+        every { variant.name } returns "Black"
+        every { variant.color } returns "Black"
+        every { variant.size } returns null
+        every { variant.isDefault } returns true
+        every { variant.inStock } returns true
+        every { variant.priceOverride } returns null
+        every { variant.images } returns listOf(image)
+        every { variant.tierPricing } returns listOf(tierEntry)
+
+        every { product.variants } returns listOf(variant)
+
+        every {
+            getProductDetailUseCase.execute(any(), any(), any())
+        } returns GetProductDetailUseCase.Result(product = product, relatedProducts = emptyList())
+
+        // When
+        val response = controller.getProduct(slug = "gadget-pro", sessionId = null, correlationId = null)
+
+        // Then
+        val body = response.body
+        assertNotNull(body)
+        assertEquals(1, body.variants.size)
+        val variantResponse = body.variants[0]
+        assertEquals(variantId, variantResponse.id)
+        assertEquals("ACME-GP-BLK", variantResponse.sku)
+        assertEquals("Black", variantResponse.name)
+        assertEquals("Black", variantResponse.color)
+        assertNull(variantResponse.size)
+        assertTrue(variantResponse.isDefault)
+        assertTrue(variantResponse.inStock)
+        assertNull(variantResponse.priceOverride)
+        assertEquals(listOf("https://example.com/black.jpg"), variantResponse.images)
+        assertEquals(1, variantResponse.tierPricing.size)
+        assertEquals(3, variantResponse.tierPricing[0].minQuantity)
+        assertEquals(BigDecimal("109.99"), variantResponse.tierPricing[0].price)
     }
 }
