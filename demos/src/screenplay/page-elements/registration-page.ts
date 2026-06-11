@@ -26,11 +26,11 @@ export const RegistrationPage = {
       .describedAs('last name input'),
 
   tosCheckbox: () =>
-    PageElement.located(By.css('input[name="acceptTerms"]'))
+    PageElement.located(By.css('#tosAccepted'))
       .describedAs('Terms of Service checkbox'),
 
   privacyCheckbox: () =>
-    PageElement.located(By.css('input[name="acceptPrivacy"]'))
+    PageElement.located(By.css('#privacyPolicyAccepted'))
       .describedAs('Privacy Policy checkbox'),
 
   createAccountButton: () =>
