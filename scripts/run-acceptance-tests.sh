@@ -44,6 +44,7 @@ NC='\033[0m' # No Color
 
 # Default options
 SKIP_INSTALL=false
+SKIP_SERVICE_CHECK=false
 OPEN_BROWSER=true
 HEADED=false
 QUIET=false
@@ -91,9 +92,10 @@ ${YELLOW}Test Selection:${NC}
   --api             Run API tests only (@api tag)
 
 ${YELLOW}Execution Options:${NC}
-  --headed          Run with visible browser (not headless)
-  --skip-install    Skip npm install step
-  --no-open         Don't automatically open browser with results
+  --headed             Run with visible browser (not headless)
+  --skip-install       Skip npm install step
+  --skip-service-check Skip the application-services readiness check
+  --no-open            Don't automatically open browser with results
   --quiet, -q       Minimal output (progress bar only, no scenario names)
 
 ${YELLOW}Other:${NC}
@@ -115,7 +117,8 @@ ${YELLOW}Reports:${NC}
 
 ${YELLOW}Prerequisites:${NC}
   - Node.js 24+ (LTS/Krypton) - uses nvm if available
-  - Application services should be running (./scripts/docker-manage.sh start)
+  - Application services must be running (./scripts/docker-manage.sh start)
+    The runner verifies this before tests; bypass with --skip-service-check
 
 EOF
 }
@@ -127,47 +130,48 @@ EOF
 setup_node() {
     print_info "Setting up Node.js environment..."
 
-    # First check if node is already available and meets requirements
-    if command -v node &> /dev/null; then
-        local node_version
-        node_version=$(node --version)
-        local major_version
-        major_version=$(echo "$node_version" | sed 's/v//' | cut -d. -f1)
-
-        if [[ "$major_version" -ge 24 ]]; then
-            print_success "Using Node.js $node_version"
-            return 0
-        fi
-    fi
-
-    # Node not found or version too old - try version managers
+    # Determine the required version from .nvmrc (defaults to lts/* if absent)
     local nvmrc_file="${ACCEPTANCE_TESTS_DIR}/.nvmrc"
-    local required_version=""
+    local required_version="lts/*"
 
     if [[ -f "$nvmrc_file" ]]; then
         required_version=$(cat "$nvmrc_file" | tr -d '[:space:]')
-        print_info "Required Node.js version: $required_version"
+        print_info "Required Node.js version (.nvmrc): $required_version"
     fi
 
-    # Try nvm if available
-    if [[ -s "$HOME/.nvm/nvm.sh" ]]; then
-        # shellcheck source=/dev/null
-        source "$HOME/.nvm/nvm.sh" 2>/dev/null
+    # Initialize nvm and use it to select the appropriate Node.js runtime.
+    # nvm's scripts reference unbound variables, so relax `set -eu` while sourcing
+    # and invoking nvm, then restore strict mode afterward.
+    export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+    local nvm_loaded=false
 
-        if [[ -n "$required_version" ]]; then
-            print_info "Using nvm to set Node.js version..."
-            if nvm use "$required_version" 2>/dev/null; then
-                print_success "Node.js version set via nvm"
-            else
-                print_warning "Could not set Node.js version via nvm"
-            fi
+    set +eu
+    local nvm_sh
+    for nvm_sh in "$NVM_DIR/nvm.sh" "/opt/homebrew/opt/nvm/nvm.sh" "/usr/local/opt/nvm/nvm.sh"; do
+        if [[ -s "$nvm_sh" ]]; then
+            # shellcheck source=/dev/null
+            source "$nvm_sh" 2>/dev/null
+            nvm_loaded=true
+            break
+        fi
+    done
+
+    if [[ "$nvm_loaded" == true ]]; then
+        print_info "Initializing Node.js via nvm..."
+        # Install the target version if it isn't present (no-op if already installed)
+        nvm install "$required_version" >/dev/null 2>&1 || true
+        if nvm use "$required_version" >/dev/null 2>&1; then
+            print_success "Node.js selected via nvm ($required_version)"
+        else
+            print_warning "Could not select Node.js $required_version via nvm; falling back to PATH"
         fi
     elif command -v fnm &> /dev/null; then
-        print_info "Using fnm to set Node.js version..."
-        if [[ -n "$required_version" ]]; then
-            fnm use "$required_version" 2>/dev/null || true
-        fi
+        print_info "Initializing Node.js via fnm..."
+        fnm use "$required_version" 2>/dev/null || true
+    else
+        print_warning "nvm/fnm not found; using Node.js from PATH"
     fi
+    set -eu
 
     # Final verification
     if ! command -v node &> /dev/null; then
@@ -178,7 +182,6 @@ setup_node() {
 
     local node_version
     node_version=$(node --version)
-    print_success "Using Node.js $node_version"
 
     local major_version
     major_version=$(echo "$node_version" | sed 's/v//' | cut -d. -f1)
@@ -186,6 +189,8 @@ setup_node() {
         print_error "Node.js 24+ is required, but found $node_version"
         exit 1
     fi
+
+    print_success "Using Node.js $node_version"
 }
 
 # -----------------------------------------------------------------------------
@@ -212,6 +217,57 @@ install_dependencies() {
 
     npm ci --silent
     print_success "Dependencies installed"
+}
+
+# -----------------------------------------------------------------------------
+# Service Readiness
+# -----------------------------------------------------------------------------
+
+# Verify the application services the acceptance tests depend on are reachable.
+# Fails fast with guidance rather than running a suite that is doomed to fail.
+# Ports/URLs default to the same values used by acceptance-tests/playwright.config.ts
+# and can be overridden via the matching environment variables.
+check_services() {
+    if [[ "$SKIP_SERVICE_CHECK" == true ]]; then
+        print_info "Skipping application service check (--skip-service-check)"
+        return
+    fi
+
+    print_info "Checking application services..."
+
+    # Required services as "name|url" entries (zsh-friendly parallel-style array).
+    # The admin frontend is intentionally excluded: it is not started by
+    # ./scripts/docker-manage.sh start (commented out in docker-compose.apps.yml).
+    local services=(
+        "Identity Service|${IDENTITY_API_URL:-http://localhost:10300}/actuator/health"
+        "Customer Service|${CUSTOMER_API_URL:-http://localhost:10301}/actuator/health"
+        "Notification Service|${NOTIFICATION_API_URL:-http://localhost:10302}/actuator/health"
+        "Product Service|${PRODUCT_API_URL:-http://localhost:10303}/actuator/health"
+        "Customer Frontend|${CUSTOMER_APP_URL:-http://localhost:7600}/"
+    )
+
+    local down=()
+    local entry name url
+    for entry in "${services[@]}"; do
+        name="${entry%%|*}"
+        url="${entry#*|}"
+        if curl -sf -o /dev/null --max-time 5 "$url" &>/dev/null; then
+            print_success "$name: up"
+        else
+            print_error "$name: not reachable ($url)"
+            down+=("$name")
+        fi
+    done
+
+    if [[ ${#down[@]} -gt 0 ]]; then
+        echo ""
+        print_error "Application services are not running: ${down[*]}"
+        print_info "Start them with: ./scripts/docker-manage.sh start"
+        print_info "Or bypass this check with: --skip-service-check"
+        exit 1
+    fi
+
+    print_success "All required application services are up"
 }
 
 # -----------------------------------------------------------------------------
@@ -380,6 +436,10 @@ parse_args() {
                 SKIP_INSTALL=true
                 shift
                 ;;
+            --skip-service-check)
+                SKIP_SERVICE_CHECK=true
+                shift
+                ;;
             --no-open)
                 OPEN_BROWSER=false
                 shift
@@ -418,6 +478,9 @@ main() {
     # Setup
     setup_node
     install_dependencies
+
+    # Verify application services are up before running the suite
+    check_services
 
     # Run tests
     local test_exit_code=0
