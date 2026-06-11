@@ -74,7 +74,7 @@ demo-product-search-record:
     cd demos && bun run src/run.ts product-search --mode=record
 
 # Run all demos sequentially in live mode.
-demo-all: demo-register demo-signin demo-logout
+demo-all: demo-register demo-signin demo-logout demo-product-search demo-invalid-credentials demo-inactive-account demo-token-refresh
 
 # Run all demos sequentially in record mode.
-demo-all-record: demo-register-record demo-signin-record demo-logout-record
+demo-all-record: demo-register-record demo-signin-record demo-logout-record demo-product-search-record demo-invalid-credentials-record demo-inactive-account-record demo-token-refresh-record

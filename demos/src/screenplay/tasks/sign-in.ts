@@ -1,5 +1,5 @@
 import { Duration, Task, the, Wait } from '@serenity-js/core';
-import { Clear, Click, Enter, Navigate } from '@serenity-js/web';
+import { Clear, Click, Enter, Key, Navigate, Press } from '@serenity-js/web';
 import { SigninPage } from '../page-elements/signin-page.ts';
 import { config } from '../../config.ts';
 
@@ -16,6 +16,9 @@ export const SignIn = {
 
       Clear.theValueOf(SigninPage.passwordField()),
       Enter.theValue(password).into(SigninPage.passwordField()),
+      // Blur the password field so the onBlur-validated form revalidates
+      // and enables the submit button before we click it.
+      Press.the(Key.Tab).in(SigninPage.passwordField()),
       Wait.for(Duration.ofMilliseconds(600)),
 
       Click.on(SigninPage.submitButton()),
