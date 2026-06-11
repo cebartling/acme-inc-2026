@@ -1,11 +1,9 @@
-# @wip is set because these scenarios share a Background with
-# customer-profile-loading-ui.feature -- both are blocked by a
-# pre-existing SSR/hydration race in the customer-frontend's dashboard
-# route guard that bounces users back to /signin before the auth
-# Zustand store rehydrates. The 6 @api logout scenarios in
-# customer-logout-api.feature run in CI; these UI scenarios will be
-# un-@wip'd once the dashboard race is fixed (out of scope for
-# US-0003-14).
+# These UI scenarios remain @wip: post-auth now lands on the home page
+# ("/") instead of the dashboard, so this logout-from-header flow has not
+# yet been exercised end-to-end against the new landing route. The 6 @api
+# logout scenarios in customer-logout-api.feature run in CI and cover the
+# logout contract; these UI scenarios will be un-@wip'd once verified
+# against the home-landing flow.
 @customer @logout @wip
 Feature: Customer Logout UI (US-0003-14)
   As a signed-in customer
@@ -16,7 +14,7 @@ Feature: Customer Logout UI (US-0003-14)
     Given an active customer with email "logout-ui@example.com" exists
     And I am on the signin page
     When I sign in with valid credentials
-    Then I should be redirected to the dashboard
+    Then I should be on the "home" page
 
   # AC-0003-14-01, AC-0003-14-04, AC-0003-14-09
   Scenario: Standard logout from the user menu redirects to signin with banner
@@ -45,4 +43,4 @@ Feature: Customer Logout UI (US-0003-14)
     When I open the user menu
     And I click the "Sign Out All Devices" menu item
     And I cancel the all-devices logout
-    Then I should remain on the dashboard
+    Then I should remain signed in

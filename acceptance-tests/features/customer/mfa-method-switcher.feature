@@ -62,7 +62,7 @@ Feature: MFA Method Switcher UI (US-0003-06)
     And I click the Authenticator method button
     And I enter a valid TOTP code
     And I submit the MFA verification form
-    Then I should be redirected to the dashboard page
+    Then I should be on the "home" page
 
   # TODO: This test requires backend support for switching MFA methods mid-flow.
   # Currently, when TOTP is primary, no SMS challenge is created during signin.
@@ -78,4 +78,4 @@ Feature: MFA Method Switcher UI (US-0003-06)
     And I click the resend code button
     And I enter the correct SMS code
     And I submit the MFA verification form
-    Then I should be redirected to the dashboard page
+    Then I should be on the "home" page

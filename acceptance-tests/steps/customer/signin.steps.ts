@@ -245,10 +245,6 @@ Then('focus should be on the signin password field', async function (this: Custo
   await expect(signinPage.passwordInput).toBeFocused();
 });
 
-Then('I should be redirected to the dashboard page', async function (this: CustomWorld) {
-  await expect(this.page).toHaveURL(/\/dashboard/, { timeout: 10000 });
-});
-
 // ============================================================================
 // Inactive Account Card Steps (US-0003-11)
 // ============================================================================

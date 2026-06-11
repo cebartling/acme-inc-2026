@@ -8,10 +8,11 @@ Feature: Customer Profile Loading UI (US-0003-09)
     Given an active customer with email "ui-profile-test@example.com" exists
     And I am on the signin page
 
-  Scenario: Profile is loaded automatically after successful signin
+  Scenario: Profile is loaded after navigating to the dashboard
     When I sign in with valid credentials
-    Then I should be redirected to the dashboard
-    And I should see my display name on the dashboard
+    Then I should be on the "home" page
+    When I navigate to the dashboard
+    Then I should see my display name on the dashboard
     And I should see my customer number on the dashboard
     And the profile completeness widget should be visible
 
@@ -19,20 +20,21 @@ Feature: Customer Profile Loading UI (US-0003-09)
     When I start signing in with valid credentials
     Then I should see a loading indicator
     When the signin completes
-    Then the loading indicator should disappear
-    And I should see my profile information
+    And I navigate to the dashboard
+    Then I should see my profile information
 
   Scenario: Handle profile loading error gracefully
     Given the customer profile API will return an error
     When I sign in with valid credentials
-    Then I should be redirected to the dashboard
-    And I should see an error message about profile loading
+    And I navigate to the dashboard
+    Then I should see an error message about profile loading
     And I should see a retry button
     When I click the retry button
     Then the profile should be loaded successfully
 
   Scenario: Profile persists across page refreshes
     Given I have signed in successfully
+    And I navigate to the dashboard
     And my profile is loaded
     When I refresh the page
     Then I should still see my display name
@@ -41,6 +43,7 @@ Feature: Customer Profile Loading UI (US-0003-09)
 
   Scenario: Profile is cleared on logout
     Given I have signed in successfully
+    And I navigate to the dashboard
     And my profile is loaded
     When I sign out
     Then the profile should be cleared from storage
@@ -48,16 +51,19 @@ Feature: Customer Profile Loading UI (US-0003-09)
 
   Scenario: Dashboard shows profile completeness score
     Given I have signed in successfully
+    And I navigate to the dashboard
     And my profile is loaded
     Then the profile completeness widget should show my score
     And the widget should show completion percentage
 
   Scenario: Dashboard shows customer number
     Given I have signed in successfully
+    And I navigate to the dashboard
     And my profile is loaded
     Then I should see my customer number in format "ACME-YYYYMM-NNNNNN"
 
   Scenario: Dashboard shows last activity timestamp
     Given I have signed in successfully
+    And I navigate to the dashboard
     And my profile is loaded
     Then I should see when I last accessed my account

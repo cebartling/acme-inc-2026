@@ -102,4 +102,4 @@ Feature: Customer Signin Form
     When I enter signin email "customer@acme.com"
     And I enter signin password "ValidP@ssw0rd!"
     And I submit the signin form
-    Then I should be redirected to the dashboard page
+    Then I should be on the "home" page

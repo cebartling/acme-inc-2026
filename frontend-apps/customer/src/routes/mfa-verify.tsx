@@ -214,8 +214,8 @@ function MfaVerifyPage() {
         lastName: response.lastName,
       });
 
-      // Navigate to redirect URL or dashboard
-      const redirectTo = mfaState.redirect || "/dashboard";
+      // Navigate to redirect URL or home
+      const redirectTo = mfaState.redirect || "/";
       navigate({ to: redirectTo });
     } catch (err) {
       if (err instanceof ApiError) {
