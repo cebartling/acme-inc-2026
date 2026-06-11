@@ -121,8 +121,8 @@ When('I enter the correct SMS code', async function (this: CustomWorld) {
 });
 
 When('I submit the MFA verification form', async function (this: CustomWorld) {
-  // Check if already navigated to dashboard (e.g., auto-submit after entering code)
-  if (this.page.url().includes('/dashboard')) {
+  // Check if already navigated away from MFA (e.g., auto-submit after entering code)
+  if (!this.page.url().includes('/mfa-verify')) {
     return; // Already verified and redirected
   }
 
