@@ -44,6 +44,7 @@ NC='\033[0m' # No Color
 
 # Default options
 SKIP_INSTALL=false
+SKIP_SERVICE_CHECK=false
 OPEN_BROWSER=true
 HEADED=false
 QUIET=false
@@ -91,9 +92,10 @@ ${YELLOW}Test Selection:${NC}
   --api             Run API tests only (@api tag)
 
 ${YELLOW}Execution Options:${NC}
-  --headed          Run with visible browser (not headless)
-  --skip-install    Skip npm install step
-  --no-open         Don't automatically open browser with results
+  --headed             Run with visible browser (not headless)
+  --skip-install       Skip npm install step
+  --skip-service-check Skip the application-services readiness check
+  --no-open            Don't automatically open browser with results
   --quiet, -q       Minimal output (progress bar only, no scenario names)
 
 ${YELLOW}Other:${NC}
@@ -115,7 +117,8 @@ ${YELLOW}Reports:${NC}
 
 ${YELLOW}Prerequisites:${NC}
   - Node.js 24+ (LTS/Krypton) - uses nvm if available
-  - Application services should be running (./scripts/docker-manage.sh start)
+  - Application services must be running (./scripts/docker-manage.sh start)
+    The runner verifies this before tests; bypass with --skip-service-check
 
 EOF
 }
@@ -214,6 +217,57 @@ install_dependencies() {
 
     npm ci --silent
     print_success "Dependencies installed"
+}
+
+# -----------------------------------------------------------------------------
+# Service Readiness
+# -----------------------------------------------------------------------------
+
+# Verify the application services the acceptance tests depend on are reachable.
+# Fails fast with guidance rather than running a suite that is doomed to fail.
+# Ports/URLs default to the same values used by acceptance-tests/playwright.config.ts
+# and can be overridden via the matching environment variables.
+check_services() {
+    if [[ "$SKIP_SERVICE_CHECK" == true ]]; then
+        print_info "Skipping application service check (--skip-service-check)"
+        return
+    fi
+
+    print_info "Checking application services..."
+
+    # Required services as "name|url" entries (zsh-friendly parallel-style array).
+    # The admin frontend is intentionally excluded: it is not started by
+    # ./scripts/docker-manage.sh start (commented out in docker-compose.apps.yml).
+    local services=(
+        "Identity Service|${IDENTITY_API_URL:-http://localhost:10300}/actuator/health"
+        "Customer Service|${CUSTOMER_API_URL:-http://localhost:10301}/actuator/health"
+        "Notification Service|${NOTIFICATION_API_URL:-http://localhost:10302}/actuator/health"
+        "Product Service|${PRODUCT_API_URL:-http://localhost:10303}/actuator/health"
+        "Customer Frontend|${CUSTOMER_APP_URL:-http://localhost:7600}/"
+    )
+
+    local down=()
+    local entry name url
+    for entry in "${services[@]}"; do
+        name="${entry%%|*}"
+        url="${entry#*|}"
+        if curl -sf -o /dev/null --max-time 5 "$url" &>/dev/null; then
+            print_success "$name: up"
+        else
+            print_error "$name: not reachable ($url)"
+            down+=("$name")
+        fi
+    done
+
+    if [[ ${#down[@]} -gt 0 ]]; then
+        echo ""
+        print_error "Application services are not running: ${down[*]}"
+        print_info "Start them with: ./scripts/docker-manage.sh start"
+        print_info "Or bypass this check with: --skip-service-check"
+        exit 1
+    fi
+
+    print_success "All required application services are up"
 }
 
 # -----------------------------------------------------------------------------
@@ -382,6 +436,10 @@ parse_args() {
                 SKIP_INSTALL=true
                 shift
                 ;;
+            --skip-service-check)
+                SKIP_SERVICE_CHECK=true
+                shift
+                ;;
             --no-open)
                 OPEN_BROWSER=false
                 shift
@@ -420,6 +478,9 @@ main() {
     # Setup
     setup_node
     install_dependencies
+
+    # Verify application services are up before running the suite
+    check_services
 
     # Run tests
     local test_exit_code=0
