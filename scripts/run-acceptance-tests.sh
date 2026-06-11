@@ -127,47 +127,48 @@ EOF
 setup_node() {
     print_info "Setting up Node.js environment..."
 
-    # First check if node is already available and meets requirements
-    if command -v node &> /dev/null; then
-        local node_version
-        node_version=$(node --version)
-        local major_version
-        major_version=$(echo "$node_version" | sed 's/v//' | cut -d. -f1)
-
-        if [[ "$major_version" -ge 24 ]]; then
-            print_success "Using Node.js $node_version"
-            return 0
-        fi
-    fi
-
-    # Node not found or version too old - try version managers
+    # Determine the required version from .nvmrc (defaults to lts/* if absent)
     local nvmrc_file="${ACCEPTANCE_TESTS_DIR}/.nvmrc"
-    local required_version=""
+    local required_version="lts/*"
 
     if [[ -f "$nvmrc_file" ]]; then
         required_version=$(cat "$nvmrc_file" | tr -d '[:space:]')
-        print_info "Required Node.js version: $required_version"
+        print_info "Required Node.js version (.nvmrc): $required_version"
     fi
 
-    # Try nvm if available
-    if [[ -s "$HOME/.nvm/nvm.sh" ]]; then
-        # shellcheck source=/dev/null
-        source "$HOME/.nvm/nvm.sh" 2>/dev/null
+    # Initialize nvm and use it to select the appropriate Node.js runtime.
+    # nvm's scripts reference unbound variables, so relax `set -eu` while sourcing
+    # and invoking nvm, then restore strict mode afterward.
+    export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+    local nvm_loaded=false
 
-        if [[ -n "$required_version" ]]; then
-            print_info "Using nvm to set Node.js version..."
-            if nvm use "$required_version" 2>/dev/null; then
-                print_success "Node.js version set via nvm"
-            else
-                print_warning "Could not set Node.js version via nvm"
-            fi
+    set +eu
+    local nvm_sh
+    for nvm_sh in "$NVM_DIR/nvm.sh" "/opt/homebrew/opt/nvm/nvm.sh" "/usr/local/opt/nvm/nvm.sh"; do
+        if [[ -s "$nvm_sh" ]]; then
+            # shellcheck source=/dev/null
+            source "$nvm_sh" 2>/dev/null
+            nvm_loaded=true
+            break
+        fi
+    done
+
+    if [[ "$nvm_loaded" == true ]]; then
+        print_info "Initializing Node.js via nvm..."
+        # Install the target version if it isn't present (no-op if already installed)
+        nvm install "$required_version" >/dev/null 2>&1 || true
+        if nvm use "$required_version" >/dev/null 2>&1; then
+            print_success "Node.js selected via nvm ($required_version)"
+        else
+            print_warning "Could not select Node.js $required_version via nvm; falling back to PATH"
         fi
     elif command -v fnm &> /dev/null; then
-        print_info "Using fnm to set Node.js version..."
-        if [[ -n "$required_version" ]]; then
-            fnm use "$required_version" 2>/dev/null || true
-        fi
+        print_info "Initializing Node.js via fnm..."
+        fnm use "$required_version" 2>/dev/null || true
+    else
+        print_warning "nvm/fnm not found; using Node.js from PATH"
     fi
+    set -eu
 
     # Final verification
     if ! command -v node &> /dev/null; then
@@ -178,7 +179,6 @@ setup_node() {
 
     local node_version
     node_version=$(node --version)
-    print_success "Using Node.js $node_version"
 
     local major_version
     major_version=$(echo "$node_version" | sed 's/v//' | cut -d. -f1)
@@ -186,6 +186,8 @@ setup_node() {
         print_error "Node.js 24+ is required, but found $node_version"
         exit 1
     fi
+
+    print_success "Using Node.js $node_version"
 }
 
 # -----------------------------------------------------------------------------
