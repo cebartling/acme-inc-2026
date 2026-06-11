@@ -229,11 +229,11 @@ function SigninPage() {
         });
       }
 
-      // Navigate to redirect URL or dashboard (with validation as defense-in-depth)
+      // Navigate to redirect URL or home (with validation as defense-in-depth)
       const redirectTo =
         search.redirect && isValidRedirectUrl(search.redirect)
           ? search.redirect
-          : "/dashboard";
+          : "/";
       navigate({ to: redirectTo });
     } catch (err) {
       // Handle API errors

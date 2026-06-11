@@ -64,7 +64,7 @@ Then('the dialog title should mention all devices', async function (this: Custom
   ).toBeVisible();
 });
 
-Then('I should remain on the dashboard', async function (this: CustomWorld) {
+Then('I should remain signed in', async function (this: CustomWorld) {
   // Confirm the URL did not navigate to /signin
   await this.page.waitForTimeout(500);
   expect(this.page.url()).not.toMatch(/\/signin/);

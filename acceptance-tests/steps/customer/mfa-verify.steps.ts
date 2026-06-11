@@ -249,6 +249,3 @@ Then('the resend code button should not be visible', async function (this: Custo
   const mfaVerifyPage = new MfaVerifyPage(this.page);
   await expect(mfaVerifyPage.resendCodeButton).not.toBeVisible();
 });
-
-// Note: "I should be redirected to the dashboard page" step is defined in signin.steps.ts
-// and can be reused here since both flows end at the dashboard

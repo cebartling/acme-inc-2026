@@ -49,8 +49,8 @@ When('I sign in with valid credentials', async function (this: CustomWorld) {
   await signinPage.fillPassword(password);
   await signinPage.submitForm();
 
-  // Wait for navigation to dashboard
-  await this.page.waitForURL('**/dashboard', { timeout: 10000 });
+  // Wait for navigation to home (post-auth landing)
+  await this.page.waitForURL(/\/$/, { timeout: 10000 });
 });
 
 When('I start signing in with valid credentials', async function (this: CustomWorld) {
@@ -68,8 +68,8 @@ When('I start signing in with valid credentials', async function (this: CustomWo
 });
 
 When('the signin completes', async function (this: CustomWorld) {
-  // Wait for navigation to dashboard
-  await this.page.waitForURL('**/dashboard', { timeout: 10000 });
+  // Wait for navigation to home (post-auth landing)
+  await this.page.waitForURL(/\/$/, { timeout: 10000 });
 });
 
 When('I sign out', async function (this: CustomWorld) {
@@ -87,10 +87,6 @@ When('I sign out', async function (this: CustomWorld) {
 When('I click the retry button', async function (this: CustomWorld) {
   const retryButton = this.page.getByRole('button', { name: /retry|try again/i });
   await retryButton.click();
-});
-
-Then('I should be redirected to the dashboard', async function (this: CustomWorld) {
-  await expect(this.page).toHaveURL(/\/dashboard/);
 });
 
 Then('I should see my display name on the dashboard', async function (this: CustomWorld) {
@@ -292,8 +288,8 @@ Given('I have signed in successfully', async function (this: CustomWorld) {
   await signinPage.fillPassword(password);
   await signinPage.submit();
 
-  // Wait for navigation to dashboard
-  await this.page.waitForURL('**/dashboard', { timeout: 10000 });
+  // Wait for navigation to home (post-auth landing)
+  await this.page.waitForURL(/\/$/, { timeout: 10000 });
 });
 
 Given('my profile is loaded', async function (this: CustomWorld) {
