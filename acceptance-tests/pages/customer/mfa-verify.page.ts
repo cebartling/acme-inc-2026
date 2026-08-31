@@ -15,6 +15,9 @@ export class MfaVerifyPage extends BasePage {
   // Code input field
   readonly codeInput: Locator;
 
+  // Individual OTP digit inputs, scoped to the OTP group
+  readonly otpInputs: Locator;
+
   // Remember device checkbox
   readonly rememberDeviceCheckbox: Locator;
 
@@ -45,6 +48,12 @@ export class MfaVerifyPage extends BasePage {
 
     // Code input - 6-digit OTP input
     this.codeInput = page.getByRole('textbox', { name: /code|verification/i });
+
+    // The OtpInput component wraps its digit fields in an accessible group,
+    // which keeps this independent of other inputs elsewhere on the page.
+    this.otpInputs = page
+      .getByRole('group', { name: /one-time password/i })
+      .locator('input');
 
     // Remember device checkbox
     this.rememberDeviceCheckbox = page.getByLabel(/remember|trust this device/i);
@@ -159,14 +168,15 @@ export class MfaVerifyPage extends BasePage {
    * Enter the verification code.
    */
   async enterCode(code: string): Promise<void> {
-    // OTP inputs may be multiple single-digit inputs or one input
-    const inputs = this.page.locator('input[type="text"], input[inputmode="numeric"]');
-    const count = await inputs.count();
+    // Scope to the OTP group so unrelated page inputs (e.g. the header product
+    // search box) can never be mistaken for digit fields.
+    const digits = this.otpInputs;
+    const count = await digits.count();
 
-    if (count === 6) {
-      // Six separate inputs - enter one digit each
-      for (let i = 0; i < 6; i++) {
-        await inputs.nth(i).fill(code[i]);
+    if (count > 1) {
+      // Separate single-digit inputs - enter one digit each
+      for (let i = 0; i < count; i++) {
+        await digits.nth(i).fill(code[i]);
       }
     } else {
       // Single input field
