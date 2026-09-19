@@ -147,6 +147,23 @@ class AuthenticationControllerIntegrationTest {
     }
 
     @Test
+    fun `POST signin should apply Kotlin defaults when optional fields are omitted`() {
+        // Given - raw JSON without rememberMe, deviceFingerprint or deviceTrustToken (PIN-250)
+        val email = "nomfa-defaults@example.com"
+        val password = "ValidP@ss123!"
+        createUserWithNoMfa(email, password)
+
+        // When / Then
+        mockMvc.perform(
+            post("/api/v1/auth/signin")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"email":"$email","password":"$password"}""")
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.status").value("SUCCESS"))
+    }
+
+    @Test
     fun `POST signin should set device_trust cookie when rememberMe is true`() {
         // Given
         val email = "nomfa-remember@example.com"
