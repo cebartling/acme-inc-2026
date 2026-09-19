@@ -32,6 +32,7 @@ An Architecture Decision Record documents a significant architectural decision, 
 | [ADR-0009](0009-hashicorp-vault-secrets.md) | HashiCorp Vault for Secrets Management | Accepted |
 | [ADR-0010](0010-kotlin-spring-boot-backend.md) | Kotlin with Spring Boot for Backend Services | Accepted |
 | [ADR-0017](0017-sendgrid-transactional-email.md) | SendGrid for Transactional Email | Accepted |
+| [ADR-0040](0040-container-image-version-pinning.md) | Pin Infrastructure Container Image Versions | Accepted |
 
 ### Security & Authentication
 

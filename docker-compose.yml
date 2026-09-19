@@ -80,7 +80,7 @@ services:
   # =============================================================================
 
   kafka:
-    image: confluentinc/cp-kafka:latest
+    image: confluentinc/cp-kafka:8.3.2
     container_name: acme-kafka
     hostname: kafka
     ports:
@@ -116,7 +116,7 @@ services:
       start_period: 30s
 
   schema-registry:
-    image: confluentinc/cp-schema-registry:latest
+    image: confluentinc/cp-schema-registry:8.3.2
     container_name: acme-schema-registry
     hostname: schema-registry
     ports:
@@ -132,14 +132,17 @@ services:
       kafka:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8081/subjects || exit 1"]
+      # The cp-schema-registry image ships neither curl nor wget, but does have
+      # python3. Checking for a 200 means this fails when the registry is down
+      # or erroring, not merely when the port is closed. See ADR-0040.
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8081/subjects',timeout=3).status==200 else 1)\""]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 30s
 
   debezium-connect:
-    image: quay.io/debezium/connect:latest
+    image: quay.io/debezium/connect:3.6.3.Final
     container_name: acme-debezium-connect
     hostname: debezium-connect
     ports:
@@ -173,7 +176,7 @@ services:
   # =============================================================================
 
   vault:
-    image: hashicorp/vault:latest
+    image: hashicorp/vault:2.1.1
     container_name: acme-vault
     hostname: vault
     ports:
@@ -200,7 +203,7 @@ services:
   # =============================================================================
 
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v3.14.0
     container_name: acme-prometheus
     hostname: prometheus
     ports:
@@ -265,7 +268,7 @@ services:
       start_period: 30s
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:13.2.2
     container_name: acme-grafana
     hostname: grafana
     ports:

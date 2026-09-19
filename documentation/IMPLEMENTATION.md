@@ -15,7 +15,7 @@
 - Confluent Kafka for events and messaging
 - Confluent Schema Registry for Avro schemas for Kafka messaging
 - Debezium Kafka Connect connector for change data capture on PostgreSQL tables
-    - `quay.io/debezium/connect:latest`
+    - `quay.io/debezium/connect:3.6.3.Final`
 - Grafana for observability dashboards
 - Tempo for OTel tracing backend
 - Loki for OTel logging via OTel Collector
