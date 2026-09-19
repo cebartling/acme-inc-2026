@@ -439,7 +439,7 @@ services:
   #   container_name: acme-admin-frontend
   #   hostname: admin-frontend
   #   ports:
-  #     - "${ADMIN_FRONTEND_PORT:-3001}:3000"
+  #     - "${ADMIN_FRONTEND_PORT:-5174}:3000"
   #   environment:
   #     NODE_ENV: production
   #     API_URL: http://identity-service:8080
