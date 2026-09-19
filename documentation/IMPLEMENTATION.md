@@ -46,7 +46,7 @@ Grafana Tempo (since v2.8.0) and Loki use Google's distroless base container ima
 
 ## Backend services
 
-- Kotlin 2.3
+- Kotlin 2.4
 - Java 25
     - Project Loom: virtual threads usage
 - Spring Boot 4
@@ -54,7 +54,7 @@ Grafana Tempo (since v2.8.0) and Loki use Google's distroless base container ima
     - Blocking I/O
     - JPA
     - Actuator metrics
-- Gradle 9.2 build infrastructure
+- Gradle 9.7 build infrastructure
 - SDKMAN Java runtime management
     - Set both java and gradle in the .sdkmanrc file   
 - PostgreSQL for read-write, command store

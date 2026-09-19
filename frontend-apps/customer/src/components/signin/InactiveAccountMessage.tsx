@@ -4,9 +4,7 @@ import { ApiError, identityApi } from "@/services/api";
 import { trackInactiveAccountDisplayed } from "@/services/analytics";
 
 export type InactiveAccountReason =
-  | "PENDING_VERIFICATION"
-  | "SUSPENDED"
-  | "DEACTIVATED";
+  "PENDING_VERIFICATION" | "SUSPENDED" | "DEACTIVATED";
 
 export interface InactiveAccountMessageProps {
   reason: InactiveAccountReason;
@@ -90,8 +88,7 @@ export function InactiveAccountMessage({
       setResendStatus("error");
       if (err instanceof ApiError) {
         const data = err.data as
-          | { retryAfter?: number; message?: string }
-          | undefined;
+          { retryAfter?: number; message?: string } | undefined;
         if (err.status === 429 && data?.retryAfter) {
           setCooldown(data.retryAfter);
         }
