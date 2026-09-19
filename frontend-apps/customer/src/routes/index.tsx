@@ -77,7 +77,7 @@ function App() {
           </p>
           <div className="flex flex-col items-center gap-4">
             <a
-              href="/products"
+              href="/search"
               className="px-8 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-lg transition-colors shadow-lg shadow-cyan-500/50"
             >
               Shop Now
