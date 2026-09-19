@@ -75,6 +75,31 @@ the health check's 5s timeout, so it fails on its own terms rather than being ki
 is the point, not the specific tool: **verify the binary exists in the image before a health check
 depends on it**, and prefer one the image's own runtime guarantees.
 
+### A health check must be able to fail
+
+PIN-249 exposed a second, quieter variant of the same problem. Loki and Tempo were probed with:
+
+```yaml
+test: ["CMD", "/usr/bin/loki", "-version"]
+test: ["CMD", "/tempo", "-version"]
+```
+
+`-version` prints a version string and exits 0. It does that whether or not the service is serving
+traffic, so both containers reported `healthy` while returning 503 on `/ready`. That is worse than
+having no health check at all: a check that cannot fail is not a check, it is a false assurance,
+and `docker ps` actively lies about the state of the stack.
+
+Both now probe the real readiness endpoint. Each image was verified to contain `wget` first —
+Tempo 2.6.1 predates the v2.8.0 distroless switch and carries a full busybox; Loki 3.3.2's
+distroless base includes a trimmed busybox at `/busybox/wget`. busybox `wget` exits non-zero on a
+non-2xx status, which was confirmed against a 404 path rather than assumed.
+
+`start_period` is 60s for both. Measured cold-start readiness is ~17s (Loki) and ~19s (Tempo), so
+this leaves generous headroom for a loaded full-stack start.
+
+The rule, stated once: **a health check must exercise the thing being claimed healthy, and must be
+observed failing before it is trusted.**
+
 ### Version bumps are deliberate and as-needed
 
 There is no fixed upgrade cadence. Images are bumped when there is a reason — a security fix, a
@@ -104,6 +129,9 @@ give up automatic currency to get a reproducible environment.
 
 - The Schema Registry probe is more verbose than the `curl` one-liner it replaces. The inline
   comment in `docker-compose.yml` explains why.
+- Loki and Tempo now depend on `wget` being present. A Tempo upgrade to v2.8.0+ moves it to a true
+  distroless base, at which point these probes must be re-verified — the same trap that caused
+  PIN-249. This is flagged in `documentation/IMPLEMENTATION.md`.
 - Historical user-story documents still reference `:latest`. They record what was specified at the
   time and were deliberately left unchanged.
 

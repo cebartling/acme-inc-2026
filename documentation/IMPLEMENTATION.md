@@ -25,6 +25,8 @@
 
 Grafana Tempo (since v2.8.0) and Loki use Google's distroless base container images. These are minimal images that contain only the application and its runtime dependencies—no shells, package managers, or unnecessary system utilities.
 
+> **Note on the versions currently pinned.** We run `tempo:2.6.1`, which predates the v2.8.0 distroless switch and still carries a full busybox userland, and `loki:3.3.2`, whose distroless base does include a trimmed busybox (`/bin/sh` → `/busybox/sh`, plus `/busybox/wget`). Both therefore have a shell and `wget` available today, which is what their health checks rely on. **When Tempo is upgraded to v2.8.0 or later, re-verify those health checks** — if `wget` disappears from the image, the probes must be replaced rather than left to fail silently. See [ADR-0040](adrs/0040-container-image-version-pinning.md).
+
 **Security benefits:**
 
 - **Reduced attack surface**: Without shells (`/bin/sh`, `/bin/bash`) or package managers, attackers who breach the container have fewer tools to exploit for lateral movement or privilege escalation
