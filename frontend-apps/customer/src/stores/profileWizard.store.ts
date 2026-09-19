@@ -6,10 +6,7 @@ import type {
 } from "@/schemas/profile.schema";
 
 export type WizardStep =
-  | "personal-details"
-  | "address"
-  | "preferences"
-  | "review";
+  "personal-details" | "address" | "preferences" | "review";
 
 interface ProfileWizardState {
   // Current step

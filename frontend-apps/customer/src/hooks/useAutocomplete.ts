@@ -43,12 +43,10 @@ export function useAutocomplete(inputValue: string) {
             (bs) => bs.text.toLowerCase() === s.toLowerCase(),
           ),
       )
-      .map(
-        (s): AutocompleteSuggestion => ({
-          type: "query",
-          text: s,
-        }),
-      );
+      .map((s): AutocompleteSuggestion => ({
+        type: "query",
+        text: s,
+      }));
 
     return [...backendSuggestions, ...matchingRecent].slice(0, 8);
   }, [data, isAuthenticated, customerId, inputValue, recentSearches]);

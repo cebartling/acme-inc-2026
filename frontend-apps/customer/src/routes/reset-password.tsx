@@ -22,12 +22,7 @@ export const Route = createFileRoute("/reset-password")({
 });
 
 type Phase =
-  | "validating"
-  | "form"
-  | "submitting"
-  | "done"
-  | "expired"
-  | "error";
+  "validating" | "form" | "submitting" | "done" | "expired" | "error";
 
 function ResetPasswordPage() {
   const { token } = useSearch({ from: "/reset-password" });
