@@ -1,11 +1,11 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
-    id("org.springframework.boot") version "4.0.6"
+    id("org.springframework.boot") version "4.1.1"
     id("io.spring.dependency-management") version "1.1.7"
-    kotlin("jvm") version "2.3.21"
-    kotlin("plugin.spring") version "2.3.21"
-    kotlin("plugin.jpa") version "2.3.21"
+    kotlin("jvm") version "2.4.20"
+    kotlin("plugin.spring") version "2.4.20"
+    kotlin("plugin.jpa") version "2.4.20"
 }
 
 group = "com.acme"
@@ -37,9 +37,9 @@ dependencies {
     implementation("org.jetbrains.kotlin:kotlin-reflect")
 
     // Arrow - Functional Programming
-    implementation("io.arrow-kt:arrow-core:2.2.2.1")
-    implementation("io.arrow-kt:arrow-fx-coroutines:2.2.2.1")
-    implementation("io.arrow-kt:arrow-core-serialization:2.2.2.1")
+    implementation("io.arrow-kt:arrow-core:2.2.3")
+    implementation("io.arrow-kt:arrow-fx-coroutines:2.2.3")
+    implementation("io.arrow-kt:arrow-core-serialization:2.2.3")
 
     // Database & Migrations
     runtimeOnly("org.postgresql:postgresql")
@@ -50,7 +50,7 @@ dependencies {
     implementation("com.fasterxml.uuid:java-uuid-generator:5.2.0")
 
     // Phone number validation
-    implementation("com.googlecode.libphonenumber:libphonenumber:9.0.30")
+    implementation("com.googlecode.libphonenumber:libphonenumber:9.0.39")
 
     // Kafka
     implementation("org.springframework.kafka:spring-kafka")
@@ -60,7 +60,7 @@ dependencies {
     implementation("io.opentelemetry:opentelemetry-exporter-otlp")
 
     // Testing - JUnit 6
-    testImplementation(platform("org.junit:junit-bom:6.1.0"))
+    testImplementation(platform("org.junit:junit-bom:6.1.3"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testImplementation("org.springframework.boot:spring-boot-starter-test") {
         exclude(group = "org.junit.jupiter")
@@ -70,7 +70,7 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-webmvc-test")
     testImplementation("org.springframework.kafka:spring-kafka-test")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
-    testImplementation("io.mockk:mockk:1.14.9")
+    testImplementation("io.mockk:mockk:1.14.11")
     testImplementation("org.testcontainers:testcontainers-junit-jupiter:2.0.5")
     testImplementation("org.testcontainers:testcontainers-postgresql:2.0.5")
     testImplementation("org.testcontainers:testcontainers-kafka:2.0.5")
