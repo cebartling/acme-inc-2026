@@ -36,6 +36,19 @@ COPY --from=deps /app/node_modules ./node_modules
 # Copy source files
 COPY . .
 
+# Browser-facing backend URLs are baked in at build time (see src/services/api.ts).
+# Empty values fall back to the localhost defaults in api.ts.
+ARG VITE_IDENTITY_SERVICE_URL=""
+ARG VITE_CUSTOMER_SERVICE_URL=""
+ARG VITE_PRODUCT_SERVICE_URL=""
+ARG VITE_INVENTORY_SERVICE_URL=""
+ARG VITE_PRICING_SERVICE_URL=""
+ENV VITE_IDENTITY_SERVICE_URL=$VITE_IDENTITY_SERVICE_URL \
+    VITE_CUSTOMER_SERVICE_URL=$VITE_CUSTOMER_SERVICE_URL \
+    VITE_PRODUCT_SERVICE_URL=$VITE_PRODUCT_SERVICE_URL \
+    VITE_INVENTORY_SERVICE_URL=$VITE_INVENTORY_SERVICE_URL \
+    VITE_PRICING_SERVICE_URL=$VITE_PRICING_SERVICE_URL
+
 # Build the application
 RUN npm run build
 
