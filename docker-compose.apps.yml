@@ -47,6 +47,8 @@ services:
       # Server configuration
       SERVER_PORT: 10300
       SPRING_PROFILES_ACTIVE: docker
+      # Extra comma-separated CORS origins (e.g. a Tailscale serve URL)
+      ACME_CORS_EXTRA_ORIGINS: ${ACME_CORS_EXTRA_ORIGINS:-}
 
       # Database configuration
       POSTGRES_HOST: postgres
@@ -152,6 +154,8 @@ services:
       SERVER_PORT: 10301
       # Include 'test' profile to enable TestHelperController for acceptance tests
       SPRING_PROFILES_ACTIVE: docker,test
+      # Extra comma-separated CORS origins (e.g. a Tailscale serve URL)
+      ACME_CORS_EXTRA_ORIGINS: ${ACME_CORS_EXTRA_ORIGINS:-}
 
       # PostgreSQL configuration
       POSTGRES_HOST: postgres
@@ -320,6 +324,8 @@ services:
     environment:
       SERVER_PORT: 10303
       SPRING_PROFILES_ACTIVE: docker
+      # Extra comma-separated CORS origins (e.g. a Tailscale serve URL)
+      ACME_CORS_EXTRA_ORIGINS: ${ACME_CORS_EXTRA_ORIGINS:-}
 
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
@@ -383,6 +389,14 @@ services:
     build:
       context: ./frontend-apps/customer
       dockerfile: Containerfile
+      args:
+        # Browser-facing backend URLs (empty = localhost defaults). Set these to
+        # expose the frontend beyond this machine, e.g. via Tailscale serve.
+        VITE_IDENTITY_SERVICE_URL: ${VITE_IDENTITY_SERVICE_URL:-}
+        VITE_CUSTOMER_SERVICE_URL: ${VITE_CUSTOMER_SERVICE_URL:-}
+        VITE_PRODUCT_SERVICE_URL: ${VITE_PRODUCT_SERVICE_URL:-}
+        VITE_INVENTORY_SERVICE_URL: ${VITE_INVENTORY_SERVICE_URL:-}
+        VITE_PRICING_SERVICE_URL: ${VITE_PRICING_SERVICE_URL:-}
     image: acme-customer-frontend:latest
     container_name: acme-customer-frontend
     hostname: customer-frontend

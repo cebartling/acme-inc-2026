@@ -205,3 +205,21 @@ Device trust allows users to bypass MFA for 30 days on trusted devices, improvin
 - Refresh token rotation on use (single-use tokens)
 - Token revocation through Redis blacklist for compromised tokens
 
+### CORS and Browser-Facing Backend URLs
+
+- The customer frontend calls the identity, customer and product services directly from the browser
+- Backend URLs are baked in at build time via `VITE_*_SERVICE_URL` (see `frontend-apps/customer/src/services/api.ts`); unset means `http://localhost:<port>`
+- Each service's `CorsConfig` allows the localhost frontend origins plus any comma-separated origins in `ACME_CORS_EXTRA_ORIGINS` (property `acme.cors.extra-origins`)
+- To expose the frontend on a Tailscale tailnet, serve the frontend and each backend with `tailscale serve`, then rebuild with those URLs:
+
+```bash
+T=https://<host>.<tailnet>.ts.net
+tailscale serve --bg 7600                    # customer frontend
+tailscale serve --bg --https=8443 10300      # identity
+tailscale serve --bg --https=8444 10301      # customer
+tailscale serve --bg --https=8445 10303      # product
+export VITE_IDENTITY_SERVICE_URL=$T:8443 VITE_CUSTOMER_SERVICE_URL=$T:8444 \
+       VITE_PRODUCT_SERVICE_URL=$T:8445 VITE_INVENTORY_SERVICE_URL=$T:8445 \
+       VITE_PRICING_SERVICE_URL=$T:8445 ACME_CORS_EXTRA_ORIGINS=$T
+zsh scripts/docker-manage.sh apps-build && zsh scripts/docker-manage.sh apps-up
+```
