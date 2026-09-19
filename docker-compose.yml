@@ -240,11 +240,14 @@ services:
     networks:
       - acme-network
     healthcheck:
-      test: ["CMD", "/usr/bin/loki", "-version"]
+      # /ready returns 503 until the ingester has warmed up, so this reflects
+      # whether Loki can actually serve. busybox wget exits non-zero on a
+      # non-2xx status. See ADR-0040.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:3100/ready || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 30s
+      start_period: 60s
 
   tempo:
     image: grafana/tempo:2.6.1
@@ -261,11 +264,14 @@ services:
     networks:
       - acme-network
     healthcheck:
-      test: ["CMD", "/tempo", "-version"]
+      # /ready returns 503 until the ingester has warmed up, so this reflects
+      # whether Tempo can actually serve. busybox wget exits non-zero on a
+      # non-2xx status. See ADR-0040.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:3200/ready || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 30s
+      start_period: 60s
 
   grafana:
     image: grafana/grafana:13.2.2
