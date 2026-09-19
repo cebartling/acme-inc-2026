@@ -31,6 +31,9 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-actuator")
 
     // Kotlin
+    // Jackson 3 Kotlin module: Spring MVC (Boot 4) binds request/response bodies with Jackson 3
+    implementation("tools.jackson.module:jackson-module-kotlin")
+    // Jackson 2 modules: used by JacksonConfig's ObjectMapper (Kafka, event store, Redis)
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
     implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
