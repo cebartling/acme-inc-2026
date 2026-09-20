@@ -155,7 +155,35 @@ jobs:
         run: docker compose ${INFRA} up -d --wait
 
       - name: Build images and start application services
-        run: docker compose ${APPS} up -d --build --wait
+        run: docker compose ${APPS} up -d --build
+
+      # Deliberately not `up --wait`: that treats ANY container exiting as a
+      # failure, including the one-shot *-db-init containers that correctly exit
+      # 0 once they have created their database. The first run failed exactly
+      # that way ("container acme-product-db-init exited (0)") after every
+      # service had already reported healthy. Poll the long-running services
+      # instead.
+      - name: Wait for application services to be healthy
+        run: |
+          services="acme-identity-service acme-customer-service acme-notification-service acme-product-service acme-customer-frontend"
+          deadline=$(( SECONDS + 300 ))
+          while :; do
+            pending=""
+            for c in $services; do
+              status=$(docker inspect -f '{{.State.Health.Status}}' "$c" 2>/dev/null || echo missing)
+              [ "$status" = healthy ] || pending="$pending $c($status)"
+            done
+            if [ -z "$pending" ]; then
+              echo "All application services healthy."
+              break
+            fi
+            if [ "$SECONDS" -ge "$deadline" ]; then
+              echo "Timed out after 300s waiting for:$pending"
+              exit 1
+            fi
+            echo "waiting for:$pending"
+            sleep 5
+          done
 
       - name: Show service status
         run: |
