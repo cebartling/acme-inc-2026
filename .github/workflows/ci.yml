@@ -120,18 +120,27 @@ jobs:
   # script is zsh (not present on ubuntu-latest by default) and is written for
   # interactive local use.
   #
-  # Known cost: each backend Containerfile downloads Gradle inside the image and
-  # runs a full `gradle build`, and `COPY src` precedes it, so that layer
-  # invalidates on every source change. Expect a slow job. The first
-  # optimization to try is buildx with a GitHub Actions layer cache, once a
-  # measured baseline duration exists.
+  # The two compose files MUST be brought up separately, not merged with
+  # `-f a -f b`. docker-compose.yml creates acme-network; docker-compose.apps.yml
+  # declares the same network `external: true`. Merging lets the external
+  # declaration win, and compose then refuses to create the network at all,
+  # failing with "network acme-network declared as external, but could not be
+  # found". This does not reproduce on a developer machine that already has the
+  # network left over from a previous run -- only on a clean runner.
+  #
+  # Measured cost: building all five images took ~4m30s on a cold ubuntu-latest
+  # runner, better than the Containerfile structure suggests (each downloads
+  # Gradle inside the image and runs a full `gradle build`, with `COPY src`
+  # before that RUN so the layer always invalidates). Revisit buildx with a
+  # GitHub Actions layer cache only if that number grows.
   acceptance-smoke:
     name: Acceptance · @smoke
     runs-on: ubuntu-latest
     continue-on-error: true
     timeout-minutes: 60
     env:
-      COMPOSE_FILES: -f docker-compose.yml -f docker-compose.apps.yml
+      INFRA: -f docker-compose.yml
+      APPS: -f docker-compose.apps.yml
     steps:
       - uses: actions/checkout@v7
 
@@ -141,11 +150,17 @@ jobs:
           cache: 'npm'
           cache-dependency-path: acceptance-tests/package-lock.json
 
-      - name: Build images and start the stack
-        run: docker compose ${COMPOSE_FILES} up -d --build --wait
+      # Creates acme-network, which the apps compose file expects to exist.
+      - name: Start infrastructure
+        run: docker compose ${INFRA} up -d --wait
+
+      - name: Build images and start application services
+        run: docker compose ${APPS} up -d --build --wait
 
       - name: Show service status
-        run: docker compose ${COMPOSE_FILES} ps
+        run: |
+          docker compose ${INFRA} ps
+          docker compose ${APPS} ps
 
       - name: Install acceptance-test dependencies
         working-directory: acceptance-tests
@@ -161,7 +176,9 @@ jobs:
 
       - name: Dump container logs on failure
         if: failure()
-        run: docker compose ${COMPOSE_FILES} logs --no-color --tail=200
+        run: |
+          docker compose ${APPS} logs --no-color --tail=200 || true
+          docker compose ${INFRA} logs --no-color --tail=100 || true
 
       - name: Upload acceptance reports
         uses: actions/upload-artifact@v7
@@ -172,6 +189,11 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
+      # Apps first, then infra -- infra owns acme-network and cannot remove it
+      # while app containers are still attached. `|| true` so a failure in the
+      # first teardown does not skip the second.
       - name: Tear down
         if: always()
-        run: docker compose ${COMPOSE_FILES} down -v --remove-orphans
+        run: |
+          docker compose ${APPS} down -v --remove-orphans || true
+          docker compose ${INFRA} down -v --remove-orphans || true
