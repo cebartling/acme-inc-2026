@@ -68,7 +68,7 @@ dependencies {
     implementation("dev.samstevens.totp:totp:1.7.1")
 
     // Twilio SDK for SMS MFA
-    implementation("com.twilio.sdk:twilio:12.1.1")
+    implementation("com.twilio.sdk:twilio:13.0.1")
 
     // JWT - Nimbus JOSE JWT for RS256 token generation
     implementation("com.nimbusds:nimbus-jose-jwt:10.10")
