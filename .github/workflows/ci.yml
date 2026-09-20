@@ -105,3 +105,73 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  # Runs the @smoke subset (69 scenarios, 561 steps) of the Cucumber/Playwright
+  # acceptance suite against the full stack: 20 containers across both compose
+  # files, plus five images built from source.
+  #
+  # NON-BLOCKING ON PURPOSE (continue-on-error). This is the first time the full
+  # stack has run in CI, and a heavyweight job that fails for environmental
+  # reasons should not wedge unrelated PRs while we learn how it behaves. Drop
+  # the flag and promote it to a required check once it is proven stable across
+  # a few runs. See PIN-253.
+  #
+  # Uses docker compose directly rather than scripts/docker-manage.sh: that
+  # script is zsh (not present on ubuntu-latest by default) and is written for
+  # interactive local use.
+  #
+  # Known cost: each backend Containerfile downloads Gradle inside the image and
+  # runs a full `gradle build`, and `COPY src` precedes it, so that layer
+  # invalidates on every source change. Expect a slow job. The first
+  # optimization to try is buildx with a GitHub Actions layer cache, once a
+  # measured baseline duration exists.
+  acceptance-smoke:
+    name: Acceptance · @smoke
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 60
+    env:
+      COMPOSE_FILES: -f docker-compose.yml -f docker-compose.apps.yml
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 'lts/*'
+          cache: 'npm'
+          cache-dependency-path: acceptance-tests/package-lock.json
+
+      - name: Build images and start the stack
+        run: docker compose ${COMPOSE_FILES} up -d --build --wait
+
+      - name: Show service status
+        run: docker compose ${COMPOSE_FILES} ps
+
+      - name: Install acceptance-test dependencies
+        working-directory: acceptance-tests
+        run: npm ci
+
+      - name: Install Playwright browser
+        working-directory: acceptance-tests
+        run: npx playwright install --with-deps chromium
+
+      - name: Run @smoke suite
+        working-directory: acceptance-tests
+        run: npm run test:smoke
+
+      - name: Dump container logs on failure
+        if: failure()
+        run: docker compose ${COMPOSE_FILES} logs --no-color --tail=200
+
+      - name: Upload acceptance reports
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: acceptance-smoke-reports
+          path: acceptance-tests/reports/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Tear down
+        if: always()
+        run: docker compose ${COMPOSE_FILES} down -v --remove-orphans
