@@ -183,7 +183,8 @@ Given('my current preferences are:', async function (this: CustomWorld, table: D
         response: { status: number; data: ErrorResponse };
       };
       throw new Error(
-        `Failed to set initial preferences: ${err.response.status} - ${JSON.stringify(err.response.data)}`
+        `Failed to set initial preferences: ${err.response.status} - ${JSON.stringify(err.response.data)}`,
+        { cause: error }
       );
     }
     throw error;
