@@ -12,8 +12,8 @@
     "test:admin": "node --import tsx ./node_modules/@cucumber/cucumber/bin/cucumber.js --import 'support/world.ts' --import 'support/hooks.ts' --import 'steps/**/*.ts' --tags '@admin and not @wip'",
     "test:logout": "node --import tsx ./node_modules/@cucumber/cucumber/bin/cucumber.js --import 'support/world.ts' --import 'support/hooks.ts' --import 'steps/**/*.ts' --tags '@logout and not @wip'",
     "test:headed": "HEADED=true node --import tsx ./node_modules/@cucumber/cucumber/bin/cucumber.js --import 'support/world.ts' --import 'support/hooks.ts' --import 'steps/**/*.ts' --tags 'not @rate-limiting' --tags 'not @wip'",
-    "lint": "eslint . --ext .ts",
-    "lint:fix": "eslint . --ext .ts --fix",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "format": "prettier --write \"**/*.ts\"",
     "format:check": "prettier --check \"**/*.ts\"",
     "typecheck": "tsc --noEmit"
@@ -28,21 +28,21 @@
   "author": "ACME Inc.",
   "license": "UNLICENSED",
   "devDependencies": {
-    "@cucumber/cucumber": "^11.1.1",
-    "@playwright/test": "^1.49.1",
-    "@types/node": "^22.10.2",
-    "@typescript-eslint/eslint-plugin": "^8.18.1",
-    "@typescript-eslint/parser": "^8.18.1",
-    "dotenv": "^16.4.7",
-    "eslint": "^9.17.0",
-    "eslint-config-prettier": "^9.1.0",
-    "otplib": "^13.1.1",
-    "prettier": "^3.4.2",
-    "ts-node": "^10.9.2",
-    "tsx": "^4.21.0",
-    "typescript": "^5.7.2"
+    "@cucumber/cucumber": "^13.2.1",
+    "@cucumber/messages": "^34.2.1",
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^24.13.6",
+    "@typescript-eslint/eslint-plugin": "^8.70.0",
+    "@typescript-eslint/parser": "^8.70.0",
+    "eslint": "^10.11.0",
+    "eslint-config-prettier": "^10.1.8",
+    "otplib": "^13.5.0",
+    "prettier": "^3.9.8",
+    "tsx": "^4.23.15",
+    "typescript": "^6.0.3"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=24.0.0"
   }
 }
