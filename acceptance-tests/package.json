@@ -30,7 +30,7 @@
   "devDependencies": {
     "@cucumber/cucumber": "^11.1.1",
     "@eslint/js": "^10.0.1",
-    "@playwright/test": "^1.49.1",
+    "@playwright/test": "^1.63.0",
     "@types/node": "^24.13.6",
     "@typescript-eslint/eslint-plugin": "^8.70.0",
     "@typescript-eslint/parser": "^8.70.0",
