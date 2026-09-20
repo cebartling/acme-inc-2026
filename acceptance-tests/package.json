@@ -5,18 +5,18 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --import tsx ./node_modules/@cucumber/cucumber/bin/cucumber.js --import 'support/world.ts' --import 'support/hooks.ts' --import 'steps/**/*.ts' --tags 'not @rate-limiting' --tags 'not @wip'",
-    "test:smoke": "node --import tsx ./node_modules/@cucumber/cucumber/bin/cucumber.js --import 'support/world.ts' --import 'support/hooks.ts' --import 'steps/**/*.ts' --tags '@smoke and not @wip'",
-    "test:regression": "node --import tsx ./node_modules/@cucumber/cucumber/bin/cucumber.js --import 'support/world.ts' --import 'support/hooks.ts' --import 'steps/**/*.ts' --tags '@regression and not @wip'",
-    "test:customer": "node --import tsx ./node_modules/@cucumber/cucumber/bin/cucumber.js --import 'support/world.ts' --import 'support/hooks.ts' --import 'steps/**/*.ts' --tags '@customer and not @wip'",
-    "test:admin": "node --import tsx ./node_modules/@cucumber/cucumber/bin/cucumber.js --import 'support/world.ts' --import 'support/hooks.ts' --import 'steps/**/*.ts' --tags '@admin and not @wip'",
-    "test:logout": "node --import tsx ./node_modules/@cucumber/cucumber/bin/cucumber.js --import 'support/world.ts' --import 'support/hooks.ts' --import 'steps/**/*.ts' --tags '@logout and not @wip'",
-    "test:headed": "HEADED=true node --import tsx ./node_modules/@cucumber/cucumber/bin/cucumber.js --import 'support/world.ts' --import 'support/hooks.ts' --import 'steps/**/*.ts' --tags 'not @rate-limiting' --tags 'not @wip'",
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
-    "format": "prettier --write \"**/*.ts\"",
-    "format:check": "prettier --check \"**/*.ts\"",
-    "typecheck": "tsc --noEmit"
+    "test": "bun ./node_modules/@cucumber/cucumber/bin/cucumber.js --import 'support/world.ts' --import 'support/hooks.ts' --import 'steps/**/*.ts' --tags 'not @rate-limiting' --tags 'not @wip'",
+    "test:smoke": "bun ./node_modules/@cucumber/cucumber/bin/cucumber.js --import 'support/world.ts' --import 'support/hooks.ts' --import 'steps/**/*.ts' --tags '@smoke and not @wip'",
+    "test:regression": "bun ./node_modules/@cucumber/cucumber/bin/cucumber.js --import 'support/world.ts' --import 'support/hooks.ts' --import 'steps/**/*.ts' --tags '@regression and not @wip'",
+    "test:customer": "bun ./node_modules/@cucumber/cucumber/bin/cucumber.js --import 'support/world.ts' --import 'support/hooks.ts' --import 'steps/**/*.ts' --tags '@customer and not @wip'",
+    "test:admin": "bun ./node_modules/@cucumber/cucumber/bin/cucumber.js --import 'support/world.ts' --import 'support/hooks.ts' --import 'steps/**/*.ts' --tags '@admin and not @wip'",
+    "test:logout": "bun ./node_modules/@cucumber/cucumber/bin/cucumber.js --import 'support/world.ts' --import 'support/hooks.ts' --import 'steps/**/*.ts' --tags '@logout and not @wip'",
+    "test:headed": "HEADED=true bun ./node_modules/@cucumber/cucumber/bin/cucumber.js --import 'support/world.ts' --import 'support/hooks.ts' --import 'steps/**/*.ts' --tags 'not @rate-limiting' --tags 'not @wip'",
+    "lint": "bun x eslint .",
+    "lint:fix": "bun x eslint . --fix",
+    "format": "bun x prettier --write \"**/*.ts\"",
+    "format:check": "bun x prettier --check \"**/*.ts\"",
+    "typecheck": "bun x tsc --noEmit"
   },
   "keywords": [
     "acceptance-testing",
@@ -39,10 +39,9 @@
     "eslint-config-prettier": "^10.1.8",
     "otplib": "^13.5.0",
     "prettier": "^3.9.8",
-    "tsx": "^4.23.15",
     "typescript": "^6.0.3"
   },
   "engines": {
-    "node": ">=24.0.0"
+    "bun": ">=1.2.0"
   }
 }

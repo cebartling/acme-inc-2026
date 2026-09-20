@@ -8,7 +8,8 @@ Demo e-commerce platform for the fictitious ACME, Inc. company.
 |-------------|---------|-------|
 | Docker | Latest | For containerized services |
 | zsh | 5.0+ | Required for shell scripts (default on macOS since Catalina) |
-| Node.js | 24+ LTS | For frontend apps and acceptance tests |
+| Node.js | 24+ LTS | For frontend apps |
+| Bun | 1.2+ | For acceptance tests ([bun.sh](https://bun.sh)) |
 | Java | 21+ | For backend services |
 
 ## Local Development Infrastructure
@@ -240,7 +241,7 @@ A unified shell script is provided for running acceptance tests with automatic r
 | `--admin` | Run admin app tests only |
 | `--api` | Run API tests only (@api tag) |
 | `--headed` | Run with visible browser (not headless) |
-| `--skip-install` | Skip npm install step |
+| `--skip-install` | Skip dependency install step |
 | `--no-open` | Don't automatically open browser with results |
 
 ### Examples
@@ -261,37 +262,37 @@ A unified shell script is provided for running acceptance tests with automatic r
 
 ### Manual Test Execution
 
-You can also run tests directly with npm:
+You can also run tests directly with Bun:
 
 ```bash
 cd acceptance-tests
 
 # Install dependencies
-npm install
+bun install
 
 # Install Playwright browsers
-npx playwright install
+bunx playwright install
 
 # Run all tests
-npm run test
+bun run test
 
 # Run smoke tests only
-npm run test:smoke
+bun run test:smoke
 
 # Run tests with visible browser
-npm run test:headed
+bun run test:headed
 ```
 
-### npm Test Scripts
+### Bun Test Scripts
 
 | Script | Description |
 |--------|-------------|
-| `npm run test` | Run all acceptance tests |
-| `npm run test:smoke` | Run smoke test suite (@smoke tag) |
-| `npm run test:regression` | Run full regression suite |
-| `npm run test:customer` | Run customer app tests only |
-| `npm run test:admin` | Run admin app tests only |
-| `npm run test:headed` | Run tests with visible browser |
+| `bun run test` | Run all acceptance tests |
+| `bun run test:smoke` | Run smoke test suite (@smoke tag) |
+| `bun run test:regression` | Run full regression suite |
+| `bun run test:customer` | Run customer app tests only |
+| `bun run test:admin` | Run admin app tests only |
+| `bun run test:headed` | Run tests with visible browser |
 
 ### Configuration
 
@@ -305,7 +306,7 @@ cp .env.example .env
 ### Prerequisites
 
 - **zsh** - Required for shell scripts in `scripts/` (default on macOS since Catalina)
-- Node.js 24+ (LTS/Krypton) - the script uses nvm/fnm if available
+- [Bun](https://bun.sh) 1.2+ - runs the TypeScript acceptance suite directly (no Node.js or nvm needed)
 - Application services should be running (`./scripts/docker-manage.sh start`)
 
 See [documentation/user-stories/0001-acceptance-testing/README.md](documentation/user-stories/0001-acceptance-testing/README.md) for detailed testing documentation.

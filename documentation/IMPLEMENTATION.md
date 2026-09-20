@@ -312,6 +312,8 @@ Backend services use ports starting at 10300 to avoid conflicts:
 ## Acceptance testing
 
 - User story acceptance criteria will be used to craft automated acceptance tests
+- Bun is the runtime and package manager for the acceptance test suite; it executes the
+  TypeScript specs directly, so no Node.js, nvm, or `tsx`/`ts-node` transpiler hook is involved
 - Cucumber.js should be used for automating acceptance tests
 - Playwright should be used for browser automation
 - Acceptance tests project will reside in the `acceptance-tests` directory.
@@ -356,6 +358,6 @@ RATE_LIMITING_ENABLED=false docker compose -f docker-compose.apps.yml up -d
 
 # Run API tests
 cd acceptance-tests
-CUSTOMER_API_URL=http://localhost:10301 IDENTITY_API_URL=http://localhost:10300 npm test -- --tags @api
+CUSTOMER_API_URL=http://localhost:10301 IDENTITY_API_URL=http://localhost:10300 bun run test -- --tags @api
 ``` 
 
