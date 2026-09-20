@@ -130,11 +130,7 @@ async function createTestUser(
   // For non-ACTIVE inactive statuses (SUSPENDED, DEACTIVATED, LOCKED) or for
   // pre-seeded LOCKED accounts, drive the user into the requested state via
   // the test-only status endpoint added for US-0003-11 (PIN-91).
-  const statesNeedingDirectSet = new Set([
-    'SUSPENDED',
-    'DEACTIVATED',
-    'LOCKED',
-  ]);
+  const statesNeedingDirectSet = new Set(['SUSPENDED', 'DEACTIVATED', 'LOCKED']);
   if (options.status && statesNeedingDirectSet.has(options.status)) {
     const body: Record<string, unknown> = { status: options.status };
     if (options.status === 'DEACTIVATED') {
@@ -146,10 +142,7 @@ async function createTestUser(
     if (typeof options.failedAttempts === 'number') {
       body.failedAttempts = options.failedAttempts;
     }
-    await world.identityApiClient.post(
-      `/api/v1/test/users/${userId}/status`,
-      body
-    );
+    await world.identityApiClient.post(`/api/v1/test/users/${userId}/status`, body);
   }
 
   return userId;
@@ -402,17 +395,14 @@ Then(
   }
 );
 
-Then(
-  'the response should not contain {string}',
-  async function (this: CustomWorld, field: string) {
-    const response =
-      this.getTestData<ApiResponse<SigninResponse | SigninErrorResponse>>('lastResponse');
-    expect(response).toBeDefined();
+Then('the response should not contain {string}', async function (this: CustomWorld, field: string) {
+  const response =
+    this.getTestData<ApiResponse<SigninResponse | SigninErrorResponse>>('lastResponse');
+  expect(response).toBeDefined();
 
-    const data = response!.data as Record<string, unknown>;
-    expect(data[field]).toBeUndefined();
-  }
-);
+  const data = response!.data as Record<string, unknown>;
+  expect(data[field]).toBeUndefined();
+});
 
 Then(
   'the response time should be within {int}ms of a valid user response',
@@ -459,10 +449,7 @@ When(
       password: data.password,
     };
 
-    const response = await this.identityApiClient.post(
-      '/api/v1/auth/reactivate',
-      request
-    );
+    const response = await this.identityApiClient.post('/api/v1/auth/reactivate', request);
 
     this.setTestData('lastResponse', response);
   }

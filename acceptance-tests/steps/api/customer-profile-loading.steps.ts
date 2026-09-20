@@ -174,41 +174,38 @@ Given('I am authenticated as a user with no customer profile', async function (t
   this.setTestData('userId', orphanUserId);
 });
 
-When(
-  'I request my customer profile as the authenticated user',
-  async function (this: CustomWorld) {
-    const userId = this.getTestData<string>('userId');
-    expect(userId).toBeDefined();
+When('I request my customer profile as the authenticated user', async function (this: CustomWorld) {
+  const userId = this.getTestData<string>('userId');
+  expect(userId).toBeDefined();
 
-    const startTime = Date.now();
+  const startTime = Date.now();
 
-    try {
-      const response = await this.customerApiClient.get<CustomerProfile>('/api/v1/customers/me', {
-        headers: { 'X-User-Id': userId! },
-      });
+  try {
+    const response = await this.customerApiClient.get<CustomerProfile>('/api/v1/customers/me', {
+      headers: { 'X-User-Id': userId! },
+    });
 
-      const elapsed = Date.now() - startTime;
+    const elapsed = Date.now() - startTime;
 
-      this.setTestData('lastResponseStatus', response.status);
-      this.setTestData('lastResponseData', response.data);
-      this.setTestData('profileResponse', response.data);
-      this.setTestData('lastRequestTime', elapsed);
-    } catch (error: unknown) {
-      const elapsed = Date.now() - startTime;
-      this.setTestData('lastRequestTime', elapsed);
+    this.setTestData('lastResponseStatus', response.status);
+    this.setTestData('lastResponseData', response.data);
+    this.setTestData('profileResponse', response.data);
+    this.setTestData('lastRequestTime', elapsed);
+  } catch (error: unknown) {
+    const elapsed = Date.now() - startTime;
+    this.setTestData('lastRequestTime', elapsed);
 
-      if (error && typeof error === 'object' && 'response' in error && error.response) {
-        const err = error as {
-          response: { status: number; data: unknown };
-        };
-        this.setTestData('lastResponseStatus', err.response.status);
-        this.setTestData('lastResponseData', err.response.data);
-      } else {
-        throw error;
-      }
+    if (error && typeof error === 'object' && 'response' in error && error.response) {
+      const err = error as {
+        response: { status: number; data: unknown };
+      };
+      this.setTestData('lastResponseStatus', err.response.status);
+      this.setTestData('lastResponseData', err.response.data);
+    } else {
+      throw error;
     }
   }
-);
+});
 
 When('I request customer profile without authentication', async function (this: CustomWorld) {
   try {
@@ -300,10 +297,13 @@ When('I wait for activity tracking to complete', async function (this: CustomWor
   await new Promise((resolve) => setTimeout(resolve, 2000));
 });
 
-Then('the response status should be {int}', async function (this: CustomWorld, expectedStatus: number) {
-  const actualStatus = this.getTestData<number>('lastResponseStatus');
-  expect(actualStatus).toBe(expectedStatus);
-});
+Then(
+  'the response status should be {int}',
+  async function (this: CustomWorld, expectedStatus: number) {
+    const actualStatus = this.getTestData<number>('lastResponseStatus');
+    expect(actualStatus).toBe(expectedStatus);
+  }
+);
 
 Then('the profile response should contain my customer ID', async function (this: CustomWorld) {
   const profile = this.getTestData<CustomerProfile>('profileResponse');

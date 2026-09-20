@@ -141,8 +141,7 @@ Then('I should see a loading indicator', async function (this: CustomWorld) {
 
 Then('the loading indicator should disappear', async function (this: CustomWorld) {
   const loadingIndicator =
-    this.page.getByRole('status', { name: /loading/i }) ||
-    this.page.getByTestId('loading-spinner');
+    this.page.getByRole('status', { name: /loading/i }) || this.page.getByTestId('loading-spinner');
 
   await expect(loadingIndicator).not.toBeVisible({ timeout: 10000 });
 });

@@ -61,7 +61,9 @@ async function createActiveUser(world: CustomWorld): Promise<string> {
     }
   );
   if (regResponse.status !== 201 && regResponse.status !== 200) {
-    throw new Error(`Failed to register test user: ${regResponse.status} - ${JSON.stringify(regResponse.data)}`);
+    throw new Error(
+      `Failed to register test user: ${regResponse.status} - ${JSON.stringify(regResponse.data)}`
+    );
   }
 
   const userId = regResponse.data.userId;
@@ -88,14 +90,11 @@ When(
   async function (this: CustomWorld, email: string) {
     const testUserEmail = this.getTestData<string>('testUserEmail');
     const actualEmail =
-      testUserEmail && email.toLowerCase().includes('@acme.com')
-        ? testUserEmail
-        : email;
+      testUserEmail && email.toLowerCase().includes('@acme.com') ? testUserEmail : email;
 
-    const response = await this.identityApiClient.post(
-      '/api/v1/auth/password-reset',
-      { email: actualEmail }
-    );
+    const response = await this.identityApiClient.post('/api/v1/auth/password-reset', {
+      email: actualEmail,
+    });
 
     this.setTestData('lastResponse', response);
   }
@@ -106,31 +105,22 @@ When(
   async function (this: CustomWorld, count: number, email: string) {
     const testUserEmail = this.getTestData<string>('testUserEmail');
     const actualEmail =
-      testUserEmail && email.toLowerCase().includes('@acme.com')
-        ? testUserEmail
-        : email;
+      testUserEmail && email.toLowerCase().includes('@acme.com') ? testUserEmail : email;
 
     let lastResponse: ApiResponse<unknown> | undefined;
     for (let i = 0; i < count; i++) {
-      lastResponse = await this.identityApiClient.post(
-        '/api/v1/auth/password-reset',
-        { email: actualEmail }
-      );
+      lastResponse = await this.identityApiClient.post('/api/v1/auth/password-reset', {
+        email: actualEmail,
+      });
     }
     this.setTestData('lastResponse', lastResponse);
   }
 );
 
-When(
-  'I submit a password reset request with an empty email',
-  async function (this: CustomWorld) {
-    const response = await this.identityApiClient.post(
-      '/api/v1/auth/password-reset',
-      { email: '' }
-    );
-    this.setTestData('lastResponse', response);
-  }
-);
+When('I submit a password reset request with an empty email', async function (this: CustomWorld) {
+  const response = await this.identityApiClient.post('/api/v1/auth/password-reset', { email: '' });
+  this.setTestData('lastResponse', response);
+});
 
 Given(
   'a password reset token has been issued for an active user',
@@ -149,22 +139,19 @@ Given(
   }
 );
 
-Given(
-  'an expired password reset token exists',
-  async function (this: CustomWorld) {
-    // Auto-create an active user if one hasn't been set up by a prior Given step.
-    let userId = this.getTestData<string>('testUserId');
-    if (!userId) {
-      userId = await createActiveUser(this);
-    }
-    const response = await this.identityApiClient.post<PasswordResetTokenResponse>(
-      `/api/v1/test/password-reset-tokens`,
-      { userId, expired: true }
-    );
-    expect(response.status).toBe(200);
-    this.setTestData('passwordResetToken', response.data.token);
+Given('an expired password reset token exists', async function (this: CustomWorld) {
+  // Auto-create an active user if one hasn't been set up by a prior Given step.
+  let userId = this.getTestData<string>('testUserId');
+  if (!userId) {
+    userId = await createActiveUser(this);
   }
-);
+  const response = await this.identityApiClient.post<PasswordResetTokenResponse>(
+    `/api/v1/test/password-reset-tokens`,
+    { userId, expired: true }
+  );
+  expect(response.status).toBe(200);
+  this.setTestData('passwordResetToken', response.data.token);
+});
 
 Given(
   'the password reset has already been completed with that token',
@@ -180,14 +167,11 @@ Given(
   }
 );
 
-Given(
-  'the user has active sessions and device trusts',
-  async function (this: CustomWorld) {
-    // The test fixture is responsible for seeding sessions and devices.
-    // This step is a hook: if no fixture exists, the assertions on
-    // sessionsInvalidated/deviceTrustsRevoked will simply see zero.
-  }
-);
+Given('the user has active sessions and device trusts', async function (this: CustomWorld) {
+  // The test fixture is responsible for seeding sessions and devices.
+  // This step is a hook: if no fixture exists, the assertions on
+  // sessionsInvalidated/deviceTrustsRevoked will simply see zero.
+});
 
 When('I validate the reset token', async function (this: CustomWorld) {
   const token = this.getTestData<string>('passwordResetToken');
@@ -207,10 +191,10 @@ When(
     if (!token) {
       throw new Error('No reset token has been issued');
     }
-    const response = await this.identityApiClient.post(
-      '/api/v1/auth/password-reset/confirm',
-      { token, newPassword }
-    );
+    const response = await this.identityApiClient.post('/api/v1/auth/password-reset/confirm', {
+      token,
+      newPassword,
+    });
     this.setTestData('lastResponse', response);
   }
 );

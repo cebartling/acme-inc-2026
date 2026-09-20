@@ -16,7 +16,7 @@ interface LogoutResponseBody {
 
 function extractCookieValue(
   cookies: string[] | string | undefined,
-  cookieName: string,
+  cookieName: string
 ): string | null {
   if (!cookies) return null;
   const list = Array.isArray(cookies) ? cookies : [cookies];
@@ -30,7 +30,7 @@ function extractCookieValue(
 
 function getCookieAttributes(
   cookies: string[] | string | undefined,
-  cookieName: string,
+  cookieName: string
 ): Map<string, string> {
   const attrs = new Map<string, string>();
   if (!cookies) return attrs;
@@ -57,7 +57,7 @@ async function signinAndCaptureAccessToken(world: CustomWorld): Promise<string> 
 
   const response = await world.identityApiClient.post<SigninSuccessResponse>(
     '/api/v1/auth/signin',
-    { email, password, rememberMe: false },
+    { email, password, rememberMe: false }
   );
 
   expect(response.status).toBe(200);
@@ -103,17 +103,15 @@ When(
     const response = await this.identityApiClient.post<LogoutResponseBody>(
       '/api/v1/auth/logout',
       undefined,
-      { headers: { Cookie: `access_token=${token}` } },
+      { headers: { Cookie: `access_token=${token}` } }
     );
 
     this.setTestData('lastResponse', response);
-  },
+  }
 );
 
 When('I post to the logout endpoint without any cookie', async function (this: CustomWorld) {
-  const response = await this.identityApiClient.post<LogoutResponseBody>(
-    '/api/v1/auth/logout',
-  );
+  const response = await this.identityApiClient.post<LogoutResponseBody>('/api/v1/auth/logout');
   this.setTestData('lastResponse', response);
 });
 
@@ -123,10 +121,10 @@ When(
     const response = await this.identityApiClient.post<LogoutResponseBody>(
       '/api/v1/auth/logout',
       undefined,
-      { headers: { Cookie: 'access_token=not.a.real.jwt' } },
+      { headers: { Cookie: 'access_token=not.a.real.jwt' } }
     );
     this.setTestData('lastResponse', response);
-  },
+  }
 );
 
 When(
@@ -140,17 +138,15 @@ When(
     const response = await this.identityApiClient.post<LogoutResponseBody>(
       '/api/v1/auth/logout/all',
       undefined,
-      { headers: { Cookie: `access_token=${token}` } },
+      { headers: { Cookie: `access_token=${token}` } }
     );
 
     this.setTestData('lastResponse', response);
-  },
+  }
 );
 
 When('I post to the logout-all endpoint without any cookie', async function (this: CustomWorld) {
-  const response = await this.identityApiClient.post<LogoutResponseBody>(
-    '/api/v1/auth/logout/all',
-  );
+  const response = await this.identityApiClient.post<LogoutResponseBody>('/api/v1/auth/logout/all');
   this.setTestData('lastResponse', response);
 });
 
@@ -158,59 +154,58 @@ When('I post to the logout-all endpoint without any cookie', async function (thi
 // Then Steps
 // ============================================================================
 
-Then('the logout API should respond with status {int}', function (
-  this: CustomWorld,
-  status: number,
-) {
-  const response = this.getTestData<{ status: number }>('lastResponse');
-  expect(response?.status).toBe(status);
-});
+Then(
+  'the logout API should respond with status {int}',
+  function (this: CustomWorld, status: number) {
+    const response = this.getTestData<{ status: number }>('lastResponse');
+    expect(response?.status).toBe(status);
+  }
+);
 
-Then('the logout response status should be {string}', function (
-  this: CustomWorld,
-  expected: string,
-) {
-  const response = this.getTestData<{ data: LogoutResponseBody }>('lastResponse');
-  expect(response?.data?.status).toBe(expected);
-});
+Then(
+  'the logout response status should be {string}',
+  function (this: CustomWorld, expected: string) {
+    const response = this.getTestData<{ data: LogoutResponseBody }>('lastResponse');
+    expect(response?.data?.status).toBe(expected);
+  }
+);
 
 Then(
   'the logout-all response should report {int} sessions invalidated',
   function (this: CustomWorld, count: number) {
     const response = this.getTestData<{ data: LogoutResponseBody }>('lastResponse');
     expect(response?.data?.sessionsInvalidated).toBe(count);
-  },
+  }
 );
 
-Then('the response should clear the {string} cookie', function (
-  this: CustomWorld,
-  cookieName: string,
-) {
-  const response =
-    this.getTestData<{ headers: { 'set-cookie'?: string[] } }>('lastResponse');
-  const cookies = response?.headers['set-cookie'];
-  expect(cookies, `expected Set-Cookie headers on logout response`).toBeDefined();
+Then(
+  'the response should clear the {string} cookie',
+  function (this: CustomWorld, cookieName: string) {
+    const response = this.getTestData<{ headers: { 'set-cookie'?: string[] } }>('lastResponse');
+    const cookies = response?.headers['set-cookie'];
+    expect(cookies, `expected Set-Cookie headers on logout response`).toBeDefined();
 
-  const value = extractCookieValue(cookies, cookieName);
-  expect(value, `expected ${cookieName} to be present in Set-Cookie`).toBe('');
+    const value = extractCookieValue(cookies, cookieName);
+    expect(value, `expected ${cookieName} to be present in Set-Cookie`).toBe('');
 
-  const attrs = getCookieAttributes(cookies, cookieName);
-  expect(attrs.get('max-age'), `expected ${cookieName} Max-Age=0`).toBe('0');
-});
-
-Then('the user should have {int} active sessions', async function (
-  this: CustomWorld,
-  expected: number,
-) {
-  const userId = this.getTestData<string>('testUserId');
-  if (!userId) {
-    throw new Error('testUserId not set');
+    const attrs = getCookieAttributes(cookies, cookieName);
+    expect(attrs.get('max-age'), `expected ${cookieName} Max-Age=0`).toBe('0');
   }
+);
 
-  const response = await this.identityApiClient.get<{ sessions: unknown[] }>(
-    `/api/v1/test/users/${userId}/sessions`,
-  );
-  expect(response.status).toBe(200);
-  const sessions = response.data.sessions ?? [];
-  expect(sessions.length).toBe(expected);
-});
+Then(
+  'the user should have {int} active sessions',
+  async function (this: CustomWorld, expected: number) {
+    const userId = this.getTestData<string>('testUserId');
+    if (!userId) {
+      throw new Error('testUserId not set');
+    }
+
+    const response = await this.identityApiClient.get<{ sessions: unknown[] }>(
+      `/api/v1/test/users/${userId}/sessions`
+    );
+    expect(response.status).toBe(200);
+    const sessions = response.data.sessions ?? [];
+    expect(sessions.length).toBe(expected);
+  }
+);

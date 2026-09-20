@@ -217,10 +217,7 @@ Then(
   async function (this: CustomWorld) {
     const signinPage = new SigninPage(this.page);
     await expect(signinPage.errorBannerResetLink).toBeVisible();
-    await expect(signinPage.errorBannerResetLink).toHaveAttribute(
-      'href',
-      '/forgot-password'
-    );
+    await expect(signinPage.errorBannerResetLink).toHaveAttribute('href', '/forgot-password');
   }
 );
 
@@ -263,44 +260,32 @@ Then(
   'the inactive account card reason should be {string}',
   async function (this: CustomWorld, reason: string) {
     const signinPage = new SigninPage(this.page);
-    await expect(signinPage.inactiveAccountCard).toHaveAttribute(
-      'data-reason',
-      reason,
-    );
-  },
+    await expect(signinPage.inactiveAccountCard).toHaveAttribute('data-reason', reason);
+  }
 );
 
-Then(
-  'I should see the resend verification button enabled',
-  async function (this: CustomWorld) {
-    const signinPage = new SigninPage(this.page);
-    await expect(signinPage.resendVerificationButton).toBeVisible();
-    await expect(signinPage.resendVerificationButton).toBeEnabled();
-  },
-);
+Then('I should see the resend verification button enabled', async function (this: CustomWorld) {
+  const signinPage = new SigninPage(this.page);
+  await expect(signinPage.resendVerificationButton).toBeVisible();
+  await expect(signinPage.resendVerificationButton).toBeEnabled();
+});
 
 When('I click the resend verification button', async function (this: CustomWorld) {
   const signinPage = new SigninPage(this.page);
   await signinPage.resendVerificationButton.click();
 });
 
-Then(
-  'I should see the resend verification success notice',
-  async function (this: CustomWorld) {
-    const signinPage = new SigninPage(this.page);
-    await expect(signinPage.resendVerificationSuccess).toBeVisible({
-      timeout: 10000,
-    });
-  },
-);
+Then('I should see the resend verification success notice', async function (this: CustomWorld) {
+  const signinPage = new SigninPage(this.page);
+  await expect(signinPage.resendVerificationSuccess).toBeVisible({
+    timeout: 10000,
+  });
+});
 
-Then(
-  'the resend verification button should be disabled',
-  async function (this: CustomWorld) {
-    const signinPage = new SigninPage(this.page);
-    await expect(signinPage.resendVerificationButton).toBeDisabled();
-  },
-);
+Then('the resend verification button should be disabled', async function (this: CustomWorld) {
+  const signinPage = new SigninPage(this.page);
+  await expect(signinPage.resendVerificationButton).toBeDisabled();
+});
 
 Then('I should see the contact support link', async function (this: CustomWorld) {
   const signinPage = new SigninPage(this.page);
