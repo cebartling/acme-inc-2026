@@ -35,7 +35,6 @@ const common = {
   formatOptions: {
     snippetInterface: 'async-await',
   },
-  publishQuiet: true,
 };
 
 export default {
