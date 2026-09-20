@@ -63,7 +63,9 @@ async function setupAuthenticatedCustomer(world: CustomWorld): Promise<void> {
       const now = new Date();
       const year = now.getFullYear();
       const month = (now.getMonth() + 1).toString().padStart(2, '0');
-      const randomNum = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
+      const randomNum = Math.floor(Math.random() * 1000000)
+        .toString()
+        .padStart(6, '0');
       const customerNumber = `ACME-${year}${month}-${randomNum}`;
 
       localStorage.setItem(

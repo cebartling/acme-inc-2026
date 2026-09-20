@@ -26,13 +26,13 @@ Then(
   'I should be redirected to the signin page with logout=true',
   async function (this: CustomWorld) {
     await this.page.waitForURL(/\/signin\?.*logout=true/, { timeout: 10000 });
-  },
+  }
 );
 
 Then('I should see a signed-out banner', async function (this: CustomWorld) {
-  await expect(
-    this.page.getByText(/you have been signed out|signed out/i),
-  ).toBeVisible({ timeout: 5000 });
+  await expect(this.page.getByText(/you have been signed out|signed out/i)).toBeVisible({
+    timeout: 5000,
+  });
 });
 
 Then('the auth storage should be cleared', async function (this: CustomWorld) {
@@ -59,9 +59,7 @@ Then('a confirmation dialog should appear', async function (this: CustomWorld) {
 });
 
 Then('the dialog title should mention all devices', async function (this: CustomWorld) {
-  await expect(
-    this.page.getByRole('alertdialog').getByText(/all devices/i),
-  ).toBeVisible();
+  await expect(this.page.getByRole('alertdialog').getByText(/all devices/i)).toBeVisible();
 });
 
 Then('I should remain signed in', async function (this: CustomWorld) {

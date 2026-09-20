@@ -107,7 +107,9 @@ export class SearchPage extends BasePage {
   }
 
   async clickFirstAutocompleteSuggestion(): Promise<void> {
-    const firstItem = this.page.locator('[data-testid^="autocomplete-"][data-testid$="-item"]').first();
+    const firstItem = this.page
+      .locator('[data-testid^="autocomplete-"][data-testid$="-item"]')
+      .first();
     await firstItem.click();
   }
 

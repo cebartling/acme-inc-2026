@@ -45,9 +45,7 @@ export class MfaVerifyPage extends BasePage {
 
     // The OtpInput component wraps its digit fields in an accessible group,
     // which keeps this independent of other inputs elsewhere on the page.
-    this.otpInputs = page
-      .getByRole('group', { name: /one-time password/i })
-      .locator('input');
+    this.otpInputs = page.getByRole('group', { name: /one-time password/i }).locator('input');
 
     // Remember device checkbox
     this.rememberDeviceCheckbox = page.getByLabel(/remember|trust this device/i);

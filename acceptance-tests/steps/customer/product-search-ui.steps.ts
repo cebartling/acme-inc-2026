@@ -12,13 +12,13 @@ Given('I am on the home page', async function (this: CustomWorld) {
   await this.page.waitForLoadState('domcontentloaded');
 });
 
-Given('there are more than 24 products matching {string}', async function (
-  this: CustomWorld,
-  _query: string,
-) {
-  // Seed data in V2 migration already contains >24 products with "product" in description.
-  // This step is a precondition assertion — no action needed.
-});
+Given(
+  'there are more than 24 products matching {string}',
+  async function (this: CustomWorld, _query: string) {
+    // Seed data in V2 migration already contains >24 products with "product" in description.
+    // This step is a precondition assertion — no action needed.
+  }
+);
 
 When('I enter a search query {string}', async function (this: CustomWorld, query: string) {
   const page = getSearchPage(this);
@@ -65,10 +65,7 @@ Then('I should see a result count above the product grid', async function (this:
   await expect(page.resultCount).toBeVisible();
 });
 
-Then('the result count should contain {string}', async function (
-  this: CustomWorld,
-  text: string,
-) {
+Then('the result count should contain {string}', async function (this: CustomWorld, text: string) {
   const page = getSearchPage(this);
   await expect(page.resultCount).toContainText(text);
 });

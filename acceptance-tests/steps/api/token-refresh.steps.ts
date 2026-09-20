@@ -25,10 +25,7 @@ function decodeJWTPayload(token: string): JWTPayload {
   return JSON.parse(Buffer.from(parts[1], 'base64url').toString()) as JWTPayload;
 }
 
-function extractCookieValue(
-  cookieHeader: string | string[],
-  cookieName: string
-): string | null {
+function extractCookieValue(cookieHeader: string | string[], cookieName: string): string | null {
   const cookies = Array.isArray(cookieHeader) ? cookieHeader : [cookieHeader];
   for (const cookie of cookies) {
     if (cookie.startsWith(`${cookieName}=`)) {
@@ -72,57 +69,44 @@ Given(
   }
 );
 
-Given(
-  "I remember the current refresh token's tokenFamily claim",
-  function (this: CustomWorld) {
-    const refreshToken = this.getTestData<string>('refresh_token_value');
-    if (!refreshToken) {
-      throw new Error(
-        'No refresh_token_value in test data — complete signin + MFA before remembering the tokenFamily'
-      );
-    }
-    const payload = decodeJWTPayload(refreshToken);
-    if (!payload.tokenFamily) {
-      throw new Error('Refresh token does not carry a tokenFamily claim');
-    }
-    this.setTestData('rememberedTokenFamily', payload.tokenFamily);
-    this.setTestData('rememberedRefreshToken', refreshToken);
+Given("I remember the current refresh token's tokenFamily claim", function (this: CustomWorld) {
+  const refreshToken = this.getTestData<string>('refresh_token_value');
+  if (!refreshToken) {
+    throw new Error(
+      'No refresh_token_value in test data — complete signin + MFA before remembering the tokenFamily'
+    );
   }
-);
+  const payload = decodeJWTPayload(refreshToken);
+  if (!payload.tokenFamily) {
+    throw new Error('Refresh token does not carry a tokenFamily claim');
+  }
+  this.setTestData('rememberedTokenFamily', payload.tokenFamily);
+  this.setTestData('rememberedRefreshToken', refreshToken);
+});
 
 // ============================================================================
 // WHEN — call the refresh endpoint
 // ============================================================================
 
-When(
-  'I POST to {string} with no cookies',
-  async function (this: CustomWorld, path: string) {
-    const response = await this.identityApiClient.post<unknown>(path, undefined);
-    this.setLastResponse(response);
-  }
-);
+When('I POST to {string} with no cookies', async function (this: CustomWorld, path: string) {
+  const response = await this.identityApiClient.post<unknown>(path, undefined);
+  this.setLastResponse(response);
+});
 
-Given(
-  'the user has logged out of the current session',
-  async function (this: CustomWorld) {
-    const accessToken = this.getTestData<string>('access_token_value');
-    if (!accessToken) {
-      throw new Error(
-        'No access_token_value in test data — complete signin + MFA before logging out'
-      );
-    }
-    const response = await this.identityApiClient.post(
-      '/api/v1/auth/logout',
-      undefined,
-      { headers: { Cookie: `access_token=${accessToken}` } }
+Given('the user has logged out of the current session', async function (this: CustomWorld) {
+  const accessToken = this.getTestData<string>('access_token_value');
+  if (!accessToken) {
+    throw new Error(
+      'No access_token_value in test data — complete signin + MFA before logging out'
     );
-    if (response.status !== 200) {
-      throw new Error(
-        `Logout failed: ${response.status} ${JSON.stringify(response.data)}`
-      );
-    }
   }
-);
+  const response = await this.identityApiClient.post('/api/v1/auth/logout', undefined, {
+    headers: { Cookie: `access_token=${accessToken}` },
+  });
+  if (response.status !== 200) {
+    throw new Error(`Logout failed: ${response.status} ${JSON.stringify(response.data)}`);
+  }
+});
 
 When(
   'I POST to {string} with the current refresh_token cookie',
@@ -134,11 +118,9 @@ When(
       );
     }
 
-    const response = await this.identityApiClient.post<unknown>(
-      path,
-      undefined,
-      { headers: { Cookie: `refresh_token=${refreshToken}` } }
-    );
+    const response = await this.identityApiClient.post<unknown>(path, undefined, {
+      headers: { Cookie: `refresh_token=${refreshToken}` },
+    });
 
     this.setLastResponse(response);
 
@@ -205,11 +187,7 @@ function assertCookieCleared(
   cookieHeader: string | string[] | undefined,
   cookieName: string
 ): void {
-  const cookies = cookieHeader
-    ? Array.isArray(cookieHeader)
-      ? cookieHeader
-      : [cookieHeader]
-    : [];
+  const cookies = cookieHeader ? (Array.isArray(cookieHeader) ? cookieHeader : [cookieHeader]) : [];
   const matching = cookies.filter((c) => c.startsWith(`${cookieName}=`));
   expect(
     matching.length,
@@ -226,18 +204,12 @@ function assertCookieCleared(
   expect(maxAgePart?.toLowerCase()).toBe('max-age=0');
 }
 
-Then(
-  'the access_token cookie should be cleared',
-  function (this: CustomWorld) {
-    const response = this.getLastResponse();
-    assertCookieCleared(response?.headers['set-cookie'], 'access_token');
-  }
-);
+Then('the access_token cookie should be cleared', function (this: CustomWorld) {
+  const response = this.getLastResponse();
+  assertCookieCleared(response?.headers['set-cookie'], 'access_token');
+});
 
-Then(
-  'the refresh_token cookie should be cleared',
-  function (this: CustomWorld) {
-    const response = this.getLastResponse();
-    assertCookieCleared(response?.headers['set-cookie'], 'refresh_token');
-  }
-);
+Then('the refresh_token cookie should be cleared', function (this: CustomWorld) {
+  const response = this.getLastResponse();
+  assertCookieCleared(response?.headers['set-cookie'], 'refresh_token');
+});
