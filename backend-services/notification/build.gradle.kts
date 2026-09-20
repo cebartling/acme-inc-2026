@@ -58,7 +58,19 @@ dependencies {
     // SendGrid for email
     implementation("com.sendgrid:sendgrid-java:4.10.3")
 
-    // OGNL for Thymeleaf expression evaluation (version must match Thymeleaf 3.1.x expectations)
+    // OGNL for Thymeleaf expression evaluation.
+    //
+    // Pinned to 3.3.x deliberately -- do NOT bump to 3.4.x. OGNL 3.4 changed the
+    // OgnlContext constructor, and Thymeleaf 3.1.5's OGNLVariableExpressionEvaluator
+    // still calls the 3.3 signature, so every template render dies with:
+    //   NoSuchMethodError: 'void ognl.OgnlContext.<init>(
+    //       ognl.ClassResolver, ognl.TypeConverter, ognl.MemberAccess)'
+    // Verified against 3.4.13 on 2026-09-19: all 12 EmailTemplateServiceTest cases fail.
+    // Revisit only when Thymeleaf itself moves to OGNL 3.4.
+    //
+    // Note this is only needed because EmailTemplateServiceTest builds a plain
+    // TemplateEngine (StandardDialect -> OGNL). Production uses SpringTemplateEngine
+    // (SpringStandardDialect -> SpEL), and thymeleaf-spring6 explicitly excludes OGNL.
     implementation("ognl:ognl:3.3.4")
 
     // Observability
