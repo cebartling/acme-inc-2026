@@ -19,7 +19,6 @@ java {
 
 repositories {
     mavenCentral()
-    maven { url = uri("https://packages.confluent.io/maven/") }
 }
 
 
@@ -54,10 +53,8 @@ dependencies {
     // UUID v7 support
     implementation("com.fasterxml.uuid:java-uuid-generator:5.2.0")
 
-    // Kafka with Avro
+    // Kafka
     implementation("org.springframework.kafka:spring-kafka")
-    implementation("io.confluent:kafka-avro-serializer:7.7.1")
-    implementation("org.apache.avro:avro:1.12.2")
 
     // Observability
     implementation("io.micrometer:micrometer-tracing-bridge-otel")
