@@ -21,10 +21,11 @@ nvm use && npm install
 ## Development Commands
 
 ```bash
-npm run dev      # Start development server on port 3000
-npm run build    # Build for production
-npm run test     # Run Vitest tests
-npm run preview  # Preview production build
+npm run dev        # Start development server on port 3000
+npm run build      # Build for production
+npm run typecheck  # Type-check without emitting (tsc --noEmit)
+npm run test       # Run Vitest tests
+npm run preview    # Preview production build
 ```
 
 ## File Structure
