@@ -75,9 +75,10 @@ jobs:
         run: npm test
 
   # The admin app is TanStack Start scaffolding with no tests yet, so this job
-  # gates on typecheck and build rather than pretending test coverage exists.
-  # Both catch the failure mode that matters here: a dependency upgrade breaking
-  # the app. Add a test step once admin has real features. See PIN-253.
+  # gates on lint, typecheck and build rather than pretending test coverage
+  # exists. All three catch the failure mode that matters here: a dependency
+  # upgrade breaking the app. Add a test step once admin has real features.
+  # See PIN-253.
   admin-build:
     name: Frontend · admin
     runs-on: ubuntu-latest
@@ -95,6 +96,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Lint
+        run: npm run lint
 
       - name: Typecheck
         run: npm run typecheck
