@@ -13,7 +13,7 @@
 #   --admin         Run admin app tests only
 #   --api           Run API tests only
 #   --headed        Run with visible browser
-#   --skip-install  Skip npm install step
+#   --skip-install  Skip dependency install step
 #   --no-open       Don't open browser with results
 #   --quiet, -q     Minimal output (progress bar only, no scenario names)
 #   --help          Show this help message
@@ -93,7 +93,7 @@ ${YELLOW}Test Selection:${NC}
 
 ${YELLOW}Execution Options:${NC}
   --headed             Run with visible browser (not headless)
-  --skip-install       Skip npm install step
+  --skip-install       Skip dependency install step
   --skip-service-check Skip the application-services readiness check
   --no-open            Don't automatically open browser with results
   --quiet, -q       Minimal output (progress bar only, no scenario names)
@@ -116,7 +116,7 @@ ${YELLOW}Reports:${NC}
   JSON Report:    acceptance-tests/reports/cucumber-report.json
 
 ${YELLOW}Prerequisites:${NC}
-  - Node.js 24+ (LTS/Krypton) - uses nvm if available
+  - Bun 1.2+ (https://bun.sh) - runs the TypeScript suite directly
   - Application services must be running (./scripts/docker-manage.sh start)
     The runner verifies this before tests; bypass with --skip-service-check
 
@@ -124,73 +124,32 @@ EOF
 }
 
 # -----------------------------------------------------------------------------
-# Node.js Setup
+# Bun Setup
 # -----------------------------------------------------------------------------
 
-setup_node() {
-    print_info "Setting up Node.js environment..."
+setup_bun() {
+    print_info "Setting up Bun environment..."
 
-    # Determine the required version from .nvmrc (defaults to lts/* if absent)
-    local nvmrc_file="${ACCEPTANCE_TESTS_DIR}/.nvmrc"
-    local required_version="lts/*"
-
-    if [[ -f "$nvmrc_file" ]]; then
-        required_version=$(cat "$nvmrc_file" | tr -d '[:space:]')
-        print_info "Required Node.js version (.nvmrc): $required_version"
-    fi
-
-    # Initialize nvm and use it to select the appropriate Node.js runtime.
-    # nvm's scripts reference unbound variables, so relax `set -eu` while sourcing
-    # and invoking nvm, then restore strict mode afterward.
-    export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
-    local nvm_loaded=false
-
-    set +eu
-    local nvm_sh
-    for nvm_sh in "$NVM_DIR/nvm.sh" "/opt/homebrew/opt/nvm/nvm.sh" "/usr/local/opt/nvm/nvm.sh"; do
-        if [[ -s "$nvm_sh" ]]; then
-            # shellcheck source=/dev/null
-            source "$nvm_sh" 2>/dev/null
-            nvm_loaded=true
-            break
-        fi
-    done
-
-    if [[ "$nvm_loaded" == true ]]; then
-        print_info "Initializing Node.js via nvm..."
-        # Install the target version if it isn't present (no-op if already installed)
-        nvm install "$required_version" >/dev/null 2>&1 || true
-        if nvm use "$required_version" >/dev/null 2>&1; then
-            print_success "Node.js selected via nvm ($required_version)"
-        else
-            print_warning "Could not select Node.js $required_version via nvm; falling back to PATH"
-        fi
-    elif command -v fnm &> /dev/null; then
-        print_info "Initializing Node.js via fnm..."
-        fnm use "$required_version" 2>/dev/null || true
-    else
-        print_warning "nvm/fnm not found; using Node.js from PATH"
-    fi
-    set -eu
-
-    # Final verification
-    if ! command -v node &> /dev/null; then
-        print_error "Node.js is not installed or not in PATH"
-        print_info "Please install Node.js 24+ or use nvm/fnm"
+    if ! command -v bun &> /dev/null; then
+        print_error "Bun is not installed or not in PATH"
+        print_info "Install it with: curl -fsSL https://bun.sh/install | bash"
         exit 1
     fi
 
-    local node_version
-    node_version=$(node --version)
+    local bun_version
+    bun_version=$(bun --version)
 
-    local major_version
-    major_version=$(echo "$node_version" | sed 's/v//' | cut -d. -f1)
-    if [[ "$major_version" -lt 24 ]]; then
-        print_error "Node.js 24+ is required, but found $node_version"
+    # Require Bun 1.2+, which is the baseline this suite is tested against.
+    local major minor
+    major=$(echo "$bun_version" | cut -d. -f1)
+    minor=$(echo "$bun_version" | cut -d. -f2)
+    if [[ "$major" -lt 1 ]] || { [[ "$major" -eq 1 ]] && [[ "$minor" -lt 2 ]]; }; then
+        print_error "Bun 1.2+ is required, but found $bun_version"
+        print_info "Upgrade with: bun upgrade"
         exit 1
     fi
 
-    print_success "Using Node.js $node_version"
+    print_success "Using Bun $bun_version"
 }
 
 # -----------------------------------------------------------------------------
@@ -199,7 +158,7 @@ setup_node() {
 
 install_dependencies() {
     if [[ "$SKIP_INSTALL" == true ]]; then
-        print_info "Skipping npm install (--skip-install)"
+        print_info "Skipping dependency install (--skip-install)"
         return
     fi
 
@@ -207,15 +166,9 @@ install_dependencies() {
 
     cd "$ACCEPTANCE_TESTS_DIR"
 
-    # Check if node_modules exists and package-lock.json hasn't changed
-    if [[ -d "node_modules" ]] && [[ -f "node_modules/.package-lock.json" ]]; then
-        if diff -q package-lock.json node_modules/.package-lock.json &>/dev/null; then
-            print_success "Dependencies up to date"
-            return
-        fi
-    fi
-
-    npm ci --silent
+    # bun install is fast and idempotent, so it is safe to run on every
+    # invocation; --frozen-lockfile keeps it honest against bun.lock.
+    bun install --frozen-lockfile --silent
     print_success "Dependencies installed"
 }
 
@@ -280,7 +233,7 @@ run_tests() {
     cd "$ACCEPTANCE_TESTS_DIR"
 
     # Build the command as an array
-    local cmd_array=("node" "--import" "tsx" "./node_modules/@cucumber/cucumber/bin/cucumber.js")
+    local cmd_array=("bun" "./node_modules/@cucumber/cucumber/bin/cucumber.js")
 
     # Import support and step definition files
     cmd_array+=("--import" "support/world.ts")
@@ -476,7 +429,7 @@ main() {
     fi
 
     # Setup
-    setup_node
+    setup_bun
     install_dependencies
 
     # Verify application services are up before running the suite
