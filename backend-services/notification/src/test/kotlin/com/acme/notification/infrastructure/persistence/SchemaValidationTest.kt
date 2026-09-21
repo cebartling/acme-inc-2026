@@ -1,8 +1,10 @@
 package com.acme.notification.infrastructure.persistence
 
 import org.junit.jupiter.api.Assertions.assertDoesNotThrow
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase
 import org.springframework.test.context.DynamicPropertyRegistry
@@ -47,6 +49,9 @@ class SchemaValidationTest {
         }
     }
 
+    @Value("\${spring.jpa.hibernate.ddl-auto}")
+    private lateinit var ddlAuto: String
+
     @Autowired
     private lateinit var deliveries: NotificationDeliveryRepository
 
@@ -55,6 +60,16 @@ class SchemaValidationTest {
 
     @Test
     fun `every entity validates against the Flyway-migrated schema`() {
+        // Without `validate`, Flyway would still create the tables and every count()
+        // below would succeed — the test would pass while checking nothing. Assert the
+        // service's real setting rather than pinning one, so this fails loudly if the
+        // configuration that makes it a guard is ever changed.
+        assertEquals(
+            "validate",
+            ddlAuto,
+            "this test only guards against schema drift while ddl-auto is validate"
+        )
+
         // Counts are not asserted — migrations may seed rows. The point is that each
         // mapped table is queryable, after Hibernate validated it at context startup.
         assertDoesNotThrow {
