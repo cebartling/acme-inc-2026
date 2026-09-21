@@ -1199,6 +1199,51 @@ describe("search circuit breaker integration", () => {
 
     expect(searchCircuitBreaker.getFailureCount()).toBe(1);
   });
+
+  it("times out a service that sends headers and then stalls mid-body", async () => {
+    vi.useFakeTimers();
+
+    // fetch resolves as soon as headers arrive, so a deadline cleared at that point
+    // leaves the body read unguarded: the caller hangs forever, React Query never
+    // settles, and the search page sits on its spinner instead of falling back.
+    mockFetch.mockImplementationOnce((_url: string, init: RequestInit) =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: () =>
+          new Promise((_resolve, reject) => {
+            init.signal?.addEventListener("abort", () => {
+              const abortError = new Error("Aborted");
+              abortError.name = "AbortError";
+              reject(abortError);
+            });
+          }),
+      }),
+    );
+
+    const assertion = expect(search()).rejects.toBeInstanceOf(TimeoutError);
+    await vi.advanceTimersByTimeAsync(2_000);
+    await assertion;
+
+    expect(searchCircuitBreaker.getFailureCount()).toBe(1);
+  });
+
+  it("clears the deadline once the body has been read", async () => {
+    vi.useFakeTimers();
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: () => Promise.resolve({ query: "widget", results: [] }),
+    });
+
+    await search();
+
+    // A leaked timer would abort a later, unrelated request when it eventually fired.
+    expect(vi.getTimerCount()).toBe(0);
+  });
 });
 
 describe("categoryApi", () => {

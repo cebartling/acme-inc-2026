@@ -113,7 +113,13 @@ export function CategoryFallbackBrowse() {
 
           {productData && productData.results.length > 0 && (
             <>
+              {/*
+                Only the first page is fetched and there is no pagination here, so the
+                heading states what is on screen. Claiming the full total would promise
+                products the customer has no way to reach.
+              */}
               <h3 className="text-md font-semibold text-white">
+                Showing {productData.results.length} of{" "}
                 {productData.totalResults} product
                 {productData.totalResults === 1 ? "" : "s"} in {selected}
               </h3>

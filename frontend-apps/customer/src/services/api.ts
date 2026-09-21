@@ -147,34 +147,59 @@ async function handleRefreshFailure(): Promise<void> {
   }
 }
 
+/** A decoded JSON response body, as far as apiRequest itself inspects it. */
+type ApiPayload =
+  (Record<string, unknown> & { error?: string; message?: string }) | null;
+
+interface TimedFetch {
+  response: Response;
+  /** Cancels the deadline. Call once the response body has been consumed. */
+  release: () => void;
+  /** True when the deadline fired, so a body-read rejection is a timeout. */
+  timedOut: () => boolean;
+}
+
 /**
  * fetch with an optional deadline.
  *
  * Without `timeoutMs` this is plain fetch, so existing callers are unaffected. With one,
  * an AbortController cancels the request and the abort is translated into a TimeoutError
  * — callers should not have to tell "we gave up" apart from "the user navigated away".
+ *
+ * The deadline has to outlive this function, because the caller still has to read the
+ * response body. `release` cancels it and must be called once the body is consumed:
+ * clearing the timer as soon as the headers arrive would let a service that answers and
+ * then stalls mid-body hang the body read forever — the exact hang `timeoutMs` exists to
+ * prevent.
  */
 async function fetchWithTimeout(
   url: string,
   init: RequestInit,
   timeoutMs?: number,
-): Promise<Response> {
+): Promise<TimedFetch> {
   if (timeoutMs === undefined) {
-    return fetch(url, init);
+    return {
+      response: await fetch(url, init),
+      release: () => {},
+      timedOut: () => false,
+    };
   }
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    return await fetch(url, { ...init, signal: controller.signal });
+    return {
+      response: await fetch(url, { ...init, signal: controller.signal }),
+      release: () => clearTimeout(timer),
+      timedOut: () => controller.signal.aborted,
+    };
   } catch (error) {
+    clearTimeout(timer);
     if (controller.signal.aborted) {
       throw new TimeoutError(timeoutMs);
     }
     throw error;
-  } finally {
-    clearTimeout(timer);
   }
 }
 
@@ -188,7 +213,7 @@ async function apiRequest<T>(
     ...fetchOptions.headers,
   };
 
-  const response = await fetchWithTimeout(
+  const { response, release, timedOut } = await fetchWithTimeout(
     url,
     { ...fetchOptions, headers },
     timeoutMs,
@@ -197,11 +222,25 @@ async function apiRequest<T>(
   const contentType = response.headers.get("content-type");
   const isJson = contentType?.includes("application/json");
 
-  if (response.ok) {
-    return isJson ? response.json() : (null as T);
+  // Read the body once, while the deadline is still armed. A service that sends headers
+  // and then stalls mid-body aborts here instead of hanging the caller forever.
+  let payload: ApiPayload = null;
+  try {
+    payload = isJson ? await response.json() : null;
+  } catch (error) {
+    if (timeoutMs !== undefined && timedOut()) {
+      throw new TimeoutError(timeoutMs);
+    }
+    throw error;
+  } finally {
+    release();
   }
 
-  const errorData = isJson ? await response.json() : null;
+  if (response.ok) {
+    return payload as T;
+  }
+
+  const errorData = payload;
 
   // Token-refresh interception: only on 401 + TOKEN_EXPIRED, only when
   // this isn't itself the refresh call, and only once per original
@@ -245,7 +284,7 @@ async function apiRequest<T>(
   throw new ApiError(
     errorData?.error || errorData?.message || `HTTP ${response.status}`,
     response.status,
-    errorData,
+    errorData ?? undefined,
   );
 }
 

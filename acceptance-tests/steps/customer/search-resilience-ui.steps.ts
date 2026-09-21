@@ -74,7 +74,14 @@ async function installSearchStub(world: CustomWorld, mode: SearchStub['mode']): 
       await new Promise((resolve) => setTimeout(resolve, SLOW_RESPONSE_MS));
     }
 
-    await route.continue();
+    try {
+      await route.continue();
+    } catch {
+      // Expected in 'slow' mode: the client abandons the request at its 2s deadline, and
+      // the scenario may finish before this handler wakes up. Continuing a request the
+      // browser already aborted — or one whose page is gone — rejects, and an unhandled
+      // rejection here would take the Cucumber worker down mid-run.
+    }
   });
 }
 
