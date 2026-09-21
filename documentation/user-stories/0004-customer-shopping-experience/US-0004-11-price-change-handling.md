@@ -12,6 +12,7 @@
 |-------|-------|
 | Story ID | US-0004-11 |
 | Epic | [US-0004: Customer Shopping Experience](./README.md) |
+| Capability | [Pricing Management](../../epics/011-pricing-management.md) |
 | Priority | Should Have |
 | Phase | Phase 3 (Cart Foundation) |
 | Story Points | 3 |
