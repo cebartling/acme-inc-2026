@@ -1,6 +1,8 @@
 package com.acme.identity.domain
 
 import jakarta.persistence.*
+import org.hibernate.annotations.JdbcTypeCode
+import org.hibernate.type.SqlTypes
 import java.time.Instant
 import java.util.UUID
 
@@ -62,7 +64,12 @@ class MfaChallenge(
     @Column(name = "max_attempts", nullable = false)
     val maxAttempts: Int = 3,
 
-    @Column(name = "code_hash", length = 64)
+    // V8 creates this as CHAR(64) — a SHA-256 hex digest is always exactly 64 characters.
+    // A String field maps to VARCHAR by default, and `columnDefinition` only changes the DDL
+    // Hibernate would generate, not the JDBC type it validates against, so the type code has
+    // to be set explicitly or `ddl-auto: validate` rejects bpchar.
+    @JdbcTypeCode(SqlTypes.CHAR)
+    @Column(name = "code_hash", length = 64, columnDefinition = "CHAR(64)")
     var codeHash: String? = null,
 
     @Column(name = "last_sent_at")

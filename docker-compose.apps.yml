@@ -96,12 +96,12 @@ services:
     container_name: acme-identity-db-init
     environment:
       PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
-    volumes:
-      - ./backend-services/identity/src/main/resources/db/migration:/migrations:ro
     command:
       - sh
       - -c
       - |
+        set -e
+
         # Bounded readiness probes: each loop retries up to MAX_RETRIES
         # (60) times with 2s between attempts (~120s per dependency).
         # Unbounded loops would let identity-service hang indefinitely
@@ -128,14 +128,6 @@ services:
         wait_for 'Schema Registry' schema-registry 8081 "nc -z schema-registry 8081"
         echo "Creating database acme_identity if it doesn't exist..."
         psql -h postgres -U $${POSTGRES_USER:-postgres} -tc "SELECT 1 FROM pg_database WHERE datname = 'acme_identity'" | grep -q 1 || psql -h postgres -U $${POSTGRES_USER:-postgres} -c "CREATE DATABASE acme_identity"
-
-        echo "Running migrations for acme_identity..."
-        for f in /migrations/V*.sql; do
-          if [ -f "$$f" ]; then
-            echo "Applying migration: $$f"
-            psql -h postgres -U $${POSTGRES_USER:-postgres} -d acme_identity -f "$$f" 2>/dev/null || true
-          fi
-        done
         echo 'Database initialization complete'
     networks:
       - acme-network
@@ -202,26 +194,18 @@ services:
     container_name: acme-customer-db-init
     environment:
       PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
-    volumes:
-      - ./backend-services/customer/src/main/resources/db/migration:/migrations:ro
     command:
       - sh
       - -c
       - |
+        set -e
+
         until pg_isready -h postgres -p 5432 -U $${POSTGRES_USER:-postgres}; do
           echo 'Waiting for PostgreSQL...'
           sleep 2
         done
         echo "Creating database acme_customers if it doesn't exist..."
         psql -h postgres -U $${POSTGRES_USER:-postgres} -tc "SELECT 1 FROM pg_database WHERE datname = 'acme_customers'" | grep -q 1 || psql -h postgres -U $${POSTGRES_USER:-postgres} -c "CREATE DATABASE acme_customers"
-
-        echo "Running migrations for acme_customers..."
-        for f in /migrations/V*.sql; do
-          if [ -f "$$f" ]; then
-            echo "Applying migration: $$f"
-            psql -h postgres -U $${POSTGRES_USER:-postgres} -d acme_customers -f "$$f" 2>/dev/null || true
-          fi
-        done
         echo 'Database initialization complete'
     networks:
       - acme-network
@@ -288,26 +272,18 @@ services:
     container_name: acme-notification-db-init
     environment:
       PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
-    volumes:
-      - ./backend-services/notification/src/main/resources/db/migration:/migrations:ro
     command:
       - sh
       - -c
       - |
+        set -e
+
         until pg_isready -h postgres -p 5432 -U $${POSTGRES_USER:-postgres}; do
           echo 'Waiting for PostgreSQL...'
           sleep 2
         done
         echo "Creating database acme_notifications if it doesn't exist..."
         psql -h postgres -U $${POSTGRES_USER:-postgres} -tc "SELECT 1 FROM pg_database WHERE datname = 'acme_notifications'" | grep -q 1 || psql -h postgres -U $${POSTGRES_USER:-postgres} -c "CREATE DATABASE acme_notifications"
-
-        echo "Running migrations for acme_notifications..."
-        for f in /migrations/V*.sql; do
-          if [ -f "$$f" ]; then
-            echo "Applying migration: $$f"
-            psql -h postgres -U $${POSTGRES_USER:-postgres} -d acme_notifications -f "$$f" 2>/dev/null || true
-          fi
-        done
         echo 'Database initialization complete'
     networks:
       - acme-network
@@ -357,26 +333,18 @@ services:
     container_name: acme-product-db-init
     environment:
       PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
-    volumes:
-      - ./backend-services/product/src/main/resources/db/migration:/migrations:ro
     command:
       - sh
       - -c
       - |
+        set -e
+
         until pg_isready -h postgres -p 5432 -U $${POSTGRES_USER:-postgres}; do
           echo 'Waiting for PostgreSQL...'
           sleep 2
         done
         echo "Creating database acme_products if it doesn't exist..."
         psql -h postgres -U $${POSTGRES_USER:-postgres} -tc "SELECT 1 FROM pg_database WHERE datname = 'acme_products'" | grep -q 1 || psql -h postgres -U $${POSTGRES_USER:-postgres} -c "CREATE DATABASE acme_products"
-
-        echo "Running migrations for acme_products..."
-        for f in /migrations/V*.sql; do
-          if [ -f "$$f" ]; then
-            echo "Applying migration: $$f"
-            psql -h postgres -U $${POSTGRES_USER:-postgres} -d acme_products -f "$$f" 2>/dev/null || true
-          fi
-        done
         echo 'Database initialization complete'
     networks:
       - acme-network
