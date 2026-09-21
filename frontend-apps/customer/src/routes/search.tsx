@@ -3,12 +3,11 @@ import {
   useNavigate,
   useSearch,
 } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { searchParamsSchema } from "@/schemas/search.schema";
-import { productApi } from "@/services/api";
-import { trackSearchExecuted, trackFiltersApplied } from "@/services/analytics";
+import { trackFiltersApplied } from "@/services/analytics";
 import { useSearchFilters } from "@/hooks/useSearchFilters";
+import { useSearchWithFallback } from "@/hooks/useSearchWithFallback";
 import {
   SearchBar,
   SearchResults,
@@ -18,8 +17,9 @@ import {
   FilterPanel,
   ActiveFiltersBar,
   MobileFilterDrawer,
+  SearchUnavailableBanner,
+  CategoryFallbackBrowse,
 } from "@/components/search";
-import type { SearchResponse } from "@/services/api";
 
 export const Route = createFileRoute("/search")({
   validateSearch: searchParamsSchema,
@@ -44,29 +44,14 @@ function SearchPage() {
     clearAll,
   } = useSearchFilters();
 
-  const { data, isLoading } = useQuery<SearchResponse>({
-    queryKey: ["search", q, page, sort, activeCategories, priceMin, priceMax],
-    queryFn: async () => {
-      const result = await productApi.search({
-        query: q,
-        page,
-        pageSize: 24,
-        sort: sort as "relevance" | "price_asc" | "price_desc" | "newest",
-        filters: {
-          categories: filters.categories ?? [],
-          priceMin: filters.priceMin,
-          priceMax: filters.priceMax,
-        },
-      });
-      trackSearchExecuted({
-        query: q,
-        totalResults: result.totalResults,
-        page: result.page,
-        executionTimeMs: result.executionTimeMs,
-      });
-      return result;
-    },
-    enabled: q.length > 0,
+  const { data, isLoading, isSearchUnavailable } = useSearchWithFallback({
+    q,
+    page,
+    sort: sort as "relevance" | "price_asc" | "price_desc" | "newest",
+    filters,
+    activeCategories,
+    priceMin,
+    priceMax,
   });
 
   const prevFilterSig = useRef("");
@@ -143,7 +128,18 @@ function SearchPage() {
           <SearchBar defaultValue={q} onSearch={handleSearch} />
         </div>
 
-        {q.length > 0 && data && (
+        {/*
+          Search is down: keep the search bar mounted so the page is never a dead end,
+          and swap results/filters for the banner and category browsing (US-0004-09).
+        */}
+        {q.length > 0 && isSearchUnavailable && (
+          <>
+            <SearchUnavailableBanner />
+            <CategoryFallbackBrowse />
+          </>
+        )}
+
+        {q.length > 0 && !isSearchUnavailable && data && (
           <div className="mb-4 flex items-center justify-between gap-4">
             <MobileFilterDrawer
               facets={data.facets}
@@ -161,7 +157,7 @@ function SearchPage() {
           </div>
         )}
 
-        {q.length > 0 && data && hasActiveFilters && (
+        {q.length > 0 && !isSearchUnavailable && data && hasActiveFilters && (
           <ActiveFiltersBar
             activeCategories={activeCategories}
             priceMin={priceMin}
@@ -178,7 +174,7 @@ function SearchPage() {
           </p>
         )}
 
-        {q.length > 0 && data && (
+        {q.length > 0 && !isSearchUnavailable && data && (
           <div className="flex gap-6">
             {hasResults && (
               <FilterPanel

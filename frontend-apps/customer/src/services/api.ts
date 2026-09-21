@@ -4,6 +4,8 @@
  * This provides a centralized place for API configuration and error handling.
  */
 
+import { searchCircuitBreaker } from "@/lib/searchCircuitBreaker";
+
 // API base URLs - these would typically come from environment variables
 const IDENTITY_SERVICE_URL =
   import.meta.env.VITE_IDENTITY_SERVICE_URL || "http://localhost:10300";
@@ -68,6 +70,26 @@ interface RefreshAwareRequestInit extends RequestInit {
   __isRetry?: boolean;
   /** Internal flag set on the refresh-call itself so it never triggers a nested refresh. */
   __skipRefresh?: boolean;
+  /**
+   * Abandon the request after this many milliseconds and throw a TimeoutError.
+   *
+   * A hung service is indistinguishable from a down one from the customer's side, so
+   * callers that have a fallback (search, US-0004-09) set a deadline rather than
+   * waiting on the browser's default.
+   */
+  timeoutMs?: number;
+}
+
+/**
+ * Thrown when a request exceeds its `timeoutMs`. Modelled as an ApiError with status 0
+ * so callers can treat it alongside 5xx without special-casing a separate type; 0 is
+ * used because no HTTP response was received.
+ */
+export class TimeoutError extends ApiError {
+  constructor(timeoutMs: number) {
+    super(`Request timed out after ${timeoutMs}ms`, 0);
+    this.name = "TimeoutError";
+  }
 }
 
 /**
@@ -126,28 +148,51 @@ async function handleRefreshFailure(): Promise<void> {
 }
 
 /**
- * Makes a fetch request with standard headers and error handling.
+ * fetch with an optional deadline.
  *
- * Intercepts 401 + { error: "TOKEN_EXPIRED" }: single-flights a
- * `POST /api/v1/auth/refresh` and retries the original request once.
- * Concurrent expired requests share the same refresh. On any failure
- * the auth store is cleared and the browser is redirected to
- * `/signin?logout=true`.
+ * Without `timeoutMs` this is plain fetch, so existing callers are unaffected. With one,
+ * an AbortController cancels the request and the abort is translated into a TimeoutError
+ * — callers should not have to tell "we gave up" apart from "the user navigated away".
  */
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  timeoutMs?: number,
+): Promise<Response> {
+  if (timeoutMs === undefined) {
+    return fetch(url, init);
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new TimeoutError(timeoutMs);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function apiRequest<T>(
   url: string,
   options: RefreshAwareRequestInit = {},
 ): Promise<T> {
-  const { __isRetry, __skipRefresh, ...fetchOptions } = options;
+  const { __isRetry, __skipRefresh, timeoutMs, ...fetchOptions } = options;
   const headers: HeadersInit = {
     "Content-Type": "application/json",
     ...fetchOptions.headers,
   };
 
-  const response = await fetch(url, {
-    ...fetchOptions,
-    headers,
-  });
+  const response = await fetchWithTimeout(
+    url,
+    { ...fetchOptions, headers },
+    timeoutMs,
+  );
 
   const contentType = response.headers.get("content-type");
   const isJson = contentType?.includes("application/json");
@@ -971,6 +1016,26 @@ export interface ProductDetail {
   variants: ProductVariant[];
 }
 
+/** Deadline for a search request before the fallback takes over (AC-0004-09-05). */
+const SEARCH_TIMEOUT_MS = 2_000;
+
+/**
+ * Whether an error means the search service itself is unhealthy, and so should count
+ * toward opening the circuit.
+ *
+ * A 4xx is the service working correctly and rejecting this particular request, so it
+ * must not push the breaker toward a fallback. Timeouts (status 0), 5xx, and network
+ * errors all count.
+ */
+function isServiceUnhealthy(error: unknown): boolean {
+  if (error instanceof ApiError) {
+    return error.status === 0 || error.status >= 500;
+  }
+  // A non-ApiError escaping apiRequest means fetch itself rejected: DNS failure,
+  // connection refused, CORS. The service is unreachable.
+  return true;
+}
+
 export const productApi = {
   async getProduct(slug: string): Promise<ProductDetail> {
     return apiRequest<ProductDetail>(
@@ -979,12 +1044,25 @@ export const productApi = {
     );
   },
 
+  /**
+   * Runs a product search under the circuit breaker (US-0004-09).
+   *
+   * Throws CircuitOpenError without hitting the network once search is known to be
+   * down; callers render the category fallback instead. Only failures that indicate an
+   * unhealthy service (5xx, timeout, network error) count toward opening the circuit —
+   * a 4xx means this particular request was bad, not that search is broken.
+   */
   async search(request: SearchRequest): Promise<SearchResponse> {
-    return apiRequest<SearchResponse>(`${PRODUCT_SERVICE_URL}/api/v1/search`, {
-      method: "POST",
-      body: JSON.stringify(request),
-      credentials: "include",
-    });
+    return searchCircuitBreaker.execute(
+      () =>
+        apiRequest<SearchResponse>(`${PRODUCT_SERVICE_URL}/api/v1/search`, {
+          method: "POST",
+          body: JSON.stringify(request),
+          credentials: "include",
+          timeoutMs: SEARCH_TIMEOUT_MS,
+        }),
+      isServiceUnhealthy,
+    );
   },
 
   async autocomplete(query: string, limit = 8): Promise<AutocompleteResponse> {
@@ -1011,6 +1089,51 @@ export const pricingApi = {
   async getPrice(variantId: string): Promise<VariantPrice> {
     return apiRequest<VariantPrice>(
       `${PRICING_SERVICE_URL}/api/v1/prices/${encodeURIComponent(variantId)}`,
+      { method: "GET", credentials: "include" },
+    );
+  },
+};
+
+export interface Category {
+  name: string;
+  productCount: number;
+}
+
+export interface CategoryListResponse {
+  categories: Category[];
+}
+
+export interface CategoryProductsResponse {
+  category: string;
+  totalResults: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  results: ProductSummary[];
+}
+
+/**
+ * Category browsing (US-0004-09).
+ *
+ * These calls are deliberately NOT guarded by the search circuit breaker: they are the
+ * fallback that runs when search is down, and they hit a different endpoint that does
+ * not touch the full-text search path.
+ */
+export const categoryApi = {
+  async listCategories(): Promise<CategoryListResponse> {
+    return apiRequest<CategoryListResponse>(
+      `${PRODUCT_SERVICE_URL}/api/v1/categories`,
+      { method: "GET", credentials: "include" },
+    );
+  },
+
+  async productsInCategory(
+    name: string,
+    page = 1,
+    pageSize = 24,
+  ): Promise<CategoryProductsResponse> {
+    return apiRequest<CategoryProductsResponse>(
+      `${PRODUCT_SERVICE_URL}/api/v1/categories/${encodeURIComponent(name)}/products?page=${page}&pageSize=${pageSize}`,
       { method: "GET", credentials: "include" },
     );
   },

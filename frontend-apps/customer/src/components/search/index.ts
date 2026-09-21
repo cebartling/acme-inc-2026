@@ -15,3 +15,5 @@ export { PriceRangeFilter } from "./PriceRangeFilter";
 export { ActiveFilterBadge } from "./ActiveFilterBadge";
 export { ActiveFiltersBar } from "./ActiveFiltersBar";
 export { MobileFilterDrawer } from "./MobileFilterDrawer";
+export { SearchUnavailableBanner } from "./SearchUnavailableBanner";
+export { CategoryFallbackBrowse } from "./CategoryFallbackBrowse";

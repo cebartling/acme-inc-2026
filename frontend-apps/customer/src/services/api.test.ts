@@ -1,11 +1,18 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   ApiError,
+  TimeoutError,
+  categoryApi,
   customerApi,
   identityApi,
   productApi,
   __resetRefreshStateForTests,
 } from "./api";
+import {
+  CircuitOpenError,
+  searchCircuitBreaker,
+  __resetCircuitBreakerForTests,
+} from "@/lib/searchCircuitBreaker";
 
 describe("ApiError", () => {
   it("creates error with message and status", () => {
@@ -950,6 +957,9 @@ describe("api.search", () => {
     global.fetch = mockFetch;
     mockFetch.mockReset();
     __resetRefreshStateForTests();
+    // productApi.search runs under a module-scoped breaker; without this, failures
+    // from one case leak into the next and eventually trip the circuit.
+    __resetCircuitBreakerForTests();
   });
 
   afterEach(() => {
@@ -1043,5 +1053,250 @@ describe("api.search", () => {
         filters: {},
       }),
     ).rejects.toBeInstanceOf(ApiError);
+  });
+});
+
+describe("search circuit breaker integration", () => {
+  const mockFetch = vi.fn();
+  const originalFetch = global.fetch;
+
+  beforeEach(() => {
+    global.fetch = mockFetch;
+    mockFetch.mockReset();
+    __resetRefreshStateForTests();
+    __resetCircuitBreakerForTests();
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+    vi.useRealTimers();
+  });
+
+  const request = {
+    query: "widget",
+    page: 1,
+    pageSize: 24,
+    sort: "relevance" as const,
+    filters: {},
+  };
+
+  const serverError = () => ({
+    ok: false,
+    status: 503,
+    headers: new Headers({ "content-type": "application/json" }),
+    json: () => Promise.resolve({ message: "Service Unavailable" }),
+  });
+
+  const search = () => productApi.search(request);
+
+  async function failSearch(times: number) {
+    for (let i = 0; i < times; i++) {
+      mockFetch.mockResolvedValueOnce(serverError());
+      await expect(search()).rejects.toBeInstanceOf(ApiError);
+    }
+  }
+
+  it("sends the search request with a 2s timeout", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: () => Promise.resolve({ query: "widget", results: [] }),
+    });
+
+    await search();
+
+    // The deadline is enforced via AbortController, so the signal is the observable part.
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/v1/search"),
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+  });
+
+  it("opens the circuit after five consecutive 5xx responses", async () => {
+    await failSearch(5);
+
+    expect(searchCircuitBreaker.getState()).toBe("OPEN");
+  });
+
+  it("stays closed after four consecutive failures", async () => {
+    await failSearch(4);
+
+    expect(searchCircuitBreaker.getState()).toBe("CLOSED");
+  });
+
+  it("bypasses the network once the circuit is open", async () => {
+    await failSearch(5);
+    const callsBefore = mockFetch.mock.calls.length;
+
+    await expect(search()).rejects.toBeInstanceOf(CircuitOpenError);
+
+    expect(mockFetch).toHaveBeenCalledTimes(callsBefore);
+  });
+
+  it("does not count a 4xx toward opening the circuit", async () => {
+    for (let i = 0; i < 6; i++) {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: () => Promise.resolve({ message: "Bad Request" }),
+      });
+      await expect(search()).rejects.toBeInstanceOf(ApiError);
+    }
+
+    // A malformed request says nothing about the service's health.
+    expect(searchCircuitBreaker.getState()).toBe("CLOSED");
+    expect(searchCircuitBreaker.getFailureCount()).toBe(0);
+  });
+
+  it("counts a network-level rejection as a service failure", async () => {
+    for (let i = 0; i < 5; i++) {
+      mockFetch.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+      await expect(search()).rejects.toBeInstanceOf(TypeError);
+    }
+
+    expect(searchCircuitBreaker.getState()).toBe("OPEN");
+  });
+
+  it("resets the failure count after a successful search", async () => {
+    await failSearch(4);
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: () => Promise.resolve({ query: "widget", results: [] }),
+    });
+    await search();
+
+    expect(searchCircuitBreaker.getFailureCount()).toBe(0);
+    expect(searchCircuitBreaker.getState()).toBe("CLOSED");
+  });
+
+  it("times out a slow search and counts it as a failure", async () => {
+    vi.useFakeTimers();
+
+    // A service that responds only when aborted, standing in for one that hangs.
+    mockFetch.mockImplementationOnce(
+      (_url: string, init: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          init.signal?.addEventListener("abort", () => {
+            const abortError = new Error("Aborted");
+            abortError.name = "AbortError";
+            reject(abortError);
+          });
+        }),
+    );
+
+    const pending = search();
+    await vi.advanceTimersByTimeAsync(2_000);
+
+    await expect(pending).rejects.toBeInstanceOf(TimeoutError);
+    expect(searchCircuitBreaker.getFailureCount()).toBe(1);
+  });
+});
+
+describe("categoryApi", () => {
+  const mockFetch = vi.fn();
+  const originalFetch = global.fetch;
+
+  beforeEach(() => {
+    global.fetch = mockFetch;
+    mockFetch.mockReset();
+    __resetRefreshStateForTests();
+    __resetCircuitBreakerForTests();
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  const okJson = (body: unknown) => ({
+    ok: true,
+    status: 200,
+    headers: new Headers({ "content-type": "application/json" }),
+    json: () => Promise.resolve(body),
+  });
+
+  it("GETs the category list", async () => {
+    mockFetch.mockResolvedValueOnce(
+      okJson({ categories: [{ name: "Electronics", productCount: 3 }] }),
+    );
+
+    const result = await categoryApi.listCategories();
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/v1/categories"),
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(result.categories[0].name).toBe("Electronics");
+  });
+
+  it("GETs products in a category with pagination", async () => {
+    mockFetch.mockResolvedValueOnce(
+      okJson({
+        category: "Electronics",
+        totalResults: 0,
+        page: 2,
+        pageSize: 10,
+        totalPages: 0,
+        results: [],
+      }),
+    );
+
+    await categoryApi.productsInCategory("Electronics", 2, 10);
+
+    const [url] = mockFetch.mock.calls[0];
+    expect(url).toContain("/api/v1/categories/Electronics/products");
+    expect(url).toContain("page=2");
+    expect(url).toContain("pageSize=10");
+  });
+
+  it("encodes a category name containing a space", async () => {
+    mockFetch.mockResolvedValueOnce(
+      okJson({
+        category: "Home Goods",
+        totalResults: 0,
+        page: 1,
+        pageSize: 24,
+        totalPages: 0,
+        results: [],
+      }),
+    );
+
+    await categoryApi.productsInCategory("Home Goods");
+
+    expect(mockFetch.mock.calls[0][0]).toContain("Home%20Goods");
+  });
+
+  it("stays available when the search circuit is open", async () => {
+    // The fallback must not be guarded by the breaker it exists to work around.
+    for (let i = 0; i < 5; i++) {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+        headers: new Headers({ "content-type": "application/json" }),
+        json: () => Promise.resolve({ message: "down" }),
+      });
+      await expect(
+        productApi.search({
+          query: "widget",
+          page: 1,
+          pageSize: 24,
+          sort: "relevance" as const,
+          filters: {},
+        }),
+      ).rejects.toBeInstanceOf(ApiError);
+    }
+    expect(searchCircuitBreaker.getState()).toBe("OPEN");
+
+    mockFetch.mockResolvedValueOnce(
+      okJson({ categories: [{ name: "Electronics", productCount: 3 }] }),
+    );
+
+    await expect(categoryApi.listCategories()).resolves.toEqual({
+      categories: [{ name: "Electronics", productCount: 3 }],
+    });
   });
 });
