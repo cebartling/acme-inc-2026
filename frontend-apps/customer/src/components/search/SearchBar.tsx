@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useAutocomplete } from "@/hooks/useAutocomplete";
+import { SEARCH_QUERY_MAX_LENGTH } from "@/schemas/search.schema";
 import { AutocompleteDropdown } from "./AutocompleteDropdown";
 import type { AutocompleteSuggestion } from "@/services/api";
 import { addRecentSearch } from "@/services/recentSearches";
@@ -99,6 +100,7 @@ export function SearchBar({ defaultValue = "", onSearch }: SearchBarProps) {
           onFocus={handleFocus}
           placeholder="Search products…"
           aria-label="Search products"
+          maxLength={SEARCH_QUERY_MAX_LENGTH}
           aria-autocomplete="list"
           aria-haspopup="listbox"
           aria-expanded={isOpen}
