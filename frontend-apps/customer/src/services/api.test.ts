@@ -1189,10 +1189,14 @@ describe("search circuit breaker integration", () => {
         }),
     );
 
-    const pending = search();
+    // Attach the rejection handler before advancing timers. The abort fires inside
+    // advanceTimersByTimeAsync, so asserting afterwards would leave the rejection
+    // unhandled for a tick — which vitest reports as an unhandled error and exits
+    // non-zero on, even with every test passing.
+    const assertion = expect(search()).rejects.toBeInstanceOf(TimeoutError);
     await vi.advanceTimersByTimeAsync(2_000);
+    await assertion;
 
-    await expect(pending).rejects.toBeInstanceOf(TimeoutError);
     expect(searchCircuitBreaker.getFailureCount()).toBe(1);
   });
 });

@@ -235,13 +235,20 @@ describe("CircuitBreaker", () => {
           }),
       );
 
-      const first = breaker.execute(fn);
-      const second = breaker.execute(fn);
+      // Handlers are attached before the probe is failed: a rejection with no handler
+      // attached is reported by vitest as an unhandled error, which fails the run even
+      // though the assertions themselves pass.
+      const firstAssertion = expect(breaker.execute(fn)).rejects.toThrow(
+        "service down",
+      );
+      const secondAssertion = expect(
+        breaker.execute(fn),
+      ).rejects.toBeInstanceOf(CircuitOpenError);
 
       fail(new Error("service down"));
 
-      await expect(first).rejects.toThrow("service down");
-      await expect(second).rejects.toBeInstanceOf(CircuitOpenError);
+      await firstAssertion;
+      await secondAssertion;
 
       // The racing caller must not have retried the downed service.
       expect(fn).toHaveBeenCalledTimes(1);
