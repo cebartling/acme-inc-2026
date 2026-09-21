@@ -12,6 +12,7 @@
 |-------|-------|
 | Story ID | US-0004-10 |
 | Epic | [US-0004: Customer Shopping Experience](./README.md) |
+| Capability | [Product Inventory](../../epics/003-product-inventory.md) |
 | Priority | Must Have |
 | Phase | Phase 3 (Cart Foundation) |
 | Story Points | 5 |

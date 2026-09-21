@@ -12,6 +12,7 @@
 |-------|-------|
 | Story ID | US-0004-06 |
 | Epic | [US-0004: Customer Shopping Experience](./README.md) |
+| Capability | [Shopping Cart Management](../../epics/009-shopping-cart-management.md) |
 | Priority | Must Have |
 | Phase | Phase 3 (Cart Foundation) |
 | Story Points | 8 |

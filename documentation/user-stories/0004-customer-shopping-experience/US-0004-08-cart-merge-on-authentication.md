@@ -12,6 +12,7 @@
 |-------|-------|
 | Story ID | US-0004-08 |
 | Epic | [US-0004: Customer Shopping Experience](./README.md) |
+| Capability | [Shopping Cart Management](../../epics/009-shopping-cart-management.md) |
 | Priority | Must Have |
 | Phase | Phase 4 (Cart Enhancement) |
 | Story Points | 5 |

@@ -12,6 +12,7 @@
 |-------|-------|
 | Story ID | US-0004-09 |
 | Epic | [US-0004: Customer Shopping Experience](./README.md) |
+| Capability | [Product Catalog](../../epics/002-product-catalog.md) |
 | Priority | Must Have |
 | Phase | Phase 1 (MVP) |
 | Story Points | 5 |
