@@ -9,7 +9,7 @@ Run the repository's acceptance test suite by invoking `scripts/run-acceptance-t
 
 ## Prerequisites
 
-- Node.js 24+ (LTS/Krypton) is required. The script handles nvm/fnm version switching automatically.
+- Bun 1.2+ is required (https://bun.sh). The script verifies it is installed and fails fast with an install hint if not.
 
 ## Workflow
 
@@ -54,7 +54,7 @@ Then wait up to 120 seconds for **all four** services to become healthy, polling
 
    **Execution:**
    - `--headed` — visible browser (not headless)
-   - `--skip-install` — skip `npm ci`
+   - `--skip-install` — skip `bun install --frozen-lockfile`
    - `--no-open` — don't auto-open the HTML report
    - `--quiet | -q` — progress-bar only output
 
