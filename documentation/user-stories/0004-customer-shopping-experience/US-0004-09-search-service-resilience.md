@@ -20,6 +20,45 @@
 
 This story implements the circuit breaker and fallback strategy for the Search Service. When the Search Service fails or becomes unresponsive, a circuit breaker opens and the application falls back to category-based product browsing via the Product Catalog Service. A banner informs the customer that search is temporarily unavailable. The circuit breaker automatically attempts a recovery probe after a configured interval.
 
+## Implementation Notes
+
+Added during implementation (PIN-265); the sections below are the story as originally written.
+
+**There is no standalone Search Service or Product Catalog Service.** Both are the
+**product service** (`backend-services/product`, port 10303): search is `POST /api/v1/search`,
+and the category endpoints below were added by this story. The fallback's value depends on
+this distinction — the two are separate code paths (PostgreSQL full-text search versus a
+direct read of the `products` table), so category browsing survives a search failure.
+
+**The category endpoints did not exist and were built here**: `GET /api/v1/categories` and
+`GET /api/v1/categories/{name}/products`. No migration was needed — `category` is an existing
+nullable column on `products`. There is no categories table, so the "category tree" in the
+sequence diagram is a flat, alphabetical list.
+
+**AC-0004-09-08 (Prometheus metrics) is deferred to [PIN-270](https://linear.app/pintail-consulting/issue/PIN-270/ac-0004-09-08-expose-search-circuit-breaker-metrics-via-prometheus).**
+No service declares `micrometer-registry-prometheus`, Prometheus scrapes no application
+services, and the frontend has no telemetry transport, so exporting a browser-held value is
+cross-cutting observability work rather than search work. AC-01 through AC-07 are implemented.
+
+**Deviations from the Technical Implementation sketch below**, each deliberate:
+
+- `execute` rethrows instead of returning a fallback value. The fallback renders a different
+  component tree from a different endpoint, so returning it as a `SearchResponse` would
+  misrepresent it; callers catch and decide what to render.
+- A 4xx does not count toward opening the circuit — the service rejecting one bad request
+  says nothing about its health. Only 5xx, timeouts and network errors count.
+- `HALF_OPEN` probes are single-flight, so concurrent searches do not stampede a service
+  that may not have recovered.
+- The fallback renders from the **first** failure rather than the fifth. The breaker still
+  opens on the fifth (AC-01), which governs when the app stops *calling* search; gating the
+  UI on it would leave the customer with a blank results area for four searches, which is
+  what AC-06 forbids.
+- The banner carries an explicit **retry control**. React Query serves a cached failure for
+  an unchanged query key, so a customer re-submitting the same term would otherwise never
+  trigger the recovery probe.
+- The search input is left visible and enabled (the UI Requirements below allow hiding or
+  disabling it), so the page is never a dead end and normal search resumes in place.
+
 ## UI Requirements
 
 - Informational banner: "Search is temporarily unavailable. Browse by category instead."

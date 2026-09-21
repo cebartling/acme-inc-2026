@@ -304,6 +304,27 @@ Backend services use ports starting at 10300 to avoid conflicts:
 - Vitest for unit testing
 - Use JSDoc comments throughout the code
 
+### Client-side resilience
+
+- Calls to a backend that the UI can offer a fallback for are guarded by a circuit breaker:
+  `frontend-apps/customer/src/lib/searchCircuitBreaker.ts`. See
+  [ARCHITECTURE.md](./ARCHITECTURE.md) → Patterns → Client-Side Resilience for the state
+  machine and the reasoning
+- `CircuitBreaker` is generic; `searchCircuitBreaker` is the shared instance guarding
+  `productApi.search`. Construct a separate instance per dependency rather than reusing it
+- Pass a predicate to `execute` to say which errors mean the *service* is unhealthy. A 4xx
+  normally should not count toward opening the circuit
+- **Set `retry: false` on any React Query query whose call is guarded.** The default
+  `retry: 3` spends four attempts per user action, which makes a consecutive-failure
+  threshold meaningless and amplifies load on a failing service
+- Give a guarded query an explicit refetch control if the user can re-trigger it with
+  unchanged inputs. React Query serves a cached failure for an unchanged query key, so the
+  recovery probe would otherwise never fire
+- `apiRequest` in `services/api.ts` takes `timeoutMs`, which aborts the request and raises
+  `TimeoutError` (an `ApiError` with `status: 0`). Use it on any guarded call
+- Module-scoped breaker state resets on a full page reload. Tests that need to reach a
+  failure threshold must navigate client-side, not with repeated `page.goto`
+
 ### Application projects
 
 - Customer-facing: `/frontend-apps/customer`

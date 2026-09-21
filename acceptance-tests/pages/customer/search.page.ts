@@ -24,6 +24,15 @@ export class SearchPage extends BasePage {
   readonly autocompleteCategoryItems: Locator;
   readonly autocompleteQueryItems: Locator;
 
+  // Search-unavailable fallback (US-0004-09)
+  readonly unavailableBanner: Locator;
+  readonly retryButton: Locator;
+  readonly categoryFallback: Locator;
+  readonly categoryOptions: Locator;
+  readonly categoryProducts: Locator;
+  readonly categoryProductsGrid: Locator;
+  readonly categoryProductCards: Locator;
+
   constructor(page: Page) {
     super(page);
 
@@ -54,6 +63,15 @@ export class SearchPage extends BasePage {
     this.autocompleteProductItems = page.getByTestId('autocomplete-product-item');
     this.autocompleteCategoryItems = page.getByTestId('autocomplete-category-item');
     this.autocompleteQueryItems = page.getByTestId('autocomplete-query-item');
+
+    // Search-unavailable fallback (US-0004-09)
+    this.unavailableBanner = page.getByTestId('searchUnavailableBanner');
+    this.retryButton = page.getByTestId('searchRetryButton');
+    this.categoryFallback = page.getByTestId('categoryFallbackBrowse');
+    this.categoryOptions = page.getByTestId('categoryListItem');
+    this.categoryProducts = page.getByTestId('categoryProducts');
+    this.categoryProductsGrid = page.getByTestId('categoryProductsGrid');
+    this.categoryProductCards = this.categoryProductsGrid.getByTestId('searchResultCard');
   }
 
   get url(): string {
@@ -92,6 +110,13 @@ export class SearchPage extends BasePage {
     return await this.pageSearchInput.inputValue();
   }
 
+  /** Reads whichever search input is currently in use (header bar or search page). */
+  async getCurrentSearchInputValue(): Promise<string> {
+    const onSearchPage = await this.pageContainer.isVisible().catch(() => false);
+    const input = onSearchPage ? this.pageSearchInput : this.headerSearchInput;
+    return await input.inputValue();
+  }
+
   async getResultCardCount(): Promise<number> {
     return await this.resultCards.count();
   }
@@ -118,5 +143,29 @@ export class SearchPage extends BasePage {
     const categories = await this.autocompleteCategoryItems.count();
     const queries = await this.autocompleteQueryItems.count();
     return products + categories + queries;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Search-unavailable fallback (US-0004-09)
+  // ---------------------------------------------------------------------------
+
+  async clickRetrySearch(): Promise<void> {
+    await this.click(this.retryButton);
+  }
+
+  async selectFallbackCategory(name: string): Promise<void> {
+    await this.click(this.categoryOptions.filter({ hasText: name }).first());
+  }
+
+  async openFirstFallbackProduct(): Promise<void> {
+    await this.click(this.categoryProductCards.first());
+  }
+
+  async getFallbackProductCount(): Promise<number> {
+    return await this.categoryProductCards.count();
+  }
+
+  async getFallbackCategoryCount(): Promise<number> {
+    return await this.categoryOptions.count();
   }
 }

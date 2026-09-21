@@ -50,6 +50,80 @@
 - Maintain data consistency across services and data stores
 - Enable incremental data synchronization and replication
 
+### Client-Side Resilience (Circuit Breaker)
+
+A failing service should degrade a feature, not the page. The customer app guards calls it
+can offer a fallback for with a client-side circuit breaker, so a dependency outage costs
+the customer that one capability rather than blocking the journey.
+
+The first application is product search (US-0004-09). Search and the product catalog are
+both served by the product service, but they are separate code paths — search goes through
+PostgreSQL full-text queries, category browsing reads the `products` table directly — so
+category browsing stays usable when search is degraded.
+
+**Implementation**: `frontend-apps/customer/src/lib/searchCircuitBreaker.ts`
+
+```
+                  failure #5
+   ┌────────┐  ─────────────────►  ┌────────┐
+   │ CLOSED │                      │  OPEN  │
+   └────────┘  ◄─────────────────  └────────┘
+        ▲        probe succeeds         │
+        │                               │ 30s elapsed
+        │                               ▼
+        │         probe fails      ┌───────────┐
+        └──────────────────────────│ HALF_OPEN │
+                                   └───────────┘
+```
+
+| State | Behaviour |
+| -- | -- |
+| `CLOSED` | Calls pass through; consecutive failures are counted. |
+| `OPEN` | Calls are rejected immediately with `CircuitOpenError`, without touching the network. |
+| `HALF_OPEN` | A single probe is allowed through to test recovery. |
+
+**Request flow when search is unavailable**:
+
+```
+┌──────────┐  search   ┌─────────────────┐   OPEN    ┌──────────────────────┐
+│ Customer │ ────────► │ CircuitBreaker  │ ────────► │ CircuitOpenError     │
+└──────────┘           └─────────────────┘           └──────────┬───────────┘
+                                                                │
+                              ┌─────────────────────────────────▼──────────┐
+                              │ /search renders:                           │
+                              │  • SearchUnavailableBanner (+ retry)       │
+                              │  • CategoryFallbackBrowse                  │
+                              │      GET /api/v1/categories                │
+                              │      GET /api/v1/categories/{name}/products│
+                              └────────────────────────────────────────────┘
+```
+
+**Configuration**: 5 consecutive failures to open, 30s before a probe, 2s request deadline.
+
+**Design decisions**:
+
+- **Only unhealthy-service errors count.** A 4xx means the service correctly rejected one
+  request and says nothing about its health; 5xx, timeouts and network errors count. The
+  predicate is passed per call, so the breaker stays generic.
+- **`execute` rethrows rather than returning a fallback value.** The fallback renders a
+  different component tree from a different endpoint, so routing it through the same typed
+  promise as the primary response would misrepresent it. Callers catch and decide.
+- **Probes are single-flight.** Concurrent calls arriving in `HALF_OPEN` share one probe
+  instead of stampeding a service that may not have recovered.
+- **Retries are disabled on guarded queries.** React Query's default `retry: 3` would spend
+  four attempts per user action, making a "consecutive failures" threshold meaningless and
+  amplifying load on a struggling service.
+- **The fallback renders from the first failure**, not from the fifth. The breaker's job is
+  to stop calling a service known to be down; leaving the customer with an empty results
+  area until the threshold trips would be a worse experience, not a safer one.
+- **Breaker state is per-tab and in-memory.** It resets on reload, and it is not currently
+  exported to Prometheus — see PIN-270.
+
+**Recovery**: the circuit reopens for probing 30s after it opens, and the next search
+closes it if the service responds. Because React Query serves a cached failure for an
+unchanged query key, the banner also carries an explicit retry control — otherwise a
+customer re-submitting the same term would never trigger a probe.
+
 ## Observability
 
 ### Distributed Tracing
