@@ -46,6 +46,7 @@ dependencies {
     runtimeOnly("org.postgresql:postgresql")
     implementation("org.flywaydb:flyway-core:12.6.2")
     implementation("org.flywaydb:flyway-database-postgresql:12.6.2")
+    implementation("org.springframework.boot:spring-boot-flyway")
 
     // Password hashing - Argon2id via Password4j
     implementation("com.password4j:password4j:1.8.4")

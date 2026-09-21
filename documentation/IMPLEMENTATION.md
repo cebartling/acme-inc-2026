@@ -250,9 +250,26 @@ When creating new backend services, be aware of these Spring Boot 4 changes:
   ```
 
 **Flyway Migrations:**
-- Flyway auto-configuration may not trigger automatically in Spring Boot 4
-- Workaround: Use `hibernate.ddl-auto: update` for development, or apply migrations manually
-- Ensure Flyway dependencies include both `flyway-core` and `flyway-database-postgresql`
+- Spring Boot 4 moved `FlywayAutoConfiguration` into its own module. `flyway-core` on the
+  classpath is not enough — without `org.springframework.boot:spring-boot-flyway` the whole
+  `spring.flyway.*` block is silently ignored and no migrations run.
+- Each service declares all three: `flyway-core`, `flyway-database-postgresql`, and
+  `spring-boot-flyway`.
+- Migrations are the only source of schema truth. Every service runs
+  `hibernate.ddl-auto: validate`; do **not** switch a service back to `update` to work around
+  a startup failure — a validation error means an entity and its migration have diverged, and
+  the migration is what needs fixing.
+- The `*-db-init` containers only `CREATE DATABASE`. They no longer apply SQL, so there is no
+  second, lexicographically-ordered migration path to keep in sync.
+
+**Upgrading an existing local database:**
+- `baseline-on-migrate: true` means Flyway baselines a non-empty schema at V1 and then replays
+  V2 onward. A Postgres volume created before Flyway was wired up has the tables but no
+  `flyway_schema_history`, so the replay hits non-idempotent scripts (for example customer
+  `V7__create_customer_addresses_table.sql` and the `CREATE PUBLICATION` in `V4`) and the
+  service fails to start with `relation ... already exists`.
+- Reset the Postgres volumes once when moving onto this change:
+  `./scripts/docker-manage.sh stop -v`. Fresh volumes migrate cleanly from V1.
 
 **Rate Limiting for Testing:**
 - The Identity Service implements rate limiting (5 requests/minute per IP by default)

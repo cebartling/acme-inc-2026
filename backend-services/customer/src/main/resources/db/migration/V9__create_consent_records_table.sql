@@ -107,7 +107,11 @@ RETURNS TABLE (
     consent_id UUID,
     consent_type VARCHAR(50),
     granted BOOLEAN,
-    timestamp TIMESTAMP WITH TIME ZONE,
+    -- Quoted: `timestamp` is a type name to the parser, so an unquoted column of that name
+    -- is a syntax error in a RETURNS TABLE clause (it is accepted in CREATE TABLE, which is
+    -- why the same name works in V4). The output column name is kept for GDPR export
+    -- consumers rather than renamed.
+    "timestamp" TIMESTAMP WITH TIME ZONE,
     source VARCHAR(50),
     ip_address VARCHAR(45),
     user_agent TEXT
@@ -118,7 +122,7 @@ BEGIN
         cr.id AS consent_id,
         cr.consent_type,
         cr.granted,
-        cr.created_at AS timestamp,
+        cr.created_at AS "timestamp",
         cr.source,
         cr.ip_address,
         cr.user_agent

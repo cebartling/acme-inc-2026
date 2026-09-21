@@ -27,10 +27,9 @@ import kotlin.test.assertTrue
  * native query or a JPQL typo. These queries back the search-unavailable fallback, so they
  * are verified here against a real database.
  *
- * The schema is generated from the entities rather than from Flyway: this service declares
- * `flyway-core` but not Spring Boot 4's `spring-boot-flyway` autoconfiguration module, so
- * migrations do not run inside a test slice. The queries under test touch only the products
- * table, which Hibernate maps faithfully.
+ * The schema comes from Flyway, so these queries run against the same DDL production uses —
+ * including the generated `search_vector` column and its indexes, which Hibernate does not
+ * model. [seed] clears the Flyway-seeded rows first so the assertions below own their data.
  */
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -51,8 +50,6 @@ class CategoryBrowseRepositoryIntegrationTest {
             registry.add("spring.datasource.url") { postgres.jdbcUrl }
             registry.add("spring.datasource.username") { postgres.username }
             registry.add("spring.datasource.password") { postgres.password }
-            registry.add("spring.flyway.enabled") { "false" }
-            registry.add("spring.jpa.hibernate.ddl-auto") { "create-drop" }
         }
     }
 

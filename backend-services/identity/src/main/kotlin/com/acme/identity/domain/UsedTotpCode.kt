@@ -1,6 +1,8 @@
 package com.acme.identity.domain
 
 import jakarta.persistence.*
+import org.hibernate.annotations.JdbcTypeCode
+import org.hibernate.type.SqlTypes
 import java.time.Instant
 import java.util.UUID
 
@@ -32,7 +34,9 @@ class UsedTotpCode(
     @Column(name = "user_id", nullable = false)
     val userId: UUID,
 
-    @Column(name = "code_hash", nullable = false, columnDefinition = "CHAR(64)")
+    // See MfaChallenge.codeHash: columnDefinition alone does not satisfy schema validation.
+    @JdbcTypeCode(SqlTypes.CHAR)
+    @Column(name = "code_hash", nullable = false, length = 64, columnDefinition = "CHAR(64)")
     val codeHash: String,
 
     @Column(name = "time_step", nullable = false)
