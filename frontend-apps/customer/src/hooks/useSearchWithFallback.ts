@@ -26,6 +26,20 @@ export interface UseSearchWithFallbackResult {
    * calling a service we know is down.
    */
   isSearchUnavailable: boolean;
+  /**
+   * Re-runs the search.
+   *
+   * Re-submitting the same term does not re-run the query on its own: the queryKey is
+   * unchanged, so React Query serves the cached failure and the recovery probe never
+   * fires. Without an explicit refetch, a customer who retries the same word sits on
+   * the banner until they vary the term or reload.
+   *
+   * Safe to call at any time — while the circuit is open this still short-circuits in
+   * the breaker without touching the network.
+   */
+  retrySearch: () => void;
+  /** True while a retry (or the initial search) is in flight. */
+  isRetrying: boolean;
 }
 
 /**
@@ -47,35 +61,40 @@ export function useSearchWithFallback({
   priceMin,
   priceMax,
 }: UseSearchWithFallbackParams): UseSearchWithFallbackResult {
-  const { data, isLoading, isError } = useQuery<SearchResponse>({
-    queryKey: ["search", q, page, sort, activeCategories, priceMin, priceMax],
-    queryFn: async () => {
-      const result = await productApi.search({
-        query: q,
-        page,
-        pageSize: 24,
-        sort,
-        filters: {
-          categories: filters.categories ?? [],
-          priceMin: filters.priceMin,
-          priceMax: filters.priceMax,
-        },
-      });
-      trackSearchExecuted({
-        query: q,
-        totalResults: result.totalResults,
-        page: result.page,
-        executionTimeMs: result.executionTimeMs,
-      });
-      return result;
-    },
-    enabled: q.length > 0,
-    retry: false,
-  });
+  const { data, isLoading, isError, isFetching, refetch } =
+    useQuery<SearchResponse>({
+      queryKey: ["search", q, page, sort, activeCategories, priceMin, priceMax],
+      queryFn: async () => {
+        const result = await productApi.search({
+          query: q,
+          page,
+          pageSize: 24,
+          sort,
+          filters: {
+            categories: filters.categories ?? [],
+            priceMin: filters.priceMin,
+            priceMax: filters.priceMax,
+          },
+        });
+        trackSearchExecuted({
+          query: q,
+          totalResults: result.totalResults,
+          page: result.page,
+          executionTimeMs: result.executionTimeMs,
+        });
+        return result;
+      },
+      enabled: q.length > 0,
+      retry: false,
+    });
 
   return {
     data,
     isLoading,
     isSearchUnavailable: isError,
+    retrySearch: () => {
+      void refetch();
+    },
+    isRetrying: isFetching,
   };
 }

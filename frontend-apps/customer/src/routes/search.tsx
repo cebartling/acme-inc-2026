@@ -44,15 +44,16 @@ function SearchPage() {
     clearAll,
   } = useSearchFilters();
 
-  const { data, isLoading, isSearchUnavailable } = useSearchWithFallback({
-    q,
-    page,
-    sort: sort as "relevance" | "price_asc" | "price_desc" | "newest",
-    filters,
-    activeCategories,
-    priceMin,
-    priceMax,
-  });
+  const { data, isLoading, isSearchUnavailable, retrySearch, isRetrying } =
+    useSearchWithFallback({
+      q,
+      page,
+      sort: sort as "relevance" | "price_asc" | "price_desc" | "newest",
+      filters,
+      activeCategories,
+      priceMin,
+      priceMax,
+    });
 
   const prevFilterSig = useRef("");
   useEffect(() => {
@@ -134,7 +135,10 @@ function SearchPage() {
         */}
         {q.length > 0 && isSearchUnavailable && (
           <>
-            <SearchUnavailableBanner />
+            <SearchUnavailableBanner
+              onRetry={retrySearch}
+              isRetrying={isRetrying}
+            />
             <CategoryFallbackBrowse />
           </>
         )}
