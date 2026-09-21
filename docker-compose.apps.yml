@@ -182,8 +182,10 @@ services:
       retries: 5
       start_period: 60s
     depends_on:
-      - customer-db-init
-      - identity-service
+      customer-db-init:
+        condition: service_completed_successfully
+      identity-service:
+        condition: service_started
     labels:
       - "com.acme.service=customer"
       - "com.acme.type=backend"
@@ -260,8 +262,10 @@ services:
       retries: 5
       start_period: 60s
     depends_on:
-      - notification-db-init
-      - identity-service
+      notification-db-init:
+        condition: service_completed_successfully
+      identity-service:
+        condition: service_started
     labels:
       - "com.acme.service=notification"
       - "com.acme.type=backend"
@@ -322,7 +326,8 @@ services:
       retries: 5
       start_period: 60s
     depends_on:
-      - product-db-init
+      product-db-init:
+        condition: service_completed_successfully
     labels:
       - "com.acme.service=product"
       - "com.acme.type=backend"
