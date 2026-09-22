@@ -37,4 +37,7 @@ class CartItem(
 
     @Column(name = "updated_at", nullable = false)
     var updatedAt: Instant = createdAt
-)
+) {
+    val lineTotal: BigDecimal
+        get() = unitPrice.multiply(quantity.toBigDecimal())
+}

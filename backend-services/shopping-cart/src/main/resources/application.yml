@@ -19,12 +19,26 @@ spring:
     enabled: true
     baseline-on-migrate: true
     locations: classpath:db/migration
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
 
 management:
   endpoints:
     web:
       exposure:
         include: health,info,metrics
+
+acme:
+  cart:
+    # Upper bound on a single variant's quantity in one cart (AC-0004-06-05)
+    max-order-quantity: 10
+    events:
+      publish-timeout-seconds: 10
+    cookie:
+      # Browsers accept Secure cookies from http://localhost, so this stays on locally
+      secure: ${ACME_CART_COOKIE_SECURE:true}
+  product:
+    base-url: ${PRODUCT_SERVICE_URL:http://localhost:10303}
 
 logging:
   level:

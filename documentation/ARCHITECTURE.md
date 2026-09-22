@@ -138,6 +138,42 @@ customer re-submitting the same term would never trigger a probe.
 - **Schema guard**: `SchemaValidationTest` boots Flyway and Hibernate `validate` against a
   Testcontainers Postgres, the same guard the customer and notification services use.
 
+**Add to cart** (`POST /api/v1/carts/items`, US-0004-06):
+
+```mermaid
+sequenceDiagram
+    participant FE as Customer frontend
+    participant PS as Product service
+    participant CS as Cart service
+    participant K as Kafka (cart.events)
+
+    FE->>PS: GET /api/v1/inventory/availability/{variantId}
+    PS-->>FE: IN_STOCK / OUT_OF_STOCK
+    FE->>CS: POST /api/v1/carts/items (cookie acme_session_id, if any)
+    CS->>PS: GET /api/v1/prices/{variantId}
+    PS-->>CS: price + tier pricing
+    CS->>CS: get or create cart, merge line, save
+    CS-->>FE: 201 cart (+ Set-Cookie on first add)
+    CS->>K: after commit: CartCreated (new cart), ItemAddedToCart
+```
+
+- **Session cookie**: the cart service, not the browser, mints the session ID and returns
+  it as `acme_session_id` (HttpOnly, SameSite=Lax, 30 days, `Secure` unless
+  `ACME_CART_COOKIE_SECURE=false`). JavaScript can neither read nor forge it; the frontend
+  sends it back with `credentials: "include"`. A cookie value that is not a UUID the
+  service could have minted is ignored and replaced.
+- **Server-side pricing**: the unit price comes from the product service at the line's new
+  total quantity, so crossing a tier threshold reprices the whole line. The request carries
+  no price. If the product service is unreachable the add fails with 503 rather than
+  guessing a price.
+- **Limits**: a variant's total quantity in one cart is capped by
+  `acme.cart.max-order-quantity` (default 10); exceeding it is a 422 with the message the
+  customer sees. Stock is checked by the frontend before the POST — the product service
+  only knows in/out of stock, not quantities (see PIN-273).
+- **Events are best-effort**: published directly to Kafka after the transaction commits,
+  as the product service does. A Kafka failure is logged and does not fail the add; there
+  is no outbox, so an event can be lost while the cart change is kept.
+
 ## Observability
 
 ### Distributed Tracing

@@ -366,12 +366,19 @@ services:
     environment:
       SERVER_PORT: 10304
       SPRING_PROFILES_ACTIVE: docker
+      # Extra comma-separated CORS origins (e.g. a Tailscale serve URL)
+      ACME_CORS_EXTRA_ORIGINS: ${ACME_CORS_EXTRA_ORIGINS:-}
 
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_DB: acme_carts
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+
+      # Authoritative prices come from the product service
+      PRODUCT_SERVICE_URL: http://product-service:10303
 
       OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4317
       OTEL_SERVICE_NAME: shopping-cart-service

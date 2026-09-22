@@ -31,13 +31,22 @@ dependencies {
     // Kotlin
     // Jackson 3 Kotlin module: Spring MVC (Boot 4) binds request/response bodies with Jackson 3
     implementation("tools.jackson.module:jackson-module-kotlin")
+    // Jackson 2 modules: used by JacksonConfig's ObjectMapper (Kafka events, product snapshot JSON)
+    implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
+    implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
+
+    // Arrow - Functional Programming
+    implementation("io.arrow-kt:arrow-core:2.2.3")
 
     // Database & Migrations
     runtimeOnly("org.postgresql:postgresql")
     implementation("org.flywaydb:flyway-core:12.6.2")
     implementation("org.flywaydb:flyway-database-postgresql:12.6.2")
     implementation("org.springframework.boot:spring-boot-flyway")
+
+    // Kafka
+    implementation("org.springframework.kafka:spring-kafka")
 
     // Observability
     implementation("io.micrometer:micrometer-tracing-bridge-otel")
@@ -51,8 +60,10 @@ dependencies {
         exclude(group = "org.junit.vintage")
     }
     testImplementation("org.springframework.boot:spring-boot-test-autoconfigure")
+    testImplementation("org.springframework.boot:spring-boot-webmvc-test")
     testImplementation("org.springframework.boot:spring-boot-data-jpa-test")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
+    testImplementation("io.mockk:mockk:1.14.11")
     testImplementation("org.testcontainers:testcontainers-junit-jupiter:2.0.5")
     testImplementation("org.testcontainers:testcontainers-postgresql:2.0.5")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
