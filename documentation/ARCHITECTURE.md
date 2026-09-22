@@ -170,6 +170,10 @@ sequenceDiagram
   `acme.cart.max-order-quantity` (default 10); exceeding it is a 422 with the message the
   customer sees. Stock is checked by the frontend before the POST — the product service
   only knows in/out of stock, not quantities (see PIN-273).
+- **Frontend**: `useAddToCart` re-checks availability, POSTs, and writes the response's
+  `summary.itemCount` into the zustand `cart.store`, which drives the header `CartBadge`.
+  The store is not persisted, so the badge resets on reload until the cart is loaded on
+  page load (US-0004-07).
 - **Events are best-effort**: published directly to Kafka after the transaction commits,
   as the product service does. A Kafka failure is logged and does not fail the add; there
   is no outbox, so an event can be lost while the cart change is kept.
@@ -331,7 +335,7 @@ Device trust allows users to bypass MFA for 30 days on trusted devices, improvin
 
 ### CORS and Browser-Facing Backend URLs
 
-- The customer frontend calls the identity, customer and product services directly from the browser
+- The customer frontend calls the identity, customer, product and shopping cart services directly from the browser
 - Backend URLs are baked in at build time via `VITE_*_SERVICE_URL` (see `frontend-apps/customer/src/services/api.ts`); unset means `http://localhost:<port>`
 - Each service's `CorsConfig` allows the localhost frontend origins plus any comma-separated origins in `ACME_CORS_EXTRA_ORIGINS` (property `acme.cors.extra-origins`)
 - To expose the frontend on a Tailscale tailnet, serve the frontend and each backend with `tailscale serve`, then rebuild with those URLs:
@@ -342,8 +346,10 @@ tailscale serve --bg 7600                    # customer frontend
 tailscale serve --bg --https=8443 10300      # identity
 tailscale serve --bg --https=8444 10301      # customer
 tailscale serve --bg --https=8445 10303      # product
+tailscale serve --bg --https=8446 10304      # shopping cart
 export VITE_IDENTITY_SERVICE_URL=$T:8443 VITE_CUSTOMER_SERVICE_URL=$T:8444 \
        VITE_PRODUCT_SERVICE_URL=$T:8445 VITE_INVENTORY_SERVICE_URL=$T:8445 \
-       VITE_PRICING_SERVICE_URL=$T:8445 ACME_CORS_EXTRA_ORIGINS=$T
+       VITE_PRICING_SERVICE_URL=$T:8445 VITE_CART_SERVICE_URL=$T:8446 \
+       ACME_CORS_EXTRA_ORIGINS=$T
 zsh scripts/docker-manage.sh apps-build && zsh scripts/docker-manage.sh apps-up
 ```
