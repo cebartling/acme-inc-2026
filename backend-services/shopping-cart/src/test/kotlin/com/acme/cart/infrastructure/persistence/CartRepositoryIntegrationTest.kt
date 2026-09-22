@@ -69,4 +69,23 @@ class CartRepositoryIntegrationTest {
         assertEquals(1, items.size)
         assertEquals(3, items.single().quantity)
     }
+
+    @Test
+    fun `removing a line deletes its row`() {
+        val cart = Cart(id = UUID.randomUUID(), sessionId = "sess-remove")
+        val item = cart.addItem(UUID.randomUUID(), 2, pricing, snapshot, 10).getOrNull()!!
+        carts.saveAndFlush(cart)
+        entityManager.clear()
+
+        val reloaded = carts.findBySessionId("sess-remove")!!
+        reloaded.removeItem(item.id)
+        carts.saveAndFlush(reloaded)
+        entityManager.clear()
+
+        assertEquals(0, carts.findBySessionId("sess-remove")!!.items.size)
+        val rows = entityManager.createNativeQuery("select count(*) from cart_items where id = :id")
+            .setParameter("id", item.id)
+            .singleResult as Number
+        assertEquals(0L, rows.toLong())
+    }
 }

@@ -81,4 +81,45 @@ class CartTest {
     fun `a non-positive quantity is a programming error`() {
         assertThrows<IllegalArgumentException> { newCart().add(0) }
     }
+
+    @Test
+    fun `updating a quantity reprices the line, down a tier as well as up`() {
+        val cart = newCart()
+        val item = cart.add(3, tieredPricing).getOrNull()!!
+
+        val change = cart.updateItemQuantity(item.id, 2, tieredPricing, 10).getOrNull()!!
+
+        assertEquals(3, change.previousQuantity)
+        assertEquals(2, item.quantity)
+        assertEquals(BigDecimal("69.99"), item.unitPrice)
+    }
+
+    @Test
+    fun `updating past the max is refused and leaves the line unchanged`() {
+        val cart = newCart()
+        val item = cart.add(2).getOrNull()!!
+
+        assertEquals(CartError.MaxQuantityExceeded(5), cart.updateItemQuantity(item.id, 6, basePricing, 5).leftOrNull())
+        assertTrue(cart.updateItemQuantity(item.id, 5, basePricing, 5).isRight())
+        assertEquals(5, item.quantity)
+    }
+
+    @Test
+    fun `updating or removing an item that is not in the cart is CartItemNotFound`() {
+        val cart = newCart()
+        val missing = UUID.randomUUID()
+
+        assertEquals(CartError.CartItemNotFound(missing), cart.updateItemQuantity(missing, 1, basePricing, 10).leftOrNull())
+        assertEquals(CartError.CartItemNotFound(missing), cart.removeItem(missing).leftOrNull())
+    }
+
+    @Test
+    fun `removing the last line leaves an empty cart`() {
+        val cart = newCart()
+        val item = cart.add(2).getOrNull()!!
+
+        assertSame(item, cart.removeItem(item.id).getOrNull())
+        assertEquals(emptyList(), cart.items)
+        assertEquals(0, cart.itemCount)
+    }
 }
