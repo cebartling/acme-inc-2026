@@ -52,7 +52,6 @@ class UserControllerIntegrationTest {
             .withDatabaseName("acme_identity_test")
             .withUsername("test")
             .withPassword("test")
-            .withInitScript("db/migration/init-test.sql")
 
         @Container
         val kafka = KafkaContainer("apache/kafka:3.8.0")
@@ -64,7 +63,6 @@ class UserControllerIntegrationTest {
             registry.add("spring.datasource.username") { postgres.username }
             registry.add("spring.datasource.password") { postgres.password }
             registry.add("spring.kafka.bootstrap-servers") { kafka.bootstrapServers }
-            registry.add("spring.jpa.hibernate.ddl-auto") { "create-drop" }
         }
     }
 

@@ -64,7 +64,6 @@ class AuthenticationControllerIntegrationTest {
             .withDatabaseName("acme_identity_test")
             .withUsername("test")
             .withPassword("test")
-            .withInitScript("db/migration/init-test.sql")
 
         @Container
         val kafka = KafkaContainer("apache/kafka:3.8.0")
@@ -82,7 +81,6 @@ class AuthenticationControllerIntegrationTest {
             registry.add("spring.kafka.bootstrap-servers") { kafka.bootstrapServers }
             registry.add("spring.data.redis.host") { redis.host }
             registry.add("spring.data.redis.port") { redis.getMappedPort(6379) }
-            registry.add("spring.jpa.hibernate.ddl-auto") { "create-drop" }
         }
     }
 
