@@ -124,6 +124,20 @@ closes it if the service responds. Because React Query serves a cached failure f
 unchanged query key, the banner also carries an explicit retry control — otherwise a
 customer re-submitting the same term would never trigger a probe.
 
+### Shopping Cart Service
+
+`backend-services/shopping-cart` (port 10304, database `acme_carts`) owns shopping carts
+(Epic 009, US-0004-06 onward).
+
+- **Cart identity**: a guest cart is keyed by a session ID (`carts.session_id`, unique).
+  `customer_id` stays `NULL` until cart merge on sign-in (US-0004-08).
+- **One line per variant**: `cart_items` has a unique `(cart_id, variant_id)`, so adding a
+  variant already in the cart increments its quantity rather than adding a line.
+- **Product snapshot**: each line stores the product name, SKU, image and attributes as
+  JSONB at the time of add, so later catalog changes do not alter what the cart shows.
+- **Schema guard**: `SchemaValidationTest` boots Flyway and Hibernate `validate` against a
+  Testcontainers Postgres, the same guard the customer and notification services use.
+
 ## Observability
 
 ### Distributed Tracing

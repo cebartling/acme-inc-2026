@@ -17,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        service: [identity, customer, notification, product]
+        service: [identity, customer, notification, product, shopping-cart]
     defaults:
       run:
         working-directory: backend-services/${{ matrix.service }}
