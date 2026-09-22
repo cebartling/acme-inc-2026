@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 
 import { UserMenu } from "@/components/UserMenu";
+import { CartBadge } from "@/components/cart/CartBadge";
 import { useIsAuthenticated } from "@/stores/auth.store";
 
 export default function Header() {
@@ -56,11 +57,10 @@ export default function Header() {
         <div className="flex-1 max-w-md mx-4">
           <SearchBar onSearch={handleHeaderSearch} />
         </div>
-        {isAuthenticated && (
-          <div className="ml-auto">
-            <UserMenu />
-          </div>
-        )}
+        <div className="ml-auto flex items-center gap-2">
+          <CartBadge />
+          {isAuthenticated && <UserMenu />}
+        </div>
       </header>
 
       <aside

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   ApiError,
   TimeoutError,
+  cartApi,
   categoryApi,
   customerApi,
   identityApi,
@@ -1346,6 +1347,76 @@ describe("categoryApi", () => {
 
     await expect(categoryApi.listCategories()).resolves.toEqual({
       categories: [{ name: "Electronics", productCount: 3 }],
+    });
+  });
+});
+
+describe("cartApi", () => {
+  const mockFetch = vi.fn();
+  const originalFetch = global.fetch;
+
+  beforeEach(() => {
+    global.fetch = mockFetch;
+    mockFetch.mockReset();
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  const request = {
+    variantId: "variant-1",
+    quantity: 2,
+    productSnapshot: {
+      productId: "product-1",
+      name: "ACME Gaming Mouse Pro",
+      sku: "ACME-GM-PRO-BLK",
+      variantName: "Black",
+      imageUrl: null,
+      attributes: { color: "Black" },
+    },
+  };
+
+  it("POSTs the item with credentials so the session cookie is sent", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 201,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: () =>
+        Promise.resolve({
+          id: "cart-1",
+          items: [],
+          summary: { itemCount: 2, subtotal: 139.98, currency: "USD" },
+        }),
+    });
+
+    const cart = await cartApi.addItem(request);
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringMatching(/\/api\/v1\/carts\/items$/),
+      expect.objectContaining({
+        method: "POST",
+        credentials: "include",
+        body: JSON.stringify(request),
+      }),
+    );
+    expect(cart.summary.itemCount).toBe(2);
+  });
+
+  it("surfaces the service's error message", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 422,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: () =>
+        Promise.resolve({
+          error: "Maximum order quantity is 10 for this item",
+        }),
+    });
+
+    await expect(cartApi.addItem(request)).rejects.toMatchObject({
+      status: 422,
+      message: "Maximum order quantity is 10 for this item",
     });
   });
 });

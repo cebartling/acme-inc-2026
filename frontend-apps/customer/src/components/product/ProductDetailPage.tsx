@@ -1,5 +1,6 @@
 import type { ProductDetail } from "@/services/api";
 import { useVariantSelection } from "@/hooks/useVariantSelection";
+import { AddToCartForm } from "./AddToCartForm";
 import { ProductAvailabilityBadge } from "./ProductAvailabilityBadge";
 import { ProductBreadcrumb } from "./ProductBreadcrumb";
 import { ProductPriceDisplay } from "./ProductPriceDisplay";
@@ -125,19 +126,13 @@ export function ProductDetailPage({ product }: ProductDetailPageProps) {
         </div>
 
         {/* Add to Cart */}
-        <button
-          type="button"
-          disabled={isOutOfStock || isLoading || isError}
-          className={[
-            "mb-6 rounded-lg px-6 py-2.5 text-sm font-semibold transition-colors",
-            isOutOfStock || isLoading || isError
-              ? "cursor-not-allowed bg-slate-700 text-slate-500"
-              : "bg-indigo-600 text-white hover:bg-indigo-500",
-          ].join(" ")}
-          aria-disabled={isOutOfStock || isLoading || isError}
-        >
-          {isOutOfStock ? "Out of Stock" : "Add to Cart"}
-        </button>
+        <AddToCartForm
+          key={selectedVariantId}
+          product={product}
+          variant={selectedVariant}
+          isOutOfStock={isOutOfStock}
+          isUnavailable={isLoading || isError}
+        />
 
         {product.description && (
           <div className="mb-6">

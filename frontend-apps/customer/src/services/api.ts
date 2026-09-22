@@ -17,6 +17,8 @@ const INVENTORY_SERVICE_URL =
   import.meta.env.VITE_INVENTORY_SERVICE_URL || "http://localhost:10303";
 const PRICING_SERVICE_URL =
   import.meta.env.VITE_PRICING_SERVICE_URL || "http://localhost:10303";
+const CART_SERVICE_URL =
+  import.meta.env.VITE_CART_SERVICE_URL || "http://localhost:10304";
 
 /**
  * Custom error class for API errors with status code and response data.
@@ -1130,6 +1132,54 @@ export const pricingApi = {
       `${PRICING_SERVICE_URL}/api/v1/prices/${encodeURIComponent(variantId)}`,
       { method: "GET", credentials: "include" },
     );
+  },
+};
+
+/** Product details frozen onto a cart line when it is added (AC-0004-06-03). */
+export interface CartProductSnapshot {
+  productId: string;
+  name: string;
+  sku: string;
+  variantName: string;
+  imageUrl: string | null;
+  attributes: Record<string, string>;
+}
+
+export interface AddToCartRequest {
+  variantId: string;
+  quantity: number;
+  productSnapshot: CartProductSnapshot;
+}
+
+export interface CartItem {
+  id: string;
+  variantId: string;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+  productSnapshot: CartProductSnapshot;
+}
+
+export interface Cart {
+  id: string;
+  items: CartItem[];
+  summary: { itemCount: number; subtotal: number; currency: string };
+}
+
+/**
+ * Shopping cart service (US-0004-06).
+ *
+ * The guest session lives in the service's HttpOnly `acme_session_id` cookie, which the
+ * browser only sends back because of `credentials: "include"`. The request carries no
+ * price: the service prices the line itself.
+ */
+export const cartApi = {
+  async addItem(request: AddToCartRequest): Promise<Cart> {
+    return apiRequest<Cart>(`${CART_SERVICE_URL}/api/v1/carts/items`, {
+      method: "POST",
+      credentials: "include",
+      body: JSON.stringify(request),
+    });
   },
 };
 
