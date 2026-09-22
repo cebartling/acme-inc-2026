@@ -140,15 +140,21 @@ customer re-submitting the same term would never trigger a probe.
 
 **Add to cart** (`POST /api/v1/carts/items`, US-0004-06):
 
-```
-┌──────────┐ 1. GET /inventory/availability  ┌─────────────────┐
-│ Customer │ ──────────────────────────────► │ Product service │
-│ frontend │                                 └────────▲────────┘
-│          │ 2. POST /carts/items  ┌──────────────┐   │ 3. GET /prices/{variantId}
-│          │ ────────────────────► │ Cart service │ ──┘
-└──────────┘ ◄── Set-Cookie ────── └──────┬───────┘
-               (first add only)           │ 4. after commit: CartCreated,
-                                          ▼    ItemAddedToCart → cart.events
+```mermaid
+sequenceDiagram
+    participant FE as Customer frontend
+    participant PS as Product service
+    participant CS as Cart service
+    participant K as Kafka (cart.events)
+
+    FE->>PS: GET /api/v1/inventory/availability/{variantId}
+    PS-->>FE: IN_STOCK / OUT_OF_STOCK
+    FE->>CS: POST /api/v1/carts/items (cookie acme_session_id, if any)
+    CS->>PS: GET /api/v1/prices/{variantId}
+    PS-->>CS: price + tier pricing
+    CS->>CS: get or create cart, merge line, save
+    CS-->>FE: 201 cart (+ Set-Cookie on first add)
+    CS->>K: after commit: CartCreated (new cart), ItemAddedToCart
 ```
 
 - **Session cookie**: the cart service, not the browser, mints the session ID and returns
