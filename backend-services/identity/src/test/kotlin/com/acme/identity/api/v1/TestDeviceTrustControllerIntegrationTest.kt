@@ -40,7 +40,6 @@ class TestDeviceTrustControllerIntegrationTest {
             .withDatabaseName("acme_identity_test")
             .withUsername("test")
             .withPassword("test")
-            .withInitScript("db/migration/init-test.sql")
 
         @Container
         val kafkaContainer = KafkaContainer("apache/kafka:3.8.0")
