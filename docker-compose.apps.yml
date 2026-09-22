@@ -354,6 +354,64 @@ services:
     networks:
       - acme-network
 
+  shopping-cart-service:
+    build:
+      context: ./backend-services/shopping-cart
+      dockerfile: Containerfile
+    image: acme-shopping-cart-service:latest
+    container_name: acme-shopping-cart-service
+    hostname: shopping-cart-service
+    ports:
+      - "${SHOPPING_CART_SERVICE_PORT:-10304}:10304"
+    environment:
+      SERVER_PORT: 10304
+      SPRING_PROFILES_ACTIVE: docker
+
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: acme_carts
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4317
+      OTEL_SERVICE_NAME: shopping-cart-service
+    networks:
+      - acme-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f -s http://localhost:10304/actuator/health > /dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    depends_on:
+      shopping-cart-db-init:
+        condition: service_completed_successfully
+    labels:
+      - "com.acme.service=shopping-cart"
+      - "com.acme.type=backend"
+
+  # Database initialization for Shopping Cart Service
+  shopping-cart-db-init:
+    image: postgres:16-alpine
+    container_name: acme-shopping-cart-db-init
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+
+        until pg_isready -h postgres -p 5432 -U $${POSTGRES_USER:-postgres}; do
+          echo 'Waiting for PostgreSQL...'
+          sleep 2
+        done
+        echo "Creating database acme_carts if it doesn't exist..."
+        psql -h postgres -U $${POSTGRES_USER:-postgres} -tc "SELECT 1 FROM pg_database WHERE datname = 'acme_carts'" | grep -q 1 || psql -h postgres -U $${POSTGRES_USER:-postgres} -c "CREATE DATABASE acme_carts"
+        echo 'Database initialization complete'
+    networks:
+      - acme-network
+
   # =============================================================================
   # FRONTEND APPLICATIONS
   # =============================================================================
