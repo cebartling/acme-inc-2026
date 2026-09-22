@@ -178,6 +178,22 @@ sequenceDiagram
   as the product service does. A Kafka failure is logged and does not fail the add; there
   is no outbox, so an event can be lost while the cart change is kept.
 
+**Reading and changing the cart** (US-0004-07):
+
+| Endpoint | Result | Event |
+| -- | -- | -- |
+| `GET /api/v1/carts/current` | 200 with the cart, or 204 when the session has none | — |
+| `PATCH /api/v1/carts/{cartId}/items/{itemId}` `{quantity}` | 200 with the cart | `CartItemQuantityUpdated` |
+| `DELETE /api/v1/carts/{cartId}/items/{itemId}` | 200 with the cart (possibly empty) | `CartItemRemoved` |
+
+- **Ownership comes from the cookie, not the URL**: the cart is looked up by the session
+  cookie, and a `cartId` in the path that is not that session's cart is a 404 — the same
+  answer as a missing item — so the API never confirms another session's cart exists.
+- **Quantity changes reprice the line** at the new quantity, down a tier as well as up. An
+  over-max quantity is a 422 whose body carries `maxQuantity`, so the client can clamp.
+- **204 for "no cart yet"** keeps a first-time visitor's page load (which reads the cart
+  for the header badge) free of error responses.
+
 ## Observability
 
 ### Distributed Tracing

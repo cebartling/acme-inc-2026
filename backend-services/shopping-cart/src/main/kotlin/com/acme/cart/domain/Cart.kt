@@ -80,4 +80,43 @@ class Cart(
         updatedAt = now
         return item.right()
     }
+
+    /**
+     * Sets a line's quantity (AC-0004-07-04), repricing it at the new quantity so moving
+     * across a tier threshold in either direction changes the unit price.
+     *
+     * @return the change, or an error with the cart unchanged when the item is not in
+     *   this cart or [quantity] exceeds [maxQuantity].
+     */
+    fun updateItemQuantity(
+        itemId: UUID,
+        quantity: Int,
+        pricing: VariantPricing,
+        maxQuantity: Int,
+        now: Instant = Instant.now()
+    ): Either<CartError, QuantityChange> {
+        require(quantity > 0) { "quantity must be positive, was $quantity" }
+
+        val item = items.find { it.id == itemId } ?: return CartError.CartItemNotFound(itemId).left()
+        if (quantity > maxQuantity) {
+            return CartError.MaxQuantityExceeded(maxQuantity).left()
+        }
+
+        val previousQuantity = item.quantity
+        item.quantity = quantity
+        item.unitPrice = pricing.unitPriceFor(quantity)
+        item.updatedAt = now
+        updatedAt = now
+        return QuantityChange(item, previousQuantity).right()
+    }
+
+    /** Removes a line (AC-0004-07-05). Removing the last line leaves an empty cart. */
+    fun removeItem(itemId: UUID, now: Instant = Instant.now()): Either<CartError, CartItem> {
+        val item = items.find { it.id == itemId } ?: return CartError.CartItemNotFound(itemId).left()
+        items.remove(item)
+        updatedAt = now
+        return item.right()
+    }
 }
+
+data class QuantityChange(val item: CartItem, val previousQuantity: Int)

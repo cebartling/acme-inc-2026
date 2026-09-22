@@ -16,6 +16,11 @@ sealed interface CartError {
         override val message = "Variant not found: $variantId"
     }
 
+    /** Also returned for an item in someone else's cart, so ownership is never revealed. */
+    data class CartItemNotFound(val itemId: UUID) : CartError {
+        override val message = "Cart item not found: $itemId"
+    }
+
     data class PricingUnavailable(val variantId: UUID) : CartError {
         override val message = "Pricing is temporarily unavailable for variant $variantId"
     }

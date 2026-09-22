@@ -4,9 +4,14 @@ import arrow.core.left
 import arrow.core.right
 import com.acme.cart.application.AddItemToCartCommand
 import com.acme.cart.application.AddItemToCartUseCase
+import com.acme.cart.application.RemoveCartItemCommand
+import com.acme.cart.application.RemoveCartItemUseCase
+import com.acme.cart.application.UpdateCartItemQuantityCommand
+import com.acme.cart.application.UpdateCartItemQuantityUseCase
 import com.acme.cart.domain.Cart
 import com.acme.cart.domain.CartError
 import com.acme.cart.domain.VariantPricing
+import com.acme.cart.infrastructure.persistence.CartRepository
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.mockk.clearMocks
@@ -23,6 +28,9 @@ import org.springframework.context.annotation.Bean
 import org.springframework.http.HttpHeaders
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.delete
+import org.springframework.test.web.servlet.get
+import org.springframework.test.web.servlet.patch
 import org.springframework.test.web.servlet.post
 import java.math.BigDecimal
 import java.util.UUID
@@ -33,13 +41,25 @@ import kotlin.test.assertTrue
 @WebMvcTest(CartController::class)
 class CartControllerWebMvcTest(
     @Autowired private val mockMvc: MockMvc,
-    @Autowired private val useCase: AddItemToCartUseCase
+    @Autowired private val useCase: AddItemToCartUseCase,
+    @Autowired private val updateUseCase: UpdateCartItemQuantityUseCase,
+    @Autowired private val removeUseCase: RemoveCartItemUseCase,
+    @Autowired private val cartRepository: CartRepository
 ) {
 
     @TestConfiguration
     class Beans {
         @Bean
         fun addItemToCartUseCase(): AddItemToCartUseCase = mockk()
+
+        @Bean
+        fun updateCartItemQuantityUseCase(): UpdateCartItemQuantityUseCase = mockk()
+
+        @Bean
+        fun removeCartItemUseCase(): RemoveCartItemUseCase = mockk()
+
+        @Bean
+        fun cartRepository(): CartRepository = mockk()
 
         @Bean
         fun objectMapper(): ObjectMapper = jacksonObjectMapper()
@@ -57,7 +77,7 @@ class CartControllerWebMvcTest(
 
     @BeforeEach
     fun setUp() {
-        clearMocks(useCase)
+        clearMocks(useCase, updateUseCase, removeUseCase, cartRepository)
         command.clear()
         every { useCase.execute(capture(command), any()) } answers {
             val cmd = firstArg<AddItemToCartCommand>()
@@ -147,5 +167,113 @@ class CartControllerWebMvcTest(
     @Test
     fun `a missing product snapshot is rejected`() {
         postItem(content = """{"variantId":"$variantId","quantity":1}""").andExpect { status { isBadRequest() } }
+    }
+
+    // --- US-0004-07: read, update and remove -------------------------------------------
+
+    private val sessionId = UUID.randomUUID().toString()
+    private val cartId = UUID.randomUUID()
+    private val itemId = UUID.randomUUID()
+
+    private fun cartFor(session: String): Cart {
+        val cart = Cart(id = cartId, sessionId = session)
+        cart.addItem(variantId, 2, VariantPricing(BigDecimal("69.99")), """{"productId":"${UUID.randomUUID()}","name":"Mouse","sku":"SKU","variantName":"Black","imageUrl":null}""", 10)
+        return cart
+    }
+
+    @Test
+    fun `current cart is 204 without a session cookie`() {
+        mockMvc.get("/api/v1/carts/current").andExpect { status { isNoContent() } }
+    }
+
+    @Test
+    fun `current cart is 204 when the session has no cart yet`() {
+        every { cartRepository.findBySessionId(sessionId) } returns null
+
+        mockMvc.get("/api/v1/carts/current") { cookie(Cookie(CartController.SESSION_COOKIE, sessionId)) }
+            .andExpect { status { isNoContent() } }
+    }
+
+    @Test
+    fun `current cart returns the session's cart`() {
+        every { cartRepository.findBySessionId(sessionId) } returns cartFor(sessionId)
+
+        mockMvc.get("/api/v1/carts/current") { cookie(Cookie(CartController.SESSION_COOKIE, sessionId)) }
+            .andExpect {
+                status { isOk() }
+                jsonPath("$.id") { value(cartId.toString()) }
+                jsonPath("$.summary.itemCount") { value(2) }
+            }
+    }
+
+    @Test
+    fun `updating a quantity passes the session, cart, item and quantity through`() {
+        val captured = slot<UpdateCartItemQuantityCommand>()
+        every { updateUseCase.execute(capture(captured), any()) } returns cartFor(sessionId).right()
+
+        mockMvc.patch("/api/v1/carts/$cartId/items/$itemId") {
+            cookie(Cookie(CartController.SESSION_COOKIE, sessionId))
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"quantity":3}"""
+        }.andExpect { status { isOk() } }
+
+        assertEquals(UpdateCartItemQuantityCommand(sessionId, cartId, itemId, 3), captured.captured)
+    }
+
+    @Test
+    fun `an over-max update is a 422 that tells the client the max`() {
+        every { updateUseCase.execute(any(), any()) } returns CartError.MaxQuantityExceeded(10).left()
+
+        mockMvc.patch("/api/v1/carts/$cartId/items/$itemId") {
+            cookie(Cookie(CartController.SESSION_COOKIE, sessionId))
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"quantity":11}"""
+        }.andExpect {
+            status { isUnprocessableContent() }
+            jsonPath("$.error") { value("Maximum order quantity is 10 for this item") }
+            jsonPath("$.maxQuantity") { value(10) }
+        }
+    }
+
+    @Test
+    fun `updating without a session cookie is a 404 and never reaches the use case`() {
+        mockMvc.patch("/api/v1/carts/$cartId/items/$itemId") {
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"quantity":3}"""
+        }.andExpect { status { isNotFound() } }
+    }
+
+    @Test
+    fun `a zero quantity update is rejected`() {
+        mockMvc.patch("/api/v1/carts/$cartId/items/$itemId") {
+            cookie(Cookie(CartController.SESSION_COOKIE, sessionId))
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"quantity":0}"""
+        }.andExpect { status { isBadRequest() } }
+    }
+
+    @Test
+    fun `removing an item returns the updated cart`() {
+        val captured = slot<RemoveCartItemCommand>()
+        every { removeUseCase.execute(capture(captured), any()) } returns Cart(id = cartId, sessionId = sessionId).right()
+
+        mockMvc.delete("/api/v1/carts/$cartId/items/$itemId") {
+            cookie(Cookie(CartController.SESSION_COOKIE, sessionId))
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.items.length()") { value(0) }
+            jsonPath("$.summary.itemCount") { value(0) }
+        }
+
+        assertEquals(RemoveCartItemCommand(sessionId, cartId, itemId), captured.captured)
+    }
+
+    @Test
+    fun `removing from a cart the session does not own is a 404`() {
+        every { removeUseCase.execute(any(), any()) } returns CartError.CartItemNotFound(itemId).left()
+
+        mockMvc.delete("/api/v1/carts/$cartId/items/$itemId") {
+            cookie(Cookie(CartController.SESSION_COOKIE, sessionId))
+        }.andExpect { status { isNotFound() } }
     }
 }

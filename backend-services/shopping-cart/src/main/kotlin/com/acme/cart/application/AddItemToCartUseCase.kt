@@ -96,13 +96,7 @@ class AddItemToCartUseCase(
         )
     }
 
-    private fun publish(event: DomainEvent) {
-        try {
-            eventPublisher.publish(event)
-        } catch (ex: Exception) {
-            logger.warn("Failed to publish {} event {} for cart {}", event.eventType, event.eventId, event.aggregateId, ex)
-        }
-    }
+    private fun publish(event: DomainEvent) = eventPublisher.publishLoggingFailure(event, logger)
 
     companion object {
         /** Product prices carry no currency; the catalog is USD-only today. */

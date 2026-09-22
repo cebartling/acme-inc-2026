@@ -50,6 +50,12 @@ data class ProductSnapshotRequest(
     )
 }
 
+data class UpdateQuantityRequest(
+    @field:NotNull
+    @field:Min(1)
+    val quantity: Int?
+)
+
 data class CartResponse(
     val id: UUID,
     val items: List<CartItemResponse>,
