@@ -153,3 +153,24 @@ jobs:
 
       - name: Check formatting
         run: bun run format:check
+
+  # .agents/skills (Codex) and .claude/skills (Claude Code) are hand-maintained
+  # copies of the same files, and they have drifted twice — most recently when
+  # the acceptance suite moved to Bun in #110 while the .agents copy kept
+  # documenting npm, which would send an agent to run the wrong package manager.
+  # Nothing errors when they diverge; the stale copy simply reads as
+  # authoritative. This fails the PR instead.
+  #
+  # PIN-271 proposes symlinking one to the other, which would make divergence
+  # structurally impossible. That is blocked on verifying Codex follows
+  # symlinked skill directories — if it does not, the link yields no skills at
+  # all, which is worse. Until that is tested with a real Codex run, this check
+  # is the portable guard. It stays true if the symlink later lands.
+  agent-skills-sync:
+    name: Agent skills · in sync
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: .agents/skills must match .claude/skills
+        run: diff -r .claude/skills .agents/skills
