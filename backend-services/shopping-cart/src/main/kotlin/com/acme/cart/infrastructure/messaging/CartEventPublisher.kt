@@ -1,0 +1,39 @@
+package com.acme.cart.infrastructure.messaging
+
+import com.acme.cart.domain.events.DomainEvent
+import com.fasterxml.jackson.databind.ObjectMapper
+import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Value
+import org.springframework.kafka.core.KafkaTemplate
+import org.springframework.stereotype.Component
+import java.util.concurrent.TimeUnit
+
+private const val CART_EVENTS_TOPIC = "cart.events"
+
+@Component
+class CartEventPublisher(
+    private val kafkaTemplate: KafkaTemplate<String, String>,
+    private val objectMapper: ObjectMapper,
+    @Value("\${acme.cart.events.publish-timeout-seconds:10}")
+    private val publishTimeoutSeconds: Long
+) {
+    private val logger = LoggerFactory.getLogger(CartEventPublisher::class.java)
+
+    fun publish(event: DomainEvent) {
+        val key = event.aggregateId.toString()
+        val value = objectMapper.writeValueAsString(event)
+
+        logger.debug("Publishing {} event {} to topic {}", event.eventType, event.eventId, CART_EVENTS_TOPIC)
+
+        val sendResult = kafkaTemplate.send(CART_EVENTS_TOPIC, key, value)
+            .get(publishTimeoutSeconds, TimeUnit.SECONDS)
+        logger.info(
+            "Published {} event {} to topic {} partition {} offset {}",
+            event.eventType,
+            event.eventId,
+            sendResult.recordMetadata.topic(),
+            sendResult.recordMetadata.partition(),
+            sendResult.recordMetadata.offset()
+        )
+    }
+}

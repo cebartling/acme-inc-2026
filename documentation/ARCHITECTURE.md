@@ -138,6 +138,36 @@ customer re-submitting the same term would never trigger a probe.
 - **Schema guard**: `SchemaValidationTest` boots Flyway and Hibernate `validate` against a
   Testcontainers Postgres, the same guard the customer and notification services use.
 
+**Add to cart** (`POST /api/v1/carts/items`, US-0004-06):
+
+```
+┌──────────┐ 1. GET /inventory/availability  ┌─────────────────┐
+│ Customer │ ──────────────────────────────► │ Product service │
+│ frontend │                                 └────────▲────────┘
+│          │ 2. POST /carts/items  ┌──────────────┐   │ 3. GET /prices/{variantId}
+│          │ ────────────────────► │ Cart service │ ──┘
+└──────────┘ ◄── Set-Cookie ────── └──────┬───────┘
+               (first add only)           │ 4. after commit: CartCreated,
+                                          ▼    ItemAddedToCart → cart.events
+```
+
+- **Session cookie**: the cart service, not the browser, mints the session ID and returns
+  it as `acme_session_id` (HttpOnly, SameSite=Lax, 30 days, `Secure` unless
+  `ACME_CART_COOKIE_SECURE=false`). JavaScript can neither read nor forge it; the frontend
+  sends it back with `credentials: "include"`. A cookie value that is not a UUID the
+  service could have minted is ignored and replaced.
+- **Server-side pricing**: the unit price comes from the product service at the line's new
+  total quantity, so crossing a tier threshold reprices the whole line. The request carries
+  no price. If the product service is unreachable the add fails with 503 rather than
+  guessing a price.
+- **Limits**: a variant's total quantity in one cart is capped by
+  `acme.cart.max-order-quantity` (default 10); exceeding it is a 422 with the message the
+  customer sees. Stock is checked by the frontend before the POST — the product service
+  only knows in/out of stock, not quantities (see PIN-273).
+- **Events are best-effort**: published directly to Kafka after the transaction commits,
+  as the product service does. A Kafka failure is logged and does not fail the add; there
+  is no outbox, so an event can be lost while the cart change is kept.
+
 ## Observability
 
 ### Distributed Tracing
