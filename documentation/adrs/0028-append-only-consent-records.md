@@ -202,7 +202,7 @@ fun exportConsentHistory(customerId: UUID): ConsentHistoryExport {
 | Concern | Mitigation |
 |---------|------------|
 | Storage growth | Most customers change consents rarely; table size is bounded |
-| Query complexity | Database function `get_current_consents(customer_id)` for efficiency |
+| Query complexity | `ConsentRecordRepository.findCurrentConsentsByCustomerId` — a native `DISTINCT ON (consent_type)` query |
 | GDPR Right to Erasure | Entire customer record deleted on account closure (CASCADE) |
 | Performance | Indexes on (customer_id, consent_type, created_at DESC) |
 
