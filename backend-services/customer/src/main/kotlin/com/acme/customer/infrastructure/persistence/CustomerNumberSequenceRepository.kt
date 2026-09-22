@@ -51,8 +51,11 @@ class CustomerNumberSequenceRepository(
     fun getCurrentSequence(yearMonth: YearMonth): Int {
         val yearMonthKey = yearMonth.toString().replace("-", "")
 
+        // The scalar subquery keeps this to exactly one row: a bare WHERE returns no row
+        // at all for an unknown month, which makes queryForObject throw rather than
+        // return the documented 0.
         return jdbcTemplate.queryForObject(
-            "SELECT COALESCE(current_value, 0) FROM customer_number_sequences WHERE year_month = ?",
+            "SELECT COALESCE((SELECT current_value FROM customer_number_sequences WHERE year_month = ?), 0)",
             Int::class.java,
             yearMonthKey
         ) ?: 0
