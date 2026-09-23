@@ -54,7 +54,10 @@ class UpdateCartItemQuantityUseCase(
             }
             checkNotNull(result) { "transaction for cart ${command.cartId} returned no result" }
         }.map { (cart, change) ->
-            publish(cart, change, correlationId)
+            // A same-quantity request (e.g. the client's clamp retry at the max) is not a change.
+            if (change.previousQuantity != change.item.quantity) {
+                publish(cart, change, correlationId)
+            }
             cart
         }
     }

@@ -1,4 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  type QueryClient,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import type { Cart } from "@/services/api";
 import { ApiError, cartApi } from "@/services/api";
 
@@ -14,6 +19,22 @@ export function useCart() {
     queryKey: CART_QUERY_KEY,
     queryFn: () => cartApi.getCurrent(),
   });
+}
+
+/**
+ * Caches a cart returned by a write. An in-flight read (a mount or focus refetch) is
+ * cancelled first, so it cannot land afterwards and overwrite the newer cart.
+ */
+export async function writeCart(queryClient: QueryClient, cart: Cart) {
+  await queryClient.cancelQueries({ queryKey: CART_QUERY_KEY });
+  queryClient.setQueryData(CART_QUERY_KEY, cart);
+}
+
+/** A 404 means the line is already gone (e.g. removed in another tab): reload the cart. */
+function reloadIfLineGone(queryClient: QueryClient, error: Error) {
+  if (error instanceof ApiError && error.status === 404) {
+    void queryClient.invalidateQueries({ queryKey: CART_QUERY_KEY });
+  }
 }
 
 interface UpdateCartItemVariables {
@@ -53,7 +74,8 @@ export function useUpdateCartItem() {
         return { cart, clampedMessage: (error as ApiError).message };
       }
     },
-    onSuccess: ({ cart }) => queryClient.setQueryData(CART_QUERY_KEY, cart),
+    onSuccess: ({ cart }) => writeCart(queryClient, cart),
+    onError: (error) => reloadIfLineGone(queryClient, error),
   });
 }
 
@@ -63,6 +85,7 @@ export function useRemoveCartItem() {
 
   return useMutation<Cart, Error, { cartId: string; itemId: string }>({
     mutationFn: ({ cartId, itemId }) => cartApi.removeItem(cartId, itemId),
-    onSuccess: (cart) => queryClient.setQueryData(CART_QUERY_KEY, cart),
+    onSuccess: (cart) => writeCart(queryClient, cart),
+    onError: (error) => reloadIfLineGone(queryClient, error),
   });
 }

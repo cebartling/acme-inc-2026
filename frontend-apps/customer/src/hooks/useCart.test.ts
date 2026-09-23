@@ -81,6 +81,30 @@ describe("useUpdateCartItem", () => {
     );
   });
 
+  it("keeps the updated cart when an older in-flight read resolves afterwards", async () => {
+    mockedUpdate.mockResolvedValue(cartWithQuantity(3));
+    const { result } = renderHook(() => useUpdateCartItem(), {
+      wrapper: makeWrapper(),
+    });
+    let resolveStaleRead!: (cart: Cart) => void;
+    const staleRead = queryClient.prefetchQuery({
+      queryKey: CART_QUERY_KEY,
+      queryFn: () =>
+        new Promise<Cart>((resolve) => {
+          resolveStaleRead = resolve;
+        }),
+    });
+
+    act(() => result.current.mutate(variables));
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    resolveStaleRead(cartWithQuantity(2));
+    await staleRead;
+
+    expect(queryClient.getQueryData(CART_QUERY_KEY)).toEqual(
+      cartWithQuantity(3),
+    );
+  });
+
   it("surfaces other failures without retrying", async () => {
     mockedUpdate.mockRejectedValue(new ApiError("Pricing unavailable", 503));
     const { result } = renderHook(() => useUpdateCartItem(), {

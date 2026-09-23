@@ -21,11 +21,11 @@ export function CartLineItem({ cartId, item }: CartLineItemProps) {
   const { name, variantName, imageUrl } = item.productSnapshot;
   const itemName = `${name} (${variantName})`;
   const isBusy = update.isPending || remove.isPending;
+  // Only the latest action's outcome: an old update error must not mask a newer remove error.
   const message =
-    update.data?.clampedMessage ??
-    update.error?.message ??
-    remove.error?.message ??
-    null;
+    remove.submittedAt > update.submittedAt
+      ? (remove.error?.message ?? null)
+      : (update.data?.clampedMessage ?? update.error?.message ?? null);
 
   return (
     <li

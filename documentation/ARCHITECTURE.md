@@ -173,8 +173,10 @@ sequenceDiagram
 - **Frontend**: one TanStack Query entry, `["cart"]` (`hooks/useCart.ts`), is the only
   cart state. The header `CartBadge` loads it with `GET /carts/current` on every page, so
   the count survives reloads and new tabs; `useAddToCart`, `useUpdateCartItem` and
-  `useRemoveCartItem` write each response back with `setQueryData`, so the badge and the
-  `/cart` page update together without a refetch. `useAddToCart` re-checks availability
+  `useRemoveCartItem` write each response back with `setQueryData` (after cancelling any
+  in-flight read, so a stale GET cannot overwrite it), so the badge and the `/cart` page
+  update together without a refetch; a 404 on update or remove (the line is already gone,
+  e.g. removed in another tab) refetches the cart instead. `useAddToCart` re-checks availability
   before it POSTs. An over-max update is retried at the service's `maxQuantity` and the
   line shows why (US-0004-07 AC-08).
 - **Events are best-effort**: published directly to Kafka after the transaction commits,
@@ -194,6 +196,7 @@ sequenceDiagram
   answer as a missing item — so the API never confirms another session's cart exists.
 - **Quantity changes reprice the line** at the new quantity, down a tier as well as up. An
   over-max quantity is a 422 whose body carries `maxQuantity`, so the client can clamp.
+  Setting a line to the quantity it already has publishes no `CartItemQuantityUpdated`.
 - **204 for "no cart yet"** keeps a first-time visitor's page load (which reads the cart
   for the header badge) free of error responses.
 

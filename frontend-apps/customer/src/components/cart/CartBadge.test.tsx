@@ -62,4 +62,17 @@ describe("CartBadge", () => {
       "Cart: 3 items",
     );
   });
+
+  it("announces the count in a live region, since the link cannot be one", async () => {
+    mockedGetCurrent.mockResolvedValue({
+      id: "cart-1",
+      items: [],
+      summary: { itemCount: 1, subtotal: 119.99, currency: "USD" },
+    });
+    renderBadge();
+
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent("Cart: 1 item"),
+    );
+  });
 });
