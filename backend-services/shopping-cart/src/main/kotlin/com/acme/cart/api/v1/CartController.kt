@@ -2,6 +2,8 @@ package com.acme.cart.api.v1
 
 import com.acme.cart.application.AddItemToCartCommand
 import com.acme.cart.application.AddItemToCartUseCase
+import com.acme.cart.application.MergeCartsCommand
+import com.acme.cart.application.MergeCartsUseCase
 import com.acme.cart.application.RemoveCartItemCommand
 import com.acme.cart.application.RemoveCartItemUseCase
 import com.acme.cart.application.UpdateCartItemQuantityCommand
@@ -39,6 +41,7 @@ class CartController(
     private val addItemToCartUseCase: AddItemToCartUseCase,
     private val updateCartItemQuantityUseCase: UpdateCartItemQuantityUseCase,
     private val removeCartItemUseCase: RemoveCartItemUseCase,
+    private val mergeCartsUseCase: MergeCartsUseCase,
     private val cartRepository: CartRepository,
     private val objectMapper: ObjectMapper,
     @Value("\${acme.cart.cookie.secure}") private val secureCookie: Boolean
@@ -121,6 +124,28 @@ class CartController(
         val owner = ownerOf(jwt, sessionCookie) ?: return errorResponse(CartError.CartItemNotFound(itemId))
         return removeCartItemUseCase.execute(RemoveCartItemCommand(owner, cartId, itemId))
             .fold(ifLeft = ::errorResponse, ifRight = { ResponseEntity.ok(toResponse(it)) })
+    }
+
+    /**
+     * Merges the caller's guest cart (from the session cookie) into their account cart
+     * after sign-in (US-0004-08). Requires a signed-in caller. 204 when there was nothing
+     * to merge and the user has no cart either.
+     */
+    @PostMapping("/merge")
+    fun merge(
+        @AuthenticationPrincipal jwt: Jwt?,
+        @CookieValue(SESSION_COOKIE, required = false) sessionCookie: String?
+    ): ResponseEntity<Any> {
+        val customer = customerOf(jwt)
+            ?: return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(mapOf("error" to "SIGN_IN_REQUIRED"))
+
+        return mergeCartsUseCase.execute(MergeCartsCommand(customer.userId, validSession(sessionCookie))).fold(
+            ifLeft = ::errorResponse,
+            ifRight = { outcome ->
+                val cart = outcome.cart ?: return@fold ResponseEntity.noContent().build()
+                ResponseEntity.ok(MergeResponse.from(toResponse(cart), outcome.result))
+            }
+        )
     }
 
     private fun toResponse(cart: Cart) =

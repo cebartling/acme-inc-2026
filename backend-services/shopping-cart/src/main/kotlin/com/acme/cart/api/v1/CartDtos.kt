@@ -2,6 +2,7 @@ package com.acme.cart.api.v1
 
 import com.acme.cart.application.AddItemToCartUseCase
 import com.acme.cart.domain.Cart
+import com.acme.cart.domain.MergeResult
 import com.acme.cart.domain.ProductSnapshot
 import jakarta.validation.Valid
 import jakarta.validation.constraints.Min
@@ -96,4 +97,43 @@ data class CartSummaryResponse(
     val itemCount: Int,
     val subtotal: BigDecimal,
     val currency: String
+)
+
+/**
+ * The signed-in user's cart after a merge (US-0004-08), plus what the merge did.
+ * [mergeResult] is null when there was nothing to merge.
+ */
+data class MergeResponse(
+    val id: UUID,
+    val items: List<CartItemResponse>,
+    val summary: CartSummaryResponse,
+    val mergeResult: MergeResultResponse?
+) {
+    companion object {
+        fun from(cart: CartResponse, result: MergeResult?) = MergeResponse(
+            id = cart.id,
+            items = cart.items,
+            summary = cart.summary,
+            mergeResult = result?.let { r ->
+                MergeResultResponse(
+                    itemsMerged = r.itemsMerged,
+                    quantitiesAdjusted = r.quantitiesAdjusted.map {
+                        QuantityAdjustmentResponse(it.variantId, it.requestedTotal, it.adjustedTo)
+                    }
+                )
+            }
+        )
+    }
+}
+
+data class MergeResultResponse(
+    val itemsMerged: Int,
+    val quantitiesAdjusted: List<QuantityAdjustmentResponse>
+)
+
+data class QuantityAdjustmentResponse(
+    val variantId: UUID,
+    val requestedTotal: Int,
+    val adjustedTo: Int,
+    val reason: String = "MAX_ORDER_QUANTITY"
 )

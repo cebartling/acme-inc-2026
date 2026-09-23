@@ -127,4 +127,32 @@ class CartRepositoryIntegrationTest {
             ).executeUpdate()
         }
     }
+
+    // --- US-0004-08: merge persistence ------------------------------------------------
+
+    @Test
+    fun `a merge saves both carts and frees the session for a new guest cart`() {
+        val variantId = UUID.randomUUID()
+        val userId = UUID.randomUUID()
+        val guest = Cart(id = UUID.randomUUID(), sessionId = "sess-merge-db")
+        guest.addItem(variantId, 2, pricing, snapshot, 10)
+        val user = Cart(id = UUID.randomUUID(), userId = userId)
+        user.addItem(variantId, 1, pricing, snapshot, 10)
+        carts.saveAndFlush(guest)
+        carts.saveAndFlush(user)
+        entityManager.clear()
+
+        val reloadedGuest = carts.findBySessionIdAndStatus("sess-merge-db", CartStatus.ACTIVE)!!
+        val reloadedUser = carts.findByUserIdAndStatus(userId, CartStatus.ACTIVE)!!
+        reloadedUser.absorb(reloadedGuest, mapOf(variantId to pricing), maxQuantity = 10)
+        carts.save(reloadedGuest)
+        carts.saveAndFlush(reloadedUser)
+        entityManager.clear()
+
+        assertEquals(3, carts.findByUserIdAndStatus(userId, CartStatus.ACTIVE)!!.items.single().quantity)
+        assertEquals(null, carts.findBySessionIdAndStatus("sess-merge-db", CartStatus.ACTIVE))
+        assertEquals(CartStatus.MERGED, carts.findById(guest.id).get().status)
+        // The session can start over as a guest after sign-out.
+        carts.saveAndFlush(Cart(id = UUID.randomUUID(), sessionId = "sess-merge-db"))
+    }
 }
