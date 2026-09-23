@@ -135,7 +135,7 @@ customer re-submitting the same term would never trigger a probe.
   session and per user, so a session whose cart was `MERGED` can start a new guest cart.
 - **Signed-in callers (US-0004-08)**: the service verifies identity's `access_token`
   cookie against `GET /.well-known/jwks.json` (Spring OAuth2 resource server; signature,
-  `exp`, `iss`, `aud`). Every endpoint stays open to guests: with a valid token the caller
+  `exp`, `iss`, `aud`, plus `token_use=access` and a UUID `sub`). Every endpoint stays open to guests: with a valid token the caller
   acts on their user cart, which follows them to any device; without one, on the session's.
   An expired token is `401 {"error":"TOKEN_EXPIRED"}`, which the customer app's API client
   answers by refreshing and retrying; any other bad token is `401 INVALID_TOKEN`.

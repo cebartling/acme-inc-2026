@@ -57,9 +57,9 @@ class CartController(
         @CookieValue(SESSION_COOKIE, required = false) sessionCookie: String?,
         @Valid @RequestBody request: AddToCartRequest
     ): ResponseEntity<Any> {
-        val existingSession = validSession(sessionCookie)
-        val newSession = if (jwt == null && existingSession == null) UUID.randomUUID().toString() else null
-        val owner = customerOf(jwt) ?: CartOwner.Guest(existingSession ?: newSession!!)
+        val existingOwner = ownerOf(jwt, sessionCookie)
+        val newSession = if (existingOwner == null) UUID.randomUUID().toString() else null
+        val owner = existingOwner ?: CartOwner.Guest(newSession!!)
 
         val command = AddItemToCartCommand(
             owner = owner,
