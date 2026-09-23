@@ -1,5 +1,7 @@
 package com.acme.cart.application
 
+import com.acme.cart.domain.CartOwner
+import com.acme.cart.domain.CartStatus
 import arrow.core.left
 import arrow.core.right
 import com.acme.cart.domain.Cart
@@ -50,7 +52,7 @@ class AddItemToCartUseCaseTest {
         imageUrl = null
     )
 
-    private fun command(quantity: Int = 2) = AddItemToCartCommand("sess-1", variantId, quantity, snapshot)
+    private fun command(quantity: Int = 2) = AddItemToCartCommand(CartOwner.Guest("sess-1"), variantId, quantity, snapshot)
 
     @BeforeEach
     fun setUp() {
@@ -61,7 +63,7 @@ class AddItemToCartUseCaseTest {
 
     @Test
     fun `first add creates a cart and publishes CartCreated then ItemAddedToCart`() {
-        every { cartRepository.findBySessionId("sess-1") } returns null
+        every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } returns null
 
         val cart = useCase.execute(command()).getOrNull()!!
 
@@ -71,7 +73,7 @@ class AddItemToCartUseCaseTest {
 
         val created = assertIs<CartCreated>(published[0]).payload
         assertEquals(cart.id, created.cartId)
-        assertEquals(null, created.customerId)
+        assertEquals(null, created.userId)
 
         val added = assertIs<ItemAddedToCart>(published[1]).payload
         assertEquals(cart.items.single().id, added.cartItemId)
@@ -85,7 +87,7 @@ class AddItemToCartUseCaseTest {
 
     @Test
     fun `adding to an existing cart publishes only ItemAddedToCart`() {
-        every { cartRepository.findBySessionId("sess-1") } returns Cart(id = UUID.randomUUID(), sessionId = "sess-1")
+        every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } returns Cart(id = UUID.randomUUID(), sessionId = "sess-1")
 
         useCase.execute(command())
 
@@ -94,7 +96,7 @@ class AddItemToCartUseCaseTest {
 
     @Test
     fun `the product snapshot is stored as JSON on the line`() {
-        every { cartRepository.findBySessionId("sess-1") } returns null
+        every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } returns null
 
         val cart = useCase.execute(command()).getOrNull()!!
 
@@ -109,14 +111,14 @@ class AddItemToCartUseCaseTest {
         val result = useCase.execute(command())
 
         assertEquals(CartError.VariantNotFound(variantId), result.leftOrNull())
-        verify(exactly = 0) { cartRepository.findBySessionId(any()) }
+        verify(exactly = 0) { cartRepository.findBySessionIdAndStatus(any(), any()) }
         verify(exactly = 0) { cartRepository.save(any()) }
         assertEquals(emptyList(), published)
     }
 
     @Test
     fun `exceeding the max quantity saves nothing and publishes nothing`() {
-        every { cartRepository.findBySessionId("sess-1") } returns null
+        every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } returns null
 
         val result = useCase.execute(command(quantity = 6))
 
@@ -127,11 +129,28 @@ class AddItemToCartUseCaseTest {
 
     @Test
     fun `a Kafka failure does not fail the add`() {
-        every { cartRepository.findBySessionId("sess-1") } returns null
+        every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } returns null
         every { eventPublisher.publish(any()) } throws IllegalStateException("broker down")
 
         val result = useCase.execute(command())
 
         assertEquals(2, result.getOrNull()!!.itemCount)
+    }
+
+    @Test
+    fun `a signed-in owner's first add creates a user cart and the events carry the user`() {
+        val userId = UUID.randomUUID()
+        every { cartRepository.findByUserIdAndStatus(userId, CartStatus.ACTIVE) } returns null
+
+        val cart = useCase.execute(
+            AddItemToCartCommand(CartOwner.Customer(userId), variantId, 2, snapshot)
+        ).getOrNull()!!
+
+        assertEquals(userId, cart.userId)
+        assertEquals(null, cart.sessionId)
+        val created = assertIs<CartCreated>(published[0]).payload
+        assertEquals(userId, created.userId)
+        assertEquals(null, created.sessionId)
+        assertEquals(userId, assertIs<ItemAddedToCart>(published[1]).payload.userId)
     }
 }

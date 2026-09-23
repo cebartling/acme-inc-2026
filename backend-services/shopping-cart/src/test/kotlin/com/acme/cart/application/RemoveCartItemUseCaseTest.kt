@@ -1,5 +1,7 @@
 package com.acme.cart.application
 
+import com.acme.cart.domain.CartOwner
+import com.acme.cart.domain.CartStatus
 import com.acme.cart.domain.Cart
 import com.acme.cart.domain.CartError
 import com.acme.cart.domain.VariantPricing
@@ -36,14 +38,14 @@ class RemoveCartItemUseCaseTest {
 
     @BeforeEach
     fun setUp() {
-        every { cartRepository.findBySessionId("sess-1") } returns cart
+        every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } returns cart
         every { cartRepository.save(any()) } answers { firstArg() }
         every { eventPublisher.publish(capture(published)) } returns Unit
     }
 
     @Test
     fun `removes the line and publishes CartItemRemoved with the removed quantity`() {
-        val updated = useCase.execute(RemoveCartItemCommand("sess-1", cart.id, item.id)).getOrNull()!!
+        val updated = useCase.execute(RemoveCartItemCommand(CartOwner.Guest("sess-1"), cart.id, item.id)).getOrNull()!!
 
         assertEquals(emptyList(), updated.items)
         val payload = assertIs<CartItemRemoved>(published.single()).payload
@@ -53,7 +55,7 @@ class RemoveCartItemUseCaseTest {
 
     @Test
     fun `a cart id the session does not own is CartItemNotFound and nothing changes`() {
-        val result = useCase.execute(RemoveCartItemCommand("sess-1", UUID.randomUUID(), item.id))
+        val result = useCase.execute(RemoveCartItemCommand(CartOwner.Guest("sess-1"), UUID.randomUUID(), item.id))
 
         assertEquals(CartError.CartItemNotFound(item.id), result.leftOrNull())
         assertEquals(1, cart.items.size)

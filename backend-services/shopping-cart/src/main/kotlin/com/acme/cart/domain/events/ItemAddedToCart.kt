@@ -16,8 +16,8 @@ data class ItemAddedToCartPayload(
     /** Units added by this operation, not the line's new total. */
     val quantity: Int,
     val unitPrice: Money,
-    val sessionId: String,
-    val customerId: UUID?
+    val sessionId: String?,
+    val userId: UUID?
 )
 
 class ItemAddedToCart(

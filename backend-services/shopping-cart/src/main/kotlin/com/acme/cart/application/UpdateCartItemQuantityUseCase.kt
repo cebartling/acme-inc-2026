@@ -5,6 +5,7 @@ import arrow.core.flatMap
 import arrow.core.left
 import com.acme.cart.domain.Cart
 import com.acme.cart.domain.CartError
+import com.acme.cart.domain.CartOwner
 import com.acme.cart.domain.QuantityChange
 import com.acme.cart.domain.events.CartItemQuantityUpdated
 import com.acme.cart.domain.events.CartItemQuantityUpdatedPayload
@@ -18,7 +19,7 @@ import org.springframework.transaction.support.TransactionTemplate
 import java.util.UUID
 
 data class UpdateCartItemQuantityCommand(
-    val sessionId: String,
+    val owner: CartOwner,
     val cartId: UUID,
     val itemId: UUID,
     val quantity: Int
@@ -41,13 +42,13 @@ class UpdateCartItemQuantityUseCase(
     private val logger = LoggerFactory.getLogger(UpdateCartItemQuantityUseCase::class.java)
 
     fun execute(command: UpdateCartItemQuantityCommand, correlationId: UUID = UUID.randomUUID()): Either<CartError, Cart> {
-        val variantId = cartRepository.findOwnedCart(command.sessionId, command.cartId)
+        val variantId = cartRepository.findOwnedCart(command.owner, command.cartId)
             ?.items?.find { it.id == command.itemId }?.variantId
             ?: return CartError.CartItemNotFound(command.itemId).left()
 
         return pricingClient.getPricing(variantId).flatMap { pricing ->
             val result = transactionTemplate.execute {
-                val cart = cartRepository.findOwnedCart(command.sessionId, command.cartId)
+                val cart = cartRepository.findOwnedCart(command.owner, command.cartId)
                     ?: return@execute CartError.CartItemNotFound(command.itemId).left()
                 cart.updateItemQuantity(command.itemId, command.quantity, pricing, maxOrderQuantity)
                     .map { change -> cartRepository.save(cart) to change }
@@ -73,7 +74,7 @@ class UpdateCartItemQuantityUseCase(
                     newQuantity = change.item.quantity,
                     reason = CartItemQuantityUpdated.REASON_CUSTOMER_UPDATE,
                     sessionId = cart.sessionId,
-                    customerId = cart.customerId
+                    userId = cart.userId
                 ),
                 correlationId
             ),

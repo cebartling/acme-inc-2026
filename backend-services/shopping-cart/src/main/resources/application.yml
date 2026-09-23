@@ -21,6 +21,18 @@ spring:
     locations: classpath:db/migration
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+  security:
+    oauth2:
+      resourceserver:
+        # Verifies identity's access_token cookie (US-0004-08): signature against identity's
+        # public keys, plus exp, iss and aud. Keys are re-fetched when a token carries an
+        # unknown kid (identity regenerates its keys on restart).
+        jwt:
+          jwk-set-uri: ${ACME_IDENTITY_JWKS_URI:http://localhost:10300/.well-known/jwks.json}
+          # Must match identity's identity.jwt.issuer / audience (same env var names).
+          # With jwk-set-uri set, issuer-uri is only compared to `iss`; nothing is discovered.
+          issuer-uri: ${JWT_ISSUER:https://auth.acme.com}
+          audiences: ${JWT_AUDIENCE:https://api.acme.com}
 
 management:
   endpoints:

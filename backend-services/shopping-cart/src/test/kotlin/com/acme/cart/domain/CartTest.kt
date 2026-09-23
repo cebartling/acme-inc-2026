@@ -122,4 +122,26 @@ class CartTest {
         assertEquals(emptyList(), cart.items)
         assertEquals(0, cart.itemCount)
     }
+
+    @Test
+    fun `a cart belongs to exactly one of a session or a user`() {
+        assertThrows<IllegalArgumentException> { Cart(id = UUID.randomUUID()) }
+        assertThrows<IllegalArgumentException> {
+            Cart(id = UUID.randomUUID(), sessionId = "sess-1", userId = UUID.randomUUID())
+        }
+    }
+
+    @Test
+    fun `newCartFor builds an ACTIVE cart for either kind of owner`() {
+        val userId = UUID.randomUUID()
+
+        val guest = newCartFor(CartOwner.Guest("sess-9"))
+        val customer = newCartFor(CartOwner.Customer(userId))
+
+        assertEquals("sess-9", guest.sessionId)
+        assertEquals(null, guest.userId)
+        assertEquals(userId, customer.userId)
+        assertEquals(null, customer.sessionId)
+        assertEquals(CartStatus.ACTIVE, customer.status)
+    }
 }

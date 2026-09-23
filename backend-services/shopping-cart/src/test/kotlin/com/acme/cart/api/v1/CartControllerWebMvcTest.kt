@@ -1,5 +1,14 @@
 package com.acme.cart.api.v1
 
+import org.springframework.security.oauth2.core.OAuth2Error
+import org.springframework.security.oauth2.jwt.JwtValidationException
+import org.springframework.security.oauth2.jwt.JwtDecoder
+import org.springframework.security.oauth2.jwt.Jwt
+import org.springframework.context.annotation.Import
+import com.acme.cart.domain.newCartFor
+import com.acme.cart.config.SecurityConfig
+import com.acme.cart.domain.CartOwner
+import com.acme.cart.domain.CartStatus
 import arrow.core.left
 import arrow.core.right
 import com.acme.cart.application.AddItemToCartCommand
@@ -39,12 +48,14 @@ import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
 @WebMvcTest(CartController::class)
+@Import(SecurityConfig::class)
 class CartControllerWebMvcTest(
     @Autowired private val mockMvc: MockMvc,
     @Autowired private val useCase: AddItemToCartUseCase,
     @Autowired private val updateUseCase: UpdateCartItemQuantityUseCase,
     @Autowired private val removeUseCase: RemoveCartItemUseCase,
-    @Autowired private val cartRepository: CartRepository
+    @Autowired private val cartRepository: CartRepository,
+    @Autowired private val jwtDecoder: JwtDecoder
 ) {
 
     @TestConfiguration
@@ -63,6 +74,10 @@ class CartControllerWebMvcTest(
 
         @Bean
         fun objectMapper(): ObjectMapper = jacksonObjectMapper()
+
+        /** Stands in for the JWKS-backed decoder; tests decide what a token decodes to. */
+        @Bean
+        fun jwtDecoder(): JwtDecoder = mockk()
     }
 
     private val variantId = UUID.randomUUID()
@@ -77,17 +92,19 @@ class CartControllerWebMvcTest(
 
     @BeforeEach
     fun setUp() {
-        clearMocks(useCase, updateUseCase, removeUseCase, cartRepository)
+        clearMocks(useCase, updateUseCase, removeUseCase, cartRepository, jwtDecoder)
         command.clear()
         every { useCase.execute(capture(command), any()) } answers {
             val cmd = firstArg<AddItemToCartCommand>()
-            val cart = Cart(id = UUID.randomUUID(), sessionId = cmd.sessionId)
+            val cart = newCartFor(cmd.owner)
             cart.addItem(cmd.variantId, cmd.quantity, VariantPricing(BigDecimal("69.99")), json(cmd), 10)
             cart.right()
         }
     }
 
     private fun json(cmd: AddItemToCartCommand) = jacksonObjectMapper().writeValueAsString(cmd.productSnapshot)
+
+    private fun guestSession(cmd: AddItemToCartCommand) = (cmd.owner as CartOwner.Guest).sessionId
 
     private fun postItem(cookie: String? = null, content: String = body) =
         mockMvc.post("/api/v1/carts/items") {
@@ -108,7 +125,7 @@ class CartControllerWebMvcTest(
         }.andReturn()
 
         val setCookie = result.response.getHeader(HttpHeaders.SET_COOKIE)!!
-        assertTrue(setCookie.startsWith("${CartController.SESSION_COOKIE}=${command.captured.sessionId};"), setCookie)
+        assertTrue(setCookie.startsWith("${CartController.SESSION_COOKIE}=${guestSession(command.captured)};"), setCookie)
         assertTrue("HttpOnly" in setCookie, setCookie)
         assertTrue("Secure" in setCookie, setCookie)
         assertTrue("SameSite=Lax" in setCookie, setCookie)
@@ -121,7 +138,7 @@ class CartControllerWebMvcTest(
 
         val result = postItem(cookie = sessionId).andExpect { status { isCreated() } }.andReturn()
 
-        assertEquals(sessionId, command.captured.sessionId)
+        assertEquals(sessionId, guestSession(command.captured))
         assertEquals(null, result.response.getHeader(HttpHeaders.SET_COOKIE))
     }
 
@@ -129,8 +146,8 @@ class CartControllerWebMvcTest(
     fun `a session cookie this service did not mint is replaced`() {
         val result = postItem(cookie = "not-a-uuid").andExpect { status { isCreated() } }.andReturn()
 
-        assertNotEquals("not-a-uuid", command.captured.sessionId)
-        assertTrue(result.response.getHeader(HttpHeaders.SET_COOKIE)!!.contains(command.captured.sessionId))
+        assertNotEquals("not-a-uuid", guestSession(command.captured))
+        assertTrue(result.response.getHeader(HttpHeaders.SET_COOKIE)!!.contains(guestSession(command.captured)))
     }
 
     @Test
@@ -188,7 +205,7 @@ class CartControllerWebMvcTest(
 
     @Test
     fun `current cart is 204 when the session has no cart yet`() {
-        every { cartRepository.findBySessionId(sessionId) } returns null
+        every { cartRepository.findBySessionIdAndStatus(sessionId, CartStatus.ACTIVE) } returns null
 
         mockMvc.get("/api/v1/carts/current") { cookie(Cookie(CartController.SESSION_COOKIE, sessionId)) }
             .andExpect { status { isNoContent() } }
@@ -196,7 +213,7 @@ class CartControllerWebMvcTest(
 
     @Test
     fun `current cart returns the session's cart`() {
-        every { cartRepository.findBySessionId(sessionId) } returns cartFor(sessionId)
+        every { cartRepository.findBySessionIdAndStatus(sessionId, CartStatus.ACTIVE) } returns cartFor(sessionId)
 
         mockMvc.get("/api/v1/carts/current") { cookie(Cookie(CartController.SESSION_COOKIE, sessionId)) }
             .andExpect {
@@ -217,7 +234,7 @@ class CartControllerWebMvcTest(
             content = """{"quantity":3}"""
         }.andExpect { status { isOk() } }
 
-        assertEquals(UpdateCartItemQuantityCommand(sessionId, cartId, itemId, 3), captured.captured)
+        assertEquals(UpdateCartItemQuantityCommand(CartOwner.Guest(sessionId), cartId, itemId, 3), captured.captured)
     }
 
     @Test
@@ -265,7 +282,7 @@ class CartControllerWebMvcTest(
             jsonPath("$.summary.itemCount") { value(0) }
         }
 
-        assertEquals(RemoveCartItemCommand(sessionId, cartId, itemId), captured.captured)
+        assertEquals(RemoveCartItemCommand(CartOwner.Guest(sessionId), cartId, itemId), captured.captured)
     }
 
     @Test
@@ -275,5 +292,99 @@ class CartControllerWebMvcTest(
         mockMvc.delete("/api/v1/carts/$cartId/items/$itemId") {
             cookie(Cookie(CartController.SESSION_COOKIE, sessionId))
         }.andExpect { status { isNotFound() } }
+    }
+
+    // --- US-0004-08: signed-in callers ------------------------------------------------
+
+    private val userId = UUID.randomUUID()
+
+    /** The access_token cookie decodes to a verified token for [userId]. */
+    private fun signedIn() {
+        every { jwtDecoder.decode("good-token") } returns Jwt.withTokenValue("good-token")
+            .header("alg", "RS256")
+            .subject(userId.toString())
+            .build()
+    }
+
+    private fun accessToken(value: String = "good-token") = Cookie(SecurityConfig.ACCESS_TOKEN_COOKIE, value)
+
+    @Test
+    fun `a signed-in add goes to the user's cart and sets no guest cookie`() {
+        signedIn()
+
+        val result = mockMvc.post("/api/v1/carts/items") {
+            contentType = MediaType.APPLICATION_JSON
+            content = body
+            cookie(accessToken())
+        }.andExpect { status { isCreated() } }.andReturn()
+
+        assertEquals(CartOwner.Customer(userId), command.captured.owner)
+        assertEquals(null, result.response.getHeader(HttpHeaders.SET_COOKIE))
+    }
+
+    @Test
+    fun `a signed-in caller's token wins over a guest session cookie`() {
+        signedIn()
+
+        mockMvc.post("/api/v1/carts/items") {
+            contentType = MediaType.APPLICATION_JSON
+            content = body
+            cookie(accessToken(), Cookie(CartController.SESSION_COOKIE, sessionId))
+        }.andExpect { status { isCreated() } }
+
+        assertEquals(CartOwner.Customer(userId), command.captured.owner)
+    }
+
+    @Test
+    fun `current cart for a signed-in caller is the user's cart`() {
+        signedIn()
+        every { cartRepository.findByUserIdAndStatus(userId, CartStatus.ACTIVE) } returns newCartFor(CartOwner.Customer(userId))
+
+        mockMvc.get("/api/v1/carts/current") {
+            cookie(accessToken(), Cookie(CartController.SESSION_COOKIE, sessionId))
+        }.andExpect { status { isOk() } }
+    }
+
+    @Test
+    fun `a signed-in update acts on the user's cart`() {
+        signedIn()
+        val captured = slot<UpdateCartItemQuantityCommand>()
+        every { updateUseCase.execute(capture(captured), any()) } returns newCartFor(CartOwner.Customer(userId)).right()
+
+        mockMvc.patch("/api/v1/carts/$cartId/items/$itemId") {
+            cookie(accessToken())
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"quantity":3}"""
+        }.andExpect { status { isOk() } }
+
+        assertEquals(CartOwner.Customer(userId), captured.captured.owner)
+    }
+
+    @Test
+    fun `an expired token is a 401 TOKEN_EXPIRED so the client refreshes and retries`() {
+        every { jwtDecoder.decode("stale-token") } throws JwtValidationException(
+            "An error occurred while attempting to decode the Jwt: Jwt expired at 2026-01-01T00:00:00Z",
+            listOf(OAuth2Error("invalid_token", "Jwt expired at 2026-01-01T00:00:00Z", null))
+        )
+
+        mockMvc.get("/api/v1/carts/current") { cookie(accessToken("stale-token")) }
+            .andExpect {
+                status { isUnauthorized() }
+                jsonPath("$.error") { value("TOKEN_EXPIRED") }
+            }
+    }
+
+    @Test
+    fun `a token that fails verification for another reason is a 401 INVALID_TOKEN`() {
+        every { jwtDecoder.decode("forged-token") } throws JwtValidationException(
+            "An error occurred while attempting to decode the Jwt: Signed JWT rejected",
+            listOf(OAuth2Error("invalid_token", "Signed JWT rejected: Invalid signature", null))
+        )
+
+        mockMvc.get("/api/v1/carts/current") { cookie(accessToken("forged-token")) }
+            .andExpect {
+                status { isUnauthorized() }
+                jsonPath("$.error") { value("INVALID_TOKEN") }
+            }
     }
 }
