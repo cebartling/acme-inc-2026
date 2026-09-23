@@ -68,6 +68,14 @@ class UpdateCartItemQuantityUseCaseTest {
     }
 
     @Test
+    fun `setting the current quantity publishes nothing`() {
+        val updated = useCase.execute(command(2)).getOrNull()!!
+
+        assertEquals(2, updated.items.single().quantity)
+        assertEquals(emptyList(), published)
+    }
+
+    @Test
     fun `a cart id the session does not own is CartItemNotFound and nothing changes`() {
         val result = useCase.execute(command(3, cartId = UUID.randomUUID()))
 

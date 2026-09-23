@@ -160,4 +160,52 @@ describe("CartPage", () => {
     expect(mockedRemove).toHaveBeenCalledWith("cart-1", "line-1");
     expect(await screen.findByTestId("cartEmptyState")).toBeInTheDocument();
   });
+
+  it("reloads the cart when a line was already removed elsewhere (404)", async () => {
+    mockedGetCurrent
+      .mockResolvedValueOnce(cartOf(line(2, 119.99)))
+      .mockResolvedValueOnce(cartOf());
+    mockedRemove.mockRejectedValue(
+      new ApiError("Cart item not found: line-1", 404),
+    );
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Remove Gadget Pro (Black) from cart",
+      }),
+    );
+
+    expect(await screen.findByTestId("cartEmptyState")).toBeInTheDocument();
+    expect(mockedGetCurrent).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows the latest action's error, not an older one", async () => {
+    mockedGetCurrent.mockResolvedValue(cartOf(line(2, 119.99)));
+    mockedUpdate.mockRejectedValue(new ApiError("Pricing unavailable", 503));
+    mockedRemove.mockRejectedValue(
+      new ApiError("Cart service unavailable", 503),
+    );
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Increase quantity of Gadget Pro (Black)",
+      }),
+    );
+    expect(await screen.findByTestId("lineMessage")).toHaveTextContent(
+      "Pricing unavailable",
+    );
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "Remove Gadget Pro (Black) from cart",
+      }),
+    );
+    expect(
+      await screen.findByText("Cart service unavailable"),
+    ).toBeInTheDocument();
+  });
 });
