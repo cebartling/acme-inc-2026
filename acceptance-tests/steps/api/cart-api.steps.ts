@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { Given, When, Then } from '@cucumber/cucumber';
 import { expect } from '@playwright/test';
 import { CustomWorld } from '../../support/world.js';
@@ -23,7 +24,13 @@ const VARIANTS: Record<string, { variantId: string; productId: string; sku: stri
 
 interface CartResponse {
   id: string;
-  items: { variantId: string; quantity: number; unitPrice: number; lineTotal: number }[];
+  items: {
+    id: string;
+    variantId: string;
+    quantity: number;
+    unitPrice: number;
+    lineTotal: number;
+  }[];
   summary: { itemCount: number; subtotal: number; currency: string };
 }
 
@@ -63,9 +70,28 @@ async function addItem(world: CustomWorld, body: unknown, withSession: boolean) 
   if (cookie) {
     world.setTestData('cartSessionId', cookie.split(';')[0].split('=')[1]);
   }
-  world.setTestData('lastCartVariant', (body as { variantId: string }).variantId);
+  const variantId = (body as { variantId: string }).variantId;
+  world.setTestData('lastCartVariant', variantId);
+  rememberCartLine(world, response, variantId);
   world.setLastResponse(response);
   return response;
+}
+
+/** Keeps the cart and line ids so later steps can PATCH or DELETE that line. */
+function rememberCartLine(world: CustomWorld, response: ApiResponse<unknown>, variantId: string) {
+  if (response.status >= 300) return;
+  const cart = response.data as CartResponse;
+  const line = cart.items.find((i) => i.variantId === variantId);
+  world.setTestData('cartId', cart.id);
+  if (line) world.setTestData('cartItemId', line.id);
+}
+
+function sessionHeaders(sessionId: string | undefined): Record<string, string> {
+  return sessionId ? { Cookie: `${SESSION_COOKIE}=${sessionId}` } : {};
+}
+
+function linePath(world: CustomWorld): string {
+  return `/api/v1/carts/${world.getTestData<string>('cartId')}/items/${world.getTestData<string>('cartItemId')}`;
 }
 
 When(
@@ -130,4 +156,71 @@ Then(
 
 Then('the cart item count should be {int}', async function (this: CustomWorld, count: number) {
   expect(this.getLastResponse<CartResponse>()!.data.summary.itemCount).toBe(count);
+});
+
+// --- US-0004-07: read, update and remove ---------------------------------------------
+
+When('I get my current cart', async function (this: CustomWorld) {
+  const sessionId = this.getTestData<string>('cartSessionId');
+  const response = await this.cartApiClient.get<CartResponse>('/api/v1/carts/current', {
+    headers: sessionHeaders(sessionId),
+  });
+  this.setLastResponse(response);
+});
+
+When('I get the current cart without a session cookie', async function (this: CustomWorld) {
+  this.setLastResponse(await this.cartApiClient.get('/api/v1/carts/current'));
+});
+
+When(
+  'I change the quantity of that line to {int}',
+  async function (this: CustomWorld, quantity: number) {
+    const response = await this.cartApiClient.patch<CartResponse>(
+      linePath(this),
+      { quantity },
+      { headers: sessionHeaders(this.getTestData<string>('cartSessionId')) }
+    );
+    this.setLastResponse(response);
+  }
+);
+
+When('I remove that line', async function (this: CustomWorld) {
+  const response = await this.cartApiClient.delete<CartResponse>(linePath(this), {
+    headers: sessionHeaders(this.getTestData<string>('cartSessionId')),
+  });
+  this.setLastResponse(response);
+});
+
+// A different, valid session ID: the cart and line exist, but they are not this session's.
+When(
+  'another session changes the quantity of that line to {int}',
+  async function (this: CustomWorld, quantity: number) {
+    const response = await this.cartApiClient.patch(
+      linePath(this),
+      { quantity },
+      { headers: sessionHeaders(randomUUID()) }
+    );
+    this.setLastResponse(response);
+  }
+);
+
+When('another session removes that line', async function (this: CustomWorld) {
+  const response = await this.cartApiClient.delete(linePath(this), {
+    headers: sessionHeaders(randomUUID()),
+  });
+  this.setLastResponse(response);
+});
+
+Then(
+  'the response should include a max quantity of {int}',
+  async function (this: CustomWorld, max: number) {
+    const data = this.getLastResponse<{ maxQuantity?: number }>()!.data;
+    expect(data.maxQuantity).toBe(max);
+  }
+);
+
+Then('the cart should be empty', async function (this: CustomWorld) {
+  const cart = this.getLastResponse<CartResponse>()!.data;
+  expect(cart.items).toHaveLength(0);
+  expect(cart.summary.itemCount).toBe(0);
 });
