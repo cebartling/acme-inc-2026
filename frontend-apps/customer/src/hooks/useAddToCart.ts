@@ -1,7 +1,7 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { AddToCartRequest, Cart } from "@/services/api";
 import { cartApi, inventoryApi } from "@/services/api";
-import { useCartStore } from "@/stores/cart.store";
+import { CART_QUERY_KEY } from "@/hooks/useCart";
 
 export const OUT_OF_STOCK_MESSAGE = "This item is out of stock";
 
@@ -9,11 +9,11 @@ export const OUT_OF_STOCK_MESSAGE = "This item is out of stock";
  * Adds an item to the guest cart (US-0004-06).
  *
  * Availability is re-checked right before the add (AC-0004-06-02) rather than trusted
- * from the page's cached query, which may be minutes old. On success the header badge
- * takes the server's total (AC-0004-06-06).
+ * from the page's cached query, which may be minutes old. On success the returned cart
+ * replaces the cached one, which updates the header badge (AC-0004-06-06).
  */
 export function useAddToCart() {
-  const setItemCount = useCartStore((state) => state.setItemCount);
+  const queryClient = useQueryClient();
 
   return useMutation<Cart, Error, AddToCartRequest>({
     mutationFn: async (request) => {
@@ -25,6 +25,6 @@ export function useAddToCart() {
       }
       return cartApi.addItem(request);
     },
-    onSuccess: (cart) => setItemCount(cart.summary.itemCount),
+    onSuccess: (cart) => queryClient.setQueryData(CART_QUERY_KEY, cart),
   });
 }

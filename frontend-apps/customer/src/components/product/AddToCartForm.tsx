@@ -1,4 +1,5 @@
 import { useId, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import type { ProductDetail, ProductVariant } from "@/services/api";
 import { useAddToCart } from "@/hooks/useAddToCart";
@@ -141,6 +142,13 @@ export function AddToCartForm({
               Line total: ${addedLine.lineTotal.toFixed(2)} (
               {addedLine.quantity} in cart)
             </p>
+            <Link
+              to="/cart"
+              data-testid="viewCartLink"
+              className="mt-2 inline-block font-semibold text-emerald-100 underline hover:text-white"
+            >
+              View Cart
+            </Link>
           </div>
         )}
       </div>

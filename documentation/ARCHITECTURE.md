@@ -170,10 +170,13 @@ sequenceDiagram
   `acme.cart.max-order-quantity` (default 10); exceeding it is a 422 with the message the
   customer sees. Stock is checked by the frontend before the POST — the product service
   only knows in/out of stock, not quantities (see PIN-273).
-- **Frontend**: `useAddToCart` re-checks availability, POSTs, and writes the response's
-  `summary.itemCount` into the zustand `cart.store`, which drives the header `CartBadge`.
-  The store is not persisted, so the badge resets on reload until the cart is loaded on
-  page load (US-0004-07).
+- **Frontend**: one TanStack Query entry, `["cart"]` (`hooks/useCart.ts`), is the only
+  cart state. The header `CartBadge` loads it with `GET /carts/current` on every page, so
+  the count survives reloads and new tabs; `useAddToCart`, `useUpdateCartItem` and
+  `useRemoveCartItem` write each response back with `setQueryData`, so the badge and the
+  `/cart` page update together without a refetch. `useAddToCart` re-checks availability
+  before it POSTs. An over-max update is retried at the service's `maxQuantity` and the
+  line shows why (US-0004-07 AC-08).
 - **Events are best-effort**: published directly to Kafka after the transaction commits,
   as the product service does. A Kafka failure is logged and does not fail the add; there
   is no outbox, so an event can be lost while the cart change is kept.

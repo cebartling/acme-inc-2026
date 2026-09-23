@@ -1181,6 +1181,40 @@ export const cartApi = {
       body: JSON.stringify(request),
     });
   },
+
+  /** The session's cart, or `null` when there is none yet (the service answers 204). */
+  async getCurrent(): Promise<Cart | null> {
+    return apiRequest<Cart | null>(`${CART_SERVICE_URL}/api/v1/carts/current`, {
+      method: "GET",
+      credentials: "include",
+    });
+  },
+
+  /**
+   * Sets a line's quantity. An over-max quantity rejects with a 422 `ApiError` whose
+   * `data.maxQuantity` is the limit.
+   */
+  async updateItem(
+    cartId: string,
+    itemId: string,
+    quantity: number,
+  ): Promise<Cart> {
+    return apiRequest<Cart>(
+      `${CART_SERVICE_URL}/api/v1/carts/${encodeURIComponent(cartId)}/items/${encodeURIComponent(itemId)}`,
+      {
+        method: "PATCH",
+        credentials: "include",
+        body: JSON.stringify({ quantity }),
+      },
+    );
+  },
+
+  async removeItem(cartId: string, itemId: string): Promise<Cart> {
+    return apiRequest<Cart>(
+      `${CART_SERVICE_URL}/api/v1/carts/${encodeURIComponent(cartId)}/items/${encodeURIComponent(itemId)}`,
+      { method: "DELETE", credentials: "include" },
+    );
+  },
 };
 
 export interface Category {
