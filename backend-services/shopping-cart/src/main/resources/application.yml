@@ -39,6 +39,12 @@ acme:
       secure: ${ACME_CART_COOKIE_SECURE:true}
   product:
     base-url: ${PRODUCT_SERVICE_URL:http://localhost:10303}
+  identity:
+    # Public signing keys for verifying the access_token cookie (US-0004-08)
+    jwks-uri: ${ACME_IDENTITY_JWKS_URI:http://localhost:10300/.well-known/jwks.json}
+    # Must match identity's identity.jwt.issuer / audience (same env var names)
+    issuer: ${JWT_ISSUER:https://auth.acme.com}
+    audience: ${JWT_AUDIENCE:https://api.acme.com}
 
 logging:
   level:

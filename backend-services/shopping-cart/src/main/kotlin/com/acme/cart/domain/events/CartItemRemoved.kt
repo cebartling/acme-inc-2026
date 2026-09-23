@@ -9,8 +9,8 @@ data class CartItemRemovedPayload(
     val variantId: UUID,
     /** Units on the line when it was removed. */
     val quantity: Int,
-    val sessionId: String,
-    val customerId: UUID?
+    val sessionId: String?,
+    val userId: UUID?
 )
 
 class CartItemRemoved(

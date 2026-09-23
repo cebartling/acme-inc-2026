@@ -5,6 +5,7 @@ import arrow.core.left
 import com.acme.cart.domain.Cart
 import com.acme.cart.domain.CartError
 import com.acme.cart.domain.CartItem
+import com.acme.cart.domain.CartOwner
 import com.acme.cart.domain.events.CartItemRemoved
 import com.acme.cart.domain.events.CartItemRemovedPayload
 import com.acme.cart.infrastructure.messaging.CartEventPublisher
@@ -14,7 +15,7 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.support.TransactionTemplate
 import java.util.UUID
 
-data class RemoveCartItemCommand(val sessionId: String, val cartId: UUID, val itemId: UUID)
+data class RemoveCartItemCommand(val owner: CartOwner, val cartId: UUID, val itemId: UUID)
 
 /** Removes a line from the session's own cart (US-0004-07, AC-05). */
 @Service
@@ -27,7 +28,7 @@ class RemoveCartItemUseCase(
 
     fun execute(command: RemoveCartItemCommand, correlationId: UUID = UUID.randomUUID()): Either<CartError, Cart> {
         val result = transactionTemplate.execute {
-            val cart = cartRepository.findOwnedCart(command.sessionId, command.cartId)
+            val cart = cartRepository.findOwnedCart(command.owner, command.cartId)
                 ?: return@execute CartError.CartItemNotFound(command.itemId).left()
             cart.removeItem(command.itemId).map { removed -> cartRepository.save(cart) to removed }
         }
@@ -47,7 +48,7 @@ class RemoveCartItemUseCase(
                     variantId = removed.variantId,
                     quantity = removed.quantity,
                     sessionId = cart.sessionId,
-                    customerId = cart.customerId
+                    userId = cart.userId
                 ),
                 correlationId
             ),

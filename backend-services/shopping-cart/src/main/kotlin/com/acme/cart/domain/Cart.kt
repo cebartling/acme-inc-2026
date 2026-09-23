@@ -14,11 +14,17 @@ class Cart(
     @Column(name = "id", nullable = false, updatable = false)
     val id: UUID,
 
-    @Column(name = "session_id", nullable = false, unique = true, length = 64)
-    val sessionId: String,
+    /** The guest session that owns this cart; null for a signed-in user's cart. */
+    @Column(name = "session_id", length = 64)
+    val sessionId: String? = null,
 
-    @Column(name = "customer_id")
-    val customerId: UUID? = null,
+    /** The signed-in user (JWT `sub`) that owns this cart; null for a guest cart. */
+    @Column(name = "user_id")
+    val userId: UUID? = null,
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, length = 16)
+    var status: CartStatus = CartStatus.ACTIVE,
 
     @Column(name = "created_at", nullable = false, updatable = false)
     val createdAt: Instant = Instant.now(),
@@ -35,6 +41,12 @@ class Cart(
     @OrderBy("createdAt ASC")
     val items: MutableList<CartItem> = mutableListOf()
 ) {
+    init {
+        require((sessionId == null) != (userId == null)) {
+            "a cart belongs to exactly one of a session or a user (session=$sessionId, user=$userId)"
+        }
+    }
+
     /** Total units across all lines, shown on the header cart badge. */
     val itemCount: Int
         get() = items.sumOf { it.quantity }
@@ -120,3 +132,9 @@ class Cart(
 }
 
 data class QuantityChange(val item: CartItem, val previousQuantity: Int)
+
+/** A new, empty ACTIVE cart for [owner]. */
+fun newCartFor(owner: CartOwner): Cart = when (owner) {
+    is CartOwner.Guest -> Cart(id = UUID.randomUUID(), sessionId = owner.sessionId)
+    is CartOwner.Customer -> Cart(id = UUID.randomUUID(), userId = owner.userId)
+}

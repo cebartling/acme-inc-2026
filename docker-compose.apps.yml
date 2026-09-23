@@ -380,6 +380,9 @@ services:
       # Authoritative prices come from the product service
       PRODUCT_SERVICE_URL: http://product-service:10303
 
+      # Verifies the access_token cookie against identity's public signing keys
+      ACME_IDENTITY_JWKS_URI: http://identity-service:10300/.well-known/jwks.json
+
       OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4317
       OTEL_SERVICE_NAME: shopping-cart-service
     networks:

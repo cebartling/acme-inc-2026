@@ -1,5 +1,7 @@
 package com.acme.cart.application
 
+import com.acme.cart.domain.CartOwner
+import com.acme.cart.domain.CartStatus
 import arrow.core.left
 import arrow.core.right
 import com.acme.cart.domain.Cart
@@ -44,11 +46,11 @@ class UpdateCartItemQuantityUseCaseTest {
     private val item = cart.addItem(variantId, 2, pricing, "{}", 10).getOrNull()!!
 
     private fun command(quantity: Int, cartId: UUID = cart.id, itemId: UUID = item.id) =
-        UpdateCartItemQuantityCommand("sess-1", cartId, itemId, quantity)
+        UpdateCartItemQuantityCommand(CartOwner.Guest("sess-1"), cartId, itemId, quantity)
 
     @BeforeEach
     fun setUp() {
-        every { cartRepository.findBySessionId("sess-1") } returns cart
+        every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } returns cart
         every { cartRepository.save(any()) } answers { firstArg() }
         every { pricingClient.getPricing(variantId) } returns pricing.right()
         every { eventPublisher.publish(capture(published)) } returns Unit

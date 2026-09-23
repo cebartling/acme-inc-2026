@@ -129,8 +129,16 @@ customer re-submitting the same term would never trigger a probe.
 `backend-services/shopping-cart` (port 10304, database `acme_carts`) owns shopping carts
 (Epic 009, US-0004-06 onward).
 
-- **Cart identity**: a guest cart is keyed by a session ID (`carts.session_id`, unique).
-  `customer_id` stays `NULL` until cart merge on sign-in (US-0004-08).
+- **Cart identity**: a cart belongs to exactly one owner — a guest session
+  (`carts.session_id`) or a signed-in user (`carts.user_id`, the access token's `sub`).
+  Only `ACTIVE` carts are resolved; partial unique indexes allow one ACTIVE cart per
+  session and per user, so a session whose cart was `MERGED` can start a new guest cart.
+- **Signed-in callers (US-0004-08)**: the service verifies identity's `access_token`
+  cookie against `GET /.well-known/jwks.json` (Spring OAuth2 resource server; signature,
+  `exp`, `iss`, `aud`). Every endpoint stays open to guests: with a valid token the caller
+  acts on their user cart, which follows them to any device; without one, on the session's.
+  An expired token is `401 {"error":"TOKEN_EXPIRED"}`, which the customer app's API client
+  answers by refreshing and retrying; any other bad token is `401 INVALID_TOKEN`.
 - **One line per variant**: `cart_items` has a unique `(cart_id, variant_id)`, so adding a
   variant already in the cart increments its quantity rather than adding a line.
 - **Product snapshot**: each line stores the product name, SKU, image and attributes as
@@ -191,9 +199,9 @@ sequenceDiagram
 | `PATCH /api/v1/carts/{cartId}/items/{itemId}` `{quantity}` | 200 with the cart | `CartItemQuantityUpdated` |
 | `DELETE /api/v1/carts/{cartId}/items/{itemId}` | 200 with the cart (possibly empty) | `CartItemRemoved` |
 
-- **Ownership comes from the cookie, not the URL**: the cart is looked up by the session
-  cookie, and a `cartId` in the path that is not that session's cart is a 404 — the same
-  answer as a missing item — so the API never confirms another session's cart exists.
+- **Ownership comes from the caller, not the URL**: the cart is looked up by the verified
+  user or the session cookie, and a `cartId` in the path that is not that caller's cart is
+  a 404 — the same answer as a missing item — so the API never confirms another cart exists.
 - **Quantity changes reprice the line** at the new quantity, down a tier as well as up. An
   over-max quantity is a 422 whose body carries `maxQuantity`, so the client can clamp.
   Setting a line to the quantity it already has publishes no `CartItemQuantityUpdated`.

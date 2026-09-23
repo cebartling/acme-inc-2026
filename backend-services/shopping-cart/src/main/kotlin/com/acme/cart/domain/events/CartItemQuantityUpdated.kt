@@ -10,8 +10,8 @@ data class CartItemQuantityUpdatedPayload(
     val previousQuantity: Int,
     val newQuantity: Int,
     val reason: String,
-    val sessionId: String,
-    val customerId: UUID?
+    val sessionId: String?,
+    val userId: UUID?
 )
 
 class CartItemQuantityUpdated(

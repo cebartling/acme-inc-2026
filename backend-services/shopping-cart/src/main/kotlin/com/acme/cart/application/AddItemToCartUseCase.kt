@@ -4,8 +4,10 @@ import arrow.core.Either
 import arrow.core.flatMap
 import com.acme.cart.domain.Cart
 import com.acme.cart.domain.CartError
+import com.acme.cart.domain.CartOwner
 import com.acme.cart.domain.CartItem
 import com.acme.cart.domain.ProductSnapshot
+import com.acme.cart.domain.newCartFor
 import com.acme.cart.domain.events.CartCreated
 import com.acme.cart.domain.events.DomainEvent
 import com.acme.cart.domain.events.ItemAddedToCart
@@ -22,7 +24,7 @@ import org.springframework.transaction.support.TransactionTemplate
 import java.util.UUID
 
 data class AddItemToCartCommand(
-    val sessionId: String,
+    val owner: CartOwner,
     val variantId: UUID,
     val quantity: Int,
     val productSnapshot: ProductSnapshot
@@ -50,8 +52,8 @@ class AddItemToCartUseCase(
     fun execute(command: AddItemToCartCommand, correlationId: UUID = UUID.randomUUID()): Either<CartError, Cart> =
         pricingClient.getPricing(command.variantId).flatMap { pricing ->
             val result = transactionTemplate.execute {
-                val existing = cartRepository.findBySessionId(command.sessionId)
-                val cart = existing ?: Cart(id = UUID.randomUUID(), sessionId = command.sessionId)
+                val existing = cartRepository.findActiveCart(command.owner)
+                val cart = existing ?: newCartFor(command.owner)
 
                 cart.addItem(
                     variantId = command.variantId,
@@ -64,7 +66,7 @@ class AddItemToCartUseCase(
                     Added(saved, item, isNewCart = existing == null)
                 }
             }
-            checkNotNull(result) { "transaction for session ${command.sessionId} returned no result" }
+            checkNotNull(result) { "transaction for ${command.owner} returned no result" }
         }.map { added ->
             publishEvents(added, command, correlationId)
             added.cart
@@ -75,7 +77,7 @@ class AddItemToCartUseCase(
     private fun publishEvents(added: Added, command: AddItemToCartCommand, correlationId: UUID) {
         val cart = added.cart
         if (added.isNewCart) {
-            publish(CartCreated.create(cart.id, cart.sessionId, cart.customerId, correlationId))
+            publish(CartCreated.create(cart.id, cart.sessionId, cart.userId, correlationId))
         }
         publish(
             ItemAddedToCart.create(
@@ -89,7 +91,7 @@ class AddItemToCartUseCase(
                     quantity = command.quantity,
                     unitPrice = Money(added.item.unitPrice, CURRENCY),
                     sessionId = cart.sessionId,
-                    customerId = cart.customerId
+                    userId = cart.userId
                 ),
                 correlationId
             )

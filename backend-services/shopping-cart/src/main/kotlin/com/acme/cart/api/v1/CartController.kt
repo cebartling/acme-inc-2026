@@ -6,8 +6,10 @@ import com.acme.cart.application.RemoveCartItemCommand
 import com.acme.cart.application.RemoveCartItemUseCase
 import com.acme.cart.application.UpdateCartItemQuantityCommand
 import com.acme.cart.application.UpdateCartItemQuantityUseCase
+import com.acme.cart.application.findActiveCart
 import com.acme.cart.domain.Cart
 import com.acme.cart.domain.CartError
+import com.acme.cart.domain.CartOwner
 import com.acme.cart.domain.ProductSnapshot
 import com.acme.cart.infrastructure.persistence.CartRepository
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -17,6 +19,8 @@ import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseCookie
 import org.springframework.http.ResponseEntity
+import org.springframework.security.core.annotation.AuthenticationPrincipal
+import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.web.bind.annotation.CookieValue
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
@@ -43,19 +47,22 @@ class CartController(
     /**
      * Adds an item to the caller's cart (US-0004-06).
      *
-     * The cart is keyed by the `acme_session_id` cookie. A request without a valid one
-     * gets a fresh session ID, returned as an HttpOnly cookie on the response.
+     * A signed-in caller's cart is their user cart (US-0004-08 AC-07). A guest's cart is
+     * keyed by the `acme_session_id` cookie; a guest without a valid one gets a fresh
+     * session ID, returned as an HttpOnly cookie on the response.
      */
     @PostMapping("/items")
     fun addItem(
+        @AuthenticationPrincipal jwt: Jwt?,
         @CookieValue(SESSION_COOKIE, required = false) sessionCookie: String?,
         @Valid @RequestBody request: AddToCartRequest
     ): ResponseEntity<Any> {
         val existingSession = validSession(sessionCookie)
-        val sessionId = existingSession ?: UUID.randomUUID().toString()
+        val newSession = if (jwt == null && existingSession == null) UUID.randomUUID().toString() else null
+        val owner = customerOf(jwt) ?: CartOwner.Guest(existingSession ?: newSession!!)
 
         val command = AddItemToCartCommand(
-            sessionId = sessionId,
+            owner = owner,
             variantId = request.variantId!!,
             quantity = request.quantity!!,
             productSnapshot = request.productSnapshot!!.toDomain()
@@ -65,8 +72,8 @@ class CartController(
             ifLeft = ::errorResponse,
             ifRight = { cart ->
                 val response = ResponseEntity.status(HttpStatus.CREATED)
-                if (existingSession == null) {
-                    response.header(HttpHeaders.SET_COOKIE, sessionCookie(sessionId).toString())
+                if (newSession != null) {
+                    response.header(HttpHeaders.SET_COOKIE, sessionCookie(newSession).toString())
                 }
                 response.body(toResponse(cart))
             }
@@ -74,14 +81,16 @@ class CartController(
     }
 
     /**
-     * The caller's cart (US-0004-07, AC-02/03/10). 204 when there is no session or no cart
-     * yet, so a first-time visitor's page load is not an error.
+     * The caller's cart (US-0004-07, AC-02/03/10): the user cart when signed in, else the
+     * session's. 204 when there is no owner or no ACTIVE cart yet, so a first-time
+     * visitor's page load is not an error.
      */
     @GetMapping("/current")
     fun getCurrent(
+        @AuthenticationPrincipal jwt: Jwt?,
         @CookieValue(SESSION_COOKIE, required = false) sessionCookie: String?
     ): ResponseEntity<Any> {
-        val cart = validSession(sessionCookie)?.let(cartRepository::findBySessionId)
+        val cart = ownerOf(jwt, sessionCookie)?.let(cartRepository::findActiveCart)
             ?: return ResponseEntity.noContent().build()
         return ResponseEntity.ok(toResponse(cart))
     }
@@ -89,13 +98,14 @@ class CartController(
     /** Sets a line's quantity (AC-0004-07-04, AC-08). Only the caller's own cart is reachable. */
     @PatchMapping("/{cartId}/items/{itemId}")
     fun updateItemQuantity(
+        @AuthenticationPrincipal jwt: Jwt?,
         @CookieValue(SESSION_COOKIE, required = false) sessionCookie: String?,
         @PathVariable cartId: UUID,
         @PathVariable itemId: UUID,
         @Valid @RequestBody request: UpdateQuantityRequest
     ): ResponseEntity<Any> {
-        val sessionId = validSession(sessionCookie) ?: return errorResponse(CartError.CartItemNotFound(itemId))
-        val command = UpdateCartItemQuantityCommand(sessionId, cartId, itemId, request.quantity!!)
+        val owner = ownerOf(jwt, sessionCookie) ?: return errorResponse(CartError.CartItemNotFound(itemId))
+        val command = UpdateCartItemQuantityCommand(owner, cartId, itemId, request.quantity!!)
         return updateCartItemQuantityUseCase.execute(command)
             .fold(ifLeft = ::errorResponse, ifRight = { ResponseEntity.ok(toResponse(it)) })
     }
@@ -103,12 +113,13 @@ class CartController(
     /** Removes a line (AC-0004-07-05). Only the caller's own cart is reachable. */
     @DeleteMapping("/{cartId}/items/{itemId}")
     fun removeItem(
+        @AuthenticationPrincipal jwt: Jwt?,
         @CookieValue(SESSION_COOKIE, required = false) sessionCookie: String?,
         @PathVariable cartId: UUID,
         @PathVariable itemId: UUID
     ): ResponseEntity<Any> {
-        val sessionId = validSession(sessionCookie) ?: return errorResponse(CartError.CartItemNotFound(itemId))
-        return removeCartItemUseCase.execute(RemoveCartItemCommand(sessionId, cartId, itemId))
+        val owner = ownerOf(jwt, sessionCookie) ?: return errorResponse(CartError.CartItemNotFound(itemId))
+        return removeCartItemUseCase.execute(RemoveCartItemCommand(owner, cartId, itemId))
             .fold(ifLeft = ::errorResponse, ifRight = { ResponseEntity.ok(toResponse(it)) })
     }
 
@@ -131,6 +142,14 @@ class CartController(
     }
 
     private fun validSession(cookie: String?): String? = cookie?.takeIf(::isValidSessionId)
+
+    /** A verified access token's subject is the identity service's user ID. */
+    private fun customerOf(jwt: Jwt?): CartOwner.Customer? =
+        jwt?.let { CartOwner.Customer(UUID.fromString(it.subject)) }
+
+    /** Signed-in callers act on their user cart; everyone else on their session's. */
+    private fun ownerOf(jwt: Jwt?, sessionCookie: String?): CartOwner? =
+        customerOf(jwt) ?: validSession(sessionCookie)?.let(CartOwner::Guest)
 
     private fun sessionCookie(sessionId: String): ResponseCookie =
         ResponseCookie.from(SESSION_COOKIE, sessionId)

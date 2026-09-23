@@ -1,5 +1,8 @@
 package com.acme.cart.infrastructure.persistence
 
+import org.springframework.dao.DataIntegrityViolationException
+import org.junit.jupiter.api.assertThrows
+import com.acme.cart.domain.CartStatus
 import com.acme.cart.domain.Cart
 import com.acme.cart.domain.VariantPricing
 import jakarta.persistence.EntityManager
@@ -60,12 +63,12 @@ class CartRepositoryIntegrationTest {
         carts.saveAndFlush(cart)
         entityManager.clear()
 
-        val reloaded = carts.findBySessionId("sess-merge")!!
+        val reloaded = carts.findBySessionIdAndStatus("sess-merge", CartStatus.ACTIVE)!!
         reloaded.addItem(variantId, 1, pricing, snapshot, 10)
         carts.saveAndFlush(reloaded)
         entityManager.clear()
 
-        val items = carts.findBySessionId("sess-merge")!!.items
+        val items = carts.findBySessionIdAndStatus("sess-merge", CartStatus.ACTIVE)!!.items
         assertEquals(1, items.size)
         assertEquals(3, items.single().quantity)
     }
@@ -77,15 +80,51 @@ class CartRepositoryIntegrationTest {
         carts.saveAndFlush(cart)
         entityManager.clear()
 
-        val reloaded = carts.findBySessionId("sess-remove")!!
+        val reloaded = carts.findBySessionIdAndStatus("sess-remove", CartStatus.ACTIVE)!!
         reloaded.removeItem(item.id)
         carts.saveAndFlush(reloaded)
         entityManager.clear()
 
-        assertEquals(0, carts.findBySessionId("sess-remove")!!.items.size)
+        assertEquals(0, carts.findBySessionIdAndStatus("sess-remove", CartStatus.ACTIVE)!!.items.size)
         val rows = entityManager.createNativeQuery("select count(*) from cart_items where id = :id")
             .setParameter("id", item.id)
             .singleResult as Number
         assertEquals(0L, rows.toLong())
+    }
+
+    // --- US-0004-08: ownership and status -------------------------------------------
+
+    @Test
+    fun `a session can hold only one ACTIVE cart, but a MERGED one does not count`() {
+        val merged = Cart(id = UUID.randomUUID(), sessionId = "sess-owner", status = CartStatus.MERGED)
+        carts.saveAndFlush(merged)
+        carts.saveAndFlush(Cart(id = UUID.randomUUID(), sessionId = "sess-owner"))
+        entityManager.clear()
+
+        assertEquals(CartStatus.ACTIVE, carts.findBySessionIdAndStatus("sess-owner", CartStatus.ACTIVE)?.status)
+        assertThrows<DataIntegrityViolationException> {
+            carts.saveAndFlush(Cart(id = UUID.randomUUID(), sessionId = "sess-owner"))
+        }
+    }
+
+    @Test
+    fun `a user can hold only one ACTIVE cart`() {
+        val userId = UUID.randomUUID()
+        carts.saveAndFlush(Cart(id = UUID.randomUUID(), userId = userId))
+        entityManager.clear()
+
+        assertEquals(userId, carts.findByUserIdAndStatus(userId, CartStatus.ACTIVE)?.userId)
+        assertThrows<DataIntegrityViolationException> {
+            carts.saveAndFlush(Cart(id = UUID.randomUUID(), userId = userId))
+        }
+    }
+
+    @Test
+    fun `the database rejects a cart with no owner even if the entity check is bypassed`() {
+        assertThrows<Exception> {
+            entityManager.createNativeQuery(
+                "insert into carts (id, created_at, updated_at, status) values (gen_random_uuid(), now(), now(), 'ACTIVE')"
+            ).executeUpdate()
+        }
     }
 }

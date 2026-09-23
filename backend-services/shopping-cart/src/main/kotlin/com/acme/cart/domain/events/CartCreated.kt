@@ -5,8 +5,8 @@ import java.util.UUID
 
 data class CartCreatedPayload(
     val cartId: UUID,
-    val sessionId: String,
-    val customerId: UUID?
+    val sessionId: String?,
+    val userId: UUID?
 )
 
 class CartCreated(
@@ -31,15 +31,15 @@ class CartCreated(
 
         fun create(
             cartId: UUID,
-            sessionId: String,
-            customerId: UUID?,
+            sessionId: String?,
+            userId: UUID?,
             correlationId: UUID
         ): CartCreated = CartCreated(
             eventId = UUID.randomUUID(),
             timestamp = Instant.now(),
             aggregateId = cartId,
             correlationId = correlationId,
-            payload = CartCreatedPayload(cartId = cartId, sessionId = sessionId, customerId = customerId)
+            payload = CartCreatedPayload(cartId = cartId, sessionId = sessionId, userId = userId)
         )
     }
 }

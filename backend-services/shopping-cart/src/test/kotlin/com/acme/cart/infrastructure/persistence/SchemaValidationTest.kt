@@ -1,5 +1,6 @@
 package com.acme.cart.infrastructure.persistence
 
+import com.acme.cart.domain.CartStatus
 import com.acme.cart.domain.Cart
 import com.acme.cart.domain.CartItem
 import jakarta.persistence.EntityManager
@@ -78,7 +79,7 @@ class SchemaValidationTest {
         // Force a real read from Postgres rather than the persistence-context cache.
         entityManager.clear()
 
-        val found = carts.findBySessionId("sess-schema-test")
+        val found = carts.findBySessionIdAndStatus("sess-schema-test", CartStatus.ACTIVE)
         assertEquals(1, found?.items?.size)
         assertEquals(BigDecimal("69.99"), found?.items?.first()?.unitPrice)
     }
