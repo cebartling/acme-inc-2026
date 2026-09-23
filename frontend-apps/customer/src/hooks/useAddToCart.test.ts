@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
 import { OUT_OF_STOCK_MESSAGE, useAddToCart } from "./useAddToCart";
 import { ApiError, cartApi, inventoryApi } from "@/services/api";
-import { useCartStore } from "@/stores/cart.store";
+import { CART_QUERY_KEY } from "./useCart";
 
 vi.mock("@/services/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/services/api")>()),
@@ -15,8 +15,10 @@ vi.mock("@/services/api", async (importOriginal) => ({
 const mockedAvailability = vi.mocked(inventoryApi.getAvailability);
 const mockedAddItem = vi.mocked(cartApi.addItem);
 
+let queryClient: QueryClient;
+
 function makeWrapper() {
-  const queryClient = new QueryClient({
+  queryClient = new QueryClient({
     defaultOptions: { mutations: { retry: 0 } },
   });
   return ({ children }: { children: React.ReactNode }) =>
@@ -45,10 +47,9 @@ const cart = {
 describe("useAddToCart", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    useCartStore.setState({ itemCount: 0 });
   });
 
-  it("checks availability, adds the item, then updates the badge count", async () => {
+  it("checks availability, adds the item, then caches the returned cart", async () => {
     mockedAvailability.mockResolvedValue({
       variantId: "variant-1",
       availability: "IN_STOCK",
@@ -63,7 +64,7 @@ describe("useAddToCart", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(mockedAvailability).toHaveBeenCalledWith("variant-1");
     expect(mockedAddItem).toHaveBeenCalledWith(request);
-    expect(useCartStore.getState().itemCount).toBe(3);
+    expect(queryClient.getQueryData(CART_QUERY_KEY)).toEqual(cart);
   });
 
   it("does not call the cart service when the variant is out of stock", async () => {
@@ -80,10 +81,10 @@ describe("useAddToCart", () => {
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(result.current.error?.message).toBe(OUT_OF_STOCK_MESSAGE);
     expect(mockedAddItem).not.toHaveBeenCalled();
-    expect(useCartStore.getState().itemCount).toBe(0);
+    expect(queryClient.getQueryData(CART_QUERY_KEY)).toBeUndefined();
   });
 
-  it("exposes the cart service's error message and leaves the badge alone", async () => {
+  it("exposes the cart service's error message and leaves the cached cart alone", async () => {
     mockedAvailability.mockResolvedValue({
       variantId: "variant-1",
       availability: "IN_STOCK",
@@ -101,6 +102,6 @@ describe("useAddToCart", () => {
     expect(result.current.error?.message).toBe(
       "Maximum order quantity is 10 for this item",
     );
-    expect(useCartStore.getState().itemCount).toBe(0);
+    expect(queryClient.getQueryData(CART_QUERY_KEY)).toBeUndefined();
   });
 });

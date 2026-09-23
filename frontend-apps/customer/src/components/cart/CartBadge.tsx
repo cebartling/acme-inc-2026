@@ -1,21 +1,24 @@
+import { Link } from "@tanstack/react-router";
 import { ShoppingCart } from "lucide-react";
-import { useCartItemCount } from "@/stores/cart.store";
+import { useCart } from "@/hooks/useCart";
 
 /**
- * Header cart icon with an item-count badge (AC-0004-06-06). The count is hidden at 0.
+ * Header cart link with an item-count badge, hidden at 0 (AC-0004-06-06).
  *
- * Not yet a link: the cart page arrives with US-0004-07.
+ * The count comes from the persisted cart, loaded on every page (AC-0004-07-10), and
+ * updates in place when an add, update or remove writes the new cart to the cache.
  */
 export function CartBadge() {
-  const itemCount = useCartItemCount();
+  const { data: cart } = useCart();
+  const itemCount = cart?.summary.itemCount ?? 0;
   const label = itemCount === 1 ? "Cart: 1 item" : `Cart: ${itemCount} items`;
 
   return (
-    <span
+    <Link
+      to="/cart"
       data-testid="cartBadge"
-      role="status"
       aria-label={label}
-      className="relative inline-flex p-2"
+      className="relative inline-flex rounded-lg p-2 transition-colors hover:bg-gray-700"
     >
       <ShoppingCart size={24} aria-hidden="true" />
       {itemCount > 0 && (
@@ -27,6 +30,6 @@ export function CartBadge() {
           {itemCount}
         </span>
       )}
-    </span>
+    </Link>
   );
 }

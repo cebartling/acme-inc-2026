@@ -1420,3 +1420,93 @@ describe("cartApi", () => {
     });
   });
 });
+
+describe("cartApi reads and updates", () => {
+  const mockFetch = vi.fn();
+  const originalFetch = global.fetch;
+
+  beforeEach(() => {
+    global.fetch = mockFetch;
+    mockFetch.mockReset();
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  const cart = {
+    id: "cart-1",
+    items: [],
+    summary: { itemCount: 0, subtotal: 0, currency: "USD" },
+  };
+
+  const jsonResponse = (status: number, body: unknown) => ({
+    ok: status < 400,
+    status,
+    headers: new Headers({ "content-type": "application/json" }),
+    json: () => Promise.resolve(body),
+  });
+
+  it("getCurrent resolves to null when the service answers 204", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 204,
+      headers: new Headers(),
+      json: () => Promise.reject(new Error("no body")),
+    });
+
+    await expect(cartApi.getCurrent()).resolves.toBeNull();
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringMatching(/\/api\/v1\/carts\/current$/),
+      expect.objectContaining({ method: "GET", credentials: "include" }),
+    );
+  });
+
+  it("getCurrent returns the session's cart", async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse(200, cart));
+
+    await expect(cartApi.getCurrent()).resolves.toEqual(cart);
+  });
+
+  it("updateItem PATCHes the quantity with credentials", async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse(200, cart));
+
+    await cartApi.updateItem("cart-1", "line-1", 3);
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringMatching(/\/api\/v1\/carts\/cart-1\/items\/line-1$/),
+      expect.objectContaining({
+        method: "PATCH",
+        credentials: "include",
+        body: JSON.stringify({ quantity: 3 }),
+      }),
+    );
+  });
+
+  it("updateItem exposes maxQuantity from a 422", async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(422, {
+        error: "Maximum order quantity is 10 for this item",
+        maxQuantity: 10,
+      }),
+    );
+
+    await expect(
+      cartApi.updateItem("cart-1", "line-1", 11),
+    ).rejects.toMatchObject({
+      status: 422,
+      data: { maxQuantity: 10 },
+    });
+  });
+
+  it("removeItem DELETEs with credentials", async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse(200, cart));
+
+    await cartApi.removeItem("cart-1", "line-1");
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringMatching(/\/api\/v1\/carts\/cart-1\/items\/line-1$/),
+      expect.objectContaining({ method: "DELETE", credentials: "include" }),
+    );
+  });
+});

@@ -1,11 +1,23 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type React from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AddToCartForm } from "./AddToCartForm";
 import type { Cart, ProductDetail, ProductVariant } from "@/services/api";
 import { ApiError, cartApi, inventoryApi } from "@/services/api";
-import { useCartStore } from "@/stores/cart.store";
+
+vi.mock("@tanstack/react-router", () => ({
+  Link: ({
+    to,
+    children,
+    ...props
+  }: { to: string; children: React.ReactNode } & Record<string, unknown>) => (
+    <a href={to} {...props}>
+      {children}
+    </a>
+  ),
+}));
 
 vi.mock("@/services/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/services/api")>()),
@@ -92,7 +104,6 @@ function renderForm(
 describe("AddToCartForm", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    useCartStore.setState({ itemCount: 0 });
     mockedAvailability.mockResolvedValue({
       variantId: "variant-1",
       availability: "IN_STOCK",
@@ -135,7 +146,7 @@ describe("AddToCartForm", () => {
         attributes: { color: "Black" },
       },
     });
-    expect(useCartStore.getState().itemCount).toBe(3);
+    expect(screen.getByTestId("viewCartLink")).toHaveAttribute("href", "/cart");
   });
 
   it("disables the button and marks it busy while the add is in flight", async () => {
