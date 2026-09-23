@@ -129,9 +129,67 @@ class Cart(
         updatedAt = now
         return item.right()
     }
+
+    /**
+     * Moves a guest cart's lines into this (the signed-in user's) cart (US-0004-08).
+     *
+     * A variant in both carts becomes one line with the quantities summed (AC-03), capped at
+     * [maxQuantity] (AC-04). Every line that changes is repriced at its new quantity from
+     * [pricing], so a merged total that crosses a tier gets the tier price. The guest cart
+     * is then MERGED, so its session no longer resolves to it (AC-05).
+     *
+     * @param pricing current pricing for every variant in [guest].
+     */
+    fun absorb(
+        guest: Cart,
+        pricing: Map<UUID, VariantPricing>,
+        maxQuantity: Int,
+        now: Instant = Instant.now()
+    ): MergeResult {
+        require(guest !== this) { "a cart cannot absorb itself" }
+        require(guest.status == CartStatus.ACTIVE) { "cart ${guest.id} was already merged" }
+
+        val adjustments = guest.items.mapNotNull { guestLine ->
+            val variantPricing = requireNotNull(pricing[guestLine.variantId]) {
+                "no pricing for variant ${guestLine.variantId}"
+            }
+            val existing = items.find { it.variantId == guestLine.variantId }
+            val requested = (existing?.quantity ?: 0) + guestLine.quantity
+            val quantity = minOf(requested, maxQuantity)
+
+            if (existing != null) {
+                existing.quantity = quantity
+                existing.unitPrice = variantPricing.unitPriceFor(quantity)
+                existing.updatedAt = now
+            } else {
+                items += CartItem(
+                    id = UUID.randomUUID(),
+                    cart = this,
+                    variantId = guestLine.variantId,
+                    quantity = quantity,
+                    unitPrice = variantPricing.unitPriceFor(quantity),
+                    productSnapshot = guestLine.productSnapshot,
+                    createdAt = now
+                )
+            }
+
+            if (requested > quantity) QuantityAdjustment(guestLine.variantId, requested, quantity) else null
+        }
+
+        guest.status = CartStatus.MERGED
+        guest.updatedAt = now
+        updatedAt = now
+        return MergeResult(itemsMerged = guest.items.size, quantitiesAdjusted = adjustments)
+    }
 }
 
 data class QuantityChange(val item: CartItem, val previousQuantity: Int)
+
+/** What a merge did: how many guest lines moved, and which quantities were capped. */
+data class MergeResult(val itemsMerged: Int, val quantitiesAdjusted: List<QuantityAdjustment>)
+
+/** A merged variant whose summed quantity ([requestedTotal]) was capped to [adjustedTo]. */
+data class QuantityAdjustment(val variantId: UUID, val requestedTotal: Int, val adjustedTo: Int)
 
 /** A new, empty ACTIVE cart for [owner]. */
 fun newCartFor(owner: CartOwner): Cart = when (owner) {

@@ -1,5 +1,10 @@
 package com.acme.cart.api.v1
 
+import com.acme.cart.domain.QuantityAdjustment
+import com.acme.cart.domain.MergeResult
+import com.acme.cart.application.MergeOutcome
+import com.acme.cart.application.MergeCartsUseCase
+import com.acme.cart.application.MergeCartsCommand
 import org.springframework.security.oauth2.core.OAuth2Error
 import org.springframework.security.oauth2.jwt.JwtValidationException
 import org.springframework.security.oauth2.jwt.JwtDecoder
@@ -55,6 +60,7 @@ class CartControllerWebMvcTest(
     @Autowired private val updateUseCase: UpdateCartItemQuantityUseCase,
     @Autowired private val removeUseCase: RemoveCartItemUseCase,
     @Autowired private val cartRepository: CartRepository,
+    @Autowired private val mergeUseCase: MergeCartsUseCase,
     @Autowired private val jwtDecoder: JwtDecoder
 ) {
 
@@ -68,6 +74,9 @@ class CartControllerWebMvcTest(
 
         @Bean
         fun removeCartItemUseCase(): RemoveCartItemUseCase = mockk()
+
+        @Bean
+        fun mergeCartsUseCase(): MergeCartsUseCase = mockk()
 
         @Bean
         fun cartRepository(): CartRepository = mockk()
@@ -92,7 +101,7 @@ class CartControllerWebMvcTest(
 
     @BeforeEach
     fun setUp() {
-        clearMocks(useCase, updateUseCase, removeUseCase, cartRepository, jwtDecoder)
+        clearMocks(useCase, updateUseCase, removeUseCase, cartRepository, jwtDecoder, mergeUseCase)
         command.clear()
         every { useCase.execute(capture(command), any()) } answers {
             val cmd = firstArg<AddItemToCartCommand>()
@@ -386,5 +395,64 @@ class CartControllerWebMvcTest(
                 status { isUnauthorized() }
                 jsonPath("$.error") { value("INVALID_TOKEN") }
             }
+    }
+
+    // --- US-0004-08: merge on sign-in -------------------------------------------------
+
+    @Test
+    fun `merging requires a signed-in caller`() {
+        mockMvc.post("/api/v1/carts/merge") { cookie(Cookie(CartController.SESSION_COOKIE, sessionId)) }
+            .andExpect {
+                status { isUnauthorized() }
+                jsonPath("$.error") { value("SIGN_IN_REQUIRED") }
+            }
+    }
+
+    @Test
+    fun `a merge passes the user and guest session through and returns the cart with its result`() {
+        signedIn()
+        val captured = slot<MergeCartsCommand>()
+        val merged = newCartFor(CartOwner.Customer(userId))
+        merged.addItem(variantId, 10, VariantPricing(BigDecimal("59.99")), """{"productId":"${UUID.randomUUID()}","name":"Mouse","sku":"S","variantName":"Black","imageUrl":null}""", 10)
+        every { mergeUseCase.execute(capture(captured), any()) } returns MergeOutcome(
+            merged,
+            MergeResult(itemsMerged = 1, quantitiesAdjusted = listOf(QuantityAdjustment(variantId, 12, 10)))
+        ).right()
+
+        mockMvc.post("/api/v1/carts/merge") {
+            cookie(accessToken(), Cookie(CartController.SESSION_COOKIE, sessionId))
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.summary.itemCount") { value(10) }
+            jsonPath("$.mergeResult.itemsMerged") { value(1) }
+            jsonPath("$.mergeResult.quantitiesAdjusted[0].variantId") { value(variantId.toString()) }
+            jsonPath("$.mergeResult.quantitiesAdjusted[0].requestedTotal") { value(12) }
+            jsonPath("$.mergeResult.quantitiesAdjusted[0].adjustedTo") { value(10) }
+            jsonPath("$.mergeResult.quantitiesAdjusted[0].reason") { value("MAX_ORDER_QUANTITY") }
+        }
+
+        assertEquals(MergeCartsCommand(userId, sessionId), captured.captured)
+    }
+
+    @Test
+    fun `a merge with nothing to merge and no user cart is a 204`() {
+        signedIn()
+        every { mergeUseCase.execute(any(), any()) } returns MergeOutcome(cart = null, result = null).right()
+
+        mockMvc.post("/api/v1/carts/merge") { cookie(accessToken()) }
+            .andExpect { status { isNoContent() } }
+    }
+
+    @Test
+    fun `a merge ignores a session cookie this service could not have minted`() {
+        signedIn()
+        val captured = slot<MergeCartsCommand>()
+        every { mergeUseCase.execute(capture(captured), any()) } returns MergeOutcome(cart = null, result = null).right()
+
+        mockMvc.post("/api/v1/carts/merge") {
+            cookie(accessToken(), Cookie(CartController.SESSION_COOKIE, "not-a-uuid"))
+        }.andExpect { status { isNoContent() } }
+
+        assertEquals(null, captured.captured.guestSessionId)
     }
 }

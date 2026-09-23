@@ -208,6 +208,36 @@ sequenceDiagram
 - **204 for "no cart yet"** keeps a first-time visitor's page load (which reads the cart
   for the header badge) free of error responses.
 
+**Merging on sign-in** (`POST /api/v1/carts/merge`, US-0004-08):
+
+```mermaid
+sequenceDiagram
+    participant FE as Customer frontend
+    participant CS as Cart service
+    participant PS as Product service
+    participant K as Kafka (cart.events)
+
+    FE->>CS: POST /api/v1/carts/merge (cookies: access_token, acme_session_id)
+    CS->>CS: verify token → user; session → ACTIVE guest cart
+    alt no guest cart, or it is empty
+        CS-->>FE: user cart unchanged, mergeResult null (204 if the user has no cart)
+    else guest cart has lines
+        CS->>PS: GET /api/v1/prices/{variantId} for each guest variant
+        CS->>CS: sum lines per variant, cap at max, reprice, guest → MERGED (one transaction)
+        CS-->>FE: merged user cart + mergeResult
+        CS->>K: after commit: CartMerged
+    end
+```
+
+- **Requires a signed-in caller** (401 `SIGN_IN_REQUIRED` otherwise); the guest cart comes
+  from the session cookie, never from the request body, since that cookie is HttpOnly.
+- **Idempotent**: a MERGED guest cart no longer resolves for its session, so repeating the
+  call is a no-op, as is a missing or empty guest cart. No event is published for a no-op.
+- **Capping is reported, not hidden**: `mergeResult.quantitiesAdjusted` lists each variant
+  whose summed quantity exceeded `acme.cart.max-order-quantity`, for the customer notice.
+- The session cookie is left in place: after sign-out the same browser starts a fresh
+  guest cart, which the ACTIVE-only unique index allows.
+
 ## Observability
 
 ### Distributed Tracing
