@@ -354,6 +354,11 @@ Device trust allows users to bypass MFA for 30 days on trusted devices, improvin
 - Tokens include: issuer, subject (userId), expiration, issued-at claims
 - Refresh token rotation on use (single-use tokens)
 - Token revocation through Redis blacklist for compromised tokens
+- **Public keys for other services**: identity serves `GET /.well-known/jwks.json`
+  (`api/JwksController.kt`) — the public halves of the current and retained previous
+  signing keys, keyed by `kid`. Other services verify access tokens locally against it
+  instead of calling identity per request. Because keys are regenerated on restart, a
+  verifier must re-fetch the set when it meets an unknown `kid`.
 
 ### CORS and Browser-Facing Backend URLs
 

@@ -113,6 +113,14 @@ class SigningKeyProvider(
     }
 
     /**
+     * Every key a token may currently be signed with: the active key first, then the
+     * retained previous keys. Published (public parts only) as the JWKS so other
+     * services can verify tokens without calling identity per request.
+     */
+    fun getVerificationKeys(): List<SigningKey> =
+        listOf(currentKey) + synchronized(previousKeys) { previousKeys.values.toList() }
+
+    /**
      * Rotates to a new signing key.
      *
      * Generates a new RSA key pair and sets it as the current active key.
