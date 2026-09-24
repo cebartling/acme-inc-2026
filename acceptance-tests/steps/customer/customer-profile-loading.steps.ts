@@ -47,6 +47,9 @@ When('I sign in with valid credentials', async function (this: CustomWorld) {
   const signinPage = new SigninPage(this.page);
   await signinPage.fillEmail(email!);
   await signinPage.fillPassword(password);
+  // The form validates on blur and keeps Sign In disabled until then; fill() leaves focus
+  // in the password field, so without this the click waits until the step times out.
+  await signinPage.blurPassword();
   await signinPage.submitForm();
 
   // Wait for navigation to home (post-auth landing)
@@ -62,6 +65,7 @@ When('I start signing in with valid credentials', async function (this: CustomWo
   const signinPage = new SigninPage(this.page);
   await signinPage.fillEmail(email!);
   await signinPage.fillPassword(password);
+  await signinPage.blurPassword();
 
   // Click submit but don't wait for navigation
   await signinPage.submitButton.click();
