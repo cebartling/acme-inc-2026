@@ -161,7 +161,7 @@ sequenceDiagram
     CS->>PS: GET /api/v1/prices/{variantId}
     PS-->>CS: price + tier pricing
     CS->>CS: get or create cart, merge line, save
-    CS-->>FE: 201 cart (+ Set-Cookie on first add)
+    CS-->>FE: 201 cart (+ Set-Cookie: a new session, or the guest's re-issued)
     CS->>K: after commit: CartCreated (new cart), ItemAddedToCart
 ```
 
@@ -170,6 +170,14 @@ sequenceDiagram
   `ACME_CART_COOKIE_SECURE=false`). JavaScript can neither read nor forge it; the frontend
   sends it back with `credentials: "include"`. A cookie value that is not a UUID the
   service could have minted is ignored and replaced.
+- **Sliding expiry and session recovery** (US-0004-12): every cart request made as a guest
+  with a valid session re-issues the same cookie with a fresh 30 days, so an active
+  shopper's cart does not expire under them; signed-in requests never set it. Recovery
+  from an expired session happens on the server with no client retry: the browser drops
+  the cookie, so the next add mints a new session and cart, and the old items are not
+  restored. A valid session with no ACTIVE cart (e.g. after a merge) gets a new cart on
+  its next add, logged at INFO and counted as `cart.session.recovery`
+  (`cart_session_recovery_total`). Nothing expires `carts` rows yet.
 - **Server-side pricing**: the unit price comes from the product service at the line's new
   total quantity, so crossing a tier threshold reprices the whole line. The request carries
   no price. If the product service is unreachable the add fails with 503 rather than
@@ -184,7 +192,8 @@ sequenceDiagram
   `useRemoveCartItem` write each response back with `setQueryData` (after cancelling any
   in-flight read, so a stale GET cannot overwrite it), so the badge and the `/cart` page
   update together without a refetch; a 404 on update or remove (the line is already gone,
-  e.g. removed in another tab) refetches the cart instead. `useAddToCart` re-checks availability
+  e.g. removed in another tab or lost with an expired session) refetches the cart instead,
+  without showing an error. `useAddToCart` re-checks availability
   before it POSTs. An over-max update is retried at the service's `maxQuantity` and the
   line shows why (US-0004-07 AC-08).
 - **Events are best-effort**: published directly to Kafka after the transaction commits,
