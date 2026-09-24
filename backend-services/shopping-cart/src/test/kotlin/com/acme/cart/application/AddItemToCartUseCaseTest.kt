@@ -21,13 +21,19 @@ import io.mockk.mockk
 import io.mockk.verify
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.ExtendWith
+import org.springframework.boot.test.system.CapturedOutput
+import org.springframework.boot.test.system.OutputCaptureExtension
 import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.support.TransactionTemplate
 import java.math.BigDecimal
 import java.util.UUID
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertTrue
 
+@ExtendWith(OutputCaptureExtension::class)
 class AddItemToCartUseCaseTest {
 
     private val cartRepository = mockk<CartRepository>()
@@ -58,7 +64,8 @@ class AddItemToCartUseCaseTest {
     private fun command(quantity: Int = 2, startedNewSession: Boolean = false) =
         AddItemToCartCommand(CartOwner.Guest("sess-1"), variantId, quantity, snapshot, startedNewSession)
 
-    private fun recoveries() = meterRegistry.counter(AddItemToCartUseCase.SESSION_RECOVERY_METRIC).count()
+    private fun returningSessionNewCarts() =
+        meterRegistry.counter(AddItemToCartUseCase.RETURNING_SESSION_NEW_CART_METRIC).count()
 
     @BeforeEach
     fun setUp() {
@@ -160,51 +167,61 @@ class AddItemToCartUseCaseTest {
         assertEquals(userId, assertIs<ItemAddedToCart>(published[1]).payload.userId)
     }
 
-    // --- PIN-268: session recovery observability ---------------------------------------
+    // --- PIN-268: a returning session's new cart is logged and counted ------------------
 
     @Test
-    fun `a returning guest session with no active cart counts as a recovery`() {
+    fun `a returning guest session with no active cart is counted`() {
         every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } returns null
 
         useCase.execute(command())
 
-        assertEquals(1.0, recoveries())
+        assertEquals(1.0, returningSessionNewCarts())
     }
 
     @Test
-    fun `a brand-new session's first cart is not a recovery`() {
+    fun `a brand-new session's first cart is not counted`() {
         every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } returns null
 
         useCase.execute(command(startedNewSession = true))
 
-        assertEquals(0.0, recoveries())
+        assertEquals(0.0, returningSessionNewCarts())
     }
 
     @Test
-    fun `adding to an existing cart is not a recovery`() {
+    fun `adding to an existing cart is not counted`() {
         every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } returns Cart(id = UUID.randomUUID(), sessionId = "sess-1")
 
         useCase.execute(command())
 
-        assertEquals(0.0, recoveries())
+        assertEquals(0.0, returningSessionNewCarts())
     }
 
     @Test
-    fun `a signed-in owner's first cart is not a recovery`() {
+    fun `a signed-in owner's first cart is not counted`() {
         val userId = UUID.randomUUID()
         every { cartRepository.findByUserIdAndStatus(userId, CartStatus.ACTIVE) } returns null
 
         useCase.execute(AddItemToCartCommand(CartOwner.Customer(userId), variantId, 2, snapshot, startedNewSession = false))
 
-        assertEquals(0.0, recoveries())
+        assertEquals(0.0, returningSessionNewCarts())
     }
 
     @Test
-    fun `a failed add is not a recovery`() {
+    fun `a failed add is not counted`() {
         every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } returns null
 
         useCase.execute(command(quantity = 6))
 
-        assertEquals(0.0, recoveries())
+        assertEquals(0.0, returningSessionNewCarts())
+    }
+
+    @Test
+    fun `the new-cart log line names the cart but never the session ID`(output: CapturedOutput) {
+        every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } returns null
+
+        val cart = useCase.execute(command()).getOrNull()!!
+
+        assertTrue("started cart ${cart.id}" in output.out, output.out)
+        assertFalse("sess-1" in output.out, "the session ID is the key to the guest cart and must not be logged")
     }
 }

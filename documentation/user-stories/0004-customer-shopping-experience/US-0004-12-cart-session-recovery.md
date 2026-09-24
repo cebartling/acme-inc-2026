@@ -108,17 +108,17 @@ sequenceDiagram
 
 **Given** a guest with a valid session adds an item and has no ACTIVE cart
 **When** the new cart is created
-**Then** the event is logged at INFO level with the session ID and the new cart ID
-**And** the `cart_session_recovery_total` counter metric (`cart.session.recovery`) is incremented
+**Then** the event is logged at INFO level with the new cart ID, and never the session ID, which is the only key to a guest cart
+**And** the `cart_session_new_cart_total` counter metric (`cart.session.new_cart`) is incremented
 
-A cookie the browser has already dropped can't be told apart from a first visit, so that case is not counted.
+This does not measure expiries. A cookie the browser has already dropped can't be told apart from a first visit, so it isn't counted. Until guest carts expire on the server (PIN-287), the metric only counts guests who add again after their cart was merged at sign-in.
 
 ## Technical Implementation
 
 - **Sliding cookie**: `CartController.slideGuestSession` re-issues `acme_session_id` on `GET /current`, `POST /items`, `PATCH` and `DELETE` when the caller is a guest with a valid session.
-- **Recovery metric**: `AddItemToCartCommand.startedNewSession` tells `AddItemToCartUseCase` whether the controller just minted the session. A new cart for a session that already existed is logged and counted.
-- **Quiet stale lines**: `isLineGone` in `frontend-apps/customer/src/hooks/useCart.ts` marks a 404 on update/remove. `useCart` reloads the cart, and `CartLineItem` shows no message.
-- **Out of scope**: server-side expiry of `carts` rows. Orphaned guest carts are not cleaned up yet.
+- **New-cart metric**: `AddItemToCartCommand.startedNewSession` tells `AddItemToCartUseCase` whether the controller just minted the session. A new cart for a session that already existed is logged (by cart ID) and counted.
+- **Quiet stale lines**: cart error bodies carry a `code`. `isLineGone` in `frontend-apps/customer/src/hooks/useCart.ts` matches a 404 with `CART_ITEM_NOT_FOUND`. `useCart` reloads the cart, and `CartLineItem` shows no message. A `VARIANT_NOT_FOUND` 404 (the line is still in the cart) still shows its message.
+- **Out of scope**: server-side expiry of `carts` rows (PIN-287). Orphaned guest carts are not cleaned up yet.
 
 ## Definition of Done
 
@@ -126,8 +126,8 @@ A cookie the browser has already dropped can't be told apart from a first visit,
 - [x] New session cookie set with correct security attributes
 - [x] Guest session cookie re-issued with a fresh 30 days on every cart request
 - [x] Update/remove of a stale line reloads the cart with no error and no retry
-- [x] Recovery events logged at INFO level
-- [x] `cart_session_recovery_total` metric incremented
+- [x] A returning session's new cart logged at INFO level, without the session ID
+- [x] `cart_session_new_cart_total` metric incremented
 - [x] Unit and acceptance tests cover sliding, recovery and the quiet 404
 - [ ] Code reviewed and approved
 

@@ -29,7 +29,7 @@ data class AddItemToCartCommand(
     val variantId: UUID,
     val quantity: Int,
     val productSnapshot: ProductSnapshot,
-    /** True when the controller just minted the guest session, so its first cart is not a recovery. */
+    /** True when the controller just minted the guest session, so its first cart is not counted as a returning session's. */
     val startedNewSession: Boolean
 )
 
@@ -52,7 +52,7 @@ class AddItemToCartUseCase(
     meterRegistry: MeterRegistry
 ) {
     private val logger = LoggerFactory.getLogger(AddItemToCartUseCase::class.java)
-    private val sessionRecoveries = meterRegistry.counter(SESSION_RECOVERY_METRIC)
+    private val returningSessionNewCarts = meterRegistry.counter(RETURNING_SESSION_NEW_CART_METRIC)
 
     fun execute(command: AddItemToCartCommand, correlationId: UUID = UUID.randomUUID()): Either<CartError, Cart> =
         pricingClient.getPricing(command.variantId).flatMap { pricing ->
@@ -74,7 +74,7 @@ class AddItemToCartUseCase(
             checkNotNull(result) { "transaction for ${command.owner} returned no result" }
         }.map { added ->
             publishEvents(added, command, correlationId)
-            if (added.isNewCart) recordRecovery(command.owner, command.startedNewSession, added.cart)
+            if (added.isNewCart) recordReturningSessionNewCart(command.owner, command.startedNewSession, added.cart)
             added.cart
         }
 
@@ -105,14 +105,15 @@ class AddItemToCartUseCase(
     }
 
     /**
-     * A returning guest session whose cart is gone got a fresh one (US-0004-12, AC-07). The
-     * session ID is kept, so there is no old/new pair to log. A cookie the browser already
-     * dropped can't be told apart from a first visit, so that case isn't counted.
+     * A returning guest session with no ACTIVE cart got a fresh one (US-0004-12, AC-07).
+     * Today that means the session's cart was merged at sign-in; an expired cookie is never
+     * sent, so it reads as a first visit and is not counted. The session ID is the only key
+     * to a guest cart, so it is never logged.
      */
-    private fun recordRecovery(owner: CartOwner, startedNewSession: Boolean, cart: Cart) {
+    private fun recordReturningSessionNewCart(owner: CartOwner, startedNewSession: Boolean, cart: Cart) {
         if (owner !is CartOwner.Guest || startedNewSession) return
-        logger.info("Guest session {} had no active cart; started cart {}", owner.sessionId, cart.id)
-        sessionRecoveries.increment()
+        logger.info("Returning guest session had no active cart; started cart {}", cart.id)
+        returningSessionNewCarts.increment()
     }
 
     private fun publish(event: DomainEvent) = eventPublisher.publishLoggingFailure(event, logger)
@@ -121,7 +122,7 @@ class AddItemToCartUseCase(
         /** Product prices carry no currency; the catalog is USD-only today. */
         const val CURRENCY = "USD"
 
-        /** Exposed by Prometheus-style registries as `cart_session_recovery_total`. */
-        const val SESSION_RECOVERY_METRIC = "cart.session.recovery"
+        /** Exposed by Prometheus-style registries as `cart_session_new_cart_total`. */
+        const val RETURNING_SESSION_NEW_CART_METRIC = "cart.session.new_cart"
     }
 }

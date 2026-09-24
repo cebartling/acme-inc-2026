@@ -175,9 +175,13 @@ sequenceDiagram
   shopper's cart does not expire under them; signed-in requests never set it. Recovery
   from an expired session happens on the server with no client retry: the browser drops
   the cookie, so the next add mints a new session and cart, and the old items are not
-  restored. A valid session with no ACTIVE cart (e.g. after a merge) gets a new cart on
-  its next add, logged at INFO and counted as `cart.session.recovery`
-  (`cart_session_recovery_total`). Nothing expires `carts` rows yet.
+  restored. A valid session with no ACTIVE cart (today, only after a merge) gets a new cart
+  on its next add, logged at INFO by cart ID and counted as `cart.session.new_cart`
+  (`cart_session_new_cart_total`). The session ID is never logged: it is the only key to a
+  guest cart. Nothing expires `carts` rows yet (PIN-287).
+- **Error bodies**: `{"error": message, "code": ...}`. `CART_ITEM_NOT_FOUND` and
+  `VARIANT_NOT_FOUND` are both 404s; the code lets the client reload quietly for a gone
+  line but still explain a delisted variant whose line is still in the cart.
 - **Server-side pricing**: the unit price comes from the product service at the line's new
   total quantity, so crossing a tier threshold reprices the whole line. The request carries
   no price. If the product service is unreachable the add fails with 503 rather than
