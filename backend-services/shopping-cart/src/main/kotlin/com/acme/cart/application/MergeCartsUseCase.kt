@@ -1,14 +1,17 @@
 package com.acme.cart.application
 
 import arrow.core.Either
+import arrow.core.left
 import arrow.core.raise.either
 import arrow.core.right
 import com.acme.cart.domain.Cart
 import com.acme.cart.domain.CartError
 import com.acme.cart.domain.CartOwner
+import com.acme.cart.domain.CartStatus
 import com.acme.cart.domain.MergeResult
 import com.acme.cart.domain.VariantPricing
 import com.acme.cart.domain.newCartFor
+import com.acme.cart.domain.events.CartCreated
 import com.acme.cart.domain.events.CartMerged
 import com.acme.cart.domain.events.CartMergedPayload
 import com.acme.cart.infrastructure.messaging.CartEventPublisher
@@ -34,7 +37,8 @@ data class MergeOutcome(val cart: Cart?, val result: MergeResult?)
  * A missing, empty or already MERGED guest cart is a no-op (AC-08, and re-merging is
  * idempotent): the user's cart comes back unchanged and nothing is published. Otherwise
  * the guest variants are priced first, outside the transaction, then both carts are
- * re-read, merged and saved together, and `CartMerged` is published after commit.
+ * re-read (the guest cart row-locked), merged and saved together, and `CartMerged` (plus
+ * `CartCreated` when the user had no cart) is published after commit.
  */
 @Service
 class MergeCartsUseCase(
@@ -59,7 +63,7 @@ class MergeCartsUseCase(
 
             val outcome = checkNotNull(transactionTemplate.execute { mergeInTransaction(command, customer, pricing) }) {
                 "merge transaction for user ${command.userId} returned no result"
-            }
+            }.bind()
             if (outcome.merged != null) publish(outcome.merged, correlationId)
             outcome.outcome
         }
@@ -72,24 +76,39 @@ class MergeCartsUseCase(
         command: MergeCartsCommand,
         customer: CartOwner.Customer,
         pricing: Map<UUID, VariantPricing>
-    ): TransactionOutcome {
+    ): Either<CartError, TransactionOutcome> {
+        // Re-read and lock the guest cart first: a concurrent merge that took it already
+        // has committed by the time the lock is granted, so this one sees no ACTIVE cart.
+        val guest = command.guestSessionId
+            ?.let { cartRepository.findForUpdateBySessionIdAndStatus(it, CartStatus.ACTIVE) }
+            ?.takeIf { it.items.isNotEmpty() }
         val userCart = cartRepository.findActiveCart(customer)
-        // Re-read inside the transaction: a concurrent merge may have taken it already.
-        val guest = guestCart(command)?.takeIf { it.items.isNotEmpty() }
-            ?: return TransactionOutcome(MergeOutcome(userCart, result = null), merged = null)
+        if (guest == null) return TransactionOutcome(MergeOutcome(userCart, result = null), merged = null).right()
+
+        // A line added to the guest cart after pricing has no price yet; the caller can retry.
+        guest.items.firstOrNull { it.variantId !in pricing }
+            ?.let { return CartError.PricingUnavailable(it.variantId).left() }
 
         val target = userCart ?: newCartFor(customer)
         val result = target.absorb(guest, pricing, maxOrderQuantity)
         cartRepository.save(guest)
         val saved = cartRepository.save(target)
-        return TransactionOutcome(MergeOutcome(saved, result), merged = Merged(saved, guest, result))
+        val merged = Merged(saved, guest, result, isNewCart = userCart == null)
+        return TransactionOutcome(MergeOutcome(saved, result), merged).right()
     }
 
     private data class TransactionOutcome(val outcome: MergeOutcome, val merged: Merged?)
 
-    private data class Merged(val target: Cart, val source: Cart, val result: MergeResult)
+    private data class Merged(val target: Cart, val source: Cart, val result: MergeResult, val isNewCart: Boolean)
 
     private fun publish(merged: Merged, correlationId: UUID) {
+        val target = merged.target
+        if (merged.isNewCart) {
+            eventPublisher.publishLoggingFailure(
+                CartCreated.create(target.id, target.sessionId, target.userId, correlationId),
+                logger
+            )
+        }
         eventPublisher.publishLoggingFailure(
             CartMerged.create(
                 CartMergedPayload(

@@ -142,7 +142,7 @@ class CartRepositoryIntegrationTest {
         carts.saveAndFlush(user)
         entityManager.clear()
 
-        val reloadedGuest = carts.findBySessionIdAndStatus("sess-merge-db", CartStatus.ACTIVE)!!
+        val reloadedGuest = carts.findForUpdateBySessionIdAndStatus("sess-merge-db", CartStatus.ACTIVE)!!
         val reloadedUser = carts.findByUserIdAndStatus(userId, CartStatus.ACTIVE)!!
         reloadedUser.absorb(reloadedGuest, mapOf(variantId to pricing), maxQuantity = 10)
         carts.save(reloadedGuest)
