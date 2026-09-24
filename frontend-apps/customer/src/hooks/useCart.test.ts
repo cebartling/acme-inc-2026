@@ -4,15 +4,17 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
 import {
   CART_QUERY_KEY,
+  mergeCartAfterSignIn,
   useRemoveCartItem,
   useUpdateCartItem,
 } from "./useCart";
+import { useCartNoticeStore } from "@/stores/cartNotice.store";
 import type { Cart } from "@/services/api";
 import { ApiError, cartApi } from "@/services/api";
 
 vi.mock("@/services/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/services/api")>()),
-  cartApi: { updateItem: vi.fn(), removeItem: vi.fn() },
+  cartApi: { updateItem: vi.fn(), removeItem: vi.fn(), merge: vi.fn() },
 }));
 
 const mockedUpdate = vi.mocked(cartApi.updateItem);
@@ -135,5 +137,133 @@ describe("useRemoveCartItem", () => {
     expect(queryClient.getQueryData(CART_QUERY_KEY)).toEqual(
       cartWithQuantity(0),
     );
+  });
+});
+
+describe("mergeCartAfterSignIn", () => {
+  const mockedMerge = vi.mocked(cartApi.merge);
+
+  const guestLine = {
+    id: "guest-line",
+    variantId: "variant-1",
+    quantity: 2,
+    unitPrice: 119.99,
+    lineTotal: 239.98,
+    productSnapshot: {
+      productId: "product-1",
+      name: "Gadget Pro",
+      sku: "ACME-GP-BLK",
+      variantName: "Black",
+      imageUrl: null,
+      attributes: {},
+    },
+  };
+  const guestCart: Cart = {
+    id: "guest-cart",
+    items: [guestLine],
+    summary: { itemCount: 2, subtotal: 239.98, currency: "USD" },
+  };
+  const mergedCart = {
+    id: "user-cart",
+    items: [
+      {
+        ...guestLine,
+        id: "user-line",
+        quantity: 10,
+        unitPrice: 99.99,
+        lineTotal: 999.9,
+      },
+    ],
+    summary: { itemCount: 10, subtotal: 999.9, currency: "USD" },
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    queryClient = new QueryClient();
+    useCartNoticeStore.setState({ message: null });
+  });
+
+  it("merges a cached guest cart and caches the merged cart (AC-01, AC-06)", async () => {
+    queryClient.setQueryData(CART_QUERY_KEY, guestCart);
+    mockedMerge.mockResolvedValue({
+      ...mergedCart,
+      mergeResult: { itemsMerged: 1, quantitiesAdjusted: [] },
+    });
+
+    await mergeCartAfterSignIn(queryClient);
+
+    expect(mockedMerge).toHaveBeenCalledTimes(1);
+    expect(queryClient.getQueryData<Cart>(CART_QUERY_KEY)?.id).toBe(
+      "user-cart",
+    );
+    expect(useCartNoticeStore.getState().message).toBeNull();
+  });
+
+  it("does not call merge when there is no guest cart (AC-09)", async () => {
+    queryClient.setQueryData(CART_QUERY_KEY, null);
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+
+    await mergeCartAfterSignIn(queryClient);
+
+    expect(mockedMerge).not.toHaveBeenCalled();
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: CART_QUERY_KEY });
+  });
+
+  it("does not call merge for an empty guest cart (AC-08)", async () => {
+    queryClient.setQueryData(CART_QUERY_KEY, { ...guestCart, items: [] });
+
+    await mergeCartAfterSignIn(queryClient);
+
+    expect(mockedMerge).not.toHaveBeenCalled();
+  });
+
+  it("merges when the guest cart had not loaded yet, letting the service decide", async () => {
+    mockedMerge.mockResolvedValue(null);
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+
+    await mergeCartAfterSignIn(queryClient);
+
+    expect(mockedMerge).toHaveBeenCalledTimes(1);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: CART_QUERY_KEY });
+  });
+
+  it("names each capped product in the notice (AC-04)", async () => {
+    queryClient.setQueryData(CART_QUERY_KEY, guestCart);
+    mockedMerge.mockResolvedValue({
+      ...mergedCart,
+      mergeResult: {
+        itemsMerged: 1,
+        quantitiesAdjusted: [
+          {
+            variantId: "variant-1",
+            requestedTotal: 12,
+            adjustedTo: 10,
+            reason: "MAX_ORDER_QUANTITY",
+          },
+        ],
+      },
+    });
+
+    await mergeCartAfterSignIn(queryClient);
+
+    expect(useCartNoticeStore.getState().message).toBe(
+      "Quantity for Gadget Pro was adjusted to the maximum of 10.",
+    );
+  });
+
+  it("never throws: a failed merge is logged and the cart reloads", async () => {
+    queryClient.setQueryData(CART_QUERY_KEY, guestCart);
+    mockedMerge.mockRejectedValue(new ApiError("Pricing unavailable", 503));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+
+    await expect(mergeCartAfterSignIn(queryClient)).resolves.toBeUndefined();
+
+    expect(warn).toHaveBeenCalledWith(
+      "Cart merge failed",
+      expect.any(ApiError),
+    );
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: CART_QUERY_KEY });
+    warn.mockRestore();
   });
 });

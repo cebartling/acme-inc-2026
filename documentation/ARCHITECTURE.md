@@ -239,6 +239,14 @@ sequenceDiagram
   whose summed quantity exceeded `acme.cart.max-order-quantity`, for the customer notice.
 - The session cookie is left in place: after sign-out the same browser starts a fresh
   guest cart, which the ACTIVE-only unique index allows.
+- **Frontend trigger**: `mergeCartAfterSignIn` (`hooks/useCart.ts`) runs after every
+  sign-in path (`routes/signin.tsx`, `routes/mfa-verify.tsx`), fire-and-forget so it never
+  delays navigation. The header badge has already cached the guest cart before sign-in,
+  and the session cookie is HttpOnly, so that cache decides: no guest cart or an empty one
+  sends no merge request (AC-09); otherwise it merges, writes the merged cart into
+  `["cart"]`, and shows capped quantities in the `CartMergeNotice` banner under the header.
+  A failed merge is logged and the cart reloads as the user. Sign-out resets `["cart"]`, so
+  the badge falls back to the (now empty) guest cart.
 
 ## Observability
 

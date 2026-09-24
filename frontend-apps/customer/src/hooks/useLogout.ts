@@ -1,10 +1,13 @@
 import { useCallback, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { identityApi } from "@/services/api";
 import { trackEvent } from "@/services/analytics";
 import { useAuthStore } from "@/stores/auth.store";
 import { useCustomerStore } from "@/stores/customer.store";
+import { useCartNoticeStore } from "@/stores/cartNotice.store";
+import { CART_QUERY_KEY } from "@/hooks/useCart";
 
 interface UseLogoutResult {
   logout: (allDevices?: boolean) => Promise<void>;
@@ -25,6 +28,7 @@ interface UseLogoutResult {
  */
 export function useLogout(): UseLogoutResult {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [isLoading, setIsLoading] = useState(false);
 
   const logout = useCallback(
@@ -54,6 +58,10 @@ export function useLogout(): UseLogoutResult {
         }
         useAuthStore.getState().clearUser();
         useCustomerStore.getState().clearProfile();
+        // The signed-in user's cart must not linger in the header badge. Resetting
+        // refetches it as a guest; the pre-sign-in guest cart was MERGED, so it reads 204.
+        useCartNoticeStore.getState().dismiss();
+        void queryClient.resetQueries({ queryKey: CART_QUERY_KEY });
         trackEvent("logout", {
           source: "WEB",
           logoutType: allDevices ? "all" : "single",
@@ -61,7 +69,7 @@ export function useLogout(): UseLogoutResult {
         setIsLoading(false);
       }
     },
-    [navigate],
+    [navigate, queryClient],
   );
 
   return { logout, isLoading };

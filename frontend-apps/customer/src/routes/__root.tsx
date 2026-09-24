@@ -5,6 +5,7 @@ import { TanStackDevtools } from "@tanstack/react-devtools";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import Header from "../components/Header";
+import { CartMergeNotice } from "../components/cart/CartMergeNotice";
 
 import "../styles.css";
 
@@ -38,6 +39,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       <body>
         <QueryClientProvider client={queryClient}>
           <Header />
+          <CartMergeNotice />
           {children}
         </QueryClientProvider>
         <TanStackDevtools
