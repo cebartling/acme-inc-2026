@@ -225,7 +225,7 @@ sequenceDiagram
         CS->>PS: GET /api/v1/prices/{variantId} for each guest variant
         CS->>CS: sum lines per variant, cap at max, reprice, guest → MERGED (one transaction)
         CS-->>FE: merged user cart + mergeResult
-        CS->>K: after commit: CartMerged
+        CS->>K: after commit: CartCreated (if the user had no cart), CartMerged
     end
 ```
 
@@ -233,6 +233,8 @@ sequenceDiagram
   from the session cookie, never from the request body, since that cookie is HttpOnly.
 - **Idempotent**: a MERGED guest cart no longer resolves for its session, so repeating the
   call is a no-op, as is a missing or empty guest cart. No event is published for a no-op.
+  The guest cart row is locked (`SELECT … FOR UPDATE`) inside the transaction, so two
+  concurrent merges run in turn and the second sees no ACTIVE guest cart.
 - **Capping is reported, not hidden**: `mergeResult.quantitiesAdjusted` lists each variant
   whose summed quantity exceeded `acme.cart.max-order-quantity`, for the customer notice.
 - The session cookie is left in place: after sign-out the same browser starts a fresh

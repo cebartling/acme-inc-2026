@@ -7,6 +7,7 @@ import com.acme.cart.domain.CartError
 import com.acme.cart.domain.CartOwner
 import com.acme.cart.domain.CartStatus
 import com.acme.cart.domain.VariantPricing
+import com.acme.cart.domain.events.CartCreated
 import com.acme.cart.domain.events.CartMerged
 import com.acme.cart.domain.events.DomainEvent
 import com.acme.cart.domain.newCartFor
@@ -51,6 +52,7 @@ class MergeCartsUseCaseTest {
 
     private fun givenCarts(guest: Cart?, user: Cart?) {
         every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } returns guest
+        every { cartRepository.findForUpdateBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } returns guest
         every { cartRepository.findByUserIdAndStatus(userId, CartStatus.ACTIVE) } returns user
     }
 
@@ -74,7 +76,9 @@ class MergeCartsUseCaseTest {
         assertEquals(CartStatus.MERGED, guest.status)
         verify { cartRepository.save(guest) }
 
-        val payload = assertIs<CartMerged>(published.single()).payload
+        val (created, merged) = published
+        assertEquals(outcome.cart!!.id, assertIs<CartCreated>(created).payload.cartId)
+        val payload = assertIs<CartMerged>(merged).payload
         assertEquals(outcome.cart!!.id, payload.targetCartId)
         assertEquals(guest.id, payload.sourceCartId)
         assertEquals(userId, payload.userId)
@@ -134,6 +138,24 @@ class MergeCartsUseCaseTest {
         val result = useCase.execute(MergeCartsCommand(userId, "sess-1"))
 
         assertEquals(CartError.PricingUnavailable(variantId), result.leftOrNull())
+        assertEquals(CartStatus.ACTIVE, guest.status)
+        verify(exactly = 0) { cartRepository.save(any()) }
+        assertEquals(emptyList(), published)
+    }
+
+    @Test
+    fun `a guest line added after pricing fails the merge without changing either cart`() {
+        val guest = guestWith(2)
+        givenCarts(guest = guest, user = null)
+        val lateVariant = UUID.randomUUID()
+        every { pricingClient.getPricing(variantId) } answers {
+            guest.addItem(lateVariant, 1, pricing, "{}", 10)
+            pricing.right()
+        }
+
+        val result = useCase.execute(MergeCartsCommand(userId, "sess-1"))
+
+        assertEquals(CartError.PricingUnavailable(lateVariant), result.leftOrNull())
         assertEquals(CartStatus.ACTIVE, guest.status)
         verify(exactly = 0) { cartRepository.save(any()) }
         assertEquals(emptyList(), published)
