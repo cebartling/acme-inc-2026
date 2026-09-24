@@ -224,3 +224,104 @@ Then('the cart should be empty', async function (this: CustomWorld) {
   expect(cart.items).toHaveLength(0);
   expect(cart.summary.itemCount).toBe(0);
 });
+
+// --- US-0004-08: merge on sign-in ------------------------------------------------------
+
+const ACCESS_TOKEN_COOKIE = 'access_token';
+/** The password `an active customer with email {string} exists` registers with. */
+const REGISTERED_PASSWORD = 'SecureP@ss123';
+
+interface MergeResponse extends CartResponse {
+  mergeResult: { itemsMerged: number; quantitiesAdjusted: unknown[] } | null;
+}
+
+/** A `Cookie` header carrying the guest session and/or the signed-in access token. */
+function cartCookies(
+  world: CustomWorld,
+  { session, token }: { session: boolean; token: boolean }
+): Record<string, string> {
+  const parts: string[] = [];
+  const sessionId = world.getTestData<string>('cartSessionId');
+  const accessToken = world.getTestData<string>('cartAccessToken');
+  if (session && sessionId) parts.push(`${SESSION_COOKIE}=${sessionId}`);
+  if (token && accessToken) parts.push(`${ACCESS_TOKEN_COOKIE}=${accessToken}`);
+  return parts.length > 0 ? { Cookie: parts.join('; ') } : {};
+}
+
+Given('I am signed in through the API as that customer', async function (this: CustomWorld) {
+  const email = this.getTestData<string>('registeredEmail');
+  expect(email, 'register the customer first').toBeDefined();
+
+  const response = await this.identityApiClient.post('/api/v1/auth/signin', {
+    email,
+    password: REGISTERED_PASSWORD,
+    rememberMe: false,
+  });
+  expect(response.status).toBe(200);
+
+  const cookie = response.headers['set-cookie']?.find((c) =>
+    c.startsWith(`${ACCESS_TOKEN_COOKIE}=`)
+  );
+  expect(cookie, 'sign-in should set an access_token cookie').toBeDefined();
+  this.setTestData('cartAccessToken', cookie!.split(';')[0].split('=')[1]);
+});
+
+// A signed-in add with no session cookie: it can only land in the account cart. It does not
+// update cartId/cartItemId, which name the guest cart's line for `I remove that line`.
+Given(
+  "the customer's account cart has {int} {string}",
+  async function (this: CustomWorld, quantity: number, name: string) {
+    const response = await this.cartApiClient.post<CartResponse>(
+      '/api/v1/carts/items',
+      addToCartBody(name, quantity),
+      { headers: cartCookies(this, { session: false, token: true }) }
+    );
+    expect(response.status).toBe(201);
+    expect(sessionCookieFrom(response), 'a signed-in add mints no guest session').toBeUndefined();
+  }
+);
+
+When('I merge my guest cart as the signed-in customer', async function (this: CustomWorld) {
+  const response = await this.cartApiClient.post<MergeResponse>('/api/v1/carts/merge', undefined, {
+    headers: cartCookies(this, { session: true, token: true }),
+  });
+  this.setLastResponse(response);
+});
+
+When('I merge without signing in', async function (this: CustomWorld) {
+  const response = await this.cartApiClient.post('/api/v1/carts/merge', undefined, {
+    headers: cartCookies(this, { session: true, token: false }),
+  });
+  this.setLastResponse(response);
+});
+
+When(
+  'I get my current cart as the signed-in customer on another device',
+  async function (this: CustomWorld) {
+    const response = await this.cartApiClient.get<CartResponse>('/api/v1/carts/current', {
+      headers: cartCookies(this, { session: false, token: true }),
+    });
+    this.setLastResponse(response);
+  }
+);
+
+When('I get my current cart as the old guest session', async function (this: CustomWorld) {
+  const response = await this.cartApiClient.get('/api/v1/carts/current', {
+    headers: cartCookies(this, { session: true, token: false }),
+  });
+  this.setLastResponse(response);
+});
+
+Then(
+  'the merge should report {int} item(s) merged and {int} quantity adjustment(s)',
+  async function (this: CustomWorld, merged: number, adjusted: number) {
+    const result = this.getLastResponse<MergeResponse>()!.data.mergeResult;
+    expect(result, 'expected a mergeResult').not.toBeNull();
+    expect(result!.itemsMerged).toBe(merged);
+    expect(result!.quantitiesAdjusted).toHaveLength(adjusted);
+  }
+);
+
+Then('the merge should report nothing merged', async function (this: CustomWorld) {
+  expect(this.getLastResponse<MergeResponse>()!.data.mergeResult).toBeNull();
+});
