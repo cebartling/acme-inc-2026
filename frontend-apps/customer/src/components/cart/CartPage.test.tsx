@@ -181,6 +181,24 @@ describe("CartPage", () => {
     expect(mockedGetCurrent).toHaveBeenCalledTimes(2);
   });
 
+  it("shows no error when a stale line is gone (404), only the reloaded cart", async () => {
+    mockedGetCurrent.mockResolvedValue(cartOf(line(2, 119.99)));
+    mockedUpdate.mockRejectedValue(
+      new ApiError("Cart item not found: line-1", 404),
+    );
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Increase quantity of Gadget Pro (Black)",
+      }),
+    );
+
+    await vi.waitFor(() => expect(mockedGetCurrent).toHaveBeenCalledTimes(2));
+    expect(screen.queryByTestId("lineMessage")).not.toBeInTheDocument();
+  });
+
   it("shows the latest action's error, not an older one", async () => {
     mockedGetCurrent.mockResolvedValue(cartOf(line(2, 119.99)));
     mockedUpdate.mockRejectedValue(new ApiError("Pricing unavailable", 503));
