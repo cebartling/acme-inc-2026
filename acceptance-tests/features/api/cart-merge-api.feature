@@ -11,8 +11,18 @@ Feature: Cart Merge on Sign-in API
     Given an active customer with email "cart-merge@example.com" exists
     And I am signed in through the API as that customer
 
-  # AC-0004-08-02, AC-0004-08-03
+  # AC-0004-08-02
   @smoke
+  Scenario: The account cart's own items are kept alongside the guest's
+    Given the customer's account cart has 1 "Gadget Pro / White"
+    And I have added 2 "Gadget Pro / Black" to a new cart
+    When I merge my guest cart as the signed-in customer
+    Then the API should respond with status 200
+    And the cart should contain 1 of "Gadget Pro / White"
+    And the cart should contain 2 of "Gadget Pro / Black"
+    And the merge should report 1 item merged and 0 quantity adjustments
+
+  # AC-0004-08-03
   Scenario: A variant in both carts becomes one line and is repriced at its tier
     Given the customer's account cart has 1 "Gadget Pro / Black"
     And I have added 2 "Gadget Pro / Black" to a new cart
@@ -33,7 +43,7 @@ Feature: Cart Merge on Sign-in API
   # AC-0004-08-05
   Scenario: A merged guest cart is gone for its session and cannot be merged twice
     Given I have added 2 "Gadget Pro / Black" to a new cart
-    And I merge my guest cart as the signed-in customer
+    And I have merged my guest cart as the signed-in customer
     When I get my current cart as the old guest session
     Then the API should respond with status 204
     When I merge my guest cart as the signed-in customer
@@ -44,7 +54,7 @@ Feature: Cart Merge on Sign-in API
   # AC-0004-08-07
   Scenario: The signed-in cart is reachable from another device
     Given I have added 2 "Gadget Pro / Black" to a new cart
-    And I merge my guest cart as the signed-in customer
+    And I have merged my guest cart as the signed-in customer
     When I get my current cart as the signed-in customer on another device
     Then the API should respond with status 200
     And the cart should have 1 line with quantity 2 at unit price 119.99
@@ -53,7 +63,7 @@ Feature: Cart Merge on Sign-in API
   Scenario: An empty guest cart merges as a no-op
     Given the customer's account cart has 1 "Gadget Pro / Black"
     And I have added 2 "Gadget Pro / Black" to a new cart
-    And I remove that line
+    And I have removed that line
     When I merge my guest cart as the signed-in customer
     Then the API should respond with status 200
     And the merge should report nothing merged

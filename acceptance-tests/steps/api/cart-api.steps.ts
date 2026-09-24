@@ -13,12 +13,21 @@ import { ApiResponse } from '../../support/api-client.js';
 
 const SESSION_COOKIE = 'acme_session_id';
 
-/** Seeded product-service variants (product V4/V5 migrations), by "Product / Variant". */
+/**
+ * Seeded product-service variants (product V4/V5 migrations), by "Product / Variant".
+ * Variant ids are fixed by the seed; productId only feeds the client-supplied snapshot,
+ * which the cart service stores without checking, so a placeholder is enough.
+ */
 const VARIANTS: Record<string, { variantId: string; productId: string; sku: string }> = {
   'Gadget Pro / Black': {
     variantId: '11111111-1111-1111-1111-000000000001',
     productId: '11111111-1111-1111-1111-111111111111',
     sku: 'ACME-GP-BLK',
+  },
+  'Gadget Pro / White': {
+    variantId: '11111111-1111-1111-1111-000000000002',
+    productId: '11111111-1111-1111-1111-111111111111',
+    sku: 'ACME-GP-WHT',
   },
 };
 
@@ -243,8 +252,11 @@ function cartCookies(
   const parts: string[] = [];
   const sessionId = world.getTestData<string>('cartSessionId');
   const accessToken = world.getTestData<string>('cartAccessToken');
-  if (session && sessionId) parts.push(`${SESSION_COOKIE}=${sessionId}`);
-  if (token && accessToken) parts.push(`${ACCESS_TOKEN_COOKIE}=${accessToken}`);
+  if (session && !sessionId)
+    throw new Error('no guest session yet; add an item to a new cart first');
+  if (token && !accessToken) throw new Error('no access token yet; sign in through the API first');
+  if (session) parts.push(`${SESSION_COOKIE}=${sessionId}`);
+  if (token) parts.push(`${ACCESS_TOKEN_COOKIE}=${accessToken}`);
   return parts.length > 0 ? { Cookie: parts.join('; ') } : {};
 }
 
@@ -315,7 +327,9 @@ When('I get my current cart as the old guest session', async function (this: Cus
 Then(
   'the merge should report {int} item(s) merged and {int} quantity adjustment(s)',
   async function (this: CustomWorld, merged: number, adjusted: number) {
-    const result = this.getLastResponse<MergeResponse>()!.data.mergeResult;
+    const response = this.getLastResponse<MergeResponse>()!;
+    expect(response.status, 'a merge that moved items answers 200 with the cart').toBe(200);
+    const result = response.data.mergeResult;
     expect(result, 'expected a mergeResult').not.toBeNull();
     expect(result!.itemsMerged).toBe(merged);
     expect(result!.quantitiesAdjusted).toHaveLength(adjusted);
@@ -323,5 +337,36 @@ Then(
 );
 
 Then('the merge should report nothing merged', async function (this: CustomWorld) {
-  expect(this.getLastResponse<MergeResponse>()!.data.mergeResult).toBeNull();
+  const response = this.getLastResponse<MergeResponse>()!;
+  // A 204 (no account cart at all) has no body to read a mergeResult from.
+  expect(response.status, 'expected the account cart back with a 200').toBe(200);
+  expect(response.data.mergeResult).toBeNull();
 });
+
+// Setup forms of the merge and remove steps: they assert success, so a failed setup is
+// reported where it happened rather than as a confusing failure in a later step.
+Given('I have merged my guest cart as the signed-in customer', async function (this: CustomWorld) {
+  const response = await this.cartApiClient.post<MergeResponse>('/api/v1/carts/merge', undefined, {
+    headers: cartCookies(this, { session: true, token: true }),
+  });
+  expect(response.status, 'setup merge').toBe(200);
+  this.setLastResponse(response);
+});
+
+Given('I have removed that line', async function (this: CustomWorld) {
+  const response = await this.cartApiClient.delete<CartResponse>(linePath(this), {
+    headers: cartCookies(this, { session: true, token: false }),
+  });
+  expect(response.status, 'setup remove').toBe(200);
+  this.setLastResponse(response);
+});
+
+Then(
+  'the cart should contain {int} of {string}',
+  async function (this: CustomWorld, quantity: number, name: string) {
+    const cart = this.getLastResponse<CartResponse>()!.data;
+    const variantId = VARIANTS[name]?.variantId;
+    expect(variantId, `unknown test variant "${name}"`).toBeDefined();
+    expect(cart.items.find((i) => i.variantId === variantId)?.quantity).toBe(quantity);
+  }
+);

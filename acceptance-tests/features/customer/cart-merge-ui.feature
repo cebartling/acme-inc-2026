@@ -41,4 +41,8 @@ Feature: Cart Merge on Sign-in
     And I sign in with valid credentials
     And the cart badge should show 2
     When I sign out
-    Then the cart badge should show no count
+    # Reload the cart page so the badge reflects the guest cart the service returns, not
+    # the empty cache sign-out leaves while that request is in flight.
+    And I navigate to "/cart"
+    Then I should see the empty cart with a link to continue shopping
+    And the cart badge should show no count
