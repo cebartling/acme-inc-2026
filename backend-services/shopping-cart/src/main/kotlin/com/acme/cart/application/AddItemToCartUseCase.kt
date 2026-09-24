@@ -30,7 +30,7 @@ data class AddItemToCartCommand(
     val quantity: Int,
     val productSnapshot: ProductSnapshot,
     /** True when the controller just minted the guest session, so its first cart is not a recovery. */
-    val startedNewSession: Boolean = false
+    val startedNewSession: Boolean
 )
 
 /**

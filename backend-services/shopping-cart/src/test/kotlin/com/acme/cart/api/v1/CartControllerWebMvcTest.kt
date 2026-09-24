@@ -49,6 +49,7 @@ import org.springframework.test.web.servlet.post
 import java.math.BigDecimal
 import java.util.UUID
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
@@ -155,7 +156,7 @@ class CartControllerWebMvcTest(
         val result = postItem(cookie = sessionId).andExpect { status { isCreated() } }.andReturn()
 
         assertEquals(sessionId, guestSession(command.captured))
-        assertTrue(!command.captured.startedNewSession)
+        assertFalse(command.captured.startedNewSession)
         assertSessionReissued(result.response.getHeader(HttpHeaders.SET_COOKIE), sessionId)
     }
 

@@ -149,7 +149,7 @@ class AddItemToCartUseCaseTest {
         every { cartRepository.findByUserIdAndStatus(userId, CartStatus.ACTIVE) } returns null
 
         val cart = useCase.execute(
-            AddItemToCartCommand(CartOwner.Customer(userId), variantId, 2, snapshot)
+            AddItemToCartCommand(CartOwner.Customer(userId), variantId, 2, snapshot, startedNewSession = false)
         ).getOrNull()!!
 
         assertEquals(userId, cart.userId)
@@ -194,7 +194,7 @@ class AddItemToCartUseCaseTest {
         val userId = UUID.randomUUID()
         every { cartRepository.findByUserIdAndStatus(userId, CartStatus.ACTIVE) } returns null
 
-        useCase.execute(AddItemToCartCommand(CartOwner.Customer(userId), variantId, 2, snapshot))
+        useCase.execute(AddItemToCartCommand(CartOwner.Customer(userId), variantId, 2, snapshot, startedNewSession = false))
 
         assertEquals(0.0, recoveries())
     }
