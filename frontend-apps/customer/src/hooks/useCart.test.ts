@@ -8,6 +8,7 @@ import {
   useRemoveCartItem,
   useUpdateCartItem,
 } from "./useCart";
+import { useAuthStore } from "@/stores/auth.store";
 import { useCartNoticeStore } from "@/stores/cartNotice.store";
 import type { Cart } from "@/services/api";
 import { ApiError, cartApi } from "@/services/api";
@@ -181,6 +182,7 @@ describe("mergeCartAfterSignIn", () => {
     vi.clearAllMocks();
     queryClient = new QueryClient();
     useCartNoticeStore.setState({ message: null });
+    useAuthStore.setState({ isAuthenticated: true });
   });
 
   it("merges a cached guest cart and caches the merged cart (AC-01, AC-06)", async () => {
@@ -249,6 +251,34 @@ describe("mergeCartAfterSignIn", () => {
     expect(useCartNoticeStore.getState().message).toBe(
       "Quantity for Gadget Pro was adjusted to the maximum of 10.",
     );
+  });
+
+  it("does not cache the account's cart when signed out before the merge returned", async () => {
+    queryClient.setQueryData(CART_QUERY_KEY, guestCart);
+    mockedMerge.mockImplementation(async () => {
+      useAuthStore.setState({ isAuthenticated: false });
+      return {
+        ...mergedCart,
+        mergeResult: {
+          itemsMerged: 1,
+          quantitiesAdjusted: [
+            {
+              variantId: "variant-1",
+              requestedTotal: 12,
+              adjustedTo: 10,
+              reason: "MAX_ORDER_QUANTITY",
+            },
+          ],
+        },
+      };
+    });
+
+    await mergeCartAfterSignIn(queryClient);
+
+    expect(queryClient.getQueryData<Cart>(CART_QUERY_KEY)?.id).toBe(
+      "guest-cart",
+    );
+    expect(useCartNoticeStore.getState().message).toBeNull();
   });
 
   it("never throws: a failed merge is logged and the cart reloads", async () => {

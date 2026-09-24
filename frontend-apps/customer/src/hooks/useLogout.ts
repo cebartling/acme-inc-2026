@@ -59,7 +59,8 @@ export function useLogout(): UseLogoutResult {
         useAuthStore.getState().clearUser();
         useCustomerStore.getState().clearProfile();
         // The signed-in user's cart must not linger in the header badge. Resetting
-        // refetches it as a guest; the pre-sign-in guest cart was MERGED, so it reads 204.
+        // refetches it as a guest: a merged guest cart reads 204, an unmerged one (empty,
+        // or its merge failed) comes back as it was.
         useCartNoticeStore.getState().dismiss();
         void queryClient.resetQueries({ queryKey: CART_QUERY_KEY });
         trackEvent("logout", {

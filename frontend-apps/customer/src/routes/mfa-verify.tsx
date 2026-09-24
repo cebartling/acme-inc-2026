@@ -217,9 +217,10 @@ function MfaVerifyPage() {
         lastName: response.lastName,
       });
 
-      // Fold any guest cart into the account cart (US-0004-08). Fire-and-forget:
-      // it never throws and must not delay navigation.
-      void mergeCartAfterSignIn(queryClient);
+      // Fold any guest cart into the account cart (US-0004-08) before leaving the page, so
+      // the destination never shows the guest cart or races the merge. It never throws, so
+      // a failed merge still lets sign-in finish.
+      await mergeCartAfterSignIn(queryClient);
 
       // Navigate to redirect URL or home
       const redirectTo = mfaState.redirect || "/";
