@@ -116,6 +116,8 @@ Given(
     const response = await addItem(this, addToCartBody(name, quantity), false);
     expect(response.status).toBe(201);
     this.setTestData('lastCartItemName', name);
+    // Later adds overwrite cartSessionId from Set-Cookie; this keeps the original to compare.
+    this.setTestData('firstCartSessionId', this.getTestData<string>('cartSessionId'));
   }
 );
 
@@ -147,8 +149,16 @@ Then(
   }
 );
 
-Then('the response should not set a session cookie', async function (this: CustomWorld) {
-  expect(sessionCookieFrom(this.getLastResponse()!)).toBeUndefined();
+// US-0004-12: the guest cookie slides, so an active shopper's cart never expires under them.
+Then('the response should re-issue the same session cookie', async function (this: CustomWorld) {
+  const cookie = sessionCookieFrom(this.getLastResponse()!);
+  expect(cookie, 'expected a Set-Cookie for acme_session_id').toBeDefined();
+  expect(cookie!.split(';')[0]).toBe(
+    `${SESSION_COOKIE}=${this.getTestData<string>('firstCartSessionId')}`
+  );
+  expect(cookie).toContain('HttpOnly');
+  expect(cookie).toContain('SameSite=Lax');
+  expect(cookie).toContain('Max-Age=2592000');
 });
 
 Then(

@@ -27,6 +27,11 @@ When('I open the cart page in a new tab', async function (this: CustomWorld) {
   await cartPage(this).navigate();
 });
 
+// US-0004-12: the browser drops the cookie when its 30 days run out.
+When('my cart session cookie expires', async function (this: CustomWorld) {
+  await this.context.clearCookies({ name: SESSION_COOKIE });
+});
+
 When('I increase the line quantity', async function (this: CustomWorld) {
   await cartPage(this).increaseButton.click();
 });

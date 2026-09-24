@@ -53,3 +53,13 @@ Feature: Guest Cart Management API
     Then the API should respond with status 404
     When I get my current cart
     Then the cart should have 1 line with quantity 2 at unit price 119.99
+
+  # US-0004-12: every guest request slides the cookie, so an active cart never expires
+  Scenario: Reading, changing and removing re-issue the session cookie
+    Given I have added 2 "Gadget Pro / Black" to a new cart
+    When I get my current cart
+    Then the response should re-issue the same session cookie
+    When I change the quantity of that line to 3
+    Then the response should re-issue the same session cookie
+    When I remove that line
+    Then the response should re-issue the same session cookie
