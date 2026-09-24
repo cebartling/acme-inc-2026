@@ -1166,6 +1166,20 @@ export interface Cart {
   summary: { itemCount: number; subtotal: number; currency: string };
 }
 
+/** What a sign-in merge did (US-0004-08). */
+export interface MergeResult {
+  itemsMerged: number;
+  quantitiesAdjusted: Array<{
+    variantId: string;
+    requestedTotal: number;
+    adjustedTo: number;
+    reason: "MAX_ORDER_QUANTITY";
+  }>;
+}
+
+/** The signed-in user's cart after a merge; `mergeResult` is null when nothing merged. */
+export type MergeCartResponse = Cart & { mergeResult: MergeResult | null };
+
 /**
  * Shopping cart service (US-0004-06).
  *
@@ -1206,6 +1220,18 @@ export const cartApi = {
         credentials: "include",
         body: JSON.stringify({ quantity }),
       },
+    );
+  },
+
+  /**
+   * Merges the guest cart (the service reads it from the HttpOnly session cookie) into
+   * the signed-in user's cart. `null` when there was nothing to merge and the user has no
+   * cart (the service answers 204).
+   */
+  async merge(): Promise<MergeCartResponse | null> {
+    return apiRequest<MergeCartResponse | null>(
+      `${CART_SERVICE_URL}/api/v1/carts/merge`,
+      { method: "POST", credentials: "include" },
     );
   },
 

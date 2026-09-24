@@ -1499,6 +1499,34 @@ describe("cartApi reads and updates", () => {
     });
   });
 
+  it("merge POSTs with credentials and returns the merged cart", async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(200, {
+        ...cart,
+        mergeResult: { itemsMerged: 1, quantitiesAdjusted: [] },
+      }),
+    );
+
+    const merged = await cartApi.merge();
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringMatching(/\/api\/v1\/carts\/merge$/),
+      expect.objectContaining({ method: "POST", credentials: "include" }),
+    );
+    expect(merged?.mergeResult?.itemsMerged).toBe(1);
+  });
+
+  it("merge resolves to null when there was nothing to merge (204)", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 204,
+      headers: new Headers(),
+      json: () => Promise.reject(new Error("no body")),
+    });
+
+    await expect(cartApi.merge()).resolves.toBeNull();
+  });
+
   it("removeItem DELETEs with credentials", async () => {
     mockFetch.mockResolvedValueOnce(jsonResponse(200, cart));
 

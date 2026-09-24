@@ -11,9 +11,11 @@ import {
   InactiveAccountMessage,
   type InactiveAccountReason,
 } from "@/components/signin/InactiveAccountMessage";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/stores/auth.store";
 import { useCustomerStore } from "@/stores/customer.store";
 import { identityApi, ApiError } from "@/services/api";
+import { mergeCartAfterSignIn } from "@/hooks/useCart";
 import { trackSigninFailed } from "@/services/analytics";
 import type { SigninFormData } from "@/schemas/signin.schema";
 
@@ -97,6 +99,7 @@ export const Route = createFileRoute("/signin")({
 
 function SigninPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const search = useSearch({ from: "/signin" });
   const setUser = useAuthStore((state) => state.setUser);
   const [error, setError] = useState<SigninFormError | null>(null);
@@ -228,6 +231,11 @@ function SigninPage() {
           lastName: "",
         });
       }
+
+      // Fold any guest cart into the account cart (US-0004-08) before leaving the page, so
+      // the destination never shows the guest cart or races the merge. It never throws, so
+      // a failed merge still lets sign-in finish.
+      await mergeCartAfterSignIn(queryClient);
 
       // Navigate to redirect URL or home (with validation as defense-in-depth)
       const redirectTo =

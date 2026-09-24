@@ -8,7 +8,9 @@ import {
 import { z } from "zod";
 import { AlertCircle, MessageSquare, Smartphone } from "lucide-react";
 import { MfaVerificationForm } from "@/components/mfa";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/stores/auth.store";
+import { mergeCartAfterSignIn } from "@/hooks/useCart";
 import { identityApi, ApiError } from "@/services/api";
 import { Button } from "@/components/ui/button";
 import {
@@ -48,6 +50,7 @@ export const Route = createFileRoute("/mfa-verify")({
 
 function MfaVerifyPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const search = useSearch({ from: "/mfa-verify" });
   const setUser = useAuthStore((state) => state.setUser);
   const [error, setError] = useState<string | undefined>(undefined);
@@ -213,6 +216,11 @@ function MfaVerifyPage() {
         firstName: response.firstName,
         lastName: response.lastName,
       });
+
+      // Fold any guest cart into the account cart (US-0004-08) before leaving the page, so
+      // the destination never shows the guest cart or races the merge. It never throws, so
+      // a failed merge still lets sign-in finish.
+      await mergeCartAfterSignIn(queryClient);
 
       // Navigate to redirect URL or home
       const redirectTo = mfaState.redirect || "/";
