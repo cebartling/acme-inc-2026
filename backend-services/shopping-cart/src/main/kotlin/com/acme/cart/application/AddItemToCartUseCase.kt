@@ -17,6 +17,7 @@ import com.acme.cart.infrastructure.messaging.CartEventPublisher
 import com.acme.cart.infrastructure.persistence.CartRepository
 import com.acme.cart.infrastructure.product.ProductPricingClient
 import com.fasterxml.jackson.databind.ObjectMapper
+import io.micrometer.core.instrument.MeterRegistry
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
@@ -27,7 +28,9 @@ data class AddItemToCartCommand(
     val owner: CartOwner,
     val variantId: UUID,
     val quantity: Int,
-    val productSnapshot: ProductSnapshot
+    val productSnapshot: ProductSnapshot,
+    /** True when the controller just minted the guest session, so its first cart is not a recovery. */
+    val startedNewSession: Boolean = false
 )
 
 /**
@@ -45,9 +48,11 @@ class AddItemToCartUseCase(
     private val eventPublisher: CartEventPublisher,
     private val transactionTemplate: TransactionTemplate,
     private val objectMapper: ObjectMapper,
-    @Value("\${acme.cart.max-order-quantity}") private val maxOrderQuantity: Int
+    @Value("\${acme.cart.max-order-quantity}") private val maxOrderQuantity: Int,
+    meterRegistry: MeterRegistry
 ) {
     private val logger = LoggerFactory.getLogger(AddItemToCartUseCase::class.java)
+    private val sessionRecoveries = meterRegistry.counter(SESSION_RECOVERY_METRIC)
 
     fun execute(command: AddItemToCartCommand, correlationId: UUID = UUID.randomUUID()): Either<CartError, Cart> =
         pricingClient.getPricing(command.variantId).flatMap { pricing ->
@@ -69,6 +74,7 @@ class AddItemToCartUseCase(
             checkNotNull(result) { "transaction for ${command.owner} returned no result" }
         }.map { added ->
             publishEvents(added, command, correlationId)
+            if (added.isNewCart) recordRecovery(command.owner, command.startedNewSession, added.cart)
             added.cart
         }
 
@@ -98,10 +104,24 @@ class AddItemToCartUseCase(
         )
     }
 
+    /**
+     * A returning guest session whose cart is gone got a fresh one (US-0004-12, AC-07). The
+     * session ID is kept, so there is no old/new pair to log. A cookie the browser already
+     * dropped can't be told apart from a first visit, so that case isn't counted.
+     */
+    private fun recordRecovery(owner: CartOwner, startedNewSession: Boolean, cart: Cart) {
+        if (owner !is CartOwner.Guest || startedNewSession) return
+        logger.info("Guest session {} had no active cart; started cart {}", owner.sessionId, cart.id)
+        sessionRecoveries.increment()
+    }
+
     private fun publish(event: DomainEvent) = eventPublisher.publishLoggingFailure(event, logger)
 
     companion object {
         /** Product prices carry no currency; the catalog is USD-only today. */
         const val CURRENCY = "USD"
+
+        /** Exposed by Prometheus-style registries as `cart_session_recovery_total`. */
+        const val SESSION_RECOVERY_METRIC = "cart.session.recovery"
     }
 }

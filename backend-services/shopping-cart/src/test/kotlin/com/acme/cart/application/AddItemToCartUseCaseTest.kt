@@ -15,6 +15,7 @@ import com.acme.cart.infrastructure.messaging.CartEventPublisher
 import com.acme.cart.infrastructure.persistence.CartRepository
 import com.acme.cart.infrastructure.product.ProductPricingClient
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -33,6 +34,7 @@ class AddItemToCartUseCaseTest {
     private val pricingClient = mockk<ProductPricingClient>()
     private val eventPublisher = mockk<CartEventPublisher>()
     private val published = mutableListOf<DomainEvent>()
+    private val meterRegistry = SimpleMeterRegistry()
 
     private val useCase = AddItemToCartUseCase(
         cartRepository = cartRepository,
@@ -40,7 +42,8 @@ class AddItemToCartUseCaseTest {
         eventPublisher = eventPublisher,
         transactionTemplate = TransactionTemplate(mockk<PlatformTransactionManager>(relaxed = true)),
         objectMapper = jacksonObjectMapper(),
-        maxOrderQuantity = 5
+        maxOrderQuantity = 5,
+        meterRegistry = meterRegistry
     )
 
     private val variantId = UUID.randomUUID()
@@ -52,7 +55,10 @@ class AddItemToCartUseCaseTest {
         imageUrl = null
     )
 
-    private fun command(quantity: Int = 2) = AddItemToCartCommand(CartOwner.Guest("sess-1"), variantId, quantity, snapshot)
+    private fun command(quantity: Int = 2, startedNewSession: Boolean = false) =
+        AddItemToCartCommand(CartOwner.Guest("sess-1"), variantId, quantity, snapshot, startedNewSession)
+
+    private fun recoveries() = meterRegistry.counter(AddItemToCartUseCase.SESSION_RECOVERY_METRIC).count()
 
     @BeforeEach
     fun setUp() {
@@ -152,5 +158,53 @@ class AddItemToCartUseCaseTest {
         assertEquals(userId, created.userId)
         assertEquals(null, created.sessionId)
         assertEquals(userId, assertIs<ItemAddedToCart>(published[1]).payload.userId)
+    }
+
+    // --- PIN-268: session recovery observability ---------------------------------------
+
+    @Test
+    fun `a returning guest session with no active cart counts as a recovery`() {
+        every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } returns null
+
+        useCase.execute(command())
+
+        assertEquals(1.0, recoveries())
+    }
+
+    @Test
+    fun `a brand-new session's first cart is not a recovery`() {
+        every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } returns null
+
+        useCase.execute(command(startedNewSession = true))
+
+        assertEquals(0.0, recoveries())
+    }
+
+    @Test
+    fun `adding to an existing cart is not a recovery`() {
+        every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } returns Cart(id = UUID.randomUUID(), sessionId = "sess-1")
+
+        useCase.execute(command())
+
+        assertEquals(0.0, recoveries())
+    }
+
+    @Test
+    fun `a signed-in owner's first cart is not a recovery`() {
+        val userId = UUID.randomUUID()
+        every { cartRepository.findByUserIdAndStatus(userId, CartStatus.ACTIVE) } returns null
+
+        useCase.execute(AddItemToCartCommand(CartOwner.Customer(userId), variantId, 2, snapshot))
+
+        assertEquals(0.0, recoveries())
+    }
+
+    @Test
+    fun `a failed add is not a recovery`() {
+        every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } returns null
+
+        useCase.execute(command(quantity = 6))
+
+        assertEquals(0.0, recoveries())
     }
 }
