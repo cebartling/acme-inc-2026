@@ -161,11 +161,16 @@ class CartController(
     private fun toResponse(cart: Cart) =
         CartResponse.from(cart) { objectMapper.readValue(it, ProductSnapshot::class.java) }
 
-    /** `{"error": message}`; a max-quantity error also carries `maxQuantity` so the client can clamp. */
+    /**
+     * `{"error": message, "code": code}`; a max-quantity error also carries `maxQuantity` so
+     * the client can clamp. The code lets the client tell a gone line (reload quietly) from a
+     * gone variant (the line is still there; show the message), which share a 404.
+     */
     private fun errorResponse(error: CartError): ResponseEntity<Any> {
         val body = when (error) {
-            is CartError.MaxQuantityExceeded -> mapOf("error" to error.message, "maxQuantity" to error.maxQuantity)
-            else -> mapOf("error" to error.message)
+            is CartError.MaxQuantityExceeded ->
+                mapOf("error" to error.message, "code" to codeFor(error), "maxQuantity" to error.maxQuantity)
+            else -> mapOf("error" to error.message, "code" to codeFor(error))
         }
         return ResponseEntity.status(statusFor(error)).body(body)
     }
@@ -174,6 +179,13 @@ class CartController(
         is CartError.MaxQuantityExceeded -> HttpStatus.UNPROCESSABLE_CONTENT
         is CartError.VariantNotFound, is CartError.CartItemNotFound -> HttpStatus.NOT_FOUND
         is CartError.PricingUnavailable -> HttpStatus.SERVICE_UNAVAILABLE
+    }
+
+    private fun codeFor(error: CartError): String = when (error) {
+        is CartError.MaxQuantityExceeded -> "MAX_QUANTITY_EXCEEDED"
+        is CartError.VariantNotFound -> "VARIANT_NOT_FOUND"
+        is CartError.CartItemNotFound -> "CART_ITEM_NOT_FOUND"
+        is CartError.PricingUnavailable -> "PRICING_UNAVAILABLE"
     }
 
     private fun validSession(cookie: String?): String? = cookie?.takeIf(::isValidSessionId)

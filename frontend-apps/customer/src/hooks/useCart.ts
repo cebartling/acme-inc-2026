@@ -33,11 +33,17 @@ export async function writeCart(queryClient: QueryClient, cart: Cart) {
 }
 
 /**
- * A 404 means the line is already gone: removed in another tab, or the session expired
- * and its cart with it (US-0004-12). Nothing to retry; the reloaded cart is the answer.
+ * The line is already gone: removed in another tab, or the session expired and its cart
+ * with it (US-0004-12). Nothing to retry; the reloaded cart is the answer. Matched on the
+ * service's code, not the status: a delisted variant is also a 404, but its line is still
+ * in the cart and the customer needs the message.
  */
 export function isLineGone(error: unknown): boolean {
-  return error instanceof ApiError && error.status === 404;
+  return (
+    error instanceof ApiError &&
+    error.status === 404 &&
+    error.data?.code === "CART_ITEM_NOT_FOUND"
+  );
 }
 
 /** Reloads the cart when the line is gone, so the page shows what is actually there. */

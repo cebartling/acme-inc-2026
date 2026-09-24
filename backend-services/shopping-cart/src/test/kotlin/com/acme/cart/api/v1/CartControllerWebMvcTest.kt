@@ -182,7 +182,10 @@ class CartControllerWebMvcTest(
     fun `an unknown variant is a 404`() {
         every { useCase.execute(any(), any()) } returns CartError.VariantNotFound(variantId).left()
 
-        postItem().andExpect { status { isNotFound() } }
+        postItem().andExpect {
+            status { isNotFound() }
+            jsonPath("$.code") { value("VARIANT_NOT_FOUND") }
+        }
     }
 
     @Test
@@ -329,7 +332,26 @@ class CartControllerWebMvcTest(
         mockMvc.patch("/api/v1/carts/$cartId/items/$itemId") {
             contentType = MediaType.APPLICATION_JSON
             content = """{"quantity":3}"""
-        }.andExpect { status { isNotFound() } }
+        }.andExpect {
+            status { isNotFound() }
+            jsonPath("$.code") { value("CART_ITEM_NOT_FOUND") }
+        }
+    }
+
+    /** A delisted variant is also a 404, but its line is still in the cart; the code tells them apart. */
+    @Test
+    fun `updating a line whose variant is gone is a 404 VARIANT_NOT_FOUND`() {
+        every { updateUseCase.execute(any(), any()) } returns CartError.VariantNotFound(variantId).left()
+
+        mockMvc.patch("/api/v1/carts/$cartId/items/$itemId") {
+            cookie(Cookie(CartController.SESSION_COOKIE, sessionId))
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"quantity":3}"""
+        }.andExpect {
+            status { isNotFound() }
+            jsonPath("$.code") { value("VARIANT_NOT_FOUND") }
+            jsonPath("$.error") { value("Variant not found: $variantId") }
+        }
     }
 
     @Test
@@ -363,7 +385,10 @@ class CartControllerWebMvcTest(
 
         mockMvc.delete("/api/v1/carts/$cartId/items/$itemId") {
             cookie(Cookie(CartController.SESSION_COOKIE, sessionId))
-        }.andExpect { status { isNotFound() } }
+        }.andExpect {
+            status { isNotFound() }
+            jsonPath("$.code") { value("CART_ITEM_NOT_FOUND") }
+        }
     }
 
     // --- US-0004-08: signed-in callers ------------------------------------------------
