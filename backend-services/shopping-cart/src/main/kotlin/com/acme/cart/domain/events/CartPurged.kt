@@ -6,7 +6,8 @@ import java.util.UUID
 
 /**
  * Published when an EXPIRED or MERGED cart is deleted after the retention period (PIN-289).
- * The cart's earlier `CartExpired` or `CartMerged` event carries its contents.
+ * Its lines are deleted with it; the earlier `CartExpired` or `CartMerged` event carries only
+ * counts, not the lines.
  */
 data class CartPurgedPayload(
     val cartId: UUID,

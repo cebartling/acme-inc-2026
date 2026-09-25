@@ -21,6 +21,12 @@ spring:
     locations: classpath:db/migration
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+  task:
+    scheduling:
+      pool:
+        # One thread per job (cart expiry, cart purge), so a slow purge run, e.g. one blocked
+        # on Kafka publishes, never holds up expiry. The default is a single shared thread.
+        size: 2
   security:
     oauth2:
       resourceserver:

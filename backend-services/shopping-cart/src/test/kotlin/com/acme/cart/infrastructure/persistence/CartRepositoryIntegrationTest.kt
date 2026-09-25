@@ -275,7 +275,6 @@ class CartRepositoryIntegrationTest {
             createdAt = finalizedAt, updatedAt = finalizedAt, lastActiveAt = finalizedAt
         )
         cart.addItem(UUID.randomUUID(), 1, pricing, snapshot, 10, now = finalizedAt)
-        cart.updatedAt = finalizedAt
         return carts.saveAndFlush(cart)
     }
 

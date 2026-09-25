@@ -9,7 +9,7 @@ import org.springframework.scheduling.annotation.Scheduled
 
 /**
  * Runs idle guest cart expiry on a fixed delay (PIN-287). `acme.cart.expiry.enabled=false`
- * turns it off, scheduling included; nothing else in this service is scheduled.
+ * turns it off; the purge job (`CartPurgeScheduledTasks`) has its own switch.
  */
 @Configuration
 @EnableScheduling
