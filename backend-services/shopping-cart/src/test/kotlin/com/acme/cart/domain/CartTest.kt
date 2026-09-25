@@ -144,4 +144,41 @@ class CartTest {
         assertEquals(null, customer.sessionId)
         assertEquals(CartStatus.ACTIVE, customer.status)
     }
+
+    // --- PIN-287: activity for idle-cart expiry -----------------------------------------
+
+    @Test
+    fun `a new cart is active as of its creation`() {
+        val cart = newCart()
+
+        assertEquals(cart.createdAt, cart.lastActiveAt)
+    }
+
+    @Test
+    fun `every change marks the cart active`() {
+        val cart = newCart()
+        val added = java.time.Instant.parse("2026-09-01T00:00:00Z")
+        val item = cart.addItem(variantId, 1, basePricing, """{"name":"Mouse"}""", 10, now = added).getOrNull()!!
+        assertEquals(added, cart.lastActiveAt)
+
+        val updated = added.plusSeconds(60)
+        cart.updateItemQuantity(item.id, 2, basePricing, 10, now = updated)
+        assertEquals(updated, cart.lastActiveAt)
+
+        val removed = updated.plusSeconds(60)
+        cart.removeItem(item.id, now = removed)
+        assertEquals(removed, cart.lastActiveAt)
+    }
+
+    @Test
+    fun `a merge marks the account cart active`() {
+        val guest = newCart()
+        guest.add(1)
+        val user = Cart(id = UUID.randomUUID(), userId = UUID.randomUUID())
+        val merged = java.time.Instant.parse("2026-09-01T00:00:00Z")
+
+        user.absorb(guest, mapOf(variantId to basePricing), maxQuantity = 10, now = merged)
+
+        assertEquals(merged, user.lastActiveAt)
+    }
 }
