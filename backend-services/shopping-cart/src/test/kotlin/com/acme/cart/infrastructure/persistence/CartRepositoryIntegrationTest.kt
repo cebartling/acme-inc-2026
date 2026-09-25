@@ -15,7 +15,10 @@ import org.springframework.test.context.DynamicPropertySource
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
 import org.testcontainers.postgresql.PostgreSQLContainer
+import org.springframework.data.domain.PageRequest
 import java.math.BigDecimal
+import java.time.Duration
+import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertEquals
 
@@ -154,5 +157,109 @@ class CartRepositoryIntegrationTest {
         assertEquals(CartStatus.MERGED, carts.findById(guest.id).get().status)
         // The session can start over as a guest after sign-out.
         carts.saveAndFlush(Cart(id = UUID.randomUUID(), sessionId = "sess-merge-db"))
+    }
+
+    // --- PIN-287: idle guest carts expire -----------------------------------------------
+
+    private val now = Instant.parse("2026-09-24T12:00:00Z")
+    private val cutoff = now.minus(Duration.ofDays(31))
+    private val longAgo = now.minus(Duration.ofDays(40))
+
+    private fun guestCart(session: String, lastActive: Instant, status: CartStatus = CartStatus.ACTIVE) =
+        carts.saveAndFlush(
+            Cart(
+                id = UUID.randomUUID(),
+                sessionId = session,
+                status = status,
+                createdAt = lastActive,
+                updatedAt = lastActive,
+                lastActiveAt = lastActive
+            )
+        )
+
+    private fun statusOf(cart: Cart): CartStatus {
+        entityManager.clear()
+        return carts.findById(cart.id).get().status
+    }
+
+    @Test
+    fun `an idle ACTIVE guest cart expires, once`() {
+        val idle = guestCart("sess-idle", longAgo)
+
+        assertEquals(1, carts.expireIfIdle(idle.id, cutoff, now))
+        assertEquals(CartStatus.EXPIRED, statusOf(idle))
+        assertEquals(0, carts.expireIfIdle(idle.id, cutoff, now), "an expired cart is not expired again")
+    }
+
+    @Test
+    fun `a recently active, merged or user cart never expires`() {
+        val fresh = guestCart("sess-fresh", now.minus(Duration.ofDays(2)))
+        val merged = guestCart("sess-merged", longAgo, CartStatus.MERGED)
+        val user = carts.saveAndFlush(
+            Cart(id = UUID.randomUUID(), userId = UUID.randomUUID(), createdAt = longAgo, updatedAt = longAgo, lastActiveAt = longAgo)
+        )
+
+        listOf(fresh, merged, user).forEach { assertEquals(0, carts.expireIfIdle(it.id, cutoff, now)) }
+
+        assertEquals(CartStatus.ACTIVE, statusOf(fresh))
+        assertEquals(CartStatus.MERGED, statusOf(merged))
+        assertEquals(CartStatus.ACTIVE, statusOf(user))
+    }
+
+    @Test
+    fun `idle guest carts are found oldest first, and nothing else is`() {
+        val older = guestCart("sess-older", longAgo.minus(Duration.ofDays(5)))
+        older.addItem(UUID.randomUUID(), 1, pricing, snapshot, 10, now = older.lastActiveAt)
+        older.addItem(UUID.randomUUID(), 1, pricing, snapshot, 10, now = older.lastActiveAt)
+        carts.saveAndFlush(older)
+        val old = guestCart("sess-old", longAgo)
+        guestCart("sess-recent", now.minus(Duration.ofDays(1)))
+        guestCart("sess-merged-old", longAgo, CartStatus.MERGED)
+        carts.saveAndFlush(
+            Cart(id = UUID.randomUUID(), userId = UUID.randomUUID(), createdAt = longAgo, updatedAt = longAgo, lastActiveAt = longAgo)
+        )
+
+        entityManager.clear()
+
+        assertEquals(
+            listOf(
+                IdleGuestCart(older.id, "sess-older", older.lastActiveAt, lineCount = 2),
+                IdleGuestCart(old.id, "sess-old", old.lastActiveAt, lineCount = 0)
+            ),
+            carts.findIdleGuestCarts(cutoff, PageRequest.of(0, 10))
+        )
+        assertEquals(listOf(older.id), carts.findIdleGuestCarts(cutoff, PageRequest.of(0, 1)).map { it.id })
+    }
+
+    @Test
+    fun `an expired cart frees its session for a new guest cart`() {
+        val idle = guestCart("sess-expired", longAgo)
+        carts.expireIfIdle(idle.id, cutoff, now)
+        entityManager.clear()
+
+        assertEquals(null, carts.findBySessionIdAndStatus("sess-expired", CartStatus.ACTIVE))
+        carts.saveAndFlush(Cart(id = UUID.randomUUID(), sessionId = "sess-expired"))
+    }
+
+    @Test
+    fun `viewing marks a cart active only when its activity is stale`() {
+        val lastActive = now.minus(Duration.ofHours(30))
+        val cart = guestCart("sess-touch", lastActive)
+        val staleBefore = now.minus(Duration.ofDays(1))
+
+        assertEquals(1, carts.touchGuestCart("sess-touch", now, staleBefore))
+        entityManager.clear()
+        assertEquals(now, carts.findById(cart.id).get().lastActiveAt)
+
+        assertEquals(0, carts.touchGuestCart("sess-touch", now.plusSeconds(60), staleBefore), "throttled to once a day")
+        assertEquals(0, carts.touchGuestCart("sess-unknown", now, staleBefore))
+    }
+
+    @Test
+    fun `viewing never revives an expired cart`() {
+        val idle = guestCart("sess-dead", longAgo)
+        carts.expireIfIdle(idle.id, cutoff, now)
+
+        assertEquals(0, carts.touchGuestCart("sess-dead", now, now.minus(Duration.ofDays(1))))
     }
 }

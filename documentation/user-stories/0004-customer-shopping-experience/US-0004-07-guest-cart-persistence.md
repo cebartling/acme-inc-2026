@@ -217,7 +217,7 @@ DELETE /api/v1/carts/{cartId}/items/{cartItemId}
 
 - **Service**: `/backend-services/shopping-cart`
 - **Cart identification**: session ID from `X-Session-ID` header
-- **Cart expiry**: configurable TTL (default 30 days)
+- **Cart expiry**: configurable TTL (default 30 days), as `acme.cart.guest-ttl`. It is the session cookie's `Max-Age`, and an ACTIVE guest cart idle past it (plus a day) is marked `EXPIRED` by an hourly job (PIN-287).
 - **Error Handling**: Arrow Kotlin `Either<CartError, Cart>`
 
 ### Domain Events

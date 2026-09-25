@@ -111,14 +111,14 @@ sequenceDiagram
 **Then** the event is logged at INFO level with the new cart ID, and never the session ID, which is the only key to a guest cart
 **And** the `cart_session_new_cart_total` counter metric (`cart.session.new_cart`) is incremented
 
-This does not measure expiries. A cookie the browser has already dropped can't be told apart from a first visit, so it isn't counted. Until guest carts expire on the server (PIN-287), the metric only counts guests who add again after their cart was merged at sign-in.
+This does not measure expiries. A cookie the browser has already dropped can't be told apart from a first visit, so it isn't counted. Server-side expiry (PIN-287) doesn't change that either: a cart only expires once its cookie could have lapsed (up to a day later, depending on when a view last refreshed it). In practice, the metric counts guests who add again after their cart was merged at sign-in.
 
 ## Technical Implementation
 
 - **Sliding cookie**: `CartController.slideGuestSession` re-issues `acme_session_id` on `GET /current`, `POST /items`, `PATCH` and `DELETE` when the caller is a guest with a valid session.
 - **New-cart metric**: `AddItemToCartCommand.startedNewSession` tells `AddItemToCartUseCase` whether the controller just minted the session. A new cart for a session that already existed is logged (by cart ID) and counted.
 - **Quiet stale lines**: cart error bodies carry a `code`. `isLineGone` in `frontend-apps/customer/src/hooks/useCart.ts` matches a 404 with `CART_ITEM_NOT_FOUND`. `useCart` reloads the cart, and `CartLineItem` shows no message. A `VARIANT_NOT_FOUND` 404 (the line is still in the cart) still shows its message.
-- **Out of scope**: server-side expiry of `carts` rows (PIN-287). Orphaned guest carts are not cleaned up yet.
+- **Out of scope**: server-side expiry of `carts` rows, since delivered by PIN-287 (see `ARCHITECTURE.md`).
 
 ## Definition of Done
 

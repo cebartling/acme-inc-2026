@@ -32,6 +32,7 @@ import io.mockk.clearMocks
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
+import io.mockk.verify
 import jakarta.servlet.http.Cookie
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -47,6 +48,8 @@ import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.patch
 import org.springframework.test.web.servlet.post
 import java.math.BigDecimal
+import java.time.Duration
+import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -104,6 +107,7 @@ class CartControllerWebMvcTest(
     fun setUp() {
         clearMocks(useCase, updateUseCase, removeUseCase, cartRepository, jwtDecoder, mergeUseCase)
         command.clear()
+        every { cartRepository.touchGuestCart(any(), any(), any()) } returns 0
         every { useCase.execute(capture(command), any()) } answers {
             val cmd = firstArg<AddItemToCartCommand>()
             val cart = newCartFor(cmd.owner)
@@ -252,6 +256,92 @@ class CartControllerWebMvcTest(
             .andExpect { status { isOk() } }.andReturn()
 
         assertSessionReissued(result.response.getHeader(HttpHeaders.SET_COOKIE), sessionId)
+    }
+
+    @Test
+    fun `a guest viewing the cart marks it active, at most once a day`() {
+        val stale = cartFor(sessionId).apply { lastActiveAt = Instant.now().minus(Duration.ofDays(2)) }
+        every { cartRepository.findBySessionIdAndStatus(sessionId, CartStatus.ACTIVE) } returns stale
+        val now = slot<Instant>()
+        val staleBefore = slot<Instant>()
+        every { cartRepository.touchGuestCart(sessionId, capture(now), capture(staleBefore)) } returns 1
+
+        mockMvc.get("/api/v1/carts/current") { cookie(Cookie(CartController.SESSION_COOKIE, sessionId)) }
+            .andExpect { status { isOk() } }
+
+        assertEquals(Duration.ofDays(1), Duration.between(staleBefore.captured, now.captured))
+    }
+
+    @Test
+    fun `a guest viewing a recently active cart issues no update`() {
+        every { cartRepository.findBySessionIdAndStatus(sessionId, CartStatus.ACTIVE) } returns cartFor(sessionId)
+
+        mockMvc.get("/api/v1/carts/current") { cookie(Cookie(CartController.SESSION_COOKIE, sessionId)) }
+            .andExpect { status { isOk() } }
+
+        verify(exactly = 0) { cartRepository.touchGuestCart(any(), any(), any()) }
+    }
+
+    @Test
+    fun `a signed-in caller viewing the cart does not touch the guest cart`() {
+        signedIn()
+        every { cartRepository.findByUserIdAndStatus(userId, CartStatus.ACTIVE) } returns newCartFor(CartOwner.Customer(userId))
+
+        mockMvc.get("/api/v1/carts/current") {
+            cookie(accessToken(), Cookie(CartController.SESSION_COOKIE, sessionId))
+        }.andExpect { status { isOk() } }
+
+        verify(exactly = 0) { cartRepository.touchGuestCart(any(), any(), any()) }
+    }
+
+    /** Asserts a once-a-day activity touch for [session], as a write that extended its cookie must make. */
+    private fun assertActivityRecorded(session: String) {
+        val now = slot<Instant>()
+        val staleBefore = slot<Instant>()
+        verify(exactly = 1) { cartRepository.touchGuestCart(session, capture(now), capture(staleBefore)) }
+        assertEquals(Duration.ofDays(1), Duration.between(staleBefore.captured, now.captured))
+    }
+
+    // PIN-287 review #1: every write that extends the cookie records activity, even when it
+    // fails, so the cart can never expire while the cookie is still valid.
+    @Test
+    fun `a failed guest update still records activity, since it extended the cookie`() {
+        every { updateUseCase.execute(any(), any()) } returns CartError.MaxQuantityExceeded(10).left()
+
+        mockMvc.patch("/api/v1/carts/$cartId/items/$itemId") {
+            cookie(Cookie(CartController.SESSION_COOKIE, sessionId))
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"quantity":11}"""
+        }.andExpect { status { isUnprocessableContent() } }
+
+        assertActivityRecorded(sessionId)
+    }
+
+    @Test
+    fun `a failed guest remove still records activity, since it extended the cookie`() {
+        every { removeUseCase.execute(any(), any()) } returns CartError.CartItemNotFound(itemId).left()
+
+        mockMvc.delete("/api/v1/carts/$cartId/items/$itemId") {
+            cookie(Cookie(CartController.SESSION_COOKIE, sessionId))
+        }.andExpect { status { isNotFound() } }
+
+        assertActivityRecorded(sessionId)
+    }
+
+    @Test
+    fun `a guest add to an existing session records activity`() {
+        val existing = UUID.randomUUID().toString()
+
+        postItem(cookie = existing).andExpect { status { isCreated() } }
+
+        assertActivityRecorded(existing)
+    }
+
+    @Test
+    fun `a first add with a brand-new session has no activity to record`() {
+        postItem().andExpect { status { isCreated() } }
+
+        verify(exactly = 0) { cartRepository.touchGuestCart(any(), any(), any()) }
     }
 
     @Test
@@ -457,6 +547,7 @@ class CartControllerWebMvcTest(
         }.andExpect { status { isOk() } }
 
         assertEquals(CartOwner.Customer(userId), captured.captured.owner)
+        verify(exactly = 0) { cartRepository.touchGuestCart(any(), any(), any()) }
     }
 
     @Test

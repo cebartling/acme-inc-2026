@@ -32,6 +32,13 @@ class Cart(
     @Column(name = "updated_at", nullable = false)
     var updatedAt: Instant = createdAt,
 
+    /**
+     * When the owner last used the cart: every change sets it, and a guest viewing the cart
+     * refreshes it at most daily. An ACTIVE guest cart idle past the guest TTL expires (PIN-287).
+     */
+    @Column(name = "last_active_at", nullable = false)
+    var lastActiveAt: Instant = createdAt,
+
     @OneToMany(
         mappedBy = "cart",
         fetch = FetchType.LAZY,
@@ -89,7 +96,7 @@ class Cart(
             createdAt = now
         ).also { items += it }
 
-        updatedAt = now
+        touch(now)
         return item.right()
     }
 
@@ -118,7 +125,7 @@ class Cart(
         item.quantity = quantity
         item.unitPrice = pricing.unitPriceFor(quantity)
         item.updatedAt = now
-        updatedAt = now
+        touch(now)
         return QuantityChange(item, previousQuantity).right()
     }
 
@@ -126,7 +133,7 @@ class Cart(
     fun removeItem(itemId: UUID, now: Instant = Instant.now()): Either<CartError, CartItem> {
         val item = items.find { it.id == itemId } ?: return CartError.CartItemNotFound(itemId).left()
         items.remove(item)
-        updatedAt = now
+        touch(now)
         return item.right()
     }
 
@@ -178,8 +185,14 @@ class Cart(
 
         guest.status = CartStatus.MERGED
         guest.updatedAt = now
-        updatedAt = now
+        touch(now)
         return MergeResult(itemsMerged = guest.items.size, quantitiesAdjusted = adjustments)
+    }
+
+    /** A change by the owner: the cart is both modified and in use. */
+    private fun touch(now: Instant) {
+        updatedAt = now
+        lastActiveAt = now
     }
 }
 

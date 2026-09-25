@@ -178,7 +178,25 @@ sequenceDiagram
   restored. A valid session with no ACTIVE cart (today, only after a merge) gets a new cart
   on its next add, logged at INFO by cart ID and counted as `cart.session.new_cart`
   (`cart_session_new_cart_total`). The session ID is never logged: it is the only key to a
-  guest cart. Nothing expires `carts` rows yet (PIN-287).
+  guest cart.
+- **Idle guest carts expire** (PIN-287): `carts.last_active_at` records when the owner last
+  used a cart. Every change sets it, and a guest's `GET /current` refreshes it at most once a
+  day, because the header badge reads the cart on every page. A guest write that fails (over
+  the max, a stale line) extends the cookie too, so it also refreshes activity. Anything that
+  extends the cookie counts as activity. V3 backfilled existing carts with the migration time
+  rather than `updated_at`, because views had already been extending cookies. Hourly,
+  `CartExpiryScheduledTasks` runs `ExpireIdleGuestCartsUseCase`, which moves ACTIVE guest
+  carts idle for longer than `acme.cart.guest-ttl` plus a day to `EXPIRED`. The extra day
+  covers the daily refresh, so a cart never expires while its cookie could still be valid.
+  One setting, `acme.cart.guest-ttl` (default `30d`; startup fails unless it is positive), is
+  both the cookie's `Max-Age` and the idle limit. Each cart is expired by a conditional UPDATE that re-checks it is still idle,
+  and `CartExpired` is published only for carts that run actually expired (counted as
+  `cart.expired`). Rows are kept (Epic 009: soft delete with retention); user and MERGED
+  carts never expire. `acme.cart.expiry.enabled=false` turns the job off. Because the cookie
+  is always gone before the cart expires, a returning guest just gets a first-visit cart.
+  Race: `Cart` has no `@Version`, so an add that loaded the cart just before the job expired
+  it saves it back as ACTIVE. The customer keeps their cart; the only cost is a
+  `CartExpired` event for a cart that is active again.
 - **Error bodies**: `{"error": message, "code": ...}`. `CART_ITEM_NOT_FOUND` and
   `VARIANT_NOT_FOUND` are both 404s; the code lets the client reload quietly for a gone
   line but still explain a delisted variant whose line is still in the cart.
