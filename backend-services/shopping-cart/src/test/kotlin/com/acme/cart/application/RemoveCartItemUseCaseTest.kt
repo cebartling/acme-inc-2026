@@ -9,6 +9,9 @@ import com.acme.cart.domain.events.CartItemRemoved
 import com.acme.cart.domain.events.DomainEvent
 import com.acme.cart.infrastructure.messaging.CartEventPublisher
 import com.acme.cart.infrastructure.persistence.CartRepository
+import org.springframework.orm.ObjectOptimisticLockingFailureException
+import kotlin.test.assertFailsWith
+import com.acme.cart.domain.CartItem
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -60,6 +63,50 @@ class RemoveCartItemUseCaseTest {
         assertEquals(CartError.CartItemNotFound(item.id), result.leftOrNull())
         assertEquals(1, cart.items.size)
         verify(exactly = 0) { cartRepository.save(any()) }
+        assertEquals(emptyList(), published)
+    }
+
+    // --- PIN-278: a version conflict is retried once ------------------------------------------
+
+    private fun conflict() = ObjectOptimisticLockingFailureException(Cart::class.java, cart.id)
+
+    private fun freshCart() = Cart(id = cart.id, sessionId = "sess-1").also {
+        it.items += CartItem(item.id, it, item.variantId, 2, BigDecimal("69.99"), "{}")
+    }
+
+    @Test
+    fun `a version conflict is retried once against a fresh read, and published once`() {
+        every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } answers { freshCart() }
+        every { cartRepository.save(any()) } throws conflict() andThenAnswer { firstArg() }
+
+        val updated = useCase.execute(RemoveCartItemCommand(CartOwner.Guest("sess-1"), cart.id, item.id)).getOrNull()!!
+
+        assertEquals(emptyList(), updated.items)
+        assertEquals(1, published.size)
+    }
+
+    @Test
+    fun `a retry that finds the line already gone is a CartItemNotFound, not a failure`() {
+        // The first attempt read the line before a concurrent request removed it and committed;
+        // the retry reads the committed cart, which no longer has it.
+        every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } returnsMany
+            listOf(freshCart(), Cart(id = cart.id, sessionId = "sess-1"))
+        every { cartRepository.save(any()) } throws conflict() andThenAnswer { firstArg() }
+
+        val result = useCase.execute(RemoveCartItemCommand(CartOwner.Guest("sess-1"), cart.id, item.id))
+
+        assertEquals(CartError.CartItemNotFound(item.id), result.leftOrNull())
+        assertEquals(emptyList(), published)
+    }
+
+    @Test
+    fun `a second conflict in a row is left to the caller`() {
+        every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } answers { freshCart() }
+        every { cartRepository.save(any()) } throws conflict()
+
+        assertFailsWith<ObjectOptimisticLockingFailureException> {
+            useCase.execute(RemoveCartItemCommand(CartOwner.Guest("sess-1"), cart.id, item.id))
+        }
         assertEquals(emptyList(), published)
     }
 }

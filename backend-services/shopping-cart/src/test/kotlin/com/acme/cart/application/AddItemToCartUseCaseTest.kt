@@ -16,6 +16,8 @@ import com.acme.cart.infrastructure.persistence.CartRepository
 import com.acme.cart.infrastructure.product.ProductPricingClient
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
+import org.springframework.orm.ObjectOptimisticLockingFailureException
+import kotlin.test.assertFailsWith
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -223,5 +225,30 @@ class AddItemToCartUseCaseTest {
 
         assertTrue("started cart ${cart.id}" in output.out, output.out)
         assertFalse("sess-1" in output.out, "the session ID is the key to the guest cart and must not be logged")
+    }
+
+    // --- PIN-278: a version conflict is retried once ------------------------------------------
+
+    private fun conflict() = ObjectOptimisticLockingFailureException(Cart::class.java, UUID.randomUUID())
+
+    @Test
+    fun `a version conflict is retried once, and the add is published once`() {
+        every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } returns null
+        every { cartRepository.save(any()) } throws conflict() andThenAnswer { firstArg() }
+
+        val cart = useCase.execute(command()).getOrNull()!!
+
+        assertEquals(2, cart.itemCount)
+        assertEquals(listOf("CartCreated", "ItemAddedToCart"), published.map { it.eventType })
+        verify(exactly = 2) { cartRepository.save(any()) }
+    }
+
+    @Test
+    fun `a second conflict in a row is left to the caller, and nothing is published`() {
+        every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } returns null
+        every { cartRepository.save(any()) } throws conflict()
+
+        assertFailsWith<ObjectOptimisticLockingFailureException> { useCase.execute(command()) }
+        assertEquals(emptyList(), published)
     }
 }

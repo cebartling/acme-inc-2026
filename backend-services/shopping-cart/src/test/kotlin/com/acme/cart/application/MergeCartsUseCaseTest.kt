@@ -14,6 +14,8 @@ import com.acme.cart.domain.newCartFor
 import com.acme.cart.infrastructure.messaging.CartEventPublisher
 import com.acme.cart.infrastructure.persistence.CartRepository
 import com.acme.cart.infrastructure.product.ProductPricingClient
+import org.springframework.orm.ObjectOptimisticLockingFailureException
+import kotlin.test.assertFailsWith
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -167,5 +169,37 @@ class MergeCartsUseCaseTest {
         every { eventPublisher.publish(any()) } throws IllegalStateException("broker down")
 
         assertNotNull(useCase.execute(MergeCartsCommand(userId, "sess-1")).getOrNull()?.result)
+    }
+
+    // --- PIN-278: a version conflict is retried once ------------------------------------------
+
+    private fun conflict() = ObjectOptimisticLockingFailureException(Cart::class.java, userId)
+
+    /** Each read returns what is committed: the failed attempt's changes were rolled back. */
+    private fun givenFreshCarts() {
+        every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } answers { guestWith(2) }
+        every { cartRepository.findForUpdateBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } answers { guestWith(2) }
+        every { cartRepository.findByUserIdAndStatus(userId, CartStatus.ACTIVE) } returns null
+    }
+
+    @Test
+    fun `a version conflict is retried once, and the merge's events are published once`() {
+        givenFreshCarts()
+        every { cartRepository.save(any()) } throws conflict() andThenAnswer { firstArg() }
+
+        val outcome = useCase.execute(MergeCartsCommand(userId, "sess-1")).getOrNull()!!
+
+        assertEquals(2, outcome.cart?.itemCount)
+        // Into a new user cart, so CartCreated too; each exactly once despite the failed attempt.
+        assertEquals(listOf("CartCreated", "CartMerged"), published.map { it.eventType })
+    }
+
+    @Test
+    fun `a second conflict in a row is left to the caller`() {
+        givenFreshCarts()
+        every { cartRepository.save(any()) } throws conflict()
+
+        assertFailsWith<ObjectOptimisticLockingFailureException> { useCase.execute(MergeCartsCommand(userId, "sess-1")) }
+        assertEquals(emptyList(), published)
     }
 }

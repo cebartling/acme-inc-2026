@@ -41,7 +41,10 @@ class UpdateCartItemQuantityUseCase(
 ) {
     private val logger = LoggerFactory.getLogger(UpdateCartItemQuantityUseCase::class.java)
 
-    fun execute(command: UpdateCartItemQuantityCommand, correlationId: UUID = UUID.randomUUID()): Either<CartError, Cart> {
+    fun execute(command: UpdateCartItemQuantityCommand, correlationId: UUID = UUID.randomUUID()): Either<CartError, Cart> =
+        retryOnConflict("Update cart item quantity") { updateOnce(command, correlationId) }
+
+    private fun updateOnce(command: UpdateCartItemQuantityCommand, correlationId: UUID): Either<CartError, Cart> {
         val variantId = cartRepository.findOwnedCart(command.owner, command.cartId)
             ?.items?.find { it.id == command.itemId }?.variantId
             ?: return CartError.CartItemNotFound(command.itemId).left()

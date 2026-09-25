@@ -472,6 +472,23 @@ class CartControllerWebMvcTest(
     }
 
     /** A delisted variant is also a 404, but its line is still in the cart; the code tells them apart. */
+    /** PIN-278: a conflict that survives the use case's one retry is a 409, never a 500. */
+    @Test
+    fun `a change that keeps losing to concurrent changes is a 409 CART_CONFLICT`() {
+        every { updateUseCase.execute(any(), any()) } throws
+            org.springframework.orm.ObjectOptimisticLockingFailureException(Cart::class.java, cartId)
+
+        mockMvc.patch("/api/v1/carts/$cartId/items/$itemId") {
+            cookie(Cookie(CartController.SESSION_COOKIE, sessionId))
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"quantity":3}"""
+        }.andExpect {
+            status { isConflict() }
+            jsonPath("$.code") { value("CART_CONFLICT") }
+            jsonPath("$.error") { value("Your cart was changed at the same time. Please try again.") }
+        }
+    }
+
     @Test
     fun `updating a line whose variant is gone is a 404 VARIANT_NOT_FOUND`() {
         every { updateUseCase.execute(any(), any()) } returns CartError.VariantNotFound(variantId).left()

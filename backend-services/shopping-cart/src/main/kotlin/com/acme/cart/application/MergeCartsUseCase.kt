@@ -50,7 +50,10 @@ class MergeCartsUseCase(
 ) {
     private val logger = LoggerFactory.getLogger(MergeCartsUseCase::class.java)
 
-    fun execute(command: MergeCartsCommand, correlationId: UUID = UUID.randomUUID()): Either<CartError, MergeOutcome> {
+    fun execute(command: MergeCartsCommand, correlationId: UUID = UUID.randomUUID()): Either<CartError, MergeOutcome> =
+        retryOnConflict("Merge carts") { mergeOnce(command, correlationId) }
+
+    private fun mergeOnce(command: MergeCartsCommand, correlationId: UUID): Either<CartError, MergeOutcome> {
         val customer = CartOwner.Customer(command.userId)
         val guestVariants = guestCart(command)?.items?.map { it.variantId }?.distinct()
 

@@ -55,6 +55,9 @@ class AddItemToCartUseCase(
     private val returningSessionNewCarts = meterRegistry.counter(RETURNING_SESSION_NEW_CART_METRIC)
 
     fun execute(command: AddItemToCartCommand, correlationId: UUID = UUID.randomUUID()): Either<CartError, Cart> =
+        retryOnConflict("Add item to cart") { addOnce(command, correlationId) }
+
+    private fun addOnce(command: AddItemToCartCommand, correlationId: UUID): Either<CartError, Cart> =
         pricingClient.getPricing(command.variantId).flatMap { pricing ->
             val result = transactionTemplate.execute {
                 val existing = cartRepository.findActiveCart(command.owner)

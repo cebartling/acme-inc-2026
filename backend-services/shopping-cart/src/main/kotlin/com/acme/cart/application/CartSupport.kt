@@ -7,6 +7,8 @@ import com.acme.cart.domain.events.DomainEvent
 import com.acme.cart.infrastructure.messaging.CartEventPublisher
 import com.acme.cart.infrastructure.persistence.CartRepository
 import org.slf4j.Logger
+import org.slf4j.LoggerFactory
+import org.springframework.orm.ObjectOptimisticLockingFailureException
 import java.util.UUID
 
 /** The owner's ACTIVE cart, if any. A MERGED guest cart reads as no cart (AC-0004-08-05). */
@@ -33,3 +35,21 @@ internal fun CartEventPublisher.publishLoggingFailure(event: DomainEvent, logger
         logger.warn("Failed to publish {} event {} for cart {}", event.eventType, event.eventId, event.aggregateId, ex)
     }
 }
+
+private val conflictLogger = LoggerFactory.getLogger("com.acme.cart.application.CartConflicts")
+
+/**
+ * Runs a cart change, and runs it once more if a concurrent change to the same cart won the
+ * race (PIN-278: `Cart` is versioned). [block] must re-read everything it needs, so the retry
+ * works on the committed cart: e.g. an update whose line was just removed then fails as
+ * [com.acme.cart.domain.CartError.CartItemNotFound]. A second conflict in a row propagates,
+ * and the controller answers 409. Events are published after the transaction, so a failed
+ * attempt publishes nothing. The session ID is never logged.
+ */
+internal fun <T> retryOnConflict(operation: String, block: () -> T): T =
+    try {
+        block()
+    } catch (conflict: ObjectOptimisticLockingFailureException) {
+        conflictLogger.info("{} lost a race with a concurrent change to the cart; retrying once", operation)
+        block()
+    }
