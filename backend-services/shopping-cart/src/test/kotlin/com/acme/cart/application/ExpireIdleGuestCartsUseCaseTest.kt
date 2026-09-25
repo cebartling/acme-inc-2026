@@ -16,6 +16,7 @@ import java.time.Duration
 import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 
 class ExpireIdleGuestCartsUseCaseTest {
@@ -100,6 +101,15 @@ class ExpireIdleGuestCartsUseCaseTest {
 
         assertEquals(0, useCase.execute(now))
         verify(exactly = 1) { cartRepository.findIdleGuestCarts(cutoff, any<Pageable>()) }
+    }
+
+    @Test
+    fun `a guest TTL that is not positive is rejected at startup`() {
+        listOf(Duration.ZERO, Duration.ofDays(-30)).forEach { ttl ->
+            assertFailsWith<IllegalArgumentException> {
+                ExpireIdleGuestCartsUseCase(cartRepository, eventPublisher, ttl, meterRegistry)
+            }
+        }
     }
 
     @Test

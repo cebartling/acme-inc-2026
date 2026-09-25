@@ -111,7 +111,7 @@ sequenceDiagram
 **Then** the event is logged at INFO level with the new cart ID, and never the session ID, which is the only key to a guest cart
 **And** the `cart_session_new_cart_total` counter metric (`cart.session.new_cart`) is incremented
 
-This does not measure expiries. A cookie the browser has already dropped can't be told apart from a first visit, so it isn't counted. Server-side expiry (PIN-287) doesn't change that either: a cart only expires a day after its cookie could have lapsed. In practice, the metric counts guests who add again after their cart was merged at sign-in.
+This does not measure expiries. A cookie the browser has already dropped can't be told apart from a first visit, so it isn't counted. Server-side expiry (PIN-287) doesn't change that either: a cart only expires once its cookie could have lapsed (up to a day later, depending on when a view last refreshed it). In practice, the metric counts guests who add again after their cart was merged at sign-in.
 
 ## Technical Implementation
 

@@ -185,8 +185,8 @@ sequenceDiagram
   `CartExpiryScheduledTasks` runs `ExpireIdleGuestCartsUseCase`, which moves ACTIVE guest
   carts idle for longer than `acme.cart.guest-ttl` plus a day to `EXPIRED`. The extra day
   covers the daily refresh, so a cart never expires while its cookie could still be valid.
-  One setting, `acme.cart.guest-ttl` (default `30d`), is both the cookie's `Max-Age` and the
-  idle limit. Each cart is expired by a conditional UPDATE that re-checks it is still idle,
+  One setting, `acme.cart.guest-ttl` (default `30d`; startup fails unless it is positive), is
+  both the cookie's `Max-Age` and the idle limit. Each cart is expired by a conditional UPDATE that re-checks it is still idle,
   and `CartExpired` is published only for carts that run actually expired (counted as
   `cart.expired`). Rows are kept (Epic 009: soft delete with retention); user and MERGED
   carts never expire. `acme.cart.expiry.enabled=false` turns the job off. Because the cookie

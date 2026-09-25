@@ -30,14 +30,19 @@ class ExpireIdleGuestCartsUseCase(
     @Value("\${acme.cart.guest-ttl}") private val guestTtl: Duration,
     meterRegistry: MeterRegistry
 ) {
+    init {
+        // A zero or negative TTL would put the cutoff at or after now and expire carts in use.
+        require(guestTtl > Duration.ZERO) { "acme.cart.guest-ttl must be positive, was $guestTtl" }
+    }
+
     private val logger = LoggerFactory.getLogger(ExpireIdleGuestCartsUseCase::class.java)
     private val expiredCarts = meterRegistry.counter(EXPIRED_METRIC)
 
     /** Expires every idle guest cart as of [now] and returns how many. */
     fun execute(now: Instant = Instant.now()): Int {
-        // Viewing refreshes activity at most daily, so allow a day's grace: a cart must never
-        // expire while its cookie could still be valid.
-        val cutoff = now.minus(guestTtl).minus(GRACE)
+        // Viewing refreshes activity at most once per interval, so allow that much grace: a
+        // cart must never expire while its cookie could still be valid.
+        val cutoff = now.minus(guestTtl).minus(ACTIVITY_REFRESH_INTERVAL)
         val correlationId = UUID.randomUUID()
         var total = 0
         while (true) {
@@ -69,7 +74,11 @@ class ExpireIdleGuestCartsUseCase(
         /** Exposed by Prometheus-style registries as `cart_expired_total`. */
         const val EXPIRED_METRIC = "cart.expired"
 
-        /** Matches the controller's once-a-day activity refresh on a guest's cart views. */
-        val GRACE: Duration = Duration.ofDays(1)
+        /**
+         * A guest viewing their cart refreshes its activity at most this often (see
+         * `CartController.getCurrent`), so expiry allows the same grace. One constant keeps both
+         * sides in step.
+         */
+        val ACTIVITY_REFRESH_INTERVAL: Duration = Duration.ofDays(1)
     }
 }

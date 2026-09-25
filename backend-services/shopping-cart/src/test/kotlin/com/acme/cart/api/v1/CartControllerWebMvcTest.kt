@@ -260,7 +260,8 @@ class CartControllerWebMvcTest(
 
     @Test
     fun `a guest viewing the cart marks it active, at most once a day`() {
-        every { cartRepository.findBySessionIdAndStatus(sessionId, CartStatus.ACTIVE) } returns cartFor(sessionId)
+        val stale = cartFor(sessionId).apply { lastActiveAt = Instant.now().minus(Duration.ofDays(2)) }
+        every { cartRepository.findBySessionIdAndStatus(sessionId, CartStatus.ACTIVE) } returns stale
         val now = slot<Instant>()
         val staleBefore = slot<Instant>()
         every { cartRepository.touchGuestCart(sessionId, capture(now), capture(staleBefore)) } returns 1
@@ -269,6 +270,16 @@ class CartControllerWebMvcTest(
             .andExpect { status { isOk() } }
 
         assertEquals(Duration.ofDays(1), Duration.between(staleBefore.captured, now.captured))
+    }
+
+    @Test
+    fun `a guest viewing a recently active cart issues no update`() {
+        every { cartRepository.findBySessionIdAndStatus(sessionId, CartStatus.ACTIVE) } returns cartFor(sessionId)
+
+        mockMvc.get("/api/v1/carts/current") { cookie(Cookie(CartController.SESSION_COOKIE, sessionId)) }
+            .andExpect { status { isOk() } }
+
+        verify(exactly = 0) { cartRepository.touchGuestCart(any(), any(), any()) }
     }
 
     @Test

@@ -2,6 +2,7 @@ package com.acme.cart.api.v1
 
 import com.acme.cart.application.AddItemToCartCommand
 import com.acme.cart.application.AddItemToCartUseCase
+import com.acme.cart.application.ExpireIdleGuestCartsUseCase
 import com.acme.cart.application.MergeCartsCommand
 import com.acme.cart.application.MergeCartsUseCase
 import com.acme.cart.application.RemoveCartItemCommand
@@ -102,9 +103,9 @@ class CartController(
         response: HttpServletResponse
     ): ResponseEntity<Any> {
         slideGuestSession(jwt, sessionCookie, response)
-        markGuestCartActive(jwt, sessionCookie)
         val cart = ownerOf(jwt, sessionCookie)?.let(cartRepository::findActiveCart)
             ?: return ResponseEntity.noContent().build()
+        markGuestCartActive(cart)
         return ResponseEntity.ok(toResponse(cart))
     }
 
@@ -214,13 +215,14 @@ class CartController(
     /**
      * A guest viewing their cart is using it, so it must not expire while the cookie is still
      * valid (PIN-287). Throttled to a write a day, because the header badge reads the cart on
-     * every page. Changes already mark the cart active through the entity.
+     * every page: the loaded cart shows whether a refresh is due, so most views issue no UPDATE.
+     * Changes already mark the cart active through the entity. A user cart never expires.
      */
-    private fun markGuestCartActive(jwt: Jwt?, sessionCookie: String?) {
-        if (jwt != null) return
-        val sessionId = validSession(sessionCookie) ?: return
+    private fun markGuestCartActive(cart: Cart) {
+        val sessionId = cart.sessionId ?: return
         val now = Instant.now()
-        cartRepository.touchGuestCart(sessionId, now, now.minus(ACTIVITY_REFRESH_INTERVAL))
+        val staleBefore = now.minus(ExpireIdleGuestCartsUseCase.ACTIVITY_REFRESH_INTERVAL)
+        if (cart.lastActiveAt < staleBefore) cartRepository.touchGuestCart(sessionId, now, staleBefore)
     }
 
     private fun sessionCookie(sessionId: String): ResponseCookie =
@@ -238,7 +240,5 @@ class CartController(
 
     companion object {
         const val SESSION_COOKIE = "acme_session_id"
-        /** A viewed cart's activity is refreshed at most this often. */
-        val ACTIVITY_REFRESH_INTERVAL: Duration = Duration.ofDays(1)
     }
 }
