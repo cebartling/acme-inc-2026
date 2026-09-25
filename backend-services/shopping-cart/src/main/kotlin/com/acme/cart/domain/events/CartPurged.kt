@@ -1,0 +1,49 @@
+package com.acme.cart.domain.events
+
+import com.acme.cart.domain.CartStatus
+import java.time.Instant
+import java.util.UUID
+
+/**
+ * Published when an EXPIRED or MERGED cart is deleted after the retention period (PIN-289).
+ * The cart's earlier `CartExpired` or `CartMerged` event carries its contents.
+ */
+data class CartPurgedPayload(
+    val cartId: UUID,
+    val sessionId: String?,
+    /** EXPIRED or MERGED: the status the cart ended in. */
+    val finalStatus: CartStatus,
+    /** When the cart expired or merged. */
+    val finalizedAt: Instant
+)
+
+class CartPurged(
+    eventId: UUID,
+    timestamp: Instant,
+    aggregateId: UUID,
+    correlationId: UUID,
+    val payload: CartPurgedPayload
+) : DomainEvent(
+    eventId = eventId,
+    eventType = EVENT_TYPE,
+    eventVersion = EVENT_VERSION,
+    timestamp = timestamp,
+    aggregateId = aggregateId,
+    aggregateType = AGGREGATE_TYPE,
+    correlationId = correlationId
+) {
+    companion object {
+        const val EVENT_TYPE = "CartPurged"
+        const val EVENT_VERSION = "1.0"
+        const val AGGREGATE_TYPE = "Cart"
+
+        fun create(payload: CartPurgedPayload, correlationId: UUID): CartPurged =
+            CartPurged(
+                eventId = UUID.randomUUID(),
+                timestamp = Instant.now(),
+                aggregateId = payload.cartId,
+                correlationId = correlationId,
+                payload = payload
+            )
+    }
+}

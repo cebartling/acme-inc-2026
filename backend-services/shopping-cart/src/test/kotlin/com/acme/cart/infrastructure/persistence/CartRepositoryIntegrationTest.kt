@@ -262,4 +262,68 @@ class CartRepositoryIntegrationTest {
 
         assertEquals(0, carts.touchGuestCart("sess-dead", now, now.minus(Duration.ofDays(1))))
     }
+
+    // --- PIN-289: final carts are deleted after the retention period -------------------------
+
+    private val retentionCutoff = now.minus(Duration.ofDays(90))
+    private val pastRetention = now.minus(Duration.ofDays(100))
+
+    /** A cart that reached [status] at [finalizedAt], with one line so the cascade can be checked. */
+    private fun finalCart(session: String, status: CartStatus, finalizedAt: Instant): Cart {
+        val cart = Cart(
+            id = UUID.randomUUID(), sessionId = session, status = status,
+            createdAt = finalizedAt, updatedAt = finalizedAt, lastActiveAt = finalizedAt
+        )
+        cart.addItem(UUID.randomUUID(), 1, pricing, snapshot, 10, now = finalizedAt)
+        cart.updatedAt = finalizedAt
+        return carts.saveAndFlush(cart)
+    }
+
+    private fun rowCount(sql: String, id: UUID): Long =
+        (entityManager.createNativeQuery(sql).setParameter("id", id).singleResult as Number).toLong()
+
+    @Test
+    fun `final carts past retention are found oldest first, and nothing else is`() {
+        val older = finalCart("sess-purge-older", CartStatus.MERGED, pastRetention.minus(Duration.ofDays(5)))
+        val old = finalCart("sess-purge-old", CartStatus.EXPIRED, pastRetention)
+        finalCart("sess-purge-young", CartStatus.EXPIRED, now.minus(Duration.ofDays(10)))
+        guestCart("sess-purge-active", pastRetention)
+        carts.saveAndFlush(
+            Cart(id = UUID.randomUUID(), userId = UUID.randomUUID(), createdAt = pastRetention, updatedAt = pastRetention, lastActiveAt = pastRetention)
+        )
+        entityManager.clear()
+
+        assertEquals(
+            listOf(
+                FinalCart(older.id, CartStatus.MERGED, "sess-purge-older", older.updatedAt),
+                FinalCart(old.id, CartStatus.EXPIRED, "sess-purge-old", old.updatedAt)
+            ),
+            carts.findFinalCartsBefore(retentionCutoff, PageRequest.of(0, 10))
+        )
+        assertEquals(listOf(older.id), carts.findFinalCartsBefore(retentionCutoff, PageRequest.of(0, 1)).map { it.id })
+    }
+
+    @Test
+    fun `a final cart past retention is deleted with its lines, once`() {
+        val cart = finalCart("sess-purge-delete", CartStatus.EXPIRED, pastRetention)
+
+        assertEquals(1, carts.deleteIfFinalBefore(cart.id, retentionCutoff))
+        assertEquals(0, rowCount("select count(*) from carts where id = :id", cart.id))
+        assertEquals(0, rowCount("select count(*) from cart_items where cart_id = :id", cart.id))
+        assertEquals(0, carts.deleteIfFinalBefore(cart.id, retentionCutoff), "a deleted cart is not deleted again")
+    }
+
+    @Test
+    fun `active carts of any age and final carts within retention are never deleted`() {
+        val activeGuest = guestCart("sess-purge-keep-active", pastRetention)
+        val activeUser = carts.saveAndFlush(
+            Cart(id = UUID.randomUUID(), userId = UUID.randomUUID(), createdAt = pastRetention, updatedAt = pastRetention, lastActiveAt = pastRetention)
+        )
+        val young = finalCart("sess-purge-keep-young", CartStatus.MERGED, now.minus(Duration.ofDays(10)))
+
+        listOf(activeGuest, activeUser, young).forEach {
+            assertEquals(0, carts.deleteIfFinalBefore(it.id, retentionCutoff))
+            assertEquals(1, rowCount("select count(*) from carts where id = :id", it.id))
+        }
+    }
 }
