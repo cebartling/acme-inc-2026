@@ -32,6 +32,7 @@ import io.mockk.clearMocks
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
+import io.mockk.verify
 import jakarta.servlet.http.Cookie
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -47,6 +48,8 @@ import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.patch
 import org.springframework.test.web.servlet.post
 import java.math.BigDecimal
+import java.time.Duration
+import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -104,6 +107,7 @@ class CartControllerWebMvcTest(
     fun setUp() {
         clearMocks(useCase, updateUseCase, removeUseCase, cartRepository, jwtDecoder, mergeUseCase)
         command.clear()
+        every { cartRepository.touchGuestCart(any(), any(), any()) } returns 0
         every { useCase.execute(capture(command), any()) } answers {
             val cmd = firstArg<AddItemToCartCommand>()
             val cart = newCartFor(cmd.owner)
@@ -252,6 +256,31 @@ class CartControllerWebMvcTest(
             .andExpect { status { isOk() } }.andReturn()
 
         assertSessionReissued(result.response.getHeader(HttpHeaders.SET_COOKIE), sessionId)
+    }
+
+    @Test
+    fun `a guest viewing the cart marks it active, at most once a day`() {
+        every { cartRepository.findBySessionIdAndStatus(sessionId, CartStatus.ACTIVE) } returns cartFor(sessionId)
+        val now = slot<Instant>()
+        val staleBefore = slot<Instant>()
+        every { cartRepository.touchGuestCart(sessionId, capture(now), capture(staleBefore)) } returns 1
+
+        mockMvc.get("/api/v1/carts/current") { cookie(Cookie(CartController.SESSION_COOKIE, sessionId)) }
+            .andExpect { status { isOk() } }
+
+        assertEquals(Duration.ofDays(1), Duration.between(staleBefore.captured, now.captured))
+    }
+
+    @Test
+    fun `a signed-in caller viewing the cart does not touch the guest cart`() {
+        signedIn()
+        every { cartRepository.findByUserIdAndStatus(userId, CartStatus.ACTIVE) } returns newCartFor(CartOwner.Customer(userId))
+
+        mockMvc.get("/api/v1/carts/current") {
+            cookie(accessToken(), Cookie(CartController.SESSION_COOKIE, sessionId))
+        }.andExpect { status { isOk() } }
+
+        verify(exactly = 0) { cartRepository.touchGuestCart(any(), any(), any()) }
     }
 
     @Test

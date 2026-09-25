@@ -49,6 +49,9 @@ acme:
     cookie:
       # Browsers accept Secure cookies from http://localhost, so this stays on locally
       secure: ${ACME_CART_COOKIE_SECURE:true}
+    # A guest session's lifetime since its last cart request: the cookie's Max-Age, and how
+    # long an ACTIVE guest cart may sit idle before it expires (PIN-287)
+    guest-ttl: ${ACME_CART_GUEST_TTL:30d}
   product:
     base-url: ${PRODUCT_SERVICE_URL:http://localhost:10303}
 

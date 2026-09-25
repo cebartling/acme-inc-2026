@@ -34,6 +34,7 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import java.time.Duration
+import java.time.Instant
 import java.util.UUID
 
 @RestController
@@ -45,7 +46,9 @@ class CartController(
     private val mergeCartsUseCase: MergeCartsUseCase,
     private val cartRepository: CartRepository,
     private val objectMapper: ObjectMapper,
-    @Value("\${acme.cart.cookie.secure}") private val secureCookie: Boolean
+    @Value("\${acme.cart.cookie.secure}") private val secureCookie: Boolean,
+    /** How long a guest session lasts without a cart request; idle carts expire after it (PIN-287). */
+    @Value("\${acme.cart.guest-ttl}") private val guestTtl: Duration
 ) {
 
     /**
@@ -99,6 +102,7 @@ class CartController(
         response: HttpServletResponse
     ): ResponseEntity<Any> {
         slideGuestSession(jwt, sessionCookie, response)
+        markGuestCartActive(jwt, sessionCookie)
         val cart = ownerOf(jwt, sessionCookie)?.let(cartRepository::findActiveCart)
             ?: return ResponseEntity.noContent().build()
         return ResponseEntity.ok(toResponse(cart))
@@ -199,12 +203,24 @@ class CartController(
         customerOf(jwt) ?: validSession(sessionCookie)?.let(CartOwner::Guest)
 
     /**
-     * Re-issues a guest's valid session cookie with a fresh [SESSION_TTL] on every cart
+     * Re-issues a guest's valid session cookie with a fresh [guestTtl] on every cart
      * request, so an active shopper's cart never expires under them (US-0004-12).
      */
     private fun slideGuestSession(jwt: Jwt?, sessionCookie: String?, response: HttpServletResponse) {
         if (jwt != null) return
         validSession(sessionCookie)?.let { response.addHeader(HttpHeaders.SET_COOKIE, sessionCookie(it).toString()) }
+    }
+
+    /**
+     * A guest viewing their cart is using it, so it must not expire while the cookie is still
+     * valid (PIN-287). Throttled to a write a day, because the header badge reads the cart on
+     * every page. Changes already mark the cart active through the entity.
+     */
+    private fun markGuestCartActive(jwt: Jwt?, sessionCookie: String?) {
+        if (jwt != null) return
+        val sessionId = validSession(sessionCookie) ?: return
+        val now = Instant.now()
+        cartRepository.touchGuestCart(sessionId, now, now.minus(ACTIVITY_REFRESH_INTERVAL))
     }
 
     private fun sessionCookie(sessionId: String): ResponseCookie =
@@ -213,7 +229,7 @@ class CartController(
             .secure(secureCookie)
             .sameSite("Lax")
             .path("/")
-            .maxAge(SESSION_TTL)
+            .maxAge(guestTtl)
             .build()
 
     /** Only IDs this service minted are accepted; anything else starts a new session. */
@@ -222,6 +238,7 @@ class CartController(
 
     companion object {
         const val SESSION_COOKIE = "acme_session_id"
-        val SESSION_TTL: Duration = Duration.ofDays(30)
+        /** A viewed cart's activity is refreshed at most this often. */
+        val ACTIVITY_REFRESH_INTERVAL: Duration = Duration.ofDays(1)
     }
 }
