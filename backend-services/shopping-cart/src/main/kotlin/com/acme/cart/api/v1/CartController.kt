@@ -2,7 +2,6 @@ package com.acme.cart.api.v1
 
 import com.acme.cart.application.AddItemToCartCommand
 import com.acme.cart.application.AddItemToCartUseCase
-import com.acme.cart.application.ExpireIdleGuestCartsUseCase
 import com.acme.cart.application.MergeCartsCommand
 import com.acme.cart.application.MergeCartsUseCase
 import com.acme.cart.application.RemoveCartItemCommand
@@ -16,12 +15,9 @@ import com.acme.cart.domain.CartOwner
 import com.acme.cart.domain.ProductSnapshot
 import com.acme.cart.infrastructure.persistence.CartRepository
 import com.fasterxml.jackson.databind.ObjectMapper
-import jakarta.servlet.http.HttpServletResponse
 import jakarta.validation.Valid
-import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
-import org.springframework.http.ResponseCookie
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.security.oauth2.jwt.Jwt
@@ -34,8 +30,6 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
-import java.time.Duration
-import java.time.Instant
 import java.util.UUID
 
 @RestController
@@ -47,9 +41,7 @@ class CartController(
     private val mergeCartsUseCase: MergeCartsUseCase,
     private val cartRepository: CartRepository,
     private val objectMapper: ObjectMapper,
-    @Value("\${acme.cart.cookie.secure}") private val secureCookie: Boolean,
-    /** How long a guest session lasts without a cart request; idle carts expire after it (PIN-287). */
-    @Value("\${acme.cart.guest-ttl}") private val guestTtl: Duration
+    private val guestSessionCookies: GuestSessionCookies
 ) {
 
     /**
@@ -57,17 +49,15 @@ class CartController(
      *
      * A signed-in caller's cart is their user cart (US-0004-08 AC-07). A guest's cart is
      * keyed by the `acme_session_id` cookie; a guest without a valid one gets a fresh
-     * session ID, returned as an HttpOnly cookie on the response; an existing one slides.
+     * session ID, returned as an HttpOnly cookie on the response. An existing session is kept
+     * alive by [GuestSessionInterceptor], like every cart request.
      */
     @PostMapping("/items")
     fun addItem(
         @AuthenticationPrincipal jwt: Jwt?,
         @CookieValue(SESSION_COOKIE, required = false) sessionCookie: String?,
-        @Valid @RequestBody request: AddToCartRequest,
-        response: HttpServletResponse
+        @Valid @RequestBody request: AddToCartRequest
     ): ResponseEntity<Any> {
-        slideGuestSession(jwt, sessionCookie, response)
-        recordGuestActivity(jwt, sessionCookie)
         val existingOwner = ownerOf(jwt, sessionCookie)
         val newSession = if (existingOwner == null) UUID.randomUUID().toString() else null
         val owner = existingOwner ?: CartOwner.Guest(newSession!!)
@@ -85,7 +75,7 @@ class CartController(
             ifRight = { cart ->
                 val response = ResponseEntity.status(HttpStatus.CREATED)
                 if (newSession != null) {
-                    response.header(HttpHeaders.SET_COOKIE, sessionCookie(newSession).toString())
+                    response.header(HttpHeaders.SET_COOKIE, guestSessionCookies.cookieFor(newSession).toString())
                 }
                 response.body(toResponse(cart))
             }
@@ -100,13 +90,10 @@ class CartController(
     @GetMapping("/current")
     fun getCurrent(
         @AuthenticationPrincipal jwt: Jwt?,
-        @CookieValue(SESSION_COOKIE, required = false) sessionCookie: String?,
-        response: HttpServletResponse
+        @CookieValue(SESSION_COOKIE, required = false) sessionCookie: String?
     ): ResponseEntity<Any> {
-        slideGuestSession(jwt, sessionCookie, response)
         val cart = ownerOf(jwt, sessionCookie)?.let(cartRepository::findActiveCart)
             ?: return ResponseEntity.noContent().build()
-        markGuestCartActive(cart)
         return ResponseEntity.ok(toResponse(cart))
     }
 
@@ -117,11 +104,8 @@ class CartController(
         @CookieValue(SESSION_COOKIE, required = false) sessionCookie: String?,
         @PathVariable cartId: UUID,
         @PathVariable itemId: UUID,
-        @Valid @RequestBody request: UpdateQuantityRequest,
-        response: HttpServletResponse
+        @Valid @RequestBody request: UpdateQuantityRequest
     ): ResponseEntity<Any> {
-        slideGuestSession(jwt, sessionCookie, response)
-        recordGuestActivity(jwt, sessionCookie)
         val owner = ownerOf(jwt, sessionCookie) ?: return errorResponse(CartError.CartItemNotFound(itemId))
         val command = UpdateCartItemQuantityCommand(owner, cartId, itemId, request.quantity!!)
         return updateCartItemQuantityUseCase.execute(command)
@@ -134,11 +118,8 @@ class CartController(
         @AuthenticationPrincipal jwt: Jwt?,
         @CookieValue(SESSION_COOKIE, required = false) sessionCookie: String?,
         @PathVariable cartId: UUID,
-        @PathVariable itemId: UUID,
-        response: HttpServletResponse
+        @PathVariable itemId: UUID
     ): ResponseEntity<Any> {
-        slideGuestSession(jwt, sessionCookie, response)
-        recordGuestActivity(jwt, sessionCookie)
         val owner = ownerOf(jwt, sessionCookie) ?: return errorResponse(CartError.CartItemNotFound(itemId))
         return removeCartItemUseCase.execute(RemoveCartItemCommand(owner, cartId, itemId))
             .fold(ifLeft = ::errorResponse, ifRight = { ResponseEntity.ok(toResponse(it)) })
@@ -196,7 +177,7 @@ class CartController(
         is CartError.PricingUnavailable -> "PRICING_UNAVAILABLE"
     }
 
-    private fun validSession(cookie: String?): String? = cookie?.takeIf(::isValidSessionId)
+    private fun validSession(cookie: String?): String? = guestSessionCookies.validSessionId(cookie)
 
     /** A verified access token's subject is the identity service's user ID. */
     private fun customerOf(jwt: Jwt?): CartOwner.Customer? =
@@ -205,54 +186,6 @@ class CartController(
     /** Signed-in callers act on their user cart; everyone else on their session's. */
     private fun ownerOf(jwt: Jwt?, sessionCookie: String?): CartOwner? =
         customerOf(jwt) ?: validSession(sessionCookie)?.let(CartOwner::Guest)
-
-    /**
-     * Re-issues a guest's valid session cookie with a fresh [guestTtl] on every cart
-     * request, so an active shopper's cart never expires under them (US-0004-12).
-     */
-    private fun slideGuestSession(jwt: Jwt?, sessionCookie: String?, response: HttpServletResponse) {
-        if (jwt != null) return
-        validSession(sessionCookie)?.let { response.addHeader(HttpHeaders.SET_COOKIE, sessionCookie(it).toString()) }
-    }
-
-    /**
-     * A guest viewing their cart is using it, so it must not expire while the cookie is still
-     * valid (PIN-287). Throttled to a write a day, because the header badge reads the cart on
-     * every page: the loaded cart shows whether a refresh is due, so most views issue no UPDATE.
-     * Changes already mark the cart active through the entity. A user cart never expires.
-     */
-    private fun markGuestCartActive(cart: Cart) {
-        val sessionId = cart.sessionId ?: return
-        val now = Instant.now()
-        val staleBefore = now.minus(ExpireIdleGuestCartsUseCase.ACTIVITY_REFRESH_INTERVAL)
-        if (cart.lastActiveAt < staleBefore) cartRepository.touchGuestCart(sessionId, now, staleBefore)
-    }
-
-    /**
-     * A guest change extends the cookie whatever its outcome, so it must also count as
-     * activity: a change that fails (over the max, a stale line) saves nothing, and without
-     * this the cart could expire while the cookie it just extended is still valid. Throttled
-     * like a view; a successful change also sets `lastActiveAt` through the entity.
-     */
-    private fun recordGuestActivity(jwt: Jwt?, sessionCookie: String?) {
-        if (jwt != null) return
-        val sessionId = validSession(sessionCookie) ?: return
-        val now = Instant.now()
-        cartRepository.touchGuestCart(sessionId, now, now.minus(ExpireIdleGuestCartsUseCase.ACTIVITY_REFRESH_INTERVAL))
-    }
-
-    private fun sessionCookie(sessionId: String): ResponseCookie =
-        ResponseCookie.from(SESSION_COOKIE, sessionId)
-            .httpOnly(true)
-            .secure(secureCookie)
-            .sameSite("Lax")
-            .path("/")
-            .maxAge(guestTtl)
-            .build()
-
-    /** Only IDs this service minted are accepted; anything else starts a new session. */
-    private fun isValidSessionId(value: String): Boolean =
-        runCatching { UUID.fromString(value) }.map { it.toString() == value }.getOrDefault(false)
 
     companion object {
         const val SESSION_COOKIE = "acme_session_id"
