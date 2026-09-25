@@ -259,20 +259,6 @@ class CartControllerWebMvcTest(
     }
 
     @Test
-    fun `a guest viewing the cart marks it active, at most once a day`() {
-        val stale = cartFor(sessionId).apply { lastActiveAt = Instant.now().minus(Duration.ofDays(2)) }
-        every { cartRepository.findBySessionIdAndStatus(sessionId, CartStatus.ACTIVE) } returns stale
-        val now = slot<Instant>()
-        val staleBefore = slot<Instant>()
-        every { cartRepository.touchGuestCart(sessionId, capture(now), capture(staleBefore)) } returns 1
-
-        mockMvc.get("/api/v1/carts/current") { cookie(Cookie(CartController.SESSION_COOKIE, sessionId)) }
-            .andExpect { status { isOk() } }
-
-        assertEquals(Duration.ofDays(1), Duration.between(staleBefore.captured, now.captured))
-    }
-
-    @Test
     fun `every guest view records activity, leaving the once-a-day throttle to the query`() {
         every { cartRepository.findBySessionIdAndStatus(sessionId, CartStatus.ACTIVE) } returns cartFor(sessionId)
 
@@ -398,6 +384,15 @@ class CartControllerWebMvcTest(
         val result = postItem(cookie = "not-a-uuid").andExpect { status { isCreated() } }.andReturn()
 
         assertEquals(listOf(guestSession(command.captured)), sessionCookies(result).map { it.substringAfter("=").substringBefore(";") })
+    }
+
+    @Test
+    fun `a path that is no cart endpoint neither extends the cookie nor records activity`() {
+        val result = mockMvc.get("/api/v1/carts/no-such-endpoint") { cookie(Cookie(CartController.SESSION_COOKIE, sessionId)) }
+            .andExpect { status { isNotFound() } }.andReturn()
+
+        assertEquals(null, result.response.getHeader(HttpHeaders.SET_COOKIE))
+        verify(exactly = 0) { cartRepository.touchGuestCart(any(), any(), any()) }
     }
 
     @Test

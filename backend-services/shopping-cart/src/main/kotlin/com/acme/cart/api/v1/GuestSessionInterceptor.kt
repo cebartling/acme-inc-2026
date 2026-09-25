@@ -7,8 +7,9 @@ import jakarta.servlet.http.HttpServletResponse
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpMethod
 import org.springframework.security.core.context.SecurityContextHolder
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken
+import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.stereotype.Component
+import org.springframework.web.method.HandlerMethod
 import org.springframework.web.servlet.HandlerInterceptor
 import java.time.Instant
 
@@ -29,7 +30,8 @@ class GuestSessionInterceptor(
 ) : HandlerInterceptor {
 
     override fun preHandle(request: HttpServletRequest, response: HttpServletResponse, handler: Any): Boolean {
-        if (request.method == HttpMethod.OPTIONS.name() || isSignedIn()) return true
+        // Only cart endpoints: a path with no endpoint falls through to the static resource handler (a 404).
+        if (handler !is HandlerMethod || request.method == HttpMethod.OPTIONS.name() || isSignedIn()) return true
         val sessionId = guestSessionCookies.validSessionId(sessionCookieOf(request)) ?: return true
 
         response.addHeader(HttpHeaders.SET_COOKIE, guestSessionCookies.cookieFor(sessionId).toString())
@@ -38,7 +40,8 @@ class GuestSessionInterceptor(
         return true
     }
 
-    private fun isSignedIn(): Boolean = SecurityContextHolder.getContext().authentication is JwtAuthenticationToken
+    /** The same test as the controller's `@AuthenticationPrincipal jwt: Jwt?`. */
+    private fun isSignedIn(): Boolean = SecurityContextHolder.getContext().authentication?.principal is Jwt
 
     private fun sessionCookieOf(request: HttpServletRequest): String? =
         request.cookies?.firstOrNull { it.name == CartController.SESSION_COOKIE }?.value

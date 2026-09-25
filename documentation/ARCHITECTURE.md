@@ -173,9 +173,11 @@ sequenceDiagram
 - **Sliding expiry and session recovery** (US-0004-12): every cart request made as a guest
   with a valid session re-issues the same cookie with a fresh 30 days, so an active
   shopper's cart does not expire under them; signed-in requests never set it. One
-  `GuestSessionInterceptor` on `/api/v1/carts/**` does this before the handler runs, so a
-  request rejected as invalid (400) is covered too, and no endpoint has to remember it
-  (PIN-288). It also records activity (next bullet): extending the cookie and recording
+  `GuestSessionInterceptor` on `/api/v1/carts/**` does this for every request that maps to
+  a cart endpoint, before the handler runs, so a request rejected as invalid (400) is
+  covered too, and no endpoint has to remember it (PIN-288). A path with no endpoint (404),
+  or a request Spring rejects while choosing the endpoint (405, 415), gets neither the
+  refresh nor the activity, which is safe because the two stay in step. It also records activity (next bullet): extending the cookie and recording
   activity always happen together. `GuestSessionCookies` is the only place the cookie is
   built, for a refresh or a newly minted session. Recovery
   from an expired session happens on the server with no client retry: the browser drops
