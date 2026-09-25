@@ -172,7 +172,12 @@ sequenceDiagram
   service could have minted is ignored and replaced.
 - **Sliding expiry and session recovery** (US-0004-12): every cart request made as a guest
   with a valid session re-issues the same cookie with a fresh 30 days, so an active
-  shopper's cart does not expire under them; signed-in requests never set it. Recovery
+  shopper's cart does not expire under them; signed-in requests never set it. One
+  `GuestSessionInterceptor` on `/api/v1/carts/**` does this before the handler runs, so a
+  request rejected as invalid (400) is covered too, and no endpoint has to remember it
+  (PIN-288). It also records activity (next bullet): extending the cookie and recording
+  activity always happen together. `GuestSessionCookies` is the only place the cookie is
+  built, for a refresh or a newly minted session. Recovery
   from an expired session happens on the server with no client retry: the browser drops
   the cookie, so the next add mints a new session and cart, and the old items are not
   restored. A valid session with no ACTIVE cart (today, only after a merge) gets a new cart
@@ -180,10 +185,11 @@ sequenceDiagram
   (`cart_session_new_cart_total`). The session ID is never logged: it is the only key to a
   guest cart.
 - **Idle guest carts expire** (PIN-287): `carts.last_active_at` records when the owner last
-  used a cart. Every change sets it, and a guest's `GET /current` refreshes it at most once a
-  day, because the header badge reads the cart on every page. A guest write that fails (over
-  the max, a stale line) extends the cookie too, so it also refreshes activity. Anything that
-  extends the cookie counts as activity. V3 backfilled existing carts with the migration time
+  used a cart. Every change sets it, and every guest cart request, including views and
+  failed or invalid writes, runs `touchGuestCart` from the interceptor. The query only writes
+  when the stored time is more than a day old, so the header badge's read on every page costs
+  a no-op UPDATE rather than a row write. Anything that extends the cookie counts as
+  activity. V3 backfilled existing carts with the migration time
   rather than `updated_at`, because views had already been extending cookies. Hourly,
   `CartExpiryScheduledTasks` runs `ExpireIdleGuestCartsUseCase`, which moves ACTIVE guest
   carts idle for longer than `acme.cart.guest-ttl` plus a day to `EXPIRED`. The extra day

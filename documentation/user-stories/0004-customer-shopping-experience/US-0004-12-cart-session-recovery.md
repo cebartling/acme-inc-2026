@@ -115,7 +115,7 @@ This does not measure expiries. A cookie the browser has already dropped can't b
 
 ## Technical Implementation
 
-- **Sliding cookie**: `CartController.slideGuestSession` re-issues `acme_session_id` on `GET /current`, `POST /items`, `PATCH` and `DELETE` when the caller is a guest with a valid session.
+- **Sliding cookie**: `GuestSessionInterceptor` re-issues `acme_session_id` on every `/api/v1/carts/**` request from a guest with a valid session, before the handler runs, so a 400 is covered too. It records cart activity at the same time (PIN-287, PIN-288).
 - **New-cart metric**: `AddItemToCartCommand.startedNewSession` tells `AddItemToCartUseCase` whether the controller just minted the session. A new cart for a session that already existed is logged (by cart ID) and counted.
 - **Quiet stale lines**: cart error bodies carry a `code`. `isLineGone` in `frontend-apps/customer/src/hooks/useCart.ts` matches a 404 with `CART_ITEM_NOT_FOUND`. `useCart` reloads the cart, and `CartLineItem` shows no message. A `VARIANT_NOT_FOUND` 404 (the line is still in the cart) still shows its message.
 - **Out of scope**: server-side expiry of `carts` rows, since delivered by PIN-287 (see `ARCHITECTURE.md`).
