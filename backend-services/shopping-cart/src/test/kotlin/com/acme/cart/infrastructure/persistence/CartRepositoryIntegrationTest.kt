@@ -207,8 +207,11 @@ class CartRepositoryIntegrationTest {
     }
 
     @Test
-    fun `idle guest cart ids are found oldest first, and nothing else is`() {
+    fun `idle guest carts are found oldest first, and nothing else is`() {
         val older = guestCart("sess-older", longAgo.minus(Duration.ofDays(5)))
+        older.addItem(UUID.randomUUID(), 1, pricing, snapshot, 10, now = older.lastActiveAt)
+        older.addItem(UUID.randomUUID(), 1, pricing, snapshot, 10, now = older.lastActiveAt)
+        carts.saveAndFlush(older)
         val old = guestCart("sess-old", longAgo)
         guestCart("sess-recent", now.minus(Duration.ofDays(1)))
         guestCart("sess-merged-old", longAgo, CartStatus.MERGED)
@@ -216,8 +219,16 @@ class CartRepositoryIntegrationTest {
             Cart(id = UUID.randomUUID(), userId = UUID.randomUUID(), createdAt = longAgo, updatedAt = longAgo, lastActiveAt = longAgo)
         )
 
-        assertEquals(listOf(older.id, old.id), carts.findIdleGuestCartIds(cutoff, PageRequest.of(0, 10)))
-        assertEquals(listOf(older.id), carts.findIdleGuestCartIds(cutoff, PageRequest.of(0, 1)))
+        entityManager.clear()
+
+        assertEquals(
+            listOf(
+                IdleGuestCart(older.id, "sess-older", older.lastActiveAt, itemCount = 2),
+                IdleGuestCart(old.id, "sess-old", old.lastActiveAt, itemCount = 0)
+            ),
+            carts.findIdleGuestCarts(cutoff, PageRequest.of(0, 10))
+        )
+        assertEquals(listOf(older.id), carts.findIdleGuestCarts(cutoff, PageRequest.of(0, 1)).map { it.id })
     }
 
     @Test

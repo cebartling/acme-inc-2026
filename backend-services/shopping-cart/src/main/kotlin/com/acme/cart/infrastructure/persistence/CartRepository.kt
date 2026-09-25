@@ -48,14 +48,19 @@ interface CartRepository : JpaRepository<Cart, UUID> {
     )
     fun touchGuestCart(sessionId: String, now: Instant, staleBefore: Instant): Int
 
-    /** ACTIVE guest carts idle since before [cutoff], oldest first. */
+    /**
+     * ACTIVE guest carts idle since before [cutoff], oldest first, with what a `CartExpired`
+     * event needs, so expiring them never loads a cart or its lines.
+     */
     @Query(
-        """SELECT c.id FROM Cart c
+        """SELECT new com.acme.cart.infrastructure.persistence.IdleGuestCart(
+               c.id, c.sessionId, c.lastActiveAt, SIZE(c.items))
+           FROM Cart c
            WHERE c.sessionId IS NOT NULL AND c.status = com.acme.cart.domain.CartStatus.ACTIVE
              AND c.lastActiveAt < :cutoff
            ORDER BY c.lastActiveAt ASC"""
     )
-    fun findIdleGuestCartIds(cutoff: Instant, page: Pageable): List<UUID>
+    fun findIdleGuestCarts(cutoff: Instant, page: Pageable): List<IdleGuestCart>
 
     /**
      * Expires one cart if it is still an idle ACTIVE guest cart. The conditions are re-checked

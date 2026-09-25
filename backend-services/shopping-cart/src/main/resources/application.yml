@@ -52,6 +52,11 @@ acme:
     # A guest session's lifetime since its last cart request: the cookie's Max-Age, and how
     # long an ACTIVE guest cart may sit idle before it expires (PIN-287)
     guest-ttl: ${ACME_CART_GUEST_TTL:30d}
+    expiry:
+      # The idle guest cart job (PIN-287); ISO-8601 durations
+      enabled: ${ACME_CART_EXPIRY_ENABLED:true}
+      initial-delay: ${ACME_CART_EXPIRY_INITIAL_DELAY:PT5M}
+      interval: ${ACME_CART_EXPIRY_INTERVAL:PT1H}
   product:
     base-url: ${PRODUCT_SERVICE_URL:http://localhost:10303}
 
