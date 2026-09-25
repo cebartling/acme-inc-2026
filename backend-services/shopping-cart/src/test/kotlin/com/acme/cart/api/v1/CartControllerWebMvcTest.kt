@@ -49,6 +49,7 @@ import org.springframework.test.web.servlet.post
 import java.math.BigDecimal
 import java.util.UUID
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
@@ -142,13 +143,21 @@ class CartControllerWebMvcTest(
     }
 
     @Test
-    fun `an existing session cookie is reused and not re-set`() {
+    fun `first add tells the use case the session is new`() {
+        postItem().andExpect { status { isCreated() } }
+
+        assertTrue(command.captured.startedNewSession)
+    }
+
+    @Test
+    fun `an existing session cookie is reused and re-issued for another 30 days`() {
         val sessionId = UUID.randomUUID().toString()
 
         val result = postItem(cookie = sessionId).andExpect { status { isCreated() } }.andReturn()
 
         assertEquals(sessionId, guestSession(command.captured))
-        assertEquals(null, result.response.getHeader(HttpHeaders.SET_COOKIE))
+        assertFalse(command.captured.startedNewSession)
+        assertSessionReissued(result.response.getHeader(HttpHeaders.SET_COOKIE), sessionId)
     }
 
     @Test
@@ -173,7 +182,10 @@ class CartControllerWebMvcTest(
     fun `an unknown variant is a 404`() {
         every { useCase.execute(any(), any()) } returns CartError.VariantNotFound(variantId).left()
 
-        postItem().andExpect { status { isNotFound() } }
+        postItem().andExpect {
+            status { isNotFound() }
+            jsonPath("$.code") { value("VARIANT_NOT_FOUND") }
+        }
     }
 
     @Test
@@ -201,6 +213,16 @@ class CartControllerWebMvcTest(
     private val cartId = UUID.randomUUID()
     private val itemId = UUID.randomUUID()
 
+    /** The guest cookie slides (PIN-268): same value, full attributes, a fresh 30 days. */
+    private fun assertSessionReissued(setCookie: String?, session: String) {
+        checkNotNull(setCookie) { "expected the session cookie to be re-issued" }
+        assertTrue(setCookie.startsWith("${CartController.SESSION_COOKIE}=$session;"), setCookie)
+        assertTrue("HttpOnly" in setCookie, setCookie)
+        assertTrue("Secure" in setCookie, setCookie)
+        assertTrue("SameSite=Lax" in setCookie, setCookie)
+        assertTrue("Max-Age=2592000" in setCookie, setCookie)
+    }
+
     private fun cartFor(session: String): Cart {
         val cart = Cart(id = cartId, sessionId = session)
         cart.addItem(variantId, 2, VariantPricing(BigDecimal("69.99")), """{"productId":"${UUID.randomUUID()}","name":"Mouse","sku":"SKU","variantName":"Black","imageUrl":null}""", 10)
@@ -216,8 +238,52 @@ class CartControllerWebMvcTest(
     fun `current cart is 204 when the session has no cart yet`() {
         every { cartRepository.findBySessionIdAndStatus(sessionId, CartStatus.ACTIVE) } returns null
 
-        mockMvc.get("/api/v1/carts/current") { cookie(Cookie(CartController.SESSION_COOKIE, sessionId)) }
-            .andExpect { status { isNoContent() } }
+        val result = mockMvc.get("/api/v1/carts/current") { cookie(Cookie(CartController.SESSION_COOKIE, sessionId)) }
+            .andExpect { status { isNoContent() } }.andReturn()
+
+        assertSessionReissued(result.response.getHeader(HttpHeaders.SET_COOKIE), sessionId)
+    }
+
+    @Test
+    fun `reading the cart re-issues the session cookie`() {
+        every { cartRepository.findBySessionIdAndStatus(sessionId, CartStatus.ACTIVE) } returns cartFor(sessionId)
+
+        val result = mockMvc.get("/api/v1/carts/current") { cookie(Cookie(CartController.SESSION_COOKIE, sessionId)) }
+            .andExpect { status { isOk() } }.andReturn()
+
+        assertSessionReissued(result.response.getHeader(HttpHeaders.SET_COOKIE), sessionId)
+    }
+
+    @Test
+    fun `a session cookie this service did not mint is not re-issued`() {
+        val result = mockMvc.get("/api/v1/carts/current") { cookie(Cookie(CartController.SESSION_COOKIE, "not-a-uuid")) }
+            .andExpect { status { isNoContent() } }.andReturn()
+
+        assertEquals(null, result.response.getHeader(HttpHeaders.SET_COOKIE))
+    }
+
+    @Test
+    fun `updating a quantity re-issues the session cookie`() {
+        every { updateUseCase.execute(any(), any()) } returns cartFor(sessionId).right()
+
+        val result = mockMvc.patch("/api/v1/carts/$cartId/items/$itemId") {
+            cookie(Cookie(CartController.SESSION_COOKIE, sessionId))
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"quantity":3}"""
+        }.andExpect { status { isOk() } }.andReturn()
+
+        assertSessionReissued(result.response.getHeader(HttpHeaders.SET_COOKIE), sessionId)
+    }
+
+    @Test
+    fun `removing an item re-issues the session cookie`() {
+        every { removeUseCase.execute(any(), any()) } returns Cart(id = cartId, sessionId = sessionId).right()
+
+        val result = mockMvc.delete("/api/v1/carts/$cartId/items/$itemId") {
+            cookie(Cookie(CartController.SESSION_COOKIE, sessionId))
+        }.andExpect { status { isOk() } }.andReturn()
+
+        assertSessionReissued(result.response.getHeader(HttpHeaders.SET_COOKIE), sessionId)
     }
 
     @Test
@@ -266,7 +332,26 @@ class CartControllerWebMvcTest(
         mockMvc.patch("/api/v1/carts/$cartId/items/$itemId") {
             contentType = MediaType.APPLICATION_JSON
             content = """{"quantity":3}"""
-        }.andExpect { status { isNotFound() } }
+        }.andExpect {
+            status { isNotFound() }
+            jsonPath("$.code") { value("CART_ITEM_NOT_FOUND") }
+        }
+    }
+
+    /** A delisted variant is also a 404, but its line is still in the cart; the code tells them apart. */
+    @Test
+    fun `updating a line whose variant is gone is a 404 VARIANT_NOT_FOUND`() {
+        every { updateUseCase.execute(any(), any()) } returns CartError.VariantNotFound(variantId).left()
+
+        mockMvc.patch("/api/v1/carts/$cartId/items/$itemId") {
+            cookie(Cookie(CartController.SESSION_COOKIE, sessionId))
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"quantity":3}"""
+        }.andExpect {
+            status { isNotFound() }
+            jsonPath("$.code") { value("VARIANT_NOT_FOUND") }
+            jsonPath("$.error") { value("Variant not found: $variantId") }
+        }
     }
 
     @Test
@@ -300,7 +385,10 @@ class CartControllerWebMvcTest(
 
         mockMvc.delete("/api/v1/carts/$cartId/items/$itemId") {
             cookie(Cookie(CartController.SESSION_COOKIE, sessionId))
-        }.andExpect { status { isNotFound() } }
+        }.andExpect {
+            status { isNotFound() }
+            jsonPath("$.code") { value("CART_ITEM_NOT_FOUND") }
+        }
     }
 
     // --- US-0004-08: signed-in callers ------------------------------------------------
@@ -349,9 +437,11 @@ class CartControllerWebMvcTest(
         signedIn()
         every { cartRepository.findByUserIdAndStatus(userId, CartStatus.ACTIVE) } returns newCartFor(CartOwner.Customer(userId))
 
-        mockMvc.get("/api/v1/carts/current") {
+        val result = mockMvc.get("/api/v1/carts/current") {
             cookie(accessToken(), Cookie(CartController.SESSION_COOKIE, sessionId))
-        }.andExpect { status { isOk() } }
+        }.andExpect { status { isOk() } }.andReturn()
+
+        assertEquals(null, result.response.getHeader(HttpHeaders.SET_COOKIE))
     }
 
     @Test

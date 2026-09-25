@@ -17,6 +17,7 @@ import com.acme.cart.infrastructure.messaging.CartEventPublisher
 import com.acme.cart.infrastructure.persistence.CartRepository
 import com.acme.cart.infrastructure.product.ProductPricingClient
 import com.fasterxml.jackson.databind.ObjectMapper
+import io.micrometer.core.instrument.MeterRegistry
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
@@ -27,7 +28,9 @@ data class AddItemToCartCommand(
     val owner: CartOwner,
     val variantId: UUID,
     val quantity: Int,
-    val productSnapshot: ProductSnapshot
+    val productSnapshot: ProductSnapshot,
+    /** True when the controller just minted the guest session, so its first cart is not counted as a returning session's. */
+    val startedNewSession: Boolean
 )
 
 /**
@@ -45,9 +48,11 @@ class AddItemToCartUseCase(
     private val eventPublisher: CartEventPublisher,
     private val transactionTemplate: TransactionTemplate,
     private val objectMapper: ObjectMapper,
-    @Value("\${acme.cart.max-order-quantity}") private val maxOrderQuantity: Int
+    @Value("\${acme.cart.max-order-quantity}") private val maxOrderQuantity: Int,
+    meterRegistry: MeterRegistry
 ) {
     private val logger = LoggerFactory.getLogger(AddItemToCartUseCase::class.java)
+    private val returningSessionNewCarts = meterRegistry.counter(RETURNING_SESSION_NEW_CART_METRIC)
 
     fun execute(command: AddItemToCartCommand, correlationId: UUID = UUID.randomUUID()): Either<CartError, Cart> =
         pricingClient.getPricing(command.variantId).flatMap { pricing ->
@@ -69,6 +74,7 @@ class AddItemToCartUseCase(
             checkNotNull(result) { "transaction for ${command.owner} returned no result" }
         }.map { added ->
             publishEvents(added, command, correlationId)
+            if (added.isNewCart) recordReturningSessionNewCart(command.owner, command.startedNewSession, added.cart)
             added.cart
         }
 
@@ -98,10 +104,25 @@ class AddItemToCartUseCase(
         )
     }
 
+    /**
+     * A returning guest session with no ACTIVE cart got a fresh one (US-0004-12, AC-07).
+     * Today that means the session's cart was merged at sign-in; an expired cookie is never
+     * sent, so it reads as a first visit and is not counted. The session ID is the only key
+     * to a guest cart, so it is never logged.
+     */
+    private fun recordReturningSessionNewCart(owner: CartOwner, startedNewSession: Boolean, cart: Cart) {
+        if (owner !is CartOwner.Guest || startedNewSession) return
+        logger.info("Returning guest session had no active cart; started cart {}", cart.id)
+        returningSessionNewCarts.increment()
+    }
+
     private fun publish(event: DomainEvent) = eventPublisher.publishLoggingFailure(event, logger)
 
     companion object {
         /** Product prices carry no currency; the catalog is USD-only today. */
         const val CURRENCY = "USD"
+
+        /** Exposed by Prometheus-style registries as `cart_session_new_cart_total`. */
+        const val RETURNING_SESSION_NEW_CART_METRIC = "cart.session.new_cart"
     }
 }

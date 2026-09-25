@@ -19,7 +19,15 @@
 
 ## Description
 
-This story implements automatic cart session recovery. When a guest customer's cart session has expired and they attempt an operation (such as adding an item), the Shopping Cart Service returns a 404. The web application intercepts this response, generates a new session ID, resets the session cookie, creates a new cart, and retries the original operation — all transparently without any error displayed to the customer. The customer's current action succeeds as if the session expiry never occurred.
+This story makes an expired cart session a non-event for the customer. The original design had the web application catch a 404, create a session ID in the browser and retry. That can't work here: the session cookie (`acme_session_id`) is HttpOnly and minted by the Shopping Cart Service, so page scripts can neither read nor set it. Recovery therefore happens on the server:
+
+- When the cookie has expired, the browser stops sending it. The next add is treated like a first visit: the service mints a new session, sets a new cookie and creates a new cart. There is no 404 and no retry.
+- A session that is still valid but has no ACTIVE cart (for example, after its cart was merged at sign-in) gets a new cart on its next add.
+- Updating or removing a line from a page loaded before the session expired returns 404. The web application reloads the cart without showing an error. Nothing is retried, because the line and its cart are gone.
+
+To keep active shoppers from reaching the 30-day limit at all, the cookie **slides**: every cart request made as a guest with a valid session re-issues it with a fresh 30 days.
+
+> Reframed in PIN-268 after the PIN-267 review found the cookie never slid. The original client-side interceptor design is superseded.
 
 ## UI Requirements
 
@@ -36,26 +44,19 @@ sequenceDiagram
     participant WA as Web Application
     participant SC as Shopping Cart Service
 
-    Note over CU,SC: Customer's session cookie has expired
+    Note over CU,SC: The browser has dropped the expired acme_session_id cookie
 
     CU->>WA: Click "Add to Cart"
-    WA->>SC: POST /api/v1/carts/items
-    Note over WA,SC: X-Session-ID: expired_sess_xyz
-
-    SC-->>WA: 404 Cart Not Found (session expired)
-
-    Note over WA: Transparent session recovery
-    WA->>WA: Generate new session ID
-    WA->>WA: Set new session cookie
-
-    WA->>SC: POST /api/v1/carts/items
-    Note over WA,SC: X-Session-ID: new_sess_abc (new cart created)
-    SC->>SC: Create new cart for new sessionId
-    SC->>SC: Add item to new cart
-    SC-->>WA: New cart with item
-
+    WA->>SC: POST /api/v1/carts/items (no session cookie)
+    SC->>SC: Mint new session ID, create cart, add item
+    SC-->>WA: 201 cart + Set-Cookie acme_session_id (HttpOnly, Secure, SameSite=Lax, 30 days)
     WA-->>CU: Show "Added to Cart" confirmation
-    Note over CU: Customer unaware of session recovery
+
+    Note over CU,SC: Every later guest request slides the cookie
+
+    CU->>WA: View or change the cart
+    WA->>SC: GET/PATCH/DELETE (cookie acme_session_id)
+    SC-->>WA: Response + Set-Cookie (same ID, fresh 30 days)
 ```
 
 ## Acceptance Criteria
@@ -64,124 +65,70 @@ sequenceDiagram
 
 **Given** my cart session cookie has expired
 **When** I click "Add to Cart"
-**Then** the web application detects the 404 response from the Shopping Cart Service
-**And** automatically generates a new session ID
-**And** retries the add-to-cart operation with the new session
+**Then** the Shopping Cart Service starts a new session and a new cart
 **And** the item is successfully added to the new cart
 
-### AC-0004-12-02: Customer Not Blocked from Adding Items (from AC-E4.2)
+### AC-0004-12-02: Customer Not Blocked by an Expired Session (from AC-E4.2)
 
 **Given** my cart session has expired
-**When** I attempt any cart operation (add, update, remove)
-**Then** the operation completes successfully after transparent recovery
-**And** I see no error message or interruption in my shopping experience
+**When** I attempt any cart operation (add, update, remove, view)
+**Then** I see no error message or interruption in my shopping experience
 
 ### AC-0004-12-03: New Session Cookie Set Automatically (from AC-E4.3)
 
-**Given** the session recovery is triggered
-**When** a new session ID is generated
-**Then** a new session cookie is set with the same security attributes as the original:
-  - `HttpOnly` flag set
-  - `Secure` flag set
-  - `SameSite=Lax`
-  - 30-day expiry
+**Given** a new session is started
+**Then** the session cookie is set with:
 
-### AC-0004-12-04: Single Retry Only
+- `HttpOnly` flag set
+- `Secure` flag set
+- `SameSite=Lax`
+- 30-day expiry
 
-**Given** the recovery is triggered
-**When** the Shopping Cart Service returns another 404 on the retry
-**Then** the retry is not attempted a third time
-**And** an appropriate user-facing error is shown ("Unable to add item to cart. Please try again.")
-**And** no infinite retry loop occurs
+### AC-0004-12-04: Session Cookie Slides
 
-### AC-0004-12-05: Recovery Applies to All Cart Operations
+**Given** I am a guest with a valid session
+**When** I view, add to, update or remove from my cart
+**Then** the response re-issues the same session cookie with a fresh 30-day expiry
+**And** a signed-in customer's requests never set the guest cookie
 
-**Given** my session has expired
-**When** I attempt to update a cart item quantity or view my cart
-**Then** the same transparent recovery creates a new cart
-**And** the operation that triggered the recovery is re-executed
+### AC-0004-12-05: Stale Lines Reload Instead of Failing
+
+**Given** my session expired while the cart page was open
+**When** I update or remove a line
+**Then** the cart reloads and shows its current contents (empty, if the cart is gone)
+**And** no error is shown and the operation is not retried
 
 ### AC-0004-12-06: Previous Cart Items Not Restored
 
-**Given** my session has expired and a new cart is created during recovery
-**When** I view my cart after recovery
-**Then** the cart is empty (items from the expired session are not restored)
-**And** I am not shown an error about the empty cart — it is treated as a fresh start
+**Given** my session has expired and a new cart is created
+**When** I view my cart
+**Then** the cart contains only what I added since (items from the expired session are not restored)
 
 ### AC-0004-12-07: Logged for Observability
 
-**Given** a session recovery event occurs
-**When** the recovery succeeds
-**Then** the event is logged at INFO level with the old session ID and the new session ID
-**And** a `cart_session_recovery_total` counter metric is incremented
+**Given** a guest with a valid session adds an item and has no ACTIVE cart
+**When** the new cart is created
+**Then** the event is logged at INFO level with the new cart ID, and never the session ID, which is the only key to a guest cart
+**And** the `cart_session_new_cart_total` counter metric (`cart.session.new_cart`) is incremented
+
+This does not measure expiries. A cookie the browser has already dropped can't be told apart from a first visit, so it isn't counted. Until guest carts expire on the server (PIN-287), the metric only counts guests who add again after their cart was merged at sign-in.
 
 ## Technical Implementation
 
-### Recovery Interceptor
-
-```typescript
-async function cartApiWithRecovery<T>(fn: () => Promise<T>): Promise<T> {
-  try {
-    return await fn();
-  } catch (err) {
-    if (isCartNotFoundError(err)) {
-      // Session expired — create new session
-      const newSessionId = crypto.randomUUID();
-      setSessionCookie(newSessionId);
-
-      // Retry once with new session
-      try {
-        return await fn();
-      } catch (retryErr) {
-        throw new Error('Unable to complete cart operation. Please try again.');
-      }
-    }
-    throw err;
-  }
-}
-```
-
-### Session Cookie Reset
-
-```typescript
-function setSessionCookie(sessionId: string) {
-  Cookies.set(SESSION_COOKIE, sessionId, {
-    expires: 30,
-    secure: true,
-    sameSite: 'lax',
-    // httpOnly is set server-side when using SSR
-  });
-}
-```
-
-### Component Structure
-
-```
-frontend-apps/customer/src/
-├── lib/
-│   └── cartApiWithRecovery.ts
-└── api/
-    └── cartApi.ts (wraps all cart operations with recovery)
-```
-
-### Observability
-
-```
-cart_session_recovery_total — Counter; incremented on each successful recovery
-```
+- **Sliding cookie**: `CartController.slideGuestSession` re-issues `acme_session_id` on `GET /current`, `POST /items`, `PATCH` and `DELETE` when the caller is a guest with a valid session.
+- **New-cart metric**: `AddItemToCartCommand.startedNewSession` tells `AddItemToCartUseCase` whether the controller just minted the session. A new cart for a session that already existed is logged (by cart ID) and counted.
+- **Quiet stale lines**: cart error bodies carry a `code`. `isLineGone` in `frontend-apps/customer/src/hooks/useCart.ts` matches a 404 with `CART_ITEM_NOT_FOUND`. `useCart` reloads the cart, and `CartLineItem` shows no message. A `VARIANT_NOT_FOUND` 404 (the line is still in the cart) still shows its message.
+- **Out of scope**: server-side expiry of `carts` rows (PIN-287). Orphaned guest carts are not cleaned up yet.
 
 ## Definition of Done
 
-- [ ] 404 response from Shopping Cart Service triggers transparent session recovery
-- [ ] New session ID generated and cookie set with correct security attributes
-- [ ] Original cart operation retried successfully after recovery
-- [ ] Customer sees normal success confirmation with no error
-- [ ] Single retry only — no infinite loop
-- [ ] Second 404 on retry shows user-facing error
-- [ ] Recovery applies to add, update, view cart operations
-- [ ] Session recovery events logged at INFO level
-- [ ] `cart_session_recovery_total` metric incremented
-- [ ] Unit tests cover recovery interceptor logic including retry failure
+- [x] An add with an expired or missing session creates a new session and cart without an error
+- [x] New session cookie set with correct security attributes
+- [x] Guest session cookie re-issued with a fresh 30 days on every cart request
+- [x] Update/remove of a stale line reloads the cart with no error and no retry
+- [x] A returning session's new cart logged at INFO level, without the session ID
+- [x] `cart_session_new_cart_total` metric incremented
+- [x] Unit and acceptance tests cover sliding, recovery and the quiet 404
 - [ ] Code reviewed and approved
 
 ## Dependencies

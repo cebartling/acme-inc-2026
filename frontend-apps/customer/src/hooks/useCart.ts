@@ -32,9 +32,23 @@ export async function writeCart(queryClient: QueryClient, cart: Cart) {
   queryClient.setQueryData(CART_QUERY_KEY, cart);
 }
 
-/** A 404 means the line is already gone (e.g. removed in another tab): reload the cart. */
+/**
+ * The line is already gone: removed in another tab, or the session expired and its cart
+ * with it (US-0004-12). Nothing to retry; the reloaded cart is the answer. Matched on the
+ * service's code, not the status: a delisted variant is also a 404, but its line is still
+ * in the cart and the customer needs the message.
+ */
+export function isLineGone(error: unknown): boolean {
+  return (
+    error instanceof ApiError &&
+    error.status === 404 &&
+    error.data?.code === "CART_ITEM_NOT_FOUND"
+  );
+}
+
+/** Reloads the cart when the line is gone, so the page shows what is actually there. */
 function reloadIfLineGone(queryClient: QueryClient, error: Error) {
-  if (error instanceof ApiError && error.status === 404) {
+  if (isLineGone(error)) {
     void queryClient.invalidateQueries({ queryKey: CART_QUERY_KEY });
   }
 }

@@ -74,3 +74,14 @@ Feature: Cart Merge on Sign-in API
     When I merge without signing in
     Then the API should respond with status 401
     And the response should contain error "SIGN_IN_REQUIRED"
+
+  # US-0004-12: a session whose cart is gone gets a fresh cart; its old lines are 404s
+  Scenario: The old guest session starts a fresh cart after its cart was merged
+    Given I have added 2 "Gadget Pro / Black" to a new cart
+    And I have merged my guest cart as the signed-in customer
+    When I change the quantity of that line to 3
+    Then the API should respond with status 404
+    When I add 1 more of the same variant to my cart
+    Then the API should respond with status 201
+    And the cart should have 1 line with quantity 1 at unit price 119.99
+    And the response should re-issue the same session cookie

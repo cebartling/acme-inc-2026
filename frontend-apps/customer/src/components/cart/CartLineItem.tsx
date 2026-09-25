@@ -1,7 +1,11 @@
 import { useId } from "react";
 import { Loader2, Trash2 } from "lucide-react";
 import type { CartItem } from "@/services/api";
-import { useRemoveCartItem, useUpdateCartItem } from "@/hooks/useCart";
+import {
+  isLineGone,
+  useRemoveCartItem,
+  useUpdateCartItem,
+} from "@/hooks/useCart";
 import { QuantityControl } from "./QuantityControl";
 
 interface CartLineItemProps {
@@ -22,10 +26,13 @@ export function CartLineItem({ cartId, item }: CartLineItemProps) {
   const itemName = `${name} (${variantName})`;
   const isBusy = update.isPending || remove.isPending;
   // Only the latest action's outcome: an old update error must not mask a newer remove error.
+  // A gone line is not an error to show; the cart reloads instead.
+  const errorText = (error: Error | null) =>
+    error && !isLineGone(error) ? error.message : null;
   const message =
     remove.submittedAt > update.submittedAt
-      ? (remove.error?.message ?? null)
-      : (update.data?.clampedMessage ?? update.error?.message ?? null);
+      ? errorText(remove.error)
+      : (update.data?.clampedMessage ?? errorText(update.error));
 
   return (
     <li

@@ -21,7 +21,7 @@ Feature: Add Item to Cart API
     Given I have added 2 "Gadget Pro / Black" to a new cart
     When I add 1 more of the same variant to my cart
     Then the API should respond with status 201
-    And the response should not set a session cookie
+    And the response should re-issue the same session cookie
     And the cart should have 1 line with quantity 3 at unit price 109.99
 
   # AC-0004-06-05

@@ -59,6 +59,14 @@ function cartOf(...items: CartItem[]): Cart {
   };
 }
 
+/** The cart service's 404 for a line that no longer exists (US-0004-12). */
+function lineGone() {
+  return new ApiError("Cart item not found: line-1", 404, {
+    error: "Cart item not found: line-1",
+    code: "CART_ITEM_NOT_FOUND",
+  });
+}
+
 function renderPage() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: 0 }, mutations: { retry: 0 } },
@@ -165,9 +173,7 @@ describe("CartPage", () => {
     mockedGetCurrent
       .mockResolvedValueOnce(cartOf(line(2, 119.99)))
       .mockResolvedValueOnce(cartOf());
-    mockedRemove.mockRejectedValue(
-      new ApiError("Cart item not found: line-1", 404),
-    );
+    mockedRemove.mockRejectedValue(lineGone());
     const user = userEvent.setup();
     renderPage();
 
@@ -179,6 +185,44 @@ describe("CartPage", () => {
 
     expect(await screen.findByTestId("cartEmptyState")).toBeInTheDocument();
     expect(mockedGetCurrent).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows no error when a stale line is gone (404), only the reloaded cart", async () => {
+    mockedGetCurrent.mockResolvedValue(cartOf(line(2, 119.99)));
+    mockedUpdate.mockRejectedValue(lineGone());
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Increase quantity of Gadget Pro (Black)",
+      }),
+    );
+
+    await vi.waitFor(() => expect(mockedGetCurrent).toHaveBeenCalledTimes(2));
+    expect(screen.queryByTestId("lineMessage")).not.toBeInTheDocument();
+  });
+
+  it("still explains a 404 for a delisted variant, whose line is still in the cart", async () => {
+    mockedGetCurrent.mockResolvedValue(cartOf(line(2, 119.99)));
+    mockedUpdate.mockRejectedValue(
+      new ApiError("Variant not found: variant-1", 404, {
+        error: "Variant not found: variant-1",
+        code: "VARIANT_NOT_FOUND",
+      }),
+    );
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Increase quantity of Gadget Pro (Black)",
+      }),
+    );
+
+    expect(await screen.findByTestId("lineMessage")).toHaveTextContent(
+      "Variant not found: variant-1",
+    );
   });
 
   it("shows the latest action's error, not an older one", async () => {
