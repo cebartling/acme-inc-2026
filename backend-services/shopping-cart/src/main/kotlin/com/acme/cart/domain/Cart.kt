@@ -39,6 +39,16 @@ class Cart(
     @Column(name = "last_active_at", nullable = false)
     var lastActiveAt: Instant = createdAt,
 
+    /**
+     * Optimistic lock (PIN-278). Every change goes through [touch], which dirties this row, so
+     * the version moves even when only a line changed, and a save from a stale copy fails.
+     * Null until first saved: ids are assigned in code, so a null version is how Spring Data
+     * tells a new cart from an existing one.
+     */
+    @Version
+    @Column(name = "version")
+    var version: Long? = null,
+
     @OneToMany(
         mappedBy = "cart",
         fetch = FetchType.LAZY,
