@@ -205,6 +205,17 @@ sequenceDiagram
   Race: `Cart` has no `@Version`, so an add that loaded the cart just before the job expired
   it saves it back as ACTIVE. The customer keeps their cart; the only cost is a
   `CartExpired` event for a cart that is active again.
+- **Retention** (PIN-289): every 6 hours, `CartPurgeScheduledTasks` runs
+  `PurgeFinalCartsUseCase`, which deletes EXPIRED and MERGED carts whose `updated_at` (set
+  when they expired or merged) is older than `acme.cart.retention` (default `90d`). Their
+  lines go too, through the `cart_items` foreign key's `ON DELETE CASCADE`. It is built like
+  the expiry job: a projection scan (partial index `ix_carts_final`, V4) and a conditional
+  DELETE per cart that re-checks it is still final and old enough, so a cart that became
+  ACTIVE again is kept. `CartPurged` is published only for carts it deleted (counted as
+  `cart.purged`). ACTIVE carts are never deleted. `acme.cart.purge.enabled=false` turns the
+  job off. Debezium only captures `acme_orders`, so these deletes emit no change events.
+  The scheduler has two threads (`spring.task.scheduling.pool.size`), so a slow purge run
+  never holds up expiry.
 - **Error bodies**: `{"error": message, "code": ...}`. `CART_ITEM_NOT_FOUND` and
   `VARIANT_NOT_FOUND` are both 404s; the code lets the client reload quietly for a gone
   line but still explain a delisted variant whose line is still in the cart.

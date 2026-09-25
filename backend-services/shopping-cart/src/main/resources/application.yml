@@ -21,6 +21,12 @@ spring:
     locations: classpath:db/migration
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+  task:
+    scheduling:
+      pool:
+        # One thread per job (cart expiry, cart purge), so a slow purge run, e.g. one blocked
+        # on Kafka publishes, never holds up expiry. The default is a single shared thread.
+        size: 2
   security:
     oauth2:
       resourceserver:
@@ -57,6 +63,14 @@ acme:
       enabled: ${ACME_CART_EXPIRY_ENABLED:true}
       initial-delay: ${ACME_CART_EXPIRY_INITIAL_DELAY:PT5M}
       interval: ${ACME_CART_EXPIRY_INTERVAL:PT1H}
+    # How long EXPIRED and MERGED carts are kept before they are deleted (PIN-289; answers
+    # Epic 009's open question 4). One period for both, measured from expiry or merge.
+    retention: ${ACME_CART_RETENTION:90d}
+    purge:
+      # The job that deletes carts past retention (PIN-289); ISO-8601 durations
+      enabled: ${ACME_CART_PURGE_ENABLED:true}
+      initial-delay: ${ACME_CART_PURGE_INITIAL_DELAY:PT10M}
+      interval: ${ACME_CART_PURGE_INTERVAL:PT6H}
   product:
     base-url: ${PRODUCT_SERVICE_URL:http://localhost:10303}
 
