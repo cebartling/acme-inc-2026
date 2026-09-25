@@ -294,8 +294,8 @@ class CartRepositoryIntegrationTest {
 
         assertEquals(
             listOf(
-                FinalCart(older.id, CartStatus.MERGED, "sess-purge-older", older.updatedAt),
-                FinalCart(old.id, CartStatus.EXPIRED, "sess-purge-old", old.updatedAt)
+                FinalCart(older.id, CartStatus.MERGED, older.updatedAt),
+                FinalCart(old.id, CartStatus.EXPIRED, old.updatedAt)
             ),
             carts.findFinalCartsBefore(retentionCutoff, PageRequest.of(0, 10))
         )

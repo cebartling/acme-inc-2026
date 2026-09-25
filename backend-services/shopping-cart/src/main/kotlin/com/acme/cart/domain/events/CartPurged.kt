@@ -8,10 +8,12 @@ import java.util.UUID
  * Published when an EXPIRED or MERGED cart is deleted after the retention period (PIN-289).
  * Its lines are deleted with it; the earlier `CartExpired` or `CartMerged` event carries only
  * counts, not the lines.
+ *
+ * Unlike the other cart events it carries no guest session ID: a merged cart's session can
+ * still be the live key to a newer guest cart, and nothing downstream needs it here.
  */
 data class CartPurgedPayload(
     val cartId: UUID,
-    val sessionId: String?,
     /** EXPIRED or MERGED: the status the cart ended in. */
     val finalStatus: CartStatus,
     /** When the cart expired or merged. */

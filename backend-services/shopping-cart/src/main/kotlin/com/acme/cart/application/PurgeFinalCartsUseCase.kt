@@ -58,7 +58,7 @@ class PurgeFinalCartsUseCase(
         if (cartRepository.deleteIfFinalBefore(cart.id, cutoff) == 0) return false
         purgedCarts.increment()
         eventPublisher.publishLoggingFailure(
-            CartPurged.create(CartPurgedPayload(cart.id, cart.sessionId, cart.status, cart.finalizedAt), correlationId),
+            CartPurged.create(CartPurgedPayload(cart.id, cart.status, cart.finalizedAt), correlationId),
             logger
         )
         return true

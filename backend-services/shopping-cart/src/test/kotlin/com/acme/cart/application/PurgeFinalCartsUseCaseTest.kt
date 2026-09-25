@@ -7,6 +7,7 @@ import com.acme.cart.infrastructure.messaging.CartEventPublisher
 import com.acme.cart.infrastructure.persistence.CartRepository
 import com.acme.cart.infrastructure.persistence.FinalCart
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -18,6 +19,7 @@ import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 
 class PurgeFinalCartsUseCaseTest {
@@ -38,7 +40,7 @@ class PurgeFinalCartsUseCaseTest {
     private val cutoff = now.minus(Duration.ofDays(90))
 
     private fun final(status: CartStatus = CartStatus.EXPIRED) =
-        FinalCart(UUID.randomUUID(), status, "sess-${UUID.randomUUID()}", now.minus(Duration.ofDays(100)))
+        FinalCart(UUID.randomUUID(), status, now.minus(Duration.ofDays(100)))
 
     private fun purgedCount() = meterRegistry.counter(PurgeFinalCartsUseCase.PURGED_METRIC).count()
 
@@ -68,9 +70,19 @@ class PurgeFinalCartsUseCaseTest {
         val payloads = published.map { assertIs<CartPurged>(it).payload }
         assertEquals(listOf(expired.id, merged.id), payloads.map { it.cartId })
         assertEquals(listOf(CartStatus.EXPIRED, CartStatus.MERGED), payloads.map { it.finalStatus })
-        assertEquals(expired.sessionId, payloads[0].sessionId)
         assertEquals(expired.finalizedAt, payloads[0].finalizedAt)
         assertEquals(2.0, purgedCount())
+    }
+
+    @Test
+    fun `the event never carries the guest session ID`() {
+        every { cartRepository.findFinalCartsBefore(cutoff, any()) } returnsMany listOf(listOf(final(CartStatus.MERGED)), emptyList())
+
+        useCase.execute(now)
+
+        // A merged cart's session can still be the live key to a newer guest cart.
+        val json = jacksonObjectMapper().findAndRegisterModules().writeValueAsString(assertIs<CartPurged>(published.single()).payload)
+        assertFalse("sessionId" in json, json)
     }
 
     @Test

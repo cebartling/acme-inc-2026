@@ -80,7 +80,7 @@ interface CartRepository : JpaRepository<Cart, UUID> {
 
     /** EXPIRED and MERGED carts that became final before [cutoff], oldest first. Nothing is loaded. */
     @Query(
-        """SELECT new com.acme.cart.infrastructure.persistence.FinalCart(c.id, c.status, c.sessionId, c.updatedAt)
+        """SELECT new com.acme.cart.infrastructure.persistence.FinalCart(c.id, c.status, c.updatedAt)
            FROM Cart c
            WHERE c.status IN (com.acme.cart.domain.CartStatus.EXPIRED, com.acme.cart.domain.CartStatus.MERGED)
              AND c.updatedAt < :cutoff

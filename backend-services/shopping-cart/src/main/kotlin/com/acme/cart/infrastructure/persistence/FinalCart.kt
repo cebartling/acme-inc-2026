@@ -8,8 +8,6 @@ import java.util.UUID
 data class FinalCart(
     val id: UUID,
     val status: CartStatus,
-    /** Only guest carts become final today, but the schema does not require it. */
-    val sessionId: String?,
     /** When the cart expired or merged: its last `updated_at`. */
     val finalizedAt: Instant
 )
