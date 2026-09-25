@@ -60,7 +60,7 @@ class ExpireIdleGuestCartsUseCase(
         expiredCarts.increment()
         eventPublisher.publishLoggingFailure(
             CartExpired.create(
-                CartExpiredPayload(cart.id, cart.sessionId, cart.lastActiveAt, cart.itemCount),
+                CartExpiredPayload(cart.id, cart.sessionId, cart.lastActiveAt, cart.lineCount),
                 correlationId
             ),
             logger

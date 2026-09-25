@@ -181,7 +181,10 @@ sequenceDiagram
   guest cart.
 - **Idle guest carts expire** (PIN-287): `carts.last_active_at` records when the owner last
   used a cart. Every change sets it, and a guest's `GET /current` refreshes it at most once a
-  day, because the header badge reads the cart on every page. Hourly,
+  day, because the header badge reads the cart on every page. A guest write that fails (over
+  the max, a stale line) extends the cookie too, so it also refreshes activity. Anything that
+  extends the cookie counts as activity. V3 backfilled existing carts with the migration time
+  rather than `updated_at`, because views had already been extending cookies. Hourly,
   `CartExpiryScheduledTasks` runs `ExpireIdleGuestCartsUseCase`, which moves ACTIVE guest
   carts idle for longer than `acme.cart.guest-ttl` plus a day to `EXPIRED`. The extra day
   covers the daily refresh, so a cart never expires while its cookie could still be valid.

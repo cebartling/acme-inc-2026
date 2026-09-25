@@ -67,6 +67,7 @@ class CartController(
         response: HttpServletResponse
     ): ResponseEntity<Any> {
         slideGuestSession(jwt, sessionCookie, response)
+        recordGuestActivity(jwt, sessionCookie)
         val existingOwner = ownerOf(jwt, sessionCookie)
         val newSession = if (existingOwner == null) UUID.randomUUID().toString() else null
         val owner = existingOwner ?: CartOwner.Guest(newSession!!)
@@ -120,6 +121,7 @@ class CartController(
         response: HttpServletResponse
     ): ResponseEntity<Any> {
         slideGuestSession(jwt, sessionCookie, response)
+        recordGuestActivity(jwt, sessionCookie)
         val owner = ownerOf(jwt, sessionCookie) ?: return errorResponse(CartError.CartItemNotFound(itemId))
         val command = UpdateCartItemQuantityCommand(owner, cartId, itemId, request.quantity!!)
         return updateCartItemQuantityUseCase.execute(command)
@@ -136,6 +138,7 @@ class CartController(
         response: HttpServletResponse
     ): ResponseEntity<Any> {
         slideGuestSession(jwt, sessionCookie, response)
+        recordGuestActivity(jwt, sessionCookie)
         val owner = ownerOf(jwt, sessionCookie) ?: return errorResponse(CartError.CartItemNotFound(itemId))
         return removeCartItemUseCase.execute(RemoveCartItemCommand(owner, cartId, itemId))
             .fold(ifLeft = ::errorResponse, ifRight = { ResponseEntity.ok(toResponse(it)) })
@@ -223,6 +226,19 @@ class CartController(
         val now = Instant.now()
         val staleBefore = now.minus(ExpireIdleGuestCartsUseCase.ACTIVITY_REFRESH_INTERVAL)
         if (cart.lastActiveAt < staleBefore) cartRepository.touchGuestCart(sessionId, now, staleBefore)
+    }
+
+    /**
+     * A guest change extends the cookie whatever its outcome, so it must also count as
+     * activity: a change that fails (over the max, a stale line) saves nothing, and without
+     * this the cart could expire while the cookie it just extended is still valid. Throttled
+     * like a view; a successful change also sets `lastActiveAt` through the entity.
+     */
+    private fun recordGuestActivity(jwt: Jwt?, sessionCookie: String?) {
+        if (jwt != null) return
+        val sessionId = validSession(sessionCookie) ?: return
+        val now = Instant.now()
+        cartRepository.touchGuestCart(sessionId, now, now.minus(ExpireIdleGuestCartsUseCase.ACTIVITY_REFRESH_INTERVAL))
     }
 
     private fun sessionCookie(sessionId: String): ResponseCookie =

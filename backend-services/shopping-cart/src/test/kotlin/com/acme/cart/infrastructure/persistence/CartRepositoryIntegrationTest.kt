@@ -223,8 +223,8 @@ class CartRepositoryIntegrationTest {
 
         assertEquals(
             listOf(
-                IdleGuestCart(older.id, "sess-older", older.lastActiveAt, itemCount = 2),
-                IdleGuestCart(old.id, "sess-old", old.lastActiveAt, itemCount = 0)
+                IdleGuestCart(older.id, "sess-older", older.lastActiveAt, lineCount = 2),
+                IdleGuestCart(old.id, "sess-old", old.lastActiveAt, lineCount = 0)
             ),
             carts.findIdleGuestCarts(cutoff, PageRequest.of(0, 10))
         )

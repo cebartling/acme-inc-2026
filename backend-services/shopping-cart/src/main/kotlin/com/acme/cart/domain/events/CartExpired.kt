@@ -10,7 +10,7 @@ data class CartExpiredPayload(
     /** When the guest last used the cart. */
     val lastActiveAt: Instant,
     /** Lines left in the cart when it expired. */
-    val itemCount: Int
+    val lineCount: Int
 )
 
 class CartExpired(

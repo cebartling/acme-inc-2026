@@ -9,5 +9,5 @@ data class IdleGuestCart(
     val sessionId: String,
     val lastActiveAt: Instant,
     /** Lines in the cart, not units. */
-    val itemCount: Int
+    val lineCount: Int
 )

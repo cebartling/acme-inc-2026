@@ -6,9 +6,11 @@ ALTER TABLE carts
     ADD CONSTRAINT ck_carts_status CHECK (status IN ('ACTIVE', 'MERGED', 'EXPIRED'));
 
 -- When the owner last used the cart. Writes set it; a guest viewing the cart refreshes it
--- at most once a day. Existing carts start from their last change.
+-- at most once a day. Existing carts start from now, not from updated_at: since PIN-268 a
+-- view also extends the cookie without changing updated_at, so an older timestamp could
+-- expire a cart whose cookie is still valid. Already-stale carts just wait one more TTL.
 ALTER TABLE carts ADD COLUMN last_active_at TIMESTAMPTZ;
-UPDATE carts SET last_active_at = updated_at;
+UPDATE carts SET last_active_at = now();
 ALTER TABLE carts ALTER COLUMN last_active_at SET NOT NULL;
 
 -- The expiry job's scan: ACTIVE guest carts, oldest activity first.

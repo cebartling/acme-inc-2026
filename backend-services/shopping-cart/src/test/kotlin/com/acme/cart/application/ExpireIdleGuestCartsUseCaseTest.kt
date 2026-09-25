@@ -37,8 +37,8 @@ class ExpireIdleGuestCartsUseCaseTest {
     /** Guest TTL plus a day of grace for the once-a-day activity refresh. */
     private val cutoff = now.minus(Duration.ofDays(31))
 
-    private fun idle(itemCount: Int = 2) =
-        IdleGuestCart(UUID.randomUUID(), "sess-${UUID.randomUUID()}", now.minus(Duration.ofDays(40)), itemCount)
+    private fun idle(lineCount: Int = 2) =
+        IdleGuestCart(UUID.randomUUID(), "sess-${UUID.randomUUID()}", now.minus(Duration.ofDays(40)), lineCount)
 
     private fun expiredCount() = meterRegistry.counter(ExpireIdleGuestCartsUseCase.EXPIRED_METRIC).count()
 
@@ -59,7 +59,7 @@ class ExpireIdleGuestCartsUseCaseTest {
 
     @Test
     fun `each idle cart is expired and announced with a CartExpired event`() {
-        val cart = idle(itemCount = 3)
+        val cart = idle(lineCount = 3)
         every { cartRepository.findIdleGuestCarts(cutoff, any()) } returnsMany listOf(listOf(cart), emptyList())
 
         assertEquals(1, useCase.execute(now))
@@ -68,7 +68,7 @@ class ExpireIdleGuestCartsUseCaseTest {
         assertEquals(cart.id, payload.cartId)
         assertEquals(cart.sessionId, payload.sessionId)
         assertEquals(cart.lastActiveAt, payload.lastActiveAt)
-        assertEquals(3, payload.itemCount)
+        assertEquals(3, payload.lineCount)
         assertEquals(1.0, expiredCount())
     }
 
