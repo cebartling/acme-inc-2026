@@ -57,7 +57,7 @@ import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
 @WebMvcTest(CartController::class)
-@Import(SecurityConfig::class)
+@Import(SecurityConfig::class, GuestSessionCookies::class)
 class CartControllerWebMvcTest(
     @Autowired private val mockMvc: MockMvc,
     @Autowired private val useCase: AddItemToCartUseCase,
@@ -259,27 +259,13 @@ class CartControllerWebMvcTest(
     }
 
     @Test
-    fun `a guest viewing the cart marks it active, at most once a day`() {
-        val stale = cartFor(sessionId).apply { lastActiveAt = Instant.now().minus(Duration.ofDays(2)) }
-        every { cartRepository.findBySessionIdAndStatus(sessionId, CartStatus.ACTIVE) } returns stale
-        val now = slot<Instant>()
-        val staleBefore = slot<Instant>()
-        every { cartRepository.touchGuestCart(sessionId, capture(now), capture(staleBefore)) } returns 1
-
-        mockMvc.get("/api/v1/carts/current") { cookie(Cookie(CartController.SESSION_COOKIE, sessionId)) }
-            .andExpect { status { isOk() } }
-
-        assertEquals(Duration.ofDays(1), Duration.between(staleBefore.captured, now.captured))
-    }
-
-    @Test
-    fun `a guest viewing a recently active cart issues no update`() {
+    fun `every guest view records activity, leaving the once-a-day throttle to the query`() {
         every { cartRepository.findBySessionIdAndStatus(sessionId, CartStatus.ACTIVE) } returns cartFor(sessionId)
 
         mockMvc.get("/api/v1/carts/current") { cookie(Cookie(CartController.SESSION_COOKIE, sessionId)) }
             .andExpect { status { isOk() } }
 
-        verify(exactly = 0) { cartRepository.touchGuestCart(any(), any(), any()) }
+        assertActivityRecorded(sessionId)
     }
 
     @Test
@@ -350,6 +336,63 @@ class CartControllerWebMvcTest(
             .andExpect { status { isNoContent() } }.andReturn()
 
         assertEquals(null, result.response.getHeader(HttpHeaders.SET_COOKIE))
+        verify(exactly = 0) { cartRepository.touchGuestCart(any(), any(), any()) }
+    }
+
+    // --- PIN-288: one interceptor extends the cookie and records activity -------------------
+
+    private fun sessionCookies(result: org.springframework.test.web.servlet.MvcResult) =
+        result.response.getHeaders(HttpHeaders.SET_COOKIE).filter { it.startsWith("${CartController.SESSION_COOKIE}=") }
+
+    @Test
+    fun `an update rejected as invalid (400) still extends the cookie and records activity`() {
+        val result = mockMvc.patch("/api/v1/carts/$cartId/items/$itemId") {
+            cookie(Cookie(CartController.SESSION_COOKIE, sessionId))
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"quantity":0}"""
+        }.andExpect { status { isBadRequest() } }.andReturn()
+
+        assertSessionReissued(result.response.getHeader(HttpHeaders.SET_COOKIE), sessionId)
+        assertActivityRecorded(sessionId)
+    }
+
+    @Test
+    fun `an add rejected as invalid (400) still extends the cookie and records activity`() {
+        val result = postItem(cookie = sessionId, content = """{"variantId":"$variantId","quantity":1}""")
+            .andExpect { status { isBadRequest() } }.andReturn()
+
+        assertSessionReissued(result.response.getHeader(HttpHeaders.SET_COOKIE), sessionId)
+        assertActivityRecorded(sessionId)
+    }
+
+    @Test
+    fun `an add to an existing session sends the session cookie exactly once`() {
+        val result = postItem(cookie = sessionId).andExpect { status { isCreated() } }.andReturn()
+
+        assertEquals(1, sessionCookies(result).size, sessionCookies(result).toString())
+    }
+
+    @Test
+    fun `a first add sends the new session cookie exactly once`() {
+        val result = postItem().andExpect { status { isCreated() } }.andReturn()
+
+        assertEquals(1, sessionCookies(result).size, sessionCookies(result).toString())
+    }
+
+    @Test
+    fun `a replaced session cookie is sent once, for the new session only`() {
+        val result = postItem(cookie = "not-a-uuid").andExpect { status { isCreated() } }.andReturn()
+
+        assertEquals(listOf(guestSession(command.captured)), sessionCookies(result).map { it.substringAfter("=").substringBefore(";") })
+    }
+
+    @Test
+    fun `a path that is no cart endpoint neither extends the cookie nor records activity`() {
+        val result = mockMvc.get("/api/v1/carts/no-such-endpoint") { cookie(Cookie(CartController.SESSION_COOKIE, sessionId)) }
+            .andExpect { status { isNotFound() } }.andReturn()
+
+        assertEquals(null, result.response.getHeader(HttpHeaders.SET_COOKIE))
+        verify(exactly = 0) { cartRepository.touchGuestCart(any(), any(), any()) }
     }
 
     @Test
@@ -582,11 +625,15 @@ class CartControllerWebMvcTest(
 
     @Test
     fun `merging requires a signed-in caller`() {
-        mockMvc.post("/api/v1/carts/merge") { cookie(Cookie(CartController.SESSION_COOKIE, sessionId)) }
+        val result = mockMvc.post("/api/v1/carts/merge") { cookie(Cookie(CartController.SESSION_COOKIE, sessionId)) }
             .andExpect {
                 status { isUnauthorized() }
                 jsonPath("$.error") { value("SIGN_IN_REQUIRED") }
-            }
+            }.andReturn()
+
+        // Still a guest cart request: the interceptor treats it like any other (PIN-288).
+        assertSessionReissued(result.response.getHeader(HttpHeaders.SET_COOKIE), sessionId)
+        assertActivityRecorded(sessionId)
     }
 
     @Test
@@ -600,7 +647,7 @@ class CartControllerWebMvcTest(
             MergeResult(itemsMerged = 1, quantitiesAdjusted = listOf(QuantityAdjustment(variantId, 12, 10)))
         ).right()
 
-        mockMvc.post("/api/v1/carts/merge") {
+        val result = mockMvc.post("/api/v1/carts/merge") {
             cookie(accessToken(), Cookie(CartController.SESSION_COOKIE, sessionId))
         }.andExpect {
             status { isOk() }
@@ -610,9 +657,11 @@ class CartControllerWebMvcTest(
             jsonPath("$.mergeResult.quantitiesAdjusted[0].requestedTotal") { value(12) }
             jsonPath("$.mergeResult.quantitiesAdjusted[0].adjustedTo") { value(10) }
             jsonPath("$.mergeResult.quantitiesAdjusted[0].reason") { value("MAX_ORDER_QUANTITY") }
-        }
+        }.andReturn()
 
         assertEquals(MergeCartsCommand(userId, sessionId), captured.captured)
+        assertEquals(null, result.response.getHeader(HttpHeaders.SET_COOKIE))
+        verify(exactly = 0) { cartRepository.touchGuestCart(any(), any(), any()) }
     }
 
     @Test

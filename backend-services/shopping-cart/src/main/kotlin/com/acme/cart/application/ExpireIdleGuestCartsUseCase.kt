@@ -75,8 +75,8 @@ class ExpireIdleGuestCartsUseCase(
         const val EXPIRED_METRIC = "cart.expired"
 
         /**
-         * A guest viewing their cart refreshes its activity at most this often (see
-         * `CartController.getCurrent`), so expiry allows the same grace. One constant keeps both
+         * A guest's cart requests refresh its activity at most this often (see
+         * `GuestSessionInterceptor`), so expiry allows the same grace. One constant keeps both
          * sides in step.
          */
         val ACTIVITY_REFRESH_INTERVAL: Duration = Duration.ofDays(1)
