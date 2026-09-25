@@ -58,7 +58,7 @@ acme:
       initial-delay: ${ACME_CART_EXPIRY_INITIAL_DELAY:PT5M}
       interval: ${ACME_CART_EXPIRY_INTERVAL:PT1H}
     # How long EXPIRED and MERGED carts are kept before they are deleted (PIN-289; answers
-    # Epic 009's open question 5). One period for both, measured from expiry or merge.
+    # Epic 009's open question 4). One period for both, measured from expiry or merge.
     retention: ${ACME_CART_RETENTION:90d}
     purge:
       # The job that deletes carts past retention (PIN-289); ISO-8601 durations

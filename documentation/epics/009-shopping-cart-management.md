@@ -549,10 +549,10 @@ Capture cart behavior data for business intelligence.
 
 ## Open Questions
 
-1. What is the appropriate cart expiration threshold for this business?
+1. What is the appropriate cart expiration threshold for this business? *Answered by PIN-287: a guest cart expires after 30 days without a cart request (`acme.cart.guest-ttl`), plus a day of grace.*
 2. Should cart merging prefer guest cart items, user cart items, or combine both?
 3. What inventory reservation strategy should be used during checkout?
-4. How long should abandoned cart data be retained for analytics?
+4. How long should abandoned cart data be retained for analytics? *Answered by PIN-289: EXPIRED and MERGED carts are deleted 90 days after they expire or merge (`acme.cart.retention`). One period covers both for now.*
 5. What are the specific promotion stacking rules for this platform?
 
 ## Glossary
