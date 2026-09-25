@@ -202,16 +202,25 @@ sequenceDiagram
   `cart.expired`). Rows are kept (Epic 009: soft delete with retention); user and MERGED
   carts never expire. `acme.cart.expiry.enabled=false` turns the job off. Because the cookie
   is always gone before the cart expires, a returning guest just gets a first-visit cart.
-  Race: `Cart` has no `@Version`, so an add that loaded the cart just before the job expired
-  it saves it back as ACTIVE. The customer keeps their cart; the only cost is a
-  `CartExpired` event for a cart that is active again.
+  The expiry UPDATE bumps the cart's version, so an add that loaded the cart just before
+  the job expired it cannot save it back as ACTIVE; its retry starts a new cart (PIN-278).
+- **Concurrent changes** (PIN-278): `carts.version` (V5) is an optimistic lock, mapped with
+  `@Version` on `Cart`. Only the aggregate root is versioned: every change goes through
+  `Cart.touch()`, so the row, and its version, moves even when only a line changed. Add,
+  update, remove and merge are wrapped in `retryOnConflict`, which reruns the whole operation
+  once against a fresh read. A PATCH that raced a DELETE of the same line then answers 404
+  `CART_ITEM_NOT_FOUND`, which the cart page reloads on quietly. A second conflict in a row
+  is a 409 `CART_CONFLICT`: the page reloads the cart and shows the message. Events are
+  published after the transaction, so a failed attempt publishes nothing. The once-a-day
+  activity touch deliberately leaves the version alone, so a page view in one tab never
+  conflicts with a change in another.
 - **Retention** (PIN-289): every 6 hours, `CartPurgeScheduledTasks` runs
   `PurgeFinalCartsUseCase`, which deletes EXPIRED and MERGED carts whose `updated_at` (set
   when they expired or merged) is older than `acme.cart.retention` (default `90d`). Their
   lines go too, through the `cart_items` foreign key's `ON DELETE CASCADE`. It is built like
   the expiry job: a projection scan (partial index `ix_carts_final`, V4) and a conditional
-  DELETE per cart that re-checks it is still final and old enough, so a cart that became
-  ACTIVE again is kept. `CartPurged` is published only for carts it deleted (counted as
+  DELETE per cart that re-checks it is still final and old enough, so a cart that is no
+  longer final is kept. `CartPurged` is published only for carts it deleted (counted as
   `cart.purged`). ACTIVE carts are never deleted. `acme.cart.purge.enabled=false` turns the
   job off. Debezium only captures `acme_orders`, so these deletes emit no change events.
   The scheduler has two threads (`spring.task.scheduling.pool.size`), so a slow purge run
