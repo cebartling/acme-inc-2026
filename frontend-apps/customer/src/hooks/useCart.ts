@@ -46,9 +46,24 @@ export function isLineGone(error: unknown): boolean {
   );
 }
 
-/** Reloads the cart when the line is gone, so the page shows what is actually there. */
-function reloadIfLineGone(queryClient: QueryClient, error: Error) {
-  if (isLineGone(error)) {
+/**
+ * The change lost to a concurrent change of the same cart, even after the service retried
+ * it once (PIN-278). The cart on screen is stale; the line shows the service's message.
+ */
+function isCartConflict(error: unknown): boolean {
+  return (
+    error instanceof ApiError &&
+    error.status === 409 &&
+    error.data?.code === "CART_CONFLICT"
+  );
+}
+
+/**
+ * Reloads the cart when the page's copy is stale: the line is gone, or a concurrent change
+ * won. The page then shows what is actually there.
+ */
+function reloadIfStale(queryClient: QueryClient, error: Error) {
+  if (isLineGone(error) || isCartConflict(error)) {
     void queryClient.invalidateQueries({ queryKey: CART_QUERY_KEY });
   }
 }
@@ -91,7 +106,7 @@ export function useUpdateCartItem() {
       }
     },
     onSuccess: ({ cart }) => writeCart(queryClient, cart),
-    onError: (error) => reloadIfLineGone(queryClient, error),
+    onError: (error) => reloadIfStale(queryClient, error),
   });
 }
 
@@ -102,7 +117,7 @@ export function useRemoveCartItem() {
   return useMutation<Cart, Error, { cartId: string; itemId: string }>({
     mutationFn: ({ cartId, itemId }) => cartApi.removeItem(cartId, itemId),
     onSuccess: (cart) => writeCart(queryClient, cart),
-    onError: (error) => reloadIfLineGone(queryClient, error),
+    onError: (error) => reloadIfStale(queryClient, error),
   });
 }
 
