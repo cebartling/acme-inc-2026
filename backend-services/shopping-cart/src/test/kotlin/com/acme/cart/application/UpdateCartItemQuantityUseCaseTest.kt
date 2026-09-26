@@ -13,6 +13,9 @@ import com.acme.cart.domain.events.DomainEvent
 import com.acme.cart.infrastructure.messaging.CartEventPublisher
 import com.acme.cart.infrastructure.persistence.CartRepository
 import com.acme.cart.infrastructure.product.ProductPricingClient
+import org.springframework.orm.ObjectOptimisticLockingFailureException
+import kotlin.test.assertFailsWith
+import com.acme.cart.domain.CartItem
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -100,5 +103,36 @@ class UpdateCartItemQuantityUseCaseTest {
 
         assertEquals(CartError.PricingUnavailable(variantId), useCase.execute(command(3)).leftOrNull())
         assertEquals(2, item.quantity)
+    }
+
+    // --- PIN-278: a version conflict is retried once ------------------------------------------
+
+    private fun conflict() = ObjectOptimisticLockingFailureException(Cart::class.java, cart.id)
+
+    /** What a retry reads: the committed cart, not the copy the failed attempt changed. */
+    private fun freshCart() = Cart(id = cart.id, sessionId = "sess-1").also {
+        it.items += CartItem(item.id, it, variantId, 2, BigDecimal("119.99"), "{}")
+    }
+
+    @Test
+    fun `a version conflict is retried once against a fresh read, and published once`() {
+        every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } answers { freshCart() }
+        every { cartRepository.save(any()) } throws conflict() andThenAnswer { firstArg() }
+
+        val updated = useCase.execute(command(3)).getOrNull()!!
+
+        assertEquals(3, updated.items.single().quantity)
+        assertEquals(1, published.size)
+        verify(exactly = 2) { cartRepository.save(any()) }
+    }
+
+    @Test
+    fun `a second conflict in a row is left to the caller, and nothing is published`() {
+        every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } answers { freshCart() }
+        every { cartRepository.save(any()) } throws conflict()
+
+        assertFailsWith<ObjectOptimisticLockingFailureException> { useCase.execute(command(3)) }
+        assertEquals(emptyList(), published)
+        verify(exactly = 2) { cartRepository.save(any()) }
     }
 }

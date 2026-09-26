@@ -26,7 +26,10 @@ class RemoveCartItemUseCase(
 ) {
     private val logger = LoggerFactory.getLogger(RemoveCartItemUseCase::class.java)
 
-    fun execute(command: RemoveCartItemCommand, correlationId: UUID = UUID.randomUUID()): Either<CartError, Cart> {
+    fun execute(command: RemoveCartItemCommand, correlationId: UUID = UUID.randomUUID()): Either<CartError, Cart> =
+        retryOnConflict("Remove cart item") { removeOnce(command, correlationId) }
+
+    private fun removeOnce(command: RemoveCartItemCommand, correlationId: UUID): Either<CartError, Cart> {
         val result = transactionTemplate.execute {
             val cart = cartRepository.findOwnedCart(command.owner, command.cartId)
                 ?: return@execute CartError.CartItemNotFound(command.itemId).left()

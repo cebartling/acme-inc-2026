@@ -202,16 +202,30 @@ sequenceDiagram
   `cart.expired`). Rows are kept (Epic 009: soft delete with retention); user and MERGED
   carts never expire. `acme.cart.expiry.enabled=false` turns the job off. Because the cookie
   is always gone before the cart expires, a returning guest just gets a first-visit cart.
-  Race: `Cart` has no `@Version`, so an add that loaded the cart just before the job expired
-  it saves it back as ACTIVE. The customer keeps their cart; the only cost is a
-  `CartExpired` event for a cart that is active again.
+  The expiry UPDATE bumps the cart's version, so an add that loaded the cart just before
+  the job expired it cannot save it back as ACTIVE; its retry starts a new cart (PIN-278).
+- **Concurrent changes** (PIN-278): `carts.version` (V5) is an optimistic lock, mapped with
+  `@Version` on `Cart`. Only the aggregate root is versioned: every change goes through
+  `Cart.touch()`, so the row, and its version, moves even when only a line changed. Add,
+  update, remove and merge are wrapped in `retryOnConflict`, which reruns the change once
+  against a fresh read: the transaction only for add, update and remove (a line's price does
+  not depend on the cart), the whole merge (its prices depend on the guest cart's lines).
+  Hibernate inserts new rows before it checks the version, so two first adds that each create
+  the cart, or two adds of the same new variant, lose on a unique key (SQLSTATE 23505)
+  instead; `retryOnConflict` treats that as the same conflict. A PATCH that raced a DELETE of
+  the same line then answers 404 `CART_ITEM_NOT_FOUND`, which the cart page reloads on
+  quietly. A second conflict in a row is a 409 `CART_CONFLICT` (logged as a warning): the
+  cart page, and an add to cart, reload the cart, and the message is shown. Events are
+  published after the transaction, so a failed attempt publishes nothing. The once-a-day
+  activity touch deliberately leaves the version alone, so a page view in one tab never
+  conflicts with a change in another.
 - **Retention** (PIN-289): every 6 hours, `CartPurgeScheduledTasks` runs
   `PurgeFinalCartsUseCase`, which deletes EXPIRED and MERGED carts whose `updated_at` (set
   when they expired or merged) is older than `acme.cart.retention` (default `90d`). Their
   lines go too, through the `cart_items` foreign key's `ON DELETE CASCADE`. It is built like
   the expiry job: a projection scan (partial index `ix_carts_final`, V4) and a conditional
-  DELETE per cart that re-checks it is still final and old enough, so a cart that became
-  ACTIVE again is kept. `CartPurged` is published only for carts it deleted (counted as
+  DELETE per cart that re-checks it is still final and old enough, so a cart that is no
+  longer final is kept. `CartPurged` is published only for carts it deleted (counted as
   `cart.purged`). ACTIVE carts are never deleted. `acme.cart.purge.enabled=false` turns the
   job off. Debezium only captures `acme_orders`, so these deletes emit no change events.
   The scheduler has two threads (`spring.task.scheduling.pool.size`), so a slow purge run

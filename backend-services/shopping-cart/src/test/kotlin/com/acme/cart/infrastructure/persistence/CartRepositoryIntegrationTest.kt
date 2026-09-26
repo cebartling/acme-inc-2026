@@ -1,6 +1,7 @@
 package com.acme.cart.infrastructure.persistence
 
 import org.springframework.dao.DataIntegrityViolationException
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.assertThrows
 import com.acme.cart.domain.CartStatus
 import com.acme.cart.domain.Cart
@@ -16,7 +17,14 @@ import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
 import org.testcontainers.postgresql.PostgreSQLContainer
 import org.springframework.data.domain.PageRequest
+import org.springframework.orm.ObjectOptimisticLockingFailureException
+import org.springframework.transaction.PlatformTransactionManager
+import org.springframework.transaction.TransactionDefinition
+import org.springframework.transaction.annotation.Propagation
+import org.springframework.transaction.annotation.Transactional
+import org.springframework.transaction.support.TransactionTemplate
 import java.math.BigDecimal
+import java.sql.SQLException
 import java.time.Duration
 import java.time.Instant
 import java.util.UUID
@@ -54,6 +62,9 @@ class CartRepositoryIntegrationTest {
 
     @Autowired
     private lateinit var entityManager: EntityManager
+
+    @Autowired
+    private lateinit var transactionManager: PlatformTransactionManager
 
     private val pricing = VariantPricing(BigDecimal("69.99"))
     private val snapshot = """{"name":"ACME Gaming Mouse Pro"}"""
@@ -324,5 +335,111 @@ class CartRepositoryIntegrationTest {
             assertEquals(0, carts.deleteIfFinalBefore(it.id, retentionCutoff))
             assertEquals(1, rowCount("select count(*) from carts where id = :id", it.id))
         }
+    }
+
+    // --- PIN-278: optimistic locking on the cart ---------------------------------------------
+    // These tests run outside the test-managed transaction, so each block below commits for
+    // real. Only then can two transactions disagree about a cart's version.
+
+    private fun inTransaction() = TransactionTemplate(transactionManager)
+
+    /** Commits on its own, even when called inside [inTransaction]: the concurrent request. */
+    private fun concurrently() = TransactionTemplate(transactionManager).apply {
+        propagationBehavior = TransactionDefinition.PROPAGATION_REQUIRES_NEW
+    }
+
+    private fun versionOf(id: UUID): Long =
+        (entityManager.createNativeQuery("select version from carts where id = :id")
+            .setParameter("id", id).singleResult as Number).toLong()
+
+    /**
+     * What these tests committed must not leak into the other tests, which only roll back. Its
+     * own transaction, so it also runs after a test whose transaction a violation aborted.
+     */
+    @AfterEach
+    fun deleteCommittedCarts() {
+        concurrently().execute {
+            entityManager.createNativeQuery("delete from carts where session_id like 'sess-version-%'").executeUpdate()
+        }
+    }
+
+    /** Hibernate inserts the line before it checks the version: `retryOnConflict` relies on 23505. */
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    fun `two adds of the same new variant collide on the line's unique key, before the version check`() {
+        carts.saveAndFlush(Cart(id = UUID.randomUUID(), sessionId = "sess-version-same-variant"))
+        val variantId = UUID.randomUUID()
+
+        val collision = assertThrows<DataIntegrityViolationException> {
+            inTransaction().execute {
+                val mine = carts.findBySessionIdAndStatus("sess-version-same-variant", CartStatus.ACTIVE)!!
+                concurrently().execute {
+                    val theirs = carts.findBySessionIdAndStatus("sess-version-same-variant", CartStatus.ACTIVE)!!
+                    theirs.addItem(variantId, 1, pricing, snapshot, 10)
+                    carts.save(theirs)
+                }
+                mine.addItem(variantId, 1, pricing, snapshot, 10)
+                carts.save(mine)
+            }
+        }
+        assertEquals("23505", (collision.mostSpecificCause as SQLException).sqlState)
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    fun `a new cart is saved as a new row at version 0`() {
+        val cart = carts.saveAndFlush(Cart(id = UUID.randomUUID(), sessionId = "sess-version-new"))
+
+        assertEquals(0L, versionOf(cart.id))
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    fun `an update that loaded the cart before a concurrent remove is rejected, not a 500`() {
+        val cart = Cart(id = UUID.randomUUID(), sessionId = "sess-version-race")
+        val line = cart.addItem(UUID.randomUUID(), 2, pricing, snapshot, 10).getOrNull()!!
+        carts.saveAndFlush(cart)
+
+        assertThrows<ObjectOptimisticLockingFailureException> {
+            inTransaction().execute {
+                val mine = carts.findBySessionIdAndStatus("sess-version-race", CartStatus.ACTIVE)!!
+                concurrently().execute {
+                    val theirs = carts.findBySessionIdAndStatus("sess-version-race", CartStatus.ACTIVE)!!
+                    theirs.removeItem(line.id)
+                    carts.save(theirs)
+                }
+                mine.updateItemQuantity(line.id, 3, pricing, 10)
+                carts.save(mine)
+            }
+        }
+        assertEquals(0, rowCount("select count(*) from cart_items where cart_id = :id", cart.id))
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    fun `an add that loaded the cart before the expiry job expired it cannot revive it`() {
+        val idle = guestCart("sess-version-expired", longAgo)
+
+        assertThrows<ObjectOptimisticLockingFailureException> {
+            inTransaction().execute {
+                val mine = carts.findBySessionIdAndStatus("sess-version-expired", CartStatus.ACTIVE)!!
+                concurrently().execute { carts.expireIfIdle(idle.id, cutoff, now) }
+                mine.addItem(UUID.randomUUID(), 1, pricing, snapshot, 10)
+                carts.save(mine)
+            }
+        }
+        entityManager.clear()
+        assertEquals(CartStatus.EXPIRED, carts.findById(idle.id).get().status)
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    fun `the activity touch does not change the version, so a view never conflicts with a change`() {
+        val cart = guestCart("sess-version-touch", now.minus(Duration.ofDays(2)))
+        val before = versionOf(cart.id)
+
+        assertEquals(1, carts.touchGuestCart("sess-version-touch", now, now.minus(Duration.ofDays(1))))
+
+        assertEquals(before, versionOf(cart.id))
     }
 }

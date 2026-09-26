@@ -225,6 +225,33 @@ describe("CartPage", () => {
     );
   });
 
+  it("reloads the cart and explains when a change conflicts with another (409)", async () => {
+    mockedGetCurrent.mockResolvedValue(cartOf(line(2, 119.99)));
+    mockedUpdate.mockRejectedValue(
+      new ApiError(
+        "Your cart was changed at the same time. Please try again.",
+        409,
+        {
+          error: "Your cart was changed at the same time. Please try again.",
+          code: "CART_CONFLICT",
+        },
+      ),
+    );
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Increase quantity of Gadget Pro (Black)",
+      }),
+    );
+
+    expect(await screen.findByTestId("lineMessage")).toHaveTextContent(
+      "Your cart was changed at the same time. Please try again.",
+    );
+    await vi.waitFor(() => expect(mockedGetCurrent).toHaveBeenCalledTimes(2));
+  });
+
   it("shows the latest action's error, not an older one", async () => {
     mockedGetCurrent.mockResolvedValue(cartOf(line(2, 119.99)));
     mockedUpdate.mockRejectedValue(new ApiError("Pricing unavailable", 503));

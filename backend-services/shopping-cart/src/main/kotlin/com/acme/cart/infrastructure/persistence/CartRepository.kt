@@ -38,6 +38,9 @@ interface CartRepository : JpaRepository<Cart, UUID> {
     /**
      * Marks the session's ACTIVE cart as in use, but only if its activity is older than
      * [staleBefore], so a guest's page views write at most once a day. Returns 1 if it did.
+     *
+     * Deliberately leaves the version alone (PIN-278): activity is not a change to the cart,
+     * and bumping it would make a page view in one tab conflict with a change in another.
      */
     @Transactional
     @Modifying(flushAutomatically = true, clearAutomatically = true)
@@ -66,11 +69,15 @@ interface CartRepository : JpaRepository<Cart, UUID> {
      * Expires one cart if it is still an idle ACTIVE guest cart. The conditions are re-checked
      * in the UPDATE itself, so a cart that saw activity after it was found is left alone, and
      * two runs never expire the same cart twice. Returns 1 if this call expired it.
+     *
+     * Bumps the version (PIN-278), so a request that loaded the cart before it expired cannot
+     * save it back as ACTIVE; its retry finds no active cart and starts a new one.
      */
     @Transactional
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query(
-        """UPDATE Cart c SET c.status = com.acme.cart.domain.CartStatus.EXPIRED, c.updatedAt = :now
+        """UPDATE Cart c SET c.status = com.acme.cart.domain.CartStatus.EXPIRED, c.updatedAt = :now,
+               c.version = c.version + 1
            WHERE c.id = :id AND c.sessionId IS NOT NULL
              AND c.status = com.acme.cart.domain.CartStatus.ACTIVE AND c.lastActiveAt < :cutoff"""
     )
@@ -90,8 +97,8 @@ interface CartRepository : JpaRepository<Cart, UUID> {
 
     /**
      * Deletes one cart if it is still EXPIRED or MERGED and final since before [cutoff]. The
-     * conditions are re-checked in the DELETE itself, so a cart that became ACTIVE again
-     * (PIN-287's add-versus-expiry race) is kept, and two runs never delete twice. Its lines
+     * conditions are re-checked in the DELETE itself, so a cart that is no longer final is
+     * kept, and two runs never delete twice. Its lines
      * go with it through the `cart_items` foreign key's ON DELETE CASCADE. Returns 1 if this
      * call deleted it.
      */
