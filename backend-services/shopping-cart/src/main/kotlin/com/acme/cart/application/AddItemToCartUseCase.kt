@@ -55,26 +55,26 @@ class AddItemToCartUseCase(
     private val returningSessionNewCarts = meterRegistry.counter(RETURNING_SESSION_NEW_CART_METRIC)
 
     fun execute(command: AddItemToCartCommand, correlationId: UUID = UUID.randomUUID()): Either<CartError, Cart> =
-        retryOnConflict("Add item to cart") { addOnce(command, correlationId) }
-
-    private fun addOnce(command: AddItemToCartCommand, correlationId: UUID): Either<CartError, Cart> =
         pricingClient.getPricing(command.variantId).flatMap { pricing ->
-            val result = transactionTemplate.execute {
-                val existing = cartRepository.findActiveCart(command.owner)
-                val cart = existing ?: newCartFor(command.owner)
+            // The price does not depend on the cart, so only the transaction is retried (PIN-278).
+            retryOnConflict("Add item to cart") {
+                val result = transactionTemplate.execute {
+                    val existing = cartRepository.findActiveCart(command.owner)
+                    val cart = existing ?: newCartFor(command.owner)
 
-                cart.addItem(
-                    variantId = command.variantId,
-                    quantity = command.quantity,
-                    pricing = pricing,
-                    productSnapshot = objectMapper.writeValueAsString(command.productSnapshot),
-                    maxQuantity = maxOrderQuantity
-                ).map { item ->
-                    val saved = cartRepository.save(cart)
-                    Added(saved, item, isNewCart = existing == null)
+                    cart.addItem(
+                        variantId = command.variantId,
+                        quantity = command.quantity,
+                        pricing = pricing,
+                        productSnapshot = objectMapper.writeValueAsString(command.productSnapshot),
+                        maxQuantity = maxOrderQuantity
+                    ).map { item ->
+                        val saved = cartRepository.save(cart)
+                        Added(saved, item, isNewCart = existing == null)
+                    }
                 }
+                checkNotNull(result) { "transaction for ${command.owner} returned no result" }
             }
-            checkNotNull(result) { "transaction for ${command.owner} returned no result" }
         }.map { added ->
             publishEvents(added, command, correlationId)
             if (added.isNewCart) recordReturningSessionNewCart(command.owner, command.startedNewSession, added.cart)

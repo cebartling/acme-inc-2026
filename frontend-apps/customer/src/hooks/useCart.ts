@@ -62,7 +62,7 @@ function isCartConflict(error: unknown): boolean {
  * Reloads the cart when the page's copy is stale: the line is gone, or a concurrent change
  * won. The page then shows what is actually there.
  */
-function reloadIfStale(queryClient: QueryClient, error: Error) {
+export function reloadIfStale(queryClient: QueryClient, error: Error) {
   if (isLineGone(error) || isCartConflict(error)) {
     void queryClient.invalidateQueries({ queryKey: CART_QUERY_KEY });
   }

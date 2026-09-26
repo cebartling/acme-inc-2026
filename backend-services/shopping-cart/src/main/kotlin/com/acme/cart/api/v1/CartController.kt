@@ -16,6 +16,7 @@ import com.acme.cart.domain.ProductSnapshot
 import com.acme.cart.infrastructure.persistence.CartRepository
 import com.fasterxml.jackson.databind.ObjectMapper
 import jakarta.validation.Valid
+import org.slf4j.LoggerFactory
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -45,6 +46,7 @@ class CartController(
     private val objectMapper: ObjectMapper,
     private val guestSessionCookies: GuestSessionCookies
 ) {
+    private val logger = LoggerFactory.getLogger(CartController::class.java)
 
     /**
      * Adds an item to the caller's cart (US-0004-06).
@@ -154,10 +156,13 @@ class CartController(
      * already retried once (PIN-278). 409, so the client reloads the cart instead of a 500.
      */
     @ExceptionHandler(ObjectOptimisticLockingFailureException::class)
-    fun cartConflict(): ResponseEntity<Any> =
-        ResponseEntity.status(HttpStatus.CONFLICT).body(
+    fun cartConflict(conflict: ObjectOptimisticLockingFailureException): ResponseEntity<Any> {
+        // Not the message: a unique-key race's names the key, which can be the session ID.
+        logger.warn("A cart change lost to concurrent changes twice in a row; answering 409 ({})", conflict.javaClass.simpleName)
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(
             mapOf("error" to "Your cart was changed at the same time. Please try again.", "code" to CART_CONFLICT)
         )
+    }
 
     private fun toResponse(cart: Cart) =
         CartResponse.from(cart) { objectMapper.readValue(it, ProductSnapshot::class.java) }

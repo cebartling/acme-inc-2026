@@ -97,8 +97,8 @@ interface CartRepository : JpaRepository<Cart, UUID> {
 
     /**
      * Deletes one cart if it is still EXPIRED or MERGED and final since before [cutoff]. The
-     * conditions are re-checked in the DELETE itself, so a cart that became ACTIVE again
-     * (PIN-287's add-versus-expiry race) is kept, and two runs never delete twice. Its lines
+     * conditions are re-checked in the DELETE itself, so a cart that is no longer final is
+     * kept, and two runs never delete twice. Its lines
      * go with it through the `cart_items` foreign key's ON DELETE CASCADE. Returns 1 if this
      * call deleted it.
      */

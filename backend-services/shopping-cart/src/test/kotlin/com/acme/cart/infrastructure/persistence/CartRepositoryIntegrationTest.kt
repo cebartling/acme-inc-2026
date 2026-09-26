@@ -1,6 +1,7 @@
 package com.acme.cart.infrastructure.persistence
 
 import org.springframework.dao.DataIntegrityViolationException
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.assertThrows
 import com.acme.cart.domain.CartStatus
 import com.acme.cart.domain.Cart
@@ -23,6 +24,7 @@ import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.transaction.support.TransactionTemplate
 import java.math.BigDecimal
+import java.sql.SQLException
 import java.time.Duration
 import java.time.Instant
 import java.util.UUID
@@ -349,6 +351,39 @@ class CartRepositoryIntegrationTest {
     private fun versionOf(id: UUID): Long =
         (entityManager.createNativeQuery("select version from carts where id = :id")
             .setParameter("id", id).singleResult as Number).toLong()
+
+    /**
+     * What these tests committed must not leak into the other tests, which only roll back. Its
+     * own transaction, so it also runs after a test whose transaction a violation aborted.
+     */
+    @AfterEach
+    fun deleteCommittedCarts() {
+        concurrently().execute {
+            entityManager.createNativeQuery("delete from carts where session_id like 'sess-version-%'").executeUpdate()
+        }
+    }
+
+    /** Hibernate inserts the line before it checks the version: `retryOnConflict` relies on 23505. */
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    fun `two adds of the same new variant collide on the line's unique key, before the version check`() {
+        carts.saveAndFlush(Cart(id = UUID.randomUUID(), sessionId = "sess-version-same-variant"))
+        val variantId = UUID.randomUUID()
+
+        val collision = assertThrows<DataIntegrityViolationException> {
+            inTransaction().execute {
+                val mine = carts.findBySessionIdAndStatus("sess-version-same-variant", CartStatus.ACTIVE)!!
+                concurrently().execute {
+                    val theirs = carts.findBySessionIdAndStatus("sess-version-same-variant", CartStatus.ACTIVE)!!
+                    theirs.addItem(variantId, 1, pricing, snapshot, 10)
+                    carts.save(theirs)
+                }
+                mine.addItem(variantId, 1, pricing, snapshot, 10)
+                carts.save(mine)
+            }
+        }
+        assertEquals("23505", (collision.mostSpecificCause as SQLException).sqlState)
+    }
 
     @Test
     @Transactional(propagation = Propagation.NOT_SUPPORTED)

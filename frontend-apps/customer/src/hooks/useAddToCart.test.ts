@@ -104,4 +104,33 @@ describe("useAddToCart", () => {
     );
     expect(queryClient.getQueryData(CART_QUERY_KEY)).toBeUndefined();
   });
+
+  it("marks the cached cart stale when a concurrent change won (409)", async () => {
+    mockedAvailability.mockResolvedValue({
+      variantId: "variant-1",
+      availability: "IN_STOCK",
+    });
+    mockedAddItem.mockRejectedValue(
+      new ApiError(
+        "Your cart was changed at the same time. Please try again.",
+        409,
+        {
+          code: "CART_CONFLICT",
+        },
+      ),
+    );
+    const { result } = renderHook(() => useAddToCart(), {
+      wrapper: makeWrapper(),
+    });
+    queryClient.setQueryData(CART_QUERY_KEY, cart);
+
+    act(() => result.current.mutate(request));
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    await waitFor(() =>
+      expect(queryClient.getQueryState(CART_QUERY_KEY)?.isInvalidated).toBe(
+        true,
+      ),
+    );
+  });
 });

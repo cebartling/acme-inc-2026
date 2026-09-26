@@ -41,22 +41,23 @@ class UpdateCartItemQuantityUseCase(
 ) {
     private val logger = LoggerFactory.getLogger(UpdateCartItemQuantityUseCase::class.java)
 
-    fun execute(command: UpdateCartItemQuantityCommand, correlationId: UUID = UUID.randomUUID()): Either<CartError, Cart> =
-        retryOnConflict("Update cart item quantity") { updateOnce(command, correlationId) }
-
-    private fun updateOnce(command: UpdateCartItemQuantityCommand, correlationId: UUID): Either<CartError, Cart> {
+    fun execute(command: UpdateCartItemQuantityCommand, correlationId: UUID = UUID.randomUUID()): Either<CartError, Cart> {
         val variantId = cartRepository.findOwnedCart(command.owner, command.cartId)
             ?.items?.find { it.id == command.itemId }?.variantId
             ?: return CartError.CartItemNotFound(command.itemId).left()
 
         return pricingClient.getPricing(variantId).flatMap { pricing ->
-            val result = transactionTemplate.execute {
-                val cart = cartRepository.findOwnedCart(command.owner, command.cartId)
-                    ?: return@execute CartError.CartItemNotFound(command.itemId).left()
-                cart.updateItemQuantity(command.itemId, command.quantity, pricing, maxOrderQuantity)
-                    .map { change -> cartRepository.save(cart) to change }
+            // A line's variant never changes, so neither does its price: only the transaction is
+            // retried (PIN-278), and its read finds the line gone if a concurrent remove won.
+            retryOnConflict("Update cart item quantity") {
+                val result = transactionTemplate.execute {
+                    val cart = cartRepository.findOwnedCart(command.owner, command.cartId)
+                        ?: return@execute CartError.CartItemNotFound(command.itemId).left()
+                    cart.updateItemQuantity(command.itemId, command.quantity, pricing, maxOrderQuantity)
+                        .map { change -> cartRepository.save(cart) to change }
+                }
+                checkNotNull(result) { "transaction for cart ${command.cartId} returned no result" }
             }
-            checkNotNull(result) { "transaction for cart ${command.cartId} returned no result" }
         }.map { (cart, change) ->
             // A same-quantity request (e.g. the client's clamp retry at the max) is not a change.
             if (change.previousQuantity != change.item.quantity) {
