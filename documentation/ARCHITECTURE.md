@@ -219,6 +219,11 @@ sequenceDiagram
   published after the transaction, so a failed attempt publishes nothing. The once-a-day
   activity touch deliberately leaves the version alone, so a page view in one tab never
   conflicts with a change in another.
+- **No open session outside a transaction** (PIN-296): `spring.jpa.open-in-view` is off, as
+  in the customer, identity and notification services, so a read inside a use case's
+  transaction is fresh rather than the copy the request loaded earlier. Every lookup used
+  outside a transaction fetches the cart's lines with an entity graph, and
+  `CartResponsesOutsideSessionTest` pins that the responses need no session.
 - **Retention** (PIN-289): every 6 hours, `CartPurgeScheduledTasks` runs
   `PurgeFinalCartsUseCase`, which deletes EXPIRED and MERGED carts whose `updated_at` (set
   when they expired or merged) is older than `acme.cart.retention` (default `90d`). Their
