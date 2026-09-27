@@ -183,7 +183,7 @@ class CartController(
 
     private fun statusFor(error: CartError): HttpStatus = when (error) {
         is CartError.MaxQuantityExceeded -> HttpStatus.UNPROCESSABLE_CONTENT
-        is CartError.VariantNotFound, is CartError.CartItemNotFound -> HttpStatus.NOT_FOUND
+        is CartError.VariantNotFound, is CartError.CartItemNotFound, is CartError.CartNotFound -> HttpStatus.NOT_FOUND
         is CartError.PricingUnavailable -> HttpStatus.SERVICE_UNAVAILABLE
     }
 
@@ -191,6 +191,7 @@ class CartController(
         is CartError.MaxQuantityExceeded -> "MAX_QUANTITY_EXCEEDED"
         is CartError.VariantNotFound -> "VARIANT_NOT_FOUND"
         is CartError.CartItemNotFound -> "CART_ITEM_NOT_FOUND"
+        is CartError.CartNotFound -> "CART_NOT_FOUND"
         is CartError.PricingUnavailable -> "PRICING_UNAVAILABLE"
     }
 

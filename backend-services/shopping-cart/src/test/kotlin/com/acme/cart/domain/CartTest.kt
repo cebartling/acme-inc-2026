@@ -123,6 +123,37 @@ class CartTest {
         assertEquals(0, cart.itemCount)
     }
 
+    // --- PIN-294: clear the entire cart -------------------------------------------------
+
+    @Test
+    fun `clearing removes every line and keeps the cart`() {
+        val cart = newCart()
+        val first = cart.add(2).getOrNull()!!
+        val second = cart.addItem(UUID.randomUUID(), 1, basePricing, """{"name":"Pad"}""", 10).getOrNull()!!
+        val cleared = java.time.Instant.parse("2026-09-01T00:00:00Z")
+
+        val removed = cart.clear(now = cleared)
+
+        assertEquals(listOf(first, second), removed)
+        assertEquals(emptyList(), cart.items)
+        assertEquals(0, cart.itemCount)
+        assertEquals(CartStatus.ACTIVE, cart.status)
+        assertEquals(cleared, cart.lastActiveAt)
+        assertEquals(cleared, cart.updatedAt)
+    }
+
+    @Test
+    fun `clearing an empty cart changes nothing`() {
+        val cart = newCart()
+        val before = cart.updatedAt
+
+        val removed = cart.clear(now = before.plusSeconds(60))
+
+        assertEquals(emptyList(), removed)
+        assertEquals(before, cart.updatedAt)
+        assertEquals(before, cart.lastActiveAt)
+    }
+
     @Test
     fun `a cart belongs to exactly one of a session or a user`() {
         assertThrows<IllegalArgumentException> { Cart(id = UUID.randomUUID()) }

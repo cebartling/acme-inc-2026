@@ -148,6 +148,18 @@ class Cart(
     }
 
     /**
+     * Removes every line (PIN-294), leaving an empty cart that still belongs to its owner.
+     * Clearing an empty cart changes nothing. Returns the removed lines.
+     */
+    fun clear(now: Instant = Instant.now()): List<CartItem> {
+        if (items.isEmpty()) return emptyList()
+        val removed = items.toList()
+        items.clear()
+        touch(now)
+        return removed
+    }
+
+    /**
      * Moves a guest cart's lines into this (the signed-in user's) cart (US-0004-08).
      *
      * A variant in both carts becomes one line with the quantities summed (AC-03), capped at
