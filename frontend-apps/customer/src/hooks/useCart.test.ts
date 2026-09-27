@@ -5,6 +5,7 @@ import React from "react";
 import {
   CART_QUERY_KEY,
   mergeCartAfterSignIn,
+  useClearCart,
   useRemoveCartItem,
   useUpdateCartItem,
 } from "./useCart";
@@ -15,11 +16,17 @@ import { ApiError, cartApi } from "@/services/api";
 
 vi.mock("@/services/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/services/api")>()),
-  cartApi: { updateItem: vi.fn(), removeItem: vi.fn(), merge: vi.fn() },
+  cartApi: {
+    updateItem: vi.fn(),
+    removeItem: vi.fn(),
+    clearCart: vi.fn(),
+    merge: vi.fn(),
+  },
 }));
 
 const mockedUpdate = vi.mocked(cartApi.updateItem);
 const mockedRemove = vi.mocked(cartApi.removeItem);
+const mockedClear = vi.mocked(cartApi.clearCart);
 
 let queryClient: QueryClient;
 
@@ -138,6 +145,40 @@ describe("useRemoveCartItem", () => {
     expect(queryClient.getQueryData(CART_QUERY_KEY)).toEqual(
       cartWithQuantity(0),
     );
+  });
+});
+
+describe("useClearCart", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("clears the cart and caches the returned empty cart", async () => {
+    mockedClear.mockResolvedValue(cartWithQuantity(0));
+    const { result } = renderHook(() => useClearCart(), {
+      wrapper: makeWrapper(),
+    });
+
+    act(() => result.current.mutate({ cartId: "cart-1" }));
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(mockedClear).toHaveBeenCalledWith("cart-1");
+    expect(queryClient.getQueryData(CART_QUERY_KEY)).toEqual(
+      cartWithQuantity(0),
+    );
+  });
+
+  it("reloads the cart when the service no longer has it", async () => {
+    mockedClear.mockRejectedValue(
+      new ApiError("Cart not found", 404, { code: "CART_NOT_FOUND" }),
+    );
+    const { result } = renderHook(() => useClearCart(), {
+      wrapper: makeWrapper(),
+    });
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+
+    act(() => result.current.mutate({ cartId: "cart-1" }));
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: CART_QUERY_KEY });
   });
 });
 
