@@ -44,6 +44,13 @@ When('I remove the line', async function (this: CustomWorld) {
   await cartPage(this).removeButton.click();
 });
 
+// PIN-294: Clear cart asks for confirmation first.
+When('I clear the cart and confirm', async function (this: CustomWorld) {
+  const page = cartPage(this);
+  await page.clearCartButton.click();
+  await page.confirmClearCartButton.click();
+});
+
 Then(
   'the browser should hold an HttpOnly SameSite=Lax session cookie for about {int} days',
   async function (this: CustomWorld, days: number) {

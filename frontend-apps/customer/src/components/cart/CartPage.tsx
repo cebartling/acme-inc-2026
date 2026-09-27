@@ -2,6 +2,7 @@ import { useCart } from "@/hooks/useCart";
 import { CartEmptyState } from "./CartEmptyState";
 import { CartLineItem } from "./CartLineItem";
 import { CartSummary } from "./CartSummary";
+import { ClearCartButton } from "./ClearCartButton";
 
 /** The guest's cart (US-0004-07): lines, totals, or the empty state. */
 export function CartPage() {
@@ -39,6 +40,7 @@ export function CartPage() {
           </ul>
           <div>
             <CartSummary summary={cart.summary} />
+            <ClearCartButton cartId={cart.id} />
           </div>
         </div>
       )}

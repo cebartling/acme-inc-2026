@@ -1241,6 +1241,14 @@ export const cartApi = {
       { method: "DELETE", credentials: "include" },
     );
   },
+
+  /** Removes every line; the service returns the empty cart (PIN-294). */
+  async clearCart(cartId: string): Promise<Cart> {
+    return apiRequest<Cart>(
+      `${CART_SERVICE_URL}/api/v1/carts/${encodeURIComponent(cartId)}/items`,
+      { method: "DELETE", credentials: "include" },
+    );
+  },
 };
 
 export interface Category {

@@ -59,11 +59,23 @@ function isCartConflict(error: unknown): boolean {
 }
 
 /**
- * Reloads the cart when the page's copy is stale: the line is gone, or a concurrent change
- * won. The page then shows what is actually there.
+ * The page's cart is no longer the caller's, e.g. the session expired and its cart with it
+ * (PIN-294). Like a gone line, the reloaded cart is the answer, not a message.
+ */
+export function isCartGone(error: unknown): boolean {
+  return (
+    error instanceof ApiError &&
+    error.status === 404 &&
+    error.data?.code === "CART_NOT_FOUND"
+  );
+}
+
+/**
+ * Reloads the cart when the page's copy is stale: the line or cart is gone, or a concurrent
+ * change won. The page then shows what is actually there.
  */
 export function reloadIfStale(queryClient: QueryClient, error: Error) {
-  if (isLineGone(error) || isCartConflict(error)) {
+  if (isLineGone(error) || isCartGone(error) || isCartConflict(error)) {
     void queryClient.invalidateQueries({ queryKey: CART_QUERY_KEY });
   }
 }
@@ -116,6 +128,17 @@ export function useRemoveCartItem() {
 
   return useMutation<Cart, Error, { cartId: string; itemId: string }>({
     mutationFn: ({ cartId, itemId }) => cartApi.removeItem(cartId, itemId),
+    onSuccess: (cart) => writeCart(queryClient, cart),
+    onError: (error) => reloadIfStale(queryClient, error),
+  });
+}
+
+/** Removes every line; the empty cart stays (PIN-294). */
+export function useClearCart() {
+  const queryClient = useQueryClient();
+
+  return useMutation<Cart, Error, { cartId: string }>({
+    mutationFn: ({ cartId }) => cartApi.clearCart(cartId),
     onSuccess: (cart) => writeCart(queryClient, cart),
     onError: (error) => reloadIfStale(queryClient, error),
   });

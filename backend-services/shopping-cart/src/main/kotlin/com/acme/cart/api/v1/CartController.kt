@@ -2,6 +2,8 @@ package com.acme.cart.api.v1
 
 import com.acme.cart.application.AddItemToCartCommand
 import com.acme.cart.application.AddItemToCartUseCase
+import com.acme.cart.application.ClearCartCommand
+import com.acme.cart.application.ClearCartUseCase
 import com.acme.cart.application.MergeCartsCommand
 import com.acme.cart.application.MergeCartsUseCase
 import com.acme.cart.application.RemoveCartItemCommand
@@ -41,6 +43,7 @@ class CartController(
     private val addItemToCartUseCase: AddItemToCartUseCase,
     private val updateCartItemQuantityUseCase: UpdateCartItemQuantityUseCase,
     private val removeCartItemUseCase: RemoveCartItemUseCase,
+    private val clearCartUseCase: ClearCartUseCase,
     private val mergeCartsUseCase: MergeCartsUseCase,
     private val cartRepository: CartRepository,
     private val objectMapper: ObjectMapper,
@@ -129,6 +132,18 @@ class CartController(
             .fold(ifLeft = ::errorResponse, ifRight = { ResponseEntity.ok(toResponse(it)) })
     }
 
+    /** Removes every line; the empty cart stays (PIN-294). Only the caller's own cart is reachable. */
+    @DeleteMapping("/{cartId}/items")
+    fun clearCart(
+        @AuthenticationPrincipal jwt: Jwt?,
+        @CookieValue(SESSION_COOKIE, required = false) sessionCookie: String?,
+        @PathVariable cartId: UUID
+    ): ResponseEntity<Any> {
+        val owner = ownerOf(jwt, sessionCookie) ?: return errorResponse(CartError.CartNotFound(cartId))
+        return clearCartUseCase.execute(ClearCartCommand(owner, cartId))
+            .fold(ifLeft = ::errorResponse, ifRight = { ResponseEntity.ok(toResponse(it)) })
+    }
+
     /**
      * Merges the caller's guest cart (from the session cookie) into their account cart
      * after sign-in (US-0004-08). Requires a signed-in caller. 204 when there was nothing
@@ -183,7 +198,7 @@ class CartController(
 
     private fun statusFor(error: CartError): HttpStatus = when (error) {
         is CartError.MaxQuantityExceeded -> HttpStatus.UNPROCESSABLE_CONTENT
-        is CartError.VariantNotFound, is CartError.CartItemNotFound -> HttpStatus.NOT_FOUND
+        is CartError.VariantNotFound, is CartError.CartItemNotFound, is CartError.CartNotFound -> HttpStatus.NOT_FOUND
         is CartError.PricingUnavailable -> HttpStatus.SERVICE_UNAVAILABLE
     }
 
@@ -191,6 +206,7 @@ class CartController(
         is CartError.MaxQuantityExceeded -> "MAX_QUANTITY_EXCEEDED"
         is CartError.VariantNotFound -> "VARIANT_NOT_FOUND"
         is CartError.CartItemNotFound -> "CART_ITEM_NOT_FOUND"
+        is CartError.CartNotFound -> "CART_NOT_FOUND"
         is CartError.PricingUnavailable -> "PRICING_UNAVAILABLE"
     }
 

@@ -1537,4 +1537,15 @@ describe("cartApi reads and updates", () => {
       expect.objectContaining({ method: "DELETE", credentials: "include" }),
     );
   });
+
+  it("clearCart DELETEs every line with credentials", async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse(200, cart));
+
+    await cartApi.clearCart("cart-1");
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringMatching(/\/api\/v1\/carts\/cart-1\/items$/),
+      expect.objectContaining({ method: "DELETE", credentials: "include" }),
+    );
+  });
 });

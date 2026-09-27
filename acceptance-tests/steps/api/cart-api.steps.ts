@@ -121,6 +121,14 @@ Given(
   }
 );
 
+Given(
+  'I have also added {int} {string} to my cart',
+  async function (this: CustomWorld, quantity: number, name: string) {
+    const response = await addItem(this, addToCartBody(name, quantity), true);
+    expect(response.status, 'setup add').toBe(201);
+  }
+);
+
 When(
   'I add {int} more of the same variant to my cart',
   async function (this: CustomWorld, quantity: number) {
@@ -225,6 +233,26 @@ When(
 
 When('another session removes that line', async function (this: CustomWorld) {
   const response = await this.cartApiClient.delete(linePath(this), {
+    headers: sessionHeaders(randomUUID()),
+  });
+  this.setLastResponse(response);
+});
+
+// --- PIN-294: clear the entire cart ----------------------------------------------------
+
+function cartItemsPath(world: CustomWorld): string {
+  return `/api/v1/carts/${world.getTestData<string>('cartId')}/items`;
+}
+
+When('I clear my cart', async function (this: CustomWorld) {
+  const response = await this.cartApiClient.delete<CartResponse>(cartItemsPath(this), {
+    headers: sessionHeaders(this.getTestData<string>('cartSessionId')),
+  });
+  this.setLastResponse(response);
+});
+
+When('another session clears my cart', async function (this: CustomWorld) {
+  const response = await this.cartApiClient.delete(cartItemsPath(this), {
     headers: sessionHeaders(randomUUID()),
   });
   this.setLastResponse(response);

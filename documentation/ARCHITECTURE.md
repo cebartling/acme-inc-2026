@@ -267,10 +267,16 @@ sequenceDiagram
 | `GET /api/v1/carts/current` | 200 with the cart, or 204 when the session has none | — |
 | `PATCH /api/v1/carts/{cartId}/items/{itemId}` `{quantity}` | 200 with the cart | `CartItemQuantityUpdated` |
 | `DELETE /api/v1/carts/{cartId}/items/{itemId}` | 200 with the cart (possibly empty) | `CartItemRemoved` |
+| `DELETE /api/v1/carts/{cartId}/items` | 200 with the empty cart (PIN-294) | `CartCleared` |
 
 - **Ownership comes from the caller, not the URL**: the cart is looked up by the verified
   user or the session cookie, and a `cartId` in the path that is not that caller's cart is
   a 404 — the same answer as a missing item — so the API never confirms another cart exists.
+  Clearing has no item to be missing, so its 404 carries `CART_NOT_FOUND` rather than
+  `CART_ITEM_NOT_FOUND`.
+- **Clearing keeps the cart**: every line is deleted and the empty cart stays the caller's,
+  as when the last line is removed. Clearing a cart that is already empty is not a change:
+  nothing is saved and no `CartCleared` is published.
 - **Quantity changes reprice the line** at the new quantity, down a tier as well as up. An
   over-max quantity is a 422 whose body carries `maxQuantity`, so the client can clamp.
   Setting a line to the quantity it already has publishes no `CartItemQuantityUpdated`.

@@ -63,3 +63,29 @@ Feature: Guest Cart Management API
     Then the response should re-issue the same session cookie
     When I remove that line
     Then the response should re-issue the same session cookie
+
+  # PIN-294: clearing empties the cart, and the empty cart is still mine
+  Scenario: Clearing the cart removes every line and keeps the cart
+    Given I have added 2 "Gadget Pro / Black" to a new cart
+    And I have also added 1 "Gadget Pro / White" to my cart
+    When I clear my cart
+    Then the API should respond with status 200
+    And the cart should be empty
+    When I get my current cart
+    Then the API should respond with status 200
+    And the cart should be empty
+
+  # PIN-294: another session's cart is indistinguishable from a missing one
+  Scenario: Another session cannot clear my cart
+    Given I have added 2 "Gadget Pro / Black" to a new cart
+    When another session clears my cart
+    Then the API should respond with status 404
+    And the response should contain error code "CART_NOT_FOUND"
+    When I get my current cart
+    Then the cart should have 1 line with quantity 2 at unit price 119.99
+
+  # PIN-294 with US-0004-12: clearing keeps the guest session alive like every cart request
+  Scenario: Clearing the cart re-issues the session cookie
+    Given I have added 2 "Gadget Pro / Black" to a new cart
+    When I clear my cart
+    Then the response should re-issue the same session cookie
