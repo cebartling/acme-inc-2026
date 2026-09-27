@@ -2,6 +2,8 @@ package com.acme.cart.api.v1
 
 import com.acme.cart.application.AddItemToCartCommand
 import com.acme.cart.application.AddItemToCartUseCase
+import com.acme.cart.application.ClearCartCommand
+import com.acme.cart.application.ClearCartUseCase
 import com.acme.cart.application.MergeCartsCommand
 import com.acme.cart.application.MergeCartsUseCase
 import com.acme.cart.application.RemoveCartItemCommand
@@ -41,6 +43,7 @@ class CartController(
     private val addItemToCartUseCase: AddItemToCartUseCase,
     private val updateCartItemQuantityUseCase: UpdateCartItemQuantityUseCase,
     private val removeCartItemUseCase: RemoveCartItemUseCase,
+    private val clearCartUseCase: ClearCartUseCase,
     private val mergeCartsUseCase: MergeCartsUseCase,
     private val cartRepository: CartRepository,
     private val objectMapper: ObjectMapper,
@@ -126,6 +129,18 @@ class CartController(
     ): ResponseEntity<Any> {
         val owner = ownerOf(jwt, sessionCookie) ?: return errorResponse(CartError.CartItemNotFound(itemId))
         return removeCartItemUseCase.execute(RemoveCartItemCommand(owner, cartId, itemId))
+            .fold(ifLeft = ::errorResponse, ifRight = { ResponseEntity.ok(toResponse(it)) })
+    }
+
+    /** Removes every line; the empty cart stays (PIN-294). Only the caller's own cart is reachable. */
+    @DeleteMapping("/{cartId}/items")
+    fun clearCart(
+        @AuthenticationPrincipal jwt: Jwt?,
+        @CookieValue(SESSION_COOKIE, required = false) sessionCookie: String?,
+        @PathVariable cartId: UUID
+    ): ResponseEntity<Any> {
+        val owner = ownerOf(jwt, sessionCookie) ?: return errorResponse(CartError.CartNotFound(cartId))
+        return clearCartUseCase.execute(ClearCartCommand(owner, cartId))
             .fold(ifLeft = ::errorResponse, ifRight = { ResponseEntity.ok(toResponse(it)) })
     }
 

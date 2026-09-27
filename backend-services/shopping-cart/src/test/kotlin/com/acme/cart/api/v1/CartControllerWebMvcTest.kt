@@ -18,6 +18,8 @@ import arrow.core.left
 import arrow.core.right
 import com.acme.cart.application.AddItemToCartCommand
 import com.acme.cart.application.AddItemToCartUseCase
+import com.acme.cart.application.ClearCartCommand
+import com.acme.cart.application.ClearCartUseCase
 import com.acme.cart.application.RemoveCartItemCommand
 import com.acme.cart.application.RemoveCartItemUseCase
 import com.acme.cart.application.UpdateCartItemQuantityCommand
@@ -63,6 +65,7 @@ class CartControllerWebMvcTest(
     @Autowired private val useCase: AddItemToCartUseCase,
     @Autowired private val updateUseCase: UpdateCartItemQuantityUseCase,
     @Autowired private val removeUseCase: RemoveCartItemUseCase,
+    @Autowired private val clearUseCase: ClearCartUseCase,
     @Autowired private val cartRepository: CartRepository,
     @Autowired private val mergeUseCase: MergeCartsUseCase,
     @Autowired private val jwtDecoder: JwtDecoder
@@ -78,6 +81,9 @@ class CartControllerWebMvcTest(
 
         @Bean
         fun removeCartItemUseCase(): RemoveCartItemUseCase = mockk()
+
+        @Bean
+        fun clearCartUseCase(): ClearCartUseCase = mockk()
 
         @Bean
         fun mergeCartsUseCase(): MergeCartsUseCase = mockk()
@@ -105,7 +111,7 @@ class CartControllerWebMvcTest(
 
     @BeforeEach
     fun setUp() {
-        clearMocks(useCase, updateUseCase, removeUseCase, cartRepository, jwtDecoder, mergeUseCase)
+        clearMocks(useCase, updateUseCase, removeUseCase, clearUseCase, cartRepository, jwtDecoder, mergeUseCase)
         command.clear()
         every { cartRepository.touchGuestCart(any(), any(), any()) } returns 0
         every { useCase.execute(capture(command), any()) } answers {
@@ -420,6 +426,17 @@ class CartControllerWebMvcTest(
     }
 
     @Test
+    fun `clearing the cart re-issues the session cookie`() {
+        every { clearUseCase.execute(any(), any()) } returns Cart(id = cartId, sessionId = sessionId).right()
+
+        val result = mockMvc.delete("/api/v1/carts/$cartId/items") {
+            cookie(Cookie(CartController.SESSION_COOKIE, sessionId))
+        }.andExpect { status { isOk() } }.andReturn()
+
+        assertSessionReissued(result.response.getHeader(HttpHeaders.SET_COOKIE), sessionId)
+    }
+
+    @Test
     fun `current cart returns the session's cart`() {
         every { cartRepository.findBySessionIdAndStatus(sessionId, CartStatus.ACTIVE) } returns cartFor(sessionId)
 
@@ -539,6 +556,46 @@ class CartControllerWebMvcTest(
             status { isNotFound() }
             jsonPath("$.code") { value("CART_ITEM_NOT_FOUND") }
         }
+    }
+
+    // --- PIN-294: clear the entire cart -------------------------------------------------
+
+    @Test
+    fun `clearing the cart returns the empty cart`() {
+        val captured = slot<ClearCartCommand>()
+        every { clearUseCase.execute(capture(captured), any()) } returns Cart(id = cartId, sessionId = sessionId).right()
+
+        mockMvc.delete("/api/v1/carts/$cartId/items") {
+            cookie(Cookie(CartController.SESSION_COOKIE, sessionId))
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.id") { value(cartId.toString()) }
+            jsonPath("$.items.length()") { value(0) }
+            jsonPath("$.summary.itemCount") { value(0) }
+        }
+
+        assertEquals(ClearCartCommand(CartOwner.Guest(sessionId), cartId), captured.captured)
+    }
+
+    @Test
+    fun `clearing a cart the session does not own is a 404`() {
+        every { clearUseCase.execute(any(), any()) } returns CartError.CartNotFound(cartId).left()
+
+        mockMvc.delete("/api/v1/carts/$cartId/items") {
+            cookie(Cookie(CartController.SESSION_COOKIE, sessionId))
+        }.andExpect {
+            status { isNotFound() }
+            jsonPath("$.code") { value("CART_NOT_FOUND") }
+        }
+    }
+
+    @Test
+    fun `clearing without a session or token is a 404`() {
+        mockMvc.delete("/api/v1/carts/$cartId/items").andExpect {
+            status { isNotFound() }
+            jsonPath("$.code") { value("CART_NOT_FOUND") }
+        }
+        verify(exactly = 0) { clearUseCase.execute(any(), any()) }
     }
 
     // --- US-0004-08: signed-in callers ------------------------------------------------

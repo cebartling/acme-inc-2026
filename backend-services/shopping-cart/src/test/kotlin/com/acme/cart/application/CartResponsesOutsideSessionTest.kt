@@ -88,6 +88,7 @@ class CartResponsesOutsideSessionTest {
     }
     private val update by lazy { UpdateCartItemQuantityUseCase(carts, pricingClient, eventPublisher, transactions, 10) }
     private val remove by lazy { RemoveCartItemUseCase(carts, eventPublisher, transactions) }
+    private val clear by lazy { ClearCartUseCase(carts, eventPublisher, transactions) }
     private val merge by lazy { MergeCartsUseCase(carts, pricingClient, eventPublisher, transactions, 10) }
 
     private fun session() = "sess-${UUID.randomUUID()}"
@@ -141,6 +142,19 @@ class CartResponsesOutsideSessionTest {
         val emptied = remove.execute(RemoveCartItemCommand(guest, cart.id, cart.items.single().id)).getOrNull()!!
 
         assertEquals(emptyList(), respond(emptied).items)
+    }
+
+    @Test
+    fun `a clear maps to a response with no session open, and deletes the lines`() {
+        val guest = CartOwner.Guest(session())
+        addTo(guest)
+        val cart = addTo(guest, variant = otherVariantId, quantity = 1)
+
+        val cleared = clear.execute(ClearCartCommand(guest, cart.id)).getOrNull()!!
+
+        assertEquals(emptyList(), respond(cleared).items)
+        val reloaded = transactions.execute { carts.findActiveCart(guest)?.items?.size }
+        assertEquals(0, reloaded)
     }
 
     @Test
