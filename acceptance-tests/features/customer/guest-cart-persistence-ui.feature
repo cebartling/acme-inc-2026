@@ -54,3 +54,10 @@ Feature: Guest Cart Persistence
     When I remove the line
     Then I should see the empty cart with a link to continue shopping
     And the cart badge should show no count
+
+  # PIN-294
+  Scenario: Clearing the cart shows the empty cart
+    Given I am on the cart page
+    When I clear the cart and confirm
+    Then I should see the empty cart with a link to continue shopping
+    And the cart badge should show no count

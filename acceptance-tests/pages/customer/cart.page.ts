@@ -11,6 +11,8 @@ export class CartPage extends BasePage {
   readonly lineTotal: Locator;
   readonly lineMessage: Locator;
   readonly removeButton: Locator;
+  readonly clearCartButton: Locator;
+  readonly confirmClearCartButton: Locator;
   readonly subtotal: Locator;
   readonly estimatedTotal: Locator;
   readonly emptyState: Locator;
@@ -25,6 +27,8 @@ export class CartPage extends BasePage {
     this.lineTotal = page.getByTestId('lineTotal');
     this.lineMessage = page.getByTestId('lineMessage');
     this.removeButton = page.getByTestId('removeLine');
+    this.clearCartButton = page.getByTestId('clearCart');
+    this.confirmClearCartButton = page.getByTestId('confirmClearCart');
     this.subtotal = page.getByTestId('cartSubtotal');
     this.estimatedTotal = page.getByTestId('cartEstimatedTotal');
     this.emptyState = page.getByTestId('cartEmptyState');

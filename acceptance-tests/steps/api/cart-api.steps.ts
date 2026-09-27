@@ -121,6 +121,14 @@ Given(
   }
 );
 
+Given(
+  'I have also added {int} {string} to my cart',
+  async function (this: CustomWorld, quantity: number, name: string) {
+    const response = await addItem(this, addToCartBody(name, quantity), true);
+    expect(response.status, 'setup add').toBe(201);
+  }
+);
+
 When(
   'I add {int} more of the same variant to my cart',
   async function (this: CustomWorld, quantity: number) {
@@ -230,11 +238,39 @@ When('another session removes that line', async function (this: CustomWorld) {
   this.setLastResponse(response);
 });
 
+// --- PIN-294: clear the entire cart ----------------------------------------------------
+
+function cartItemsPath(world: CustomWorld): string {
+  return `/api/v1/carts/${world.getTestData<string>('cartId')}/items`;
+}
+
+When('I clear my cart', async function (this: CustomWorld) {
+  const response = await this.cartApiClient.delete<CartResponse>(cartItemsPath(this), {
+    headers: sessionHeaders(this.getTestData<string>('cartSessionId')),
+  });
+  this.setLastResponse(response);
+});
+
+When('another session clears my cart', async function (this: CustomWorld) {
+  const response = await this.cartApiClient.delete(cartItemsPath(this), {
+    headers: sessionHeaders(randomUUID()),
+  });
+  this.setLastResponse(response);
+});
+
 Then(
   'the response should include a max quantity of {int}',
   async function (this: CustomWorld, max: number) {
     const data = this.getLastResponse<{ maxQuantity?: number }>()!.data;
     expect(data.maxQuantity).toBe(max);
+  }
+);
+
+Then(
+  'the response should contain error code {string}',
+  async function (this: CustomWorld, code: string) {
+    const data = this.getLastResponse<{ code?: string }>()!.data;
+    expect(data.code).toBe(code);
   }
 );
 
