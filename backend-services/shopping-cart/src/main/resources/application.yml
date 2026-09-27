@@ -12,9 +12,9 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
-    # Like the other services (PIN-296): no JPA session outlives a use case's transaction, so a
-    # read inside a transaction is fresh. CartResponsesOutsideSessionTest pins that nothing
-    # needs one afterwards.
+    # Like customer, identity and notification (PIN-296): no JPA session outlives a use case's
+    # transaction, so a read inside a transaction is fresh. CartResponsesOutsideSessionTest
+    # pins that nothing needs one afterwards.
     open-in-view: false
     properties:
       hibernate:

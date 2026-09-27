@@ -15,11 +15,11 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import io.mockk.every
 import io.mockk.mockk
 import org.hibernate.LazyInitializationException
-import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase
 import org.springframework.test.context.DynamicPropertyRegistry
@@ -63,8 +63,6 @@ class CartResponsesOutsideSessionTest {
             registry.add("spring.datasource.username") { postgres.username }
             registry.add("spring.datasource.password") { postgres.password }
         }
-
-        private const val SESSION_PREFIX = "sess-no-osiv-"
     }
 
     @Autowired
@@ -73,26 +71,26 @@ class CartResponsesOutsideSessionTest {
     @Autowired
     private lateinit var transactionManager: PlatformTransactionManager
 
+    @Value("\${spring.jpa.open-in-view:true}")
+    private var openInView: Boolean = true
+
     private val objectMapper = jacksonObjectMapper()
     private val pricingClient = mockk<ProductPricingClient>()
     private val eventPublisher = mockk<CartEventPublisher>(relaxed = true)
     private val pricing = VariantPricing(BigDecimal("69.99"))
     private val variantId = UUID.randomUUID()
     private val otherVariantId = UUID.randomUUID()
-    private val userIds = mutableListOf<UUID>()
 
-    private fun transactions() = TransactionTemplate(transactionManager)
+    private val transactions by lazy { TransactionTemplate(transactionManager) }
 
     private val add by lazy {
-        AddItemToCartUseCase(carts, pricingClient, eventPublisher, transactions(), objectMapper, 10, SimpleMeterRegistry())
+        AddItemToCartUseCase(carts, pricingClient, eventPublisher, transactions, objectMapper, 10, SimpleMeterRegistry())
     }
-    private val update by lazy { UpdateCartItemQuantityUseCase(carts, pricingClient, eventPublisher, transactions(), 10) }
-    private val remove by lazy { RemoveCartItemUseCase(carts, eventPublisher, transactions()) }
-    private val merge by lazy { MergeCartsUseCase(carts, pricingClient, eventPublisher, transactions(), 10) }
+    private val update by lazy { UpdateCartItemQuantityUseCase(carts, pricingClient, eventPublisher, transactions, 10) }
+    private val remove by lazy { RemoveCartItemUseCase(carts, eventPublisher, transactions) }
+    private val merge by lazy { MergeCartsUseCase(carts, pricingClient, eventPublisher, transactions, 10) }
 
-    private fun session() = "$SESSION_PREFIX${UUID.randomUUID()}"
-
-    private fun user() = UUID.randomUUID().also { userIds += it }
+    private fun session() = "sess-${UUID.randomUUID()}"
 
     private fun snapshot() = ProductSnapshot(UUID.randomUUID(), "ACME Gaming Mouse Pro", "ACME-GM-PRO-BLK", "Black", null)
 
@@ -106,15 +104,6 @@ class CartResponsesOutsideSessionTest {
     @BeforeEach
     fun setUp() {
         every { pricingClient.getPricing(any()) } returns pricing.right()
-    }
-
-    @AfterEach
-    fun cleanUp() {
-        transactions().execute {
-            carts.findAll()
-                .filter { cart -> cart.sessionId?.startsWith(SESSION_PREFIX) == true || cart.userId in userIds }
-                .forEach(carts::delete)
-        }
     }
 
     @Test
@@ -131,7 +120,7 @@ class CartResponsesOutsideSessionTest {
 
         val response = respond(addTo(guest, variant = otherVariantId, quantity = 1))
 
-        assertEquals(setOf(1, 2), response.items.map { it.quantity }.toSet())
+        assertEquals(listOf(1, 2), response.items.map { it.quantity }.sorted())
     }
 
     @Test
@@ -159,7 +148,7 @@ class CartResponsesOutsideSessionTest {
         val session = session()
         addTo(CartOwner.Guest(session))
 
-        val merged = merge.execute(MergeCartsCommand(user(), session)).getOrNull()!!.cart!!
+        val merged = merge.execute(MergeCartsCommand(UUID.randomUUID(), session)).getOrNull()!!.cart!!
 
         assertEquals(listOf(2), respond(merged).items.map { it.quantity })
     }
@@ -167,13 +156,24 @@ class CartResponsesOutsideSessionTest {
     @Test
     fun `a merge into an existing user cart maps to a response with no session open`() {
         val session = session()
-        val userId = user()
+        val userId = UUID.randomUUID()
         addTo(CartOwner.Customer(userId), variant = otherVariantId, quantity = 1)
         addTo(CartOwner.Guest(session))
 
         val merged = merge.execute(MergeCartsCommand(userId, session)).getOrNull()!!.cart!!
 
-        assertEquals(setOf(1, 2), respond(merged).items.map { it.quantity }.toSet())
+        assertEquals(listOf(1, 2), respond(merged).items.map { it.quantity }.sorted())
+    }
+
+    @Test
+    fun `a merge with nothing to merge maps the user's cart to a response with no session open`() {
+        val userId = UUID.randomUUID()
+        addTo(CartOwner.Customer(userId))
+
+        // No guest session: the use case returns the user's cart from a lookup outside any transaction.
+        val unchanged = merge.execute(MergeCartsCommand(userId, guestSessionId = null)).getOrNull()!!.cart!!
+
+        assertEquals(listOf(2), respond(unchanged).items.map { it.quantity })
     }
 
     @Test
@@ -185,6 +185,17 @@ class CartResponsesOutsideSessionTest {
         val current = carts.findActiveCart(guest)!!
 
         assertEquals(listOf(2), respond(current).items.map { it.quantity })
+    }
+
+    /**
+     * The tests above run without a web request, so they pass whatever the setting is. This one
+     * pins the setting itself, as SchemaValidationTest pins ddl-auto: removing
+     * `open-in-view: false` from application.yml fails here. (An environment override would
+     * not, which needs a full web-context test.)
+     */
+    @Test
+    fun `open-in-view is off in the service's configuration`() {
+        assertEquals(false, openInView)
     }
 
     @Test
