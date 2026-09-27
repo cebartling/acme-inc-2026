@@ -21,12 +21,18 @@ vi.mock("@tanstack/react-router", () => ({
 
 vi.mock("@/services/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/services/api")>()),
-  cartApi: { getCurrent: vi.fn(), updateItem: vi.fn(), removeItem: vi.fn() },
+  cartApi: {
+    getCurrent: vi.fn(),
+    updateItem: vi.fn(),
+    removeItem: vi.fn(),
+    clearCart: vi.fn(),
+  },
 }));
 
 const mockedGetCurrent = vi.mocked(cartApi.getCurrent);
 const mockedUpdate = vi.mocked(cartApi.updateItem);
 const mockedRemove = vi.mocked(cartApi.removeItem);
+const mockedClear = vi.mocked(cartApi.clearCart);
 
 function line(quantity: number, unitPrice: number): CartItem {
   return {
@@ -278,5 +284,87 @@ describe("CartPage", () => {
     expect(
       await screen.findByText("Cart service unavailable"),
     ).toBeInTheDocument();
+  });
+});
+
+describe("CartPage: clear cart (PIN-294)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  async function confirmClear(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(await screen.findByRole("button", { name: "Clear cart" }));
+    const dialog = await screen.findByRole("alertdialog");
+    await user.click(
+      within(dialog).getByRole("button", { name: "Clear cart" }),
+    );
+  }
+
+  it("clears the cart after confirmation and shows the empty state", async () => {
+    mockedGetCurrent.mockResolvedValue(cartOf(line(2, 119.99)));
+    mockedClear.mockResolvedValue(cartOf());
+    const user = userEvent.setup();
+    renderPage();
+
+    await confirmClear(user);
+
+    expect(mockedClear).toHaveBeenCalledWith("cart-1");
+    expect(await screen.findByTestId("cartEmptyState")).toBeInTheDocument();
+  });
+
+  it("keeps the cart when the confirmation is cancelled", async () => {
+    mockedGetCurrent.mockResolvedValue(cartOf(line(2, 119.99)));
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Clear cart" }));
+    await user.click(
+      within(await screen.findByRole("alertdialog")).getByRole("button", {
+        name: "Cancel",
+      }),
+    );
+
+    expect(mockedClear).not.toHaveBeenCalled();
+    expect(screen.getByTestId("cartLineItem")).toBeInTheDocument();
+  });
+
+  it("reloads the cart when the service no longer has it (404)", async () => {
+    mockedGetCurrent
+      .mockResolvedValueOnce(cartOf(line(2, 119.99)))
+      .mockResolvedValueOnce(null);
+    mockedClear.mockRejectedValue(
+      new ApiError("Cart not found: cart-1", 404, {
+        error: "Cart not found: cart-1",
+        code: "CART_NOT_FOUND",
+      }),
+    );
+    const user = userEvent.setup();
+    renderPage();
+
+    await confirmClear(user);
+
+    expect(await screen.findByTestId("cartEmptyState")).toBeInTheDocument();
+    expect(mockedGetCurrent).toHaveBeenCalledTimes(2);
+  });
+
+  it("reloads the cart and explains when clearing conflicts with another change (409)", async () => {
+    mockedGetCurrent.mockResolvedValue(cartOf(line(2, 119.99)));
+    mockedClear.mockRejectedValue(
+      new ApiError(
+        "Your cart was changed at the same time. Please try again.",
+        409,
+        {
+          error: "Your cart was changed at the same time. Please try again.",
+          code: "CART_CONFLICT",
+        },
+      ),
+    );
+    const user = userEvent.setup();
+    renderPage();
+
+    await confirmClear(user);
+
+    expect(await screen.findByTestId("clearCartMessage")).toHaveTextContent(
+      "Your cart was changed at the same time. Please try again.",
+    );
+    await vi.waitFor(() => expect(mockedGetCurrent).toHaveBeenCalledTimes(2));
   });
 });
