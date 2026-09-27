@@ -22,6 +22,7 @@ interface ApiErrorResponse {
   error?: string;
   message?: string;
   errors?: string[];
+  code?: string;
 }
 
 /**
@@ -74,6 +75,17 @@ Then(
   async function (this: CustomWorld, expectedError: string) {
     const data = getResponseData<ApiErrorResponse>(this);
     expect(data?.error).toBe(expectedError);
+  }
+);
+
+/**
+ * Asserts the machine-readable error code in the response body.
+ */
+Then(
+  'the response should contain error code {string}',
+  async function (this: CustomWorld, expectedCode: string) {
+    const data = getResponseData<ApiErrorResponse>(this);
+    expect(data?.code).toBe(expectedCode);
   }
 );
 

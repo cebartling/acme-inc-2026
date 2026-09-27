@@ -65,6 +65,22 @@ class ClearCartUseCaseTest {
     }
 
     @Test
+    fun `a signed-in customer's cart is cleared, and the event carries the user`() {
+        val userId = UUID.randomUUID()
+        val userCart = Cart(id = UUID.randomUUID(), userId = userId).also {
+            it.addItem(UUID.randomUUID(), 1, pricing, "{}", 10)
+        }
+        every { cartRepository.findByUserIdAndStatus(userId, CartStatus.ACTIVE) } returns userCart
+
+        val updated = useCase.execute(ClearCartCommand(CartOwner.Customer(userId), userCart.id)).getOrNull()!!
+
+        assertEquals(emptyList(), updated.items)
+        val payload = assertIs<CartCleared>(published.single()).payload
+        assertEquals(userId, payload.userId)
+        assertEquals(null, payload.sessionId)
+    }
+
+    @Test
     fun `a cart id the session does not own is CartNotFound and nothing changes`() {
         val otherCartId = UUID.randomUUID()
 

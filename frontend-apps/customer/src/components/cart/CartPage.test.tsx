@@ -324,6 +324,10 @@ describe("CartPage: clear cart (PIN-294)", () => {
 
     expect(mockedClear).not.toHaveBeenCalled();
     expect(screen.getByTestId("cartLineItem")).toBeInTheDocument();
+    // Keyboard users land back where they were, not at the top of the page.
+    await vi.waitFor(() =>
+      expect(screen.getByTestId("clearCart")).toHaveFocus(),
+    );
   });
 
   it("reloads the cart when the service no longer has it (404)", async () => {
@@ -343,6 +347,31 @@ describe("CartPage: clear cart (PIN-294)", () => {
 
     expect(await screen.findByTestId("cartEmptyState")).toBeInTheDocument();
     expect(mockedGetCurrent).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows no error when the reloaded cart is a different one (404)", async () => {
+    // e.g. signed in on another tab: the page's guest cart is gone, the account's cart has lines.
+    mockedGetCurrent
+      .mockResolvedValueOnce(cartOf(line(2, 119.99)))
+      .mockResolvedValueOnce({ ...cartOf(line(1, 119.99)), id: "cart-2" });
+    mockedClear.mockRejectedValue(
+      new ApiError("Cart not found: cart-1", 404, {
+        error: "Cart not found: cart-1",
+        code: "CART_NOT_FOUND",
+      }),
+    );
+    const user = userEvent.setup();
+    renderPage();
+
+    await confirmClear(user);
+
+    await vi.waitFor(() =>
+      expect(screen.getByTestId("cartSubtotal")).toHaveTextContent("$119.99"),
+    );
+    await vi.waitFor(() =>
+      expect(screen.getByTestId("clearCart")).toBeEnabled(),
+    );
+    expect(screen.queryByTestId("clearCartMessage")).not.toBeInTheDocument();
   });
 
   it("reloads the cart and explains when clearing conflicts with another change (409)", async () => {

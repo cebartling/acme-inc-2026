@@ -58,8 +58,11 @@ function isCartConflict(error: unknown): boolean {
   );
 }
 
-/** The whole cart is gone, e.g. the session expired and its cart with it (PIN-294). */
-function isCartGone(error: unknown): boolean {
+/**
+ * The page's cart is no longer the caller's, e.g. the session expired and its cart with it
+ * (PIN-294). Like a gone line, the reloaded cart is the answer, not a message.
+ */
+export function isCartGone(error: unknown): boolean {
   return (
     error instanceof ApiError &&
     error.status === 404 &&

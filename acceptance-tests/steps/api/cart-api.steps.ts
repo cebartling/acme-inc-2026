@@ -266,14 +266,6 @@ Then(
   }
 );
 
-Then(
-  'the response should contain error code {string}',
-  async function (this: CustomWorld, code: string) {
-    const data = this.getLastResponse<{ code?: string }>()!.data;
-    expect(data.code).toBe(code);
-  }
-);
-
 Then('the cart should be empty', async function (this: CustomWorld) {
   const cart = this.getLastResponse<CartResponse>()!.data;
   expect(cart.items).toHaveLength(0);
