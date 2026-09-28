@@ -22,8 +22,10 @@ import org.slf4j.LoggerFactory
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
+import org.springframework.http.converter.HttpMessageNotReadableException
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.security.oauth2.jwt.Jwt
+import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.annotation.CookieValue
 import org.springframework.orm.ObjectOptimisticLockingFailureException
 import org.springframework.web.bind.annotation.DeleteMapping
@@ -35,6 +37,7 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
+import tools.jackson.core.JacksonException
 import java.util.UUID
 
 @RestController
@@ -179,6 +182,33 @@ class CartController(
         )
     }
 
+    /** A body that fails `@Valid`, e.g. `"quantity": 0` or no `productSnapshot` (PIN-303). */
+    @ExceptionHandler(MethodArgumentNotValidException::class)
+    fun invalidRequest(invalid: MethodArgumentNotValidException): ResponseEntity<Any> =
+        invalidRequestResponse(invalid.bindingResult.fieldErrors.map { it.field }.minOrNull(), invalid)
+
+    /**
+     * A body Jackson can't read, e.g. `"quantity": 2.9` or malformed JSON (PIN-303). Names the
+     * field from Jackson's path, never its message, which has class names and parser internals.
+     */
+    @ExceptionHandler(HttpMessageNotReadableException::class)
+    fun unreadableRequest(unreadable: HttpMessageNotReadableException): ResponseEntity<Any> {
+        val jackson = generateSequence<Throwable>(unreadable) { it.cause }.filterIsInstance<JacksonException>().firstOrNull()
+        return invalidRequestResponse(jackson?.path?.let(::fieldPath), unreadable)
+    }
+
+    private fun invalidRequestResponse(field: String?, cause: Exception): ResponseEntity<Any> {
+        logger.debug("Rejected an invalid cart request: {}", cause.message)
+        val message = if (field == null) "Invalid request" else "Invalid request: $field"
+        return ResponseEntity.badRequest().body(mapOf("error" to message, "code" to INVALID_REQUEST))
+    }
+
+    /** `productSnapshot.sku`, `items[0].sku`; null for an empty path, e.g. malformed JSON. */
+    private fun fieldPath(path: List<JacksonException.Reference>): String? =
+        path.joinToString("") { ref -> ref.propertyName?.let { ".$it" } ?: "[${ref.index}]" }
+            .removePrefix(".")
+            .ifEmpty { null }
+
     private fun toResponse(cart: Cart) =
         CartResponse.from(cart) { objectMapper.readValue(it, ProductSnapshot::class.java) }
 
@@ -225,5 +255,8 @@ class CartController(
 
         /** The error code for a 409 from a concurrent change (PIN-278). */
         const val CART_CONFLICT = "CART_CONFLICT"
+
+        /** The error code for a 400 from a request body that is invalid or unreadable (PIN-303). */
+        const val INVALID_REQUEST = "INVALID_REQUEST"
     }
 }
