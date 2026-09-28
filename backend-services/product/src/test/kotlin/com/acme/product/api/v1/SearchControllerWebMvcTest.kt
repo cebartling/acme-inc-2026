@@ -109,8 +109,47 @@ class SearchControllerWebMvcTest(
             content = """{"query":"widget",$field}"""
         }.andExpect {
             status { isBadRequest() }
+            jsonPath("$.error") { value("Invalid request: ${field.substringBefore(':').trim('"')}") }
+            jsonPath("$.code") { value(GlobalExceptionHandler.INVALID_REQUEST) }
         }
 
         verify(exactly = 0) { searchProductsUseCase.execute(any(), any(), any()) }
+    }
+
+    // PIN-303: validation and deserialization 400s share the {error, code} body
+    @Test
+    fun `a pageSize over the max is a 400 INVALID_REQUEST naming the field`() {
+        mockMvc.post("/api/v1/search") {
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"query":"widget","pageSize":101}"""
+        }.andExpect {
+            status { isBadRequest() }
+            jsonPath("$.error") { value("Invalid request: pageSize") }
+            jsonPath("$.code") { value(GlobalExceptionHandler.INVALID_REQUEST) }
+        }
+    }
+
+    @Test
+    fun `a missing query is a 400 INVALID_REQUEST naming the field`() {
+        mockMvc.post("/api/v1/search") {
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"pageSize":10}"""
+        }.andExpect {
+            status { isBadRequest() }
+            jsonPath("$.error") { value("Invalid request: query") }
+            jsonPath("$.code") { value(GlobalExceptionHandler.INVALID_REQUEST) }
+        }
+    }
+
+    @Test
+    fun `malformed JSON is a 400 INVALID_REQUEST without parser details`() {
+        mockMvc.post("/api/v1/search") {
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"query":"""
+        }.andExpect {
+            status { isBadRequest() }
+            jsonPath("$.error") { value("Invalid request") }
+            jsonPath("$.code") { value(GlobalExceptionHandler.INVALID_REQUEST) }
+        }
     }
 }
