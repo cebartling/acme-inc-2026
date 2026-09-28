@@ -207,7 +207,11 @@ class CartControllerWebMvcTest(
 
     @Test
     fun `a zero quantity is rejected before reaching the use case`() {
-        postItem(content = body.replace("\"quantity\":2", "\"quantity\":0")).andExpect { status { isBadRequest() } }
+        postItem(content = body.replace("\"quantity\":2", "\"quantity\":0")).andExpect {
+            status { isBadRequest() }
+            jsonPath("$.error") { value("Invalid request: quantity") }
+            jsonPath("$.code") { value(CartController.INVALID_REQUEST) }
+        }
 
         assertTrue(!command.isCaptured)
     }
@@ -215,14 +219,43 @@ class CartControllerWebMvcTest(
     // PIN-279: 2.9 used to be truncated to 2 and accepted
     @Test
     fun `a decimal quantity is rejected, not truncated`() {
-        postItem(content = body.replace("\"quantity\":2", "\"quantity\":2.9")).andExpect { status { isBadRequest() } }
+        postItem(content = body.replace("\"quantity\":2", "\"quantity\":2.9")).andExpect {
+            status { isBadRequest() }
+            jsonPath("$.error") { value("Invalid request: quantity") }
+            jsonPath("$.code") { value(CartController.INVALID_REQUEST) }
+        }
 
         assertTrue(!command.isCaptured)
     }
 
     @Test
     fun `a missing product snapshot is rejected`() {
-        postItem(content = """{"variantId":"$variantId","quantity":1}""").andExpect { status { isBadRequest() } }
+        postItem(content = """{"variantId":"$variantId","quantity":1}""").andExpect {
+            status { isBadRequest() }
+            jsonPath("$.error") { value("Invalid request: productSnapshot") }
+            jsonPath("$.code") { value(CartController.INVALID_REQUEST) }
+        }
+    }
+
+    // PIN-303: no field to name, and the parser's message is not echoed
+    @Test
+    fun `malformed JSON is a 400 INVALID_REQUEST without parser details`() {
+        postItem(content = """{"variantId":""").andExpect {
+            status { isBadRequest() }
+            jsonPath("$.error") { value("Invalid request") }
+            jsonPath("$.code") { value(CartController.INVALID_REQUEST) }
+        }
+    }
+
+    @Test
+    fun `a nested snapshot field is named by its path`() {
+        postItem(content = body.replace("\"sku\":\"ACME-GM-PRO-BLK\"", "\"sku\":\"\"")).andExpect {
+            status { isBadRequest() }
+            jsonPath("$.error") { value("Invalid request: productSnapshot.sku") }
+            jsonPath("$.code") { value(CartController.INVALID_REQUEST) }
+        }
+
+        assertTrue(!command.isCaptured)
     }
 
     // --- US-0004-07: read, update and remove -------------------------------------------
@@ -535,7 +568,11 @@ class CartControllerWebMvcTest(
             cookie(Cookie(CartController.SESSION_COOKIE, sessionId))
             contentType = MediaType.APPLICATION_JSON
             content = """{"quantity":0}"""
-        }.andExpect { status { isBadRequest() } }
+        }.andExpect {
+            status { isBadRequest() }
+            jsonPath("$.error") { value("Invalid request: quantity") }
+            jsonPath("$.code") { value(CartController.INVALID_REQUEST) }
+        }
     }
 
     // PIN-279: 2.9 used to be truncated to 2 and accepted
@@ -548,7 +585,11 @@ class CartControllerWebMvcTest(
             cookie(Cookie(CartController.SESSION_COOKIE, sessionId))
             contentType = MediaType.APPLICATION_JSON
             content = """{"quantity":2.9}"""
-        }.andExpect { status { isBadRequest() } }
+        }.andExpect {
+            status { isBadRequest() }
+            jsonPath("$.error") { value("Invalid request: quantity") }
+            jsonPath("$.code") { value(CartController.INVALID_REQUEST) }
+        }
 
         verify(exactly = 0) { updateUseCase.execute(any(), any()) }
     }

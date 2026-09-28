@@ -237,7 +237,13 @@ sequenceDiagram
   never holds up expiry.
 - **Error bodies**: `{"error": message, "code": ...}`. `CART_ITEM_NOT_FOUND` and
   `VARIANT_NOT_FOUND` are both 404s; the code lets the client reload quietly for a gone
-  line but still explain a delisted variant whose line is still in the cart.
+  line but still explain a delisted variant whose line is still in the cart. A request body
+  that fails `@Valid` (`"quantity": 0`) or can't be read (`"quantity": 2.9`, malformed JSON)
+  is a 400 `INVALID_REQUEST` whose message names the failing field, e.g.
+  `"Invalid request: quantity"`, and never echoes Jackson's own message (PIN-303). The product
+  service's search body gets the same 400 from its `GlobalExceptionHandler`, whose
+  `IllegalArgumentException` 400s (e.g. a comma in a category name) also carry
+  `INVALID_REQUEST`, with their own message.
 - **Server-side pricing**: the unit price comes from the product service at the line's new
   total quantity, so crossing a tier threshold reprices the whole line. The request carries
   no price. If the product service is unreachable the add fails with 503 rather than
