@@ -25,7 +25,8 @@ spring:
     locations: classpath:db/migration
   jackson:
     deserialization:
-      # PIN-279: reject {"quantity": 2.9} with a 400 instead of truncating it to 2.
+      # PIN-279: reject {"quantity": 2.9} with a 400 instead of truncating it to 2. Applies to
+      # every integer field of every request body, and rejects 2.0 too.
       # Only affects Spring MVC's Jackson 3 mapper, not JacksonConfig's Kafka/snapshot mapper.
       accept-float-as-int: false
   kafka:

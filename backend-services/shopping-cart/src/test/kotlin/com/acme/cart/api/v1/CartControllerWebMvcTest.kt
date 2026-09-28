@@ -541,6 +541,9 @@ class CartControllerWebMvcTest(
     // PIN-279: 2.9 used to be truncated to 2 and accepted
     @Test
     fun `a decimal quantity update is rejected, not truncated`() {
+        // Stubbed so a regression fails on the status, not on a missing MockK answer
+        every { updateUseCase.execute(any(), any()) } returns cartFor(sessionId).right()
+
         mockMvc.patch("/api/v1/carts/$cartId/items/$itemId") {
             cookie(Cookie(CartController.SESSION_COOKIE, sessionId))
             contentType = MediaType.APPLICATION_JSON
