@@ -240,10 +240,8 @@ sequenceDiagram
   line but still explain a delisted variant whose line is still in the cart. A request body
   that fails `@Valid` (`"quantity": 0`) or can't be read (`"quantity": 2.9`, malformed JSON)
   is a 400 `INVALID_REQUEST` whose message names the failing field, e.g.
-  `"Invalid request: quantity"`, and never echoes Jackson's own message (PIN-303). The product
-  service's search body gets the same 400 from its `GlobalExceptionHandler`, whose
-  `IllegalArgumentException` 400s (e.g. a comma in a category name) also carry
-  `INVALID_REQUEST`, with their own message.
+  `"Invalid request: quantity"`, and never echoes Jackson's own message (PIN-303). The
+  product service answers the same way; see its **Error bodies** bullet.
 - **Server-side pricing**: the unit price comes from the product service at the line's new
   total quantity, so crossing a tier threshold reprices the whole line. The request carries
   no price. If the product service is unreachable the add fails with 503 rather than
@@ -333,6 +331,70 @@ sequenceDiagram
   A failed merge is logged and the cart reloads as the user; a merge that returns after
   sign-out is dropped. Sign-out resets `["cart"]`, so the badge falls back to the guest
   cart: none once merged, otherwise the unmerged (empty or failed-merge) guest cart.
+
+### Product Service
+
+`backend-services/product` (port 10303, database `acme_products`) owns the catalog: products,
+their variants, variant images and tier pricing. It serves search, category browsing and
+product detail to the customer app, and prices to the cart. Every endpoint is public; there
+is no authentication.
+
+| Endpoint | Result |
+| -- | -- |
+| `POST /api/v1/search` | A page of published products matching the query, with category facets |
+| `GET /api/v1/search/autocomplete?q=&limit=` | Up to 5 product and 3 category suggestions |
+| `GET /api/v1/categories` | Every category with at least one published product, and its count |
+| `GET /api/v1/categories/{name}/products?page=&pageSize=` | A page of the category's published products, newest first |
+| `GET /api/v1/products/{slug}` | A published product with its variants and up to 4 related products; 404 otherwise |
+| `GET /api/v1/prices/{variantId}` | `{price, originalPrice, tierPricing}`; 404 for an unknown variant |
+| `GET /api/v1/inventory/availability/{variantId}` | `IN_STOCK` or `OUT_OF_STOCK`; 404 for an unknown variant |
+
+- **Search request rules** (`SearchRequest.kt`): `query` is required, not blank and at most
+  200 characters; `page` ≥ 1 (default 1); `pageSize` 1–100 (default 24); the
+  `filters.priceMin`/`priceMax` are ≥ 0. `page` and `pageSize` must be JSON integers, so
+  `24.9` and even `24.0` are a 400 (PIN-302, `spring.jackson.deserialization.accept-float-as-int:
+  false`). A category name must not contain a comma, since the filter is passed to SQL as one
+  comma-joined string. `sort` is `relevance` (default), `price_asc`, `price_desc` or `newest`,
+  case-insensitive; an unknown value falls back to `relevance` rather than failing.
+- **Search** is PostgreSQL full text: `products.search_vector` is a generated `tsvector` over
+  name (weight A), description (B) and category (C), matched with `plainto_tsquery('english', …)`
+  and ranked by `ts_rank`. Only `PUBLISHED` products are searched (`status` is `PUBLISHED` or
+  `ARCHIVED`). A search with no results gets a `spellingSuggestion`: the closest product name
+  by `pg_trgm` similarity. Category facets count matches by query and price only, so they
+  don't narrow as categories are selected; if computing them fails, search still answers
+  with empty facets. Autocomplete is a prefix `ILIKE` on product names and categories, not
+  full text; `limit` (1–20, default 8) caps each list further.
+- **Category browsing** reads `products` directly, never `search_vector`, so it keeps
+  working when search is degraded; the customer app falls back to it (see
+  [Client-Side Resilience](#client-side-resilience-circuit-breaker)).
+- **Pricing**: a variant's price is its `price_override` if it has one, otherwise its
+  product's price. `originalPrice` is the product's price only when the override is lower,
+  i.e. the variant is on sale. `tierPricing` lists `{minQuantity, price}` entries in
+  ascending `minQuantity`; the product service does not pick a tier, the caller does. The
+  cart's `ProductPricingClient` uses this endpoint to price every add, quantity change and
+  sign-in merge (see the cart's **Server-side pricing** bullet).
+- **Inventory** is a per-variant `in_stock` flag: the service knows in or out of stock, not
+  quantities (PIN-273). A product's own `availability` is derived from its status, so it is
+  always `IN_STOCK` on the detail endpoint, which only returns published products; per-variant
+  stock is `variants[].inStock`. The price and availability lookups find a variant by ID
+  without checking its product's status.
+- **Events**: product views (`ProductViewed`) and searches (`SearchExecuted`, plus
+  `FiltersApplied` when filters are set) are published to the `product.events` Kafka topic,
+  keyed by aggregate ID, with the caller's `X-Session-Id` and `X-Correlation-Id` (a
+  missing or non-UUID correlation ID is replaced by a random one). The publish waits for
+  Kafka's acknowledgement for up to `product.events.publish.timeout-seconds` (default 10), so
+  a slow broker slows the request; a failure is logged and never fails it.
+- **Error bodies** (`GlobalExceptionHandler`): a search body that fails `@Valid`
+  (`"pageSize": 101`) or can't be read (`"pageSize": 24.9`, malformed JSON) is a 400
+  `{"error": "Invalid request: <field>", "code": "INVALID_REQUEST"}` naming the failing field,
+  never Jackson's own message (PIN-303). An `IllegalArgumentException`, such as a comma in a
+  category name, is a 400 with its own message and the same code. A missing product or
+  variant is a 404 `{"error": message}`. Bad path variables and query parameters still get
+  Spring's default 400 body (PIN-305).
+- **Callers**: the customer app's `productApi` and category calls (`services/api.ts`) use
+  every endpoint above; its `VITE_PRODUCT_SERVICE_URL`, `VITE_PRICING_SERVICE_URL` and
+  `VITE_INVENTORY_SERVICE_URL` all default to this service. The cart calls only
+  `GET /api/v1/prices/{variantId}`.
 
 ## Observability
 
