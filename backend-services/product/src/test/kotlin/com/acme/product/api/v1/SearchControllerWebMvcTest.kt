@@ -5,9 +5,12 @@ import com.acme.product.application.SearchProductsUseCase
 import com.acme.product.domain.SearchQuery
 import com.acme.product.domain.SearchResult
 import com.acme.product.domain.SortOption
+import io.mockk.clearMocks
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
+import io.mockk.verify
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.TestConfiguration
@@ -43,6 +46,12 @@ class SearchControllerWebMvcTest(
         products = emptyList(), totalResults = 0L, page = 1, pageSize = 24, totalPages = 0,
         spellingSuggestion = null, executionTimeMs = 1
     )
+
+    // The mock bean is shared across tests, so verify(exactly = 0) must not see earlier calls
+    @BeforeEach
+    fun setUp() {
+        clearMocks(searchProductsUseCase)
+    }
 
     @Test
     fun `search should apply Kotlin defaults when optional fields are omitted`() {
@@ -83,5 +92,35 @@ class SearchControllerWebMvcTest(
 
         // Then
         assertEquals(emptyList(), querySlot.captured.filters.categories)
+    }
+
+    // PIN-302: 24.9 used to be truncated to 24 and accepted. Stubbed so a regression
+    // fails on the status, not on a missing MockK answer.
+    @Test
+    fun `a decimal pageSize is rejected, not truncated`() {
+        every { searchProductsUseCase.execute(any(), any(), any()) } returns emptyResult
+
+        mockMvc.post("/api/v1/search") {
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"query":"widget","pageSize":24.9}"""
+        }.andExpect {
+            status { isBadRequest() }
+        }
+
+        verify(exactly = 0) { searchProductsUseCase.execute(any(), any(), any()) }
+    }
+
+    @Test
+    fun `a decimal page is rejected, not truncated`() {
+        every { searchProductsUseCase.execute(any(), any(), any()) } returns emptyResult
+
+        mockMvc.post("/api/v1/search") {
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"query":"widget","page":1.5}"""
+        }.andExpect {
+            status { isBadRequest() }
+        }
+
+        verify(exactly = 0) { searchProductsUseCase.execute(any(), any(), any()) }
     }
 }
