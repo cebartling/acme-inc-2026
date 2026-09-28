@@ -142,6 +142,17 @@ class SearchControllerWebMvcTest(
     }
 
     @Test
+    fun `a comma in a category name is a 400 INVALID_REQUEST`() {
+        mockMvc.post("/api/v1/search") {
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"query":"widget","filters":{"categories":["a,b"]}}"""
+        }.andExpect {
+            status { isBadRequest() }
+            jsonPath("$.code") { value(GlobalExceptionHandler.INVALID_REQUEST) }
+        }
+    }
+
+    @Test
     fun `malformed JSON is a 400 INVALID_REQUEST without parser details`() {
         mockMvc.post("/api/v1/search") {
             contentType = MediaType.APPLICATION_JSON

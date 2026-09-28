@@ -15,11 +15,12 @@ import tools.jackson.core.JacksonException
 class GlobalExceptionHandler {
     private val logger = LoggerFactory.getLogger(GlobalExceptionHandler::class.java)
 
+    /** Also a search body's comma in a category name, rejected by `SearchFilters` (PIN-303). */
     @ExceptionHandler(IllegalArgumentException::class)
     fun handleIllegalArgument(ex: IllegalArgumentException): ResponseEntity<Map<String, String>> {
         return ResponseEntity
             .status(HttpStatus.BAD_REQUEST)
-            .body(mapOf("error" to (ex.message ?: "Invalid request")))
+            .body(mapOf("error" to (ex.message ?: "Invalid request"), "code" to INVALID_REQUEST))
     }
 
     @ExceptionHandler(ProductNotFoundException::class)
@@ -39,7 +40,7 @@ class GlobalExceptionHandler {
     /** A body that fails `@Valid`, e.g. `"pageSize": 101` (PIN-303). */
     @ExceptionHandler(MethodArgumentNotValidException::class)
     fun handleInvalidRequest(ex: MethodArgumentNotValidException): ResponseEntity<Map<String, String>> =
-        invalidRequest(ex.bindingResult.fieldErrors.map { it.field }.minOrNull(), ex)
+        invalidRequest(ex.bindingResult.fieldErrors.minOfOrNull { it.field }, ex)
 
     /**
      * A body Jackson can't read, e.g. `"pageSize": 24.9` or malformed JSON (PIN-303). Names the
@@ -57,14 +58,17 @@ class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(mapOf("error" to message, "code" to INVALID_REQUEST))
     }
 
-    /** `filters.priceMin`, `items[0].sku`; null for an empty path, e.g. malformed JSON. */
+    /**
+     * `filters.priceMin`, `items[0].sku`; null for an empty path, e.g. malformed JSON at the top
+     * level. A syntax error inside an object names that object, e.g. `filters`.
+     */
     private fun fieldPath(path: List<JacksonException.Reference>): String? =
         path.joinToString("") { ref -> ref.propertyName?.let { ".$it" } ?: "[${ref.index}]" }
             .removePrefix(".")
             .ifEmpty { null }
 
     companion object {
-        /** The error code for a 400 from a request body that is invalid or unreadable (PIN-303). */
+        /** The error code for a 400 from an invalid or unreadable request (PIN-303). */
         const val INVALID_REQUEST = "INVALID_REQUEST"
     }
 }

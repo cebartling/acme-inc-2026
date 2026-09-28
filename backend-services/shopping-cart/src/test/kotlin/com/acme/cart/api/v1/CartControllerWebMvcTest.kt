@@ -252,7 +252,10 @@ class CartControllerWebMvcTest(
         postItem(content = body.replace("\"sku\":\"ACME-GM-PRO-BLK\"", "\"sku\":\"\"")).andExpect {
             status { isBadRequest() }
             jsonPath("$.error") { value("Invalid request: productSnapshot.sku") }
+            jsonPath("$.code") { value(CartController.INVALID_REQUEST) }
         }
+
+        assertTrue(!command.isCaptured)
     }
 
     // --- US-0004-07: read, update and remove -------------------------------------------

@@ -185,7 +185,7 @@ class CartController(
     /** A body that fails `@Valid`, e.g. `"quantity": 0` or no `productSnapshot` (PIN-303). */
     @ExceptionHandler(MethodArgumentNotValidException::class)
     fun invalidRequest(invalid: MethodArgumentNotValidException): ResponseEntity<Any> =
-        invalidRequestResponse(invalid.bindingResult.fieldErrors.map { it.field }.minOrNull(), invalid)
+        invalidRequestResponse(invalid.bindingResult.fieldErrors.minOfOrNull { it.field }, invalid)
 
     /**
      * A body Jackson can't read, e.g. `"quantity": 2.9` or malformed JSON (PIN-303). Names the
@@ -203,7 +203,10 @@ class CartController(
         return ResponseEntity.badRequest().body(mapOf("error" to message, "code" to INVALID_REQUEST))
     }
 
-    /** `productSnapshot.sku`, `items[0].sku`; null for an empty path, e.g. malformed JSON. */
+    /**
+     * `productSnapshot.sku`, `items[0].sku`; null for an empty path, e.g. malformed JSON at the
+     * top level. A syntax error inside an object names that object, e.g. `productSnapshot`.
+     */
     private fun fieldPath(path: List<JacksonException.Reference>): String? =
         path.joinToString("") { ref -> ref.propertyName?.let { ".$it" } ?: "[${ref.index}]" }
             .removePrefix(".")
