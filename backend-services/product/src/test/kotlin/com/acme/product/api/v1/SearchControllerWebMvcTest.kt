@@ -5,10 +5,15 @@ import com.acme.product.application.SearchProductsUseCase
 import com.acme.product.domain.SearchQuery
 import com.acme.product.domain.SearchResult
 import com.acme.product.domain.SortOption
+import io.mockk.clearMocks
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
+import io.mockk.verify
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest
@@ -43,6 +48,12 @@ class SearchControllerWebMvcTest(
         products = emptyList(), totalResults = 0L, page = 1, pageSize = 24, totalPages = 0,
         spellingSuggestion = null, executionTimeMs = 1
     )
+
+    // The mock bean is shared across tests, so verify(exactly = 0) must not see earlier calls
+    @BeforeEach
+    fun setUp() {
+        clearMocks(searchProductsUseCase)
+    }
 
     @Test
     fun `search should apply Kotlin defaults when optional fields are omitted`() {
@@ -83,5 +94,23 @@ class SearchControllerWebMvcTest(
 
         // Then
         assertEquals(emptyList(), querySlot.captured.filters.categories)
+    }
+
+    // PIN-302: 24.9 used to be truncated to 24 and accepted. The check is on the JSON token,
+    // so 24.0 is rejected too. Stubbed so a regression fails on the status, not on a missing
+    // MockK answer.
+    @ParameterizedTest
+    @ValueSource(strings = ["\"pageSize\":24.9", "\"pageSize\":24.0", "\"page\":1.5"])
+    fun `a decimal page or pageSize is rejected, not truncated`(field: String) {
+        every { searchProductsUseCase.execute(any(), any(), any()) } returns emptyResult
+
+        mockMvc.post("/api/v1/search") {
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"query":"widget",$field}"""
+        }.andExpect {
+            status { isBadRequest() }
+        }
+
+        verify(exactly = 0) { searchProductsUseCase.execute(any(), any(), any()) }
     }
 }
