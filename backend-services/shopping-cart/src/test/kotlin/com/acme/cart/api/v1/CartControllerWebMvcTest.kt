@@ -212,6 +212,14 @@ class CartControllerWebMvcTest(
         assertTrue(!command.isCaptured)
     }
 
+    // PIN-279: 2.9 used to be truncated to 2 and accepted
+    @Test
+    fun `a decimal quantity is rejected, not truncated`() {
+        postItem(content = body.replace("\"quantity\":2", "\"quantity\":2.9")).andExpect { status { isBadRequest() } }
+
+        assertTrue(!command.isCaptured)
+    }
+
     @Test
     fun `a missing product snapshot is rejected`() {
         postItem(content = """{"variantId":"$variantId","quantity":1}""").andExpect { status { isBadRequest() } }
@@ -528,6 +536,21 @@ class CartControllerWebMvcTest(
             contentType = MediaType.APPLICATION_JSON
             content = """{"quantity":0}"""
         }.andExpect { status { isBadRequest() } }
+    }
+
+    // PIN-279: 2.9 used to be truncated to 2 and accepted
+    @Test
+    fun `a decimal quantity update is rejected, not truncated`() {
+        // Stubbed so a regression fails on the status, not on a missing MockK answer
+        every { updateUseCase.execute(any(), any()) } returns cartFor(sessionId).right()
+
+        mockMvc.patch("/api/v1/carts/$cartId/items/$itemId") {
+            cookie(Cookie(CartController.SESSION_COOKIE, sessionId))
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"quantity":2.9}"""
+        }.andExpect { status { isBadRequest() } }
+
+        verify(exactly = 0) { updateUseCase.execute(any(), any()) }
     }
 
     @Test

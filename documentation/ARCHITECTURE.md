@@ -245,7 +245,9 @@ sequenceDiagram
 - **Limits**: a variant's total quantity in one cart is capped by
   `acme.cart.max-order-quantity` (default 10); exceeding it is a 422 with the message the
   customer sees. Stock is checked by the frontend before the POST — the product service
-  only knows in/out of stock, not quantities (see PIN-273).
+  only knows in/out of stock, not quantities (see PIN-273). A quantity must be a JSON
+  integer of at least 1: `0`, `2.9` and even `2.0` are a 400, on add and on update (PIN-279,
+  `spring.jackson.deserialization.accept-float-as-int: false`).
 - **Frontend**: one TanStack Query entry, `["cart"]` (`hooks/useCart.ts`), is the only
   cart state. The header `CartBadge` loads it with `GET /carts/current` on every page, so
   the count survives reloads and new tabs; `useAddToCart`, `useUpdateCartItem` and
