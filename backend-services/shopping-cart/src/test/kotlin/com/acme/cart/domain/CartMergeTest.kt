@@ -74,4 +74,24 @@ class CartMergeTest {
             userCart().absorb(guestCart().with(mouse, 1), emptyMap(), maxQuantity = 10)
         }
     }
+
+    // PIN-306: an archived product's variant is no longer found, so its line can't be priced
+    @Test
+    fun `an unavailable guest line is left out and reported, and the rest merges`() {
+        val user = userCart()
+        val guest = guestCart().with(mouse, 2).with(keyboard, 1, snapshot = """{"name":"Keyboard"}""")
+
+        val result = user.absorb(guest, mapOf(mouse to tiered), maxQuantity = 10, unavailable = setOf(keyboard))
+
+        assertEquals(listOf(mouse), user.items.map { it.variantId })
+        assertEquals(
+            MergeResult(
+                itemsMerged = 1,
+                quantitiesAdjusted = emptyList(),
+                itemsUnavailable = listOf(UnavailableItem(keyboard, """{"name":"Keyboard"}"""))
+            ),
+            result
+        )
+        assertEquals(CartStatus.MERGED, guest.status)
+    }
 }

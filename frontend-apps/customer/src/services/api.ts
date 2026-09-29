@@ -1175,6 +1175,11 @@ export interface MergeResult {
     adjustedTo: number;
     reason: "MAX_ORDER_QUANTITY";
   }>;
+  /** Guest lines left out because their variant is no longer found, e.g. archived (PIN-306). */
+  itemsUnavailable?: Array<{
+    variantId: string;
+    productSnapshot: CartProductSnapshot;
+  }>;
 }
 
 /** The signed-in user's cart after a merge; `mergeResult` is null when nothing merged. */

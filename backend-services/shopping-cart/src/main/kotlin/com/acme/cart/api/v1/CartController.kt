@@ -165,7 +165,7 @@ class CartController(
             ifLeft = ::errorResponse,
             ifRight = { outcome ->
                 val cart = outcome.cart ?: return@fold ResponseEntity.noContent().build()
-                ResponseEntity.ok(MergeResponse.from(toResponse(cart), outcome.result))
+                ResponseEntity.ok(MergeResponse.from(toResponse(cart), outcome.result, ::snapshotOf))
             }
         )
     }
@@ -218,8 +218,9 @@ class CartController(
             .removePrefix(".")
             .ifEmpty { null }
 
-    private fun toResponse(cart: Cart) =
-        CartResponse.from(cart) { objectMapper.readValue(it, ProductSnapshot::class.java) }
+    private fun toResponse(cart: Cart) = CartResponse.from(cart, ::snapshotOf)
+
+    private fun snapshotOf(json: String): ProductSnapshot = objectMapper.readValue(json, ProductSnapshot::class.java)
 
     /**
      * `{"error": message, "code": code}`; a max-quantity error also carries `maxQuantity` so

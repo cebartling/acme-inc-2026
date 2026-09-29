@@ -320,6 +320,12 @@ sequenceDiagram
   concurrent merges run in turn and the second sees no ACTIVE guest cart.
 - **Capping is reported, not hidden**: `mergeResult.quantitiesAdjusted` lists each variant
   whose summed quantity exceeded `acme.cart.max-order-quantity`, for the customer notice.
+- **A variant that is gone is left out, not fatal** (PIN-306): a guest line whose variant the
+  product service answers 404 `VARIANT_NOT_FOUND` for (e.g. an archived product's) is not
+  carried over; any other 404 counts as pricing unavailable and fails the merge. The rest
+  merges, the guest cart is still `MERGED`, and `mergeResult.itemsUnavailable` lists each such
+  line with its product snapshot, so the notice can name it. `itemsMerged` counts only the
+  lines carried over. Any other pricing failure still fails the whole merge.
 - The session cookie is left in place: after sign-out the same browser starts a fresh
   guest cart, which the ACTIVE-only unique index allows.
 - **Frontend trigger**: `mergeCartAfterSignIn` (`hooks/useCart.ts`) runs after every
@@ -329,7 +335,8 @@ sequenceDiagram
   merge then overwrites). It never throws, so a failed merge does not block sign-in. The header badge has already cached the guest cart before sign-in,
   and the session cookie is HttpOnly, so that cache decides: no guest cart or an empty one
   sends no merge request (AC-09); otherwise it merges, writes the merged cart into
-  `["cart"]`, and shows capped quantities in the `CartMergeNotice` banner under the header.
+  `["cart"]`, and shows capped quantities and unavailable items in the `CartMergeNotice`
+  banner under the header.
   A failed merge is logged and the cart reloads as the user; a merge that returns after
   sign-out is dropped. Sign-out resets `["cart"]`, so the badge falls back to the guest
   cart: none once merged, otherwise the unmerged (empty or failed-merge) guest cart.
@@ -348,8 +355,8 @@ is no authentication.
 | `GET /api/v1/categories` | Every category with at least one published product, and its count |
 | `GET /api/v1/categories/{name}/products?page=&pageSize=` | A page of the category's published products, newest first |
 | `GET /api/v1/products/{slug}` | A published product with its variants and up to 4 related products; 404 otherwise |
-| `GET /api/v1/prices/{variantId}` | `{variantId, price, originalPrice, tierPricing}`; 404 for an unknown variant |
-| `GET /api/v1/inventory/availability/{variantId}` | `{variantId, availability}`, `IN_STOCK` or `OUT_OF_STOCK`; 404 for an unknown variant |
+| `GET /api/v1/prices/{variantId}` | `{variantId, price, originalPrice, tierPricing}`; 404 `VARIANT_NOT_FOUND` for an unknown variant or an archived product's |
+| `GET /api/v1/inventory/availability/{variantId}` | `{variantId, availability}`, `IN_STOCK` or `OUT_OF_STOCK`; 404 `VARIANT_NOT_FOUND` for an unknown variant or an archived product's |
 
 - **Search request rules** (`SearchRequest.kt`): `query` is required, not blank and at most
   200 characters; `page` ≥ 1 (default 1); `pageSize` 1–100 (default 24); the
@@ -382,8 +389,9 @@ is no authentication.
 - **Inventory** is a per-variant `in_stock` flag: the service knows in or out of stock, not
   quantities (PIN-273). A product's own `availability` is derived from its status, so it is
   always `IN_STOCK` on the detail endpoint, which only returns published products; per-variant
-  stock is `variants[].inStock`. The price and availability lookups find a variant by ID
-  without checking its product's status.
+  stock is `variants[].inStock`. The price and availability lookups only find a variant whose
+  product is `PUBLISHED` (`findByIdAndProductStatus`), so an archived product's variant is a
+  404, like an unknown one (PIN-306).
 - **Events**: product views (`ProductViewed`) and searches (`SearchExecuted`, plus
   `FiltersApplied` when filters are set) are published to the `product.events` Kafka topic,
   keyed by aggregate ID (the product's ID for a view, a new random ID for each search event),
@@ -404,12 +412,13 @@ is no authentication.
   `{"error": "Invalid request: <field>", "code": "INVALID_REQUEST"}` naming the failing field,
   never Jackson's own message (PIN-303); top-level malformed JSON has no field to name, so its
   message is just `"Invalid request"`. An `IllegalArgumentException`, such as a comma in a
-  category name, is a 400 with its own message and the same code. A missing product or
-  variant is a 404 `{"error": message}`. A path or query parameter of the wrong type
-  (`?limit=abc`, a variant ID that is no UUID), outside its constraint (`?q=a`, `?limit=21`,
-  `?pageSize=0`) or missing (autocomplete without `q`) is the same `INVALID_REQUEST` 400,
-  naming the parameter as sent, e.g. `"Invalid request: q"`, never the parser's message
-  (PIN-305).
+  category name, is a 400 with its own message and the same code. A missing product is a
+  404 `{"error": message}`; a missing variant's 404 also carries `"code": "VARIANT_NOT_FOUND"`,
+  which is the only 404 the cart treats as a variant that is gone (PIN-306). A path or query
+  parameter of the wrong type (`?limit=abc`, a variant ID that is no UUID), outside its
+  constraint (`?q=a`, `?limit=21`, `?pageSize=0`) or missing (autocomplete without `q`) is
+  the same `INVALID_REQUEST` 400, naming the parameter as sent, e.g. `"Invalid request: q"`,
+  never the parser's message (PIN-305).
 - **Callers**: the customer app's `productApi`, `categoryApi`, `pricingApi` and
   `inventoryApi` (`services/api.ts`) use every endpoint above; its `VITE_PRODUCT_SERVICE_URL`,
   `VITE_PRICING_SERVICE_URL` and `VITE_INVENTORY_SERVICE_URL` all default to this service.

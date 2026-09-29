@@ -1,5 +1,6 @@
 package com.acme.product.api.v1
 
+import com.acme.product.domain.ProductStatus
 import com.acme.product.domain.VariantNotFoundException
 import com.acme.product.infrastructure.persistence.ProductVariantRepository
 import org.springframework.http.ResponseEntity
@@ -17,7 +18,7 @@ class InventoryController(
 
     @GetMapping("/availability/{variantId}")
     fun getAvailability(@PathVariable variantId: UUID): ResponseEntity<VariantAvailabilityResponse> {
-        val variant = variantRepository.findById(variantId)
+        val variant = variantRepository.findByIdAndProductStatus(variantId, ProductStatus.PUBLISHED)
             .orElseThrow { VariantNotFoundException(variantId) }
 
         val availability = if (variant.inStock) "IN_STOCK" else "OUT_OF_STOCK"

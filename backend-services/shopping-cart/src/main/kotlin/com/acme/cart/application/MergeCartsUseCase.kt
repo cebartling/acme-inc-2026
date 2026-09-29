@@ -62,9 +62,25 @@ class MergeCartsUseCase(
         }
 
         return either {
-            val pricing = guestVariants.associateWith { pricingClient.getPricing(it).bind() }
+            // A variant the product service no longer finds, e.g. an archived product's (PIN-306),
+            // is left out rather than failing every sign-in; any other pricing error fails the
+            // merge at once, without waiting on lookups for the remaining variants.
+            val pricing = mutableMapOf<UUID, VariantPricing>()
+            val unavailable = mutableSetOf<UUID>()
+            for (variantId in guestVariants) {
+                when (val lookup = pricingClient.getPricing(variantId)) {
+                    is Either.Right -> pricing[variantId] = lookup.value
+                    is Either.Left ->
+                        if (lookup.value is CartError.VariantNotFound) unavailable += variantId else raise(lookup.value)
+                }
+            }
+            if (unavailable.isNotEmpty()) {
+                logger.info("Leaving guest variants no longer found out of user {}'s merge: {}", command.userId, unavailable)
+            }
 
-            val outcome = checkNotNull(transactionTemplate.execute { mergeInTransaction(command, customer, pricing) }) {
+            val outcome = checkNotNull(
+                transactionTemplate.execute { mergeInTransaction(command, customer, pricing, unavailable) }
+            ) {
                 "merge transaction for user ${command.userId} returned no result"
             }.bind()
             if (outcome.merged != null) publish(outcome.merged, correlationId)
@@ -78,7 +94,8 @@ class MergeCartsUseCase(
     private fun mergeInTransaction(
         command: MergeCartsCommand,
         customer: CartOwner.Customer,
-        pricing: Map<UUID, VariantPricing>
+        pricing: Map<UUID, VariantPricing>,
+        unavailable: Set<UUID>
     ): Either<CartError, TransactionOutcome> {
         // Re-read and lock the guest cart first: a concurrent merge that took it already
         // has committed by the time the lock is granted, so this one sees no ACTIVE cart.
@@ -89,11 +106,11 @@ class MergeCartsUseCase(
         if (guest == null) return TransactionOutcome(MergeOutcome(userCart, result = null), merged = null).right()
 
         // A line added to the guest cart after pricing has no price yet; the caller can retry.
-        guest.items.firstOrNull { it.variantId !in pricing }
+        guest.items.firstOrNull { it.variantId !in pricing && it.variantId !in unavailable }
             ?.let { return CartError.PricingUnavailable(it.variantId).left() }
 
         val target = userCart ?: newCartFor(customer)
-        val result = target.absorb(guest, pricing, maxOrderQuantity)
+        val result = target.absorb(guest, pricing, maxOrderQuantity, unavailable)
         cartRepository.save(guest)
         val saved = cartRepository.save(target)
         val merged = Merged(saved, guest, result, isNewCart = userCart == null)
