@@ -320,6 +320,11 @@ sequenceDiagram
   concurrent merges run in turn and the second sees no ACTIVE guest cart.
 - **Capping is reported, not hidden**: `mergeResult.quantitiesAdjusted` lists each variant
   whose summed quantity exceeded `acme.cart.max-order-quantity`, for the customer notice.
+- **A variant that is gone is left out, not fatal** (PIN-306): a guest line whose variant the
+  product service answers 404 for (e.g. an archived product's) is not carried over; the rest
+  merges, the guest cart is still `MERGED`, and `mergeResult.itemsUnavailable` lists each such
+  line with its product snapshot, so the notice can name it. `itemsMerged` counts only the
+  lines carried over. Any other pricing failure still fails the whole merge.
 - The session cookie is left in place: after sign-out the same browser starts a fresh
   guest cart, which the ACTIVE-only unique index allows.
 - **Frontend trigger**: `mergeCartAfterSignIn` (`hooks/useCart.ts`) runs after every
@@ -329,7 +334,8 @@ sequenceDiagram
   merge then overwrites). It never throws, so a failed merge does not block sign-in. The header badge has already cached the guest cart before sign-in,
   and the session cookie is HttpOnly, so that cache decides: no guest cart or an empty one
   sends no merge request (AC-09); otherwise it merges, writes the merged cart into
-  `["cart"]`, and shows capped quantities in the `CartMergeNotice` banner under the header.
+  `["cart"]`, and shows capped quantities and unavailable items in the `CartMergeNotice`
+  banner under the header.
   A failed merge is logged and the cart reloads as the user; a merge that returns after
   sign-out is dropped. Sign-out resets `["cart"]`, so the badge falls back to the guest
   cart: none once merged, otherwise the unmerged (empty or failed-merge) guest cart.
@@ -382,8 +388,9 @@ is no authentication.
 - **Inventory** is a per-variant `in_stock` flag: the service knows in or out of stock, not
   quantities (PIN-273). A product's own `availability` is derived from its status, so it is
   always `IN_STOCK` on the detail endpoint, which only returns published products; per-variant
-  stock is `variants[].inStock`. The price and availability lookups find a variant by ID
-  without checking its product's status.
+  stock is `variants[].inStock`. The price and availability lookups only find a variant whose
+  product is `PUBLISHED` (`findByIdAndProductStatus`), so an archived product's variant is a
+  404, like an unknown one (PIN-306).
 - **Events**: product views (`ProductViewed`) and searches (`SearchExecuted`, plus
   `FiltersApplied` when filters are set) are published to the `product.events` Kafka topic,
   keyed by aggregate ID (the product's ID for a view, a new random ID for each search event),
