@@ -63,10 +63,20 @@ class MergeCartsUseCase(
 
         return either {
             // A variant the product service no longer finds, e.g. an archived product's (PIN-306),
-            // is left out rather than failing every sign-in; any other pricing error still fails.
-            val lookups = guestVariants.associateWith { pricingClient.getPricing(it) }
-            val unavailable = lookups.filterValues { it.leftOrNull() is CartError.VariantNotFound }.keys
-            val pricing = lookups.filterKeys { it !in unavailable }.mapValues { it.value.bind() }
+            // is left out rather than failing every sign-in; any other pricing error fails the
+            // merge at once, without waiting on lookups for the remaining variants.
+            val pricing = mutableMapOf<UUID, VariantPricing>()
+            val unavailable = mutableSetOf<UUID>()
+            for (variantId in guestVariants) {
+                when (val lookup = pricingClient.getPricing(variantId)) {
+                    is Either.Right -> pricing[variantId] = lookup.value
+                    is Either.Left ->
+                        if (lookup.value is CartError.VariantNotFound) unavailable += variantId else raise(lookup.value)
+                }
+            }
+            if (unavailable.isNotEmpty()) {
+                logger.info("Leaving guest variants no longer found out of user {}'s merge: {}", command.userId, unavailable)
+            }
 
             val outcome = checkNotNull(
                 transactionTemplate.execute { mergeInTransaction(command, customer, pricing, unavailable) }

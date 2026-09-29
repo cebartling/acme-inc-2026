@@ -146,6 +146,21 @@ class MergeCartsUseCaseTest {
         assertEquals(emptyList(), published)
     }
 
+    // A down product service times out on every lookup; sign-in awaits the merge, so it must
+    // fail on the first failure rather than wait out one timeout per guest variant.
+    @Test
+    fun `a pricing failure stops pricing the remaining guest variants`() {
+        val other = UUID.randomUUID()
+        val guest = guestWith(2).apply { addItem(other, 1, pricing, "{}", 10) }
+        givenCarts(guest = guest, user = null)
+        every { pricingClient.getPricing(variantId) } returns CartError.PricingUnavailable(variantId).left()
+
+        val result = useCase.execute(MergeCartsCommand(userId, "sess-1"))
+
+        assertEquals(CartError.PricingUnavailable(variantId), result.leftOrNull())
+        verify(exactly = 0) { pricingClient.getPricing(other) }
+    }
+
     // PIN-306: an archived product's variant is a 404 from the product service. One such line
     // must not fail every sign-in merge until the guest cart expires.
     @Test

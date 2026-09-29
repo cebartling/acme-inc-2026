@@ -167,7 +167,9 @@ class Cart(
      * [pricing], so a merged total that crosses a tier gets the tier price. The guest cart
      * is then MERGED, so its session no longer resolves to it (AC-05).
      *
-     * @param pricing current pricing for every variant in [guest].
+     * @param pricing current pricing for every variant in [guest] that is not [unavailable].
+     * @param unavailable variants the product service no longer finds (PIN-306): their lines stay
+     *   in the MERGED guest cart and are reported in [MergeResult.itemsUnavailable].
      */
     fun absorb(
         guest: Cart,
