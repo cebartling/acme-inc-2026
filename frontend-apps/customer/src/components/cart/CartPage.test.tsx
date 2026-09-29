@@ -5,7 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { CartPage } from "./CartPage";
 import type { Cart, CartItem } from "@/services/api";
-import { ApiError, cartApi } from "@/services/api";
+import { ApiError, cartApi, inventoryApi } from "@/services/api";
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({
@@ -27,12 +27,23 @@ vi.mock("@/services/api", async (importOriginal) => ({
     removeItem: vi.fn(),
     clearCart: vi.fn(),
   },
+  inventoryApi: { getAvailability: vi.fn() },
 }));
 
 const mockedGetCurrent = vi.mocked(cartApi.getCurrent);
 const mockedUpdate = vi.mocked(cartApi.updateItem);
 const mockedRemove = vi.mocked(cartApi.removeItem);
 const mockedClear = vi.mocked(cartApi.clearCart);
+const mockedAvailability = vi.mocked(inventoryApi.getAvailability);
+
+/** Every line in stock unless a test says otherwise (US-0004-10 checks each line). */
+function resetMocks() {
+  vi.clearAllMocks();
+  mockedAvailability.mockImplementation(async (variantId) => ({
+    variantId,
+    availability: "IN_STOCK",
+  }));
+}
 
 function line(quantity: number, unitPrice: number): CartItem {
   return {
@@ -85,7 +96,45 @@ function renderPage() {
 }
 
 describe("CartPage", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(resetMocks);
+
+  // US-0004-10 AC-05: a line that went out of stock since it was added
+  it("warns about a line that is now out of stock and keeps Remove prominent", async () => {
+    const inStock = { ...line(1, 19.99), id: "line-2", variantId: "variant-2" };
+    inStock.productSnapshot = { ...inStock.productSnapshot, name: "Widget" };
+    mockedGetCurrent.mockResolvedValue(cartOf(line(2, 119.99), inStock));
+    mockedAvailability.mockImplementation(async (variantId) => ({
+      variantId,
+      availability: variantId === "variant-1" ? "OUT_OF_STOCK" : "IN_STOCK",
+    }));
+    renderPage();
+
+    const warning = await screen.findByTestId("lineOutOfStock");
+    expect(warning).toHaveAttribute("role", "alert");
+    expect(warning).toHaveTextContent(
+      "Gadget Pro is now out of stock and cannot be included in your order",
+    );
+    const [outRow, inRow] = screen.getAllByTestId("cartLineItem");
+    expect(outRow).toHaveAttribute("data-out-of-stock", "true");
+    expect(within(outRow).getByTestId("removeLine")).toHaveTextContent(
+      "Remove",
+    );
+    expect(inRow).not.toHaveAttribute("data-out-of-stock");
+    expect(within(inRow).queryByTestId("lineOutOfStock")).toBeNull();
+  });
+
+  it("does not flag a line whose stock could not be checked", async () => {
+    mockedGetCurrent.mockResolvedValue(cartOf(line(2, 119.99)));
+    mockedAvailability.mockRejectedValue(
+      new ApiError("Variant not found", 404),
+    );
+    renderPage();
+
+    const row = await screen.findByTestId("cartLineItem");
+    await vi.waitFor(() => expect(mockedAvailability).toHaveBeenCalled());
+    expect(row).not.toHaveAttribute("data-out-of-stock");
+    expect(screen.queryByTestId("lineOutOfStock")).toBeNull();
+  });
 
   it("shows each line and the totals to 2 decimals", async () => {
     mockedGetCurrent.mockResolvedValue(cartOf(line(2, 119.99)));
@@ -288,7 +337,7 @@ describe("CartPage", () => {
 });
 
 describe("CartPage: clear cart (PIN-294)", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(resetMocks);
 
   async function confirmClear(user: ReturnType<typeof userEvent.setup>) {
     await user.click(await screen.findByRole("button", { name: "Clear cart" }));
