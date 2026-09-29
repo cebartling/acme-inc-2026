@@ -44,11 +44,33 @@ class ProductPricingClientTest {
         )
     }
 
+    // PIN-306: merge leaves a line out for good on VariantNotFound, so only the product
+    // service's own coded 404 may mean that
     @Test
-    fun `a 404 means the variant does not exist`() {
-        server.expect(requestTo(url)).andRespond(withResourceNotFound())
+    fun `a 404 VARIANT_NOT_FOUND means the variant does not exist`() {
+        server.expect(requestTo(url)).andRespond(
+            withResourceNotFound()
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("""{"error":"Variant not found: $variantId","code":"VARIANT_NOT_FOUND"}""")
+        )
 
         assertEquals(CartError.VariantNotFound(variantId), client.getPricing(variantId).leftOrNull())
+    }
+
+    @Test
+    fun `a 404 without that code, as from a gateway or a wrong URL, means pricing is unavailable`() {
+        server.expect(requestTo(url)).andRespond(withResourceNotFound())
+
+        assertEquals(CartError.PricingUnavailable(variantId), client.getPricing(variantId).leftOrNull())
+    }
+
+    @Test
+    fun `a 404 with a body that is not JSON means pricing is unavailable`() {
+        server.expect(requestTo(url)).andRespond(
+            withResourceNotFound().contentType(MediaType.TEXT_HTML).body("<html>Not Found</html>")
+        )
+
+        assertEquals(CartError.PricingUnavailable(variantId), client.getPricing(variantId).leftOrNull())
     }
 
     @Test

@@ -35,11 +35,15 @@ class GlobalExceptionHandler {
             .body(mapOf("error" to (ex.message ?: "Product not found")))
     }
 
+    /**
+     * Carries a code because the cart leaves a guest line out of a sign-in merge for good on it
+     * (PIN-306), so it must be able to tell this 404 from a gateway's or a wrong URL's.
+     */
     @ExceptionHandler(VariantNotFoundException::class)
     fun handleVariantNotFound(ex: VariantNotFoundException): ResponseEntity<Map<String, String>> {
         return ResponseEntity
             .status(HttpStatus.NOT_FOUND)
-            .body(mapOf("error" to (ex.message ?: "Variant not found")))
+            .body(mapOf("error" to (ex.message ?: "Variant not found"), "code" to VARIANT_NOT_FOUND))
     }
 
     /** A body that fails `@Valid`, e.g. `"pageSize": 101` (PIN-303). */
@@ -108,5 +112,8 @@ class GlobalExceptionHandler {
     companion object {
         /** The error code for a 400 from an invalid or unreadable request (PIN-303). */
         const val INVALID_REQUEST = "INVALID_REQUEST"
+
+        /** The error code for a 404 from a variant that doesn't exist or whose product isn't published (PIN-306). */
+        const val VARIANT_NOT_FOUND = "VARIANT_NOT_FOUND"
     }
 }

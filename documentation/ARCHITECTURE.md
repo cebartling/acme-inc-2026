@@ -321,7 +321,8 @@ sequenceDiagram
 - **Capping is reported, not hidden**: `mergeResult.quantitiesAdjusted` lists each variant
   whose summed quantity exceeded `acme.cart.max-order-quantity`, for the customer notice.
 - **A variant that is gone is left out, not fatal** (PIN-306): a guest line whose variant the
-  product service answers 404 for (e.g. an archived product's) is not carried over; the rest
+  product service answers 404 `VARIANT_NOT_FOUND` for (e.g. an archived product's) is not
+  carried over; any other 404 counts as pricing unavailable and fails the merge. The rest
   merges, the guest cart is still `MERGED`, and `mergeResult.itemsUnavailable` lists each such
   line with its product snapshot, so the notice can name it. `itemsMerged` counts only the
   lines carried over. Any other pricing failure still fails the whole merge.
@@ -411,12 +412,13 @@ is no authentication.
   `{"error": "Invalid request: <field>", "code": "INVALID_REQUEST"}` naming the failing field,
   never Jackson's own message (PIN-303); top-level malformed JSON has no field to name, so its
   message is just `"Invalid request"`. An `IllegalArgumentException`, such as a comma in a
-  category name, is a 400 with its own message and the same code. A missing product or
-  variant is a 404 `{"error": message}`. A path or query parameter of the wrong type
-  (`?limit=abc`, a variant ID that is no UUID), outside its constraint (`?q=a`, `?limit=21`,
-  `?pageSize=0`) or missing (autocomplete without `q`) is the same `INVALID_REQUEST` 400,
-  naming the parameter as sent, e.g. `"Invalid request: q"`, never the parser's message
-  (PIN-305).
+  category name, is a 400 with its own message and the same code. A missing product is a
+  404 `{"error": message}`; a missing variant's 404 also carries `"code": "VARIANT_NOT_FOUND"`,
+  which is the only 404 the cart treats as a variant that is gone (PIN-306). A path or query
+  parameter of the wrong type (`?limit=abc`, a variant ID that is no UUID), outside its
+  constraint (`?q=a`, `?limit=21`, `?pageSize=0`) or missing (autocomplete without `q`) is
+  the same `INVALID_REQUEST` 400, naming the parameter as sent, e.g. `"Invalid request: q"`,
+  never the parser's message (PIN-305).
 - **Callers**: the customer app's `productApi`, `categoryApi`, `pricingApi` and
   `inventoryApi` (`services/api.ts`) use every endpoint above; its `VITE_PRODUCT_SERVICE_URL`,
   `VITE_PRICING_SERVICE_URL` and `VITE_INVENTORY_SERVICE_URL` all default to this service.
