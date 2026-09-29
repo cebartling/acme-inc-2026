@@ -13,6 +13,7 @@ import io.mockk.verify
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.CsvSource
 import org.junit.jupiter.params.provider.ValueSource
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.TestConfiguration
@@ -20,6 +21,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest
 import org.springframework.context.annotation.Bean
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
 import kotlin.test.assertEquals
 
@@ -160,6 +162,23 @@ class SearchControllerWebMvcTest(
         }.andExpect {
             status { isBadRequest() }
             jsonPath("$.error") { value("Invalid request") }
+            jsonPath("$.code") { value(GlobalExceptionHandler.INVALID_REQUEST) }
+        }
+    }
+
+    // PIN-305: query-parameter 400s name the parameter as sent (q, not the Kotlin `query`) and
+    // never echo the conversion message
+    @ParameterizedTest
+    @CsvSource(
+        "q=a, q",                 // @Size(min = 2)
+        "limit=8, q",             // missing q
+        "q=ab&limit=abc, limit",  // not a number
+        "q=ab&limit=21, limit"    // @Max(20)
+    )
+    fun `an invalid autocomplete parameter is a 400 INVALID_REQUEST naming it`(params: String, name: String) {
+        mockMvc.get("/api/v1/search/autocomplete?$params").andExpect {
+            status { isBadRequest() }
+            jsonPath("$.error") { value("Invalid request: $name") }
             jsonPath("$.code") { value(GlobalExceptionHandler.INVALID_REQUEST) }
         }
     }

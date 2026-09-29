@@ -3,12 +3,17 @@ package com.acme.product.api.v1
 import com.acme.product.domain.ProductNotFoundException
 import com.acme.product.domain.VariantNotFoundException
 import org.slf4j.LoggerFactory
+import org.springframework.core.MethodParameter
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.http.converter.HttpMessageNotReadableException
 import org.springframework.web.bind.MethodArgumentNotValidException
+import org.springframework.web.bind.MissingServletRequestParameterException
 import org.springframework.web.bind.annotation.ExceptionHandler
+import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestControllerAdvice
+import org.springframework.web.method.annotation.HandlerMethodValidationException
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
 import tools.jackson.core.JacksonException
 
 @RestControllerAdvice
@@ -52,10 +57,35 @@ class GlobalExceptionHandler {
         return invalidRequest(jackson?.path?.let(::fieldPath), ex)
     }
 
+    /**
+     * A path or query parameter of the wrong type, e.g. `?limit=abc` or a variant ID that is no
+     * UUID (PIN-305). Handled here so it doesn't reach [handleIllegalArgument] through its
+     * cause, whose message is the parser's (`For input string: "abc"`).
+     */
+    @ExceptionHandler(MethodArgumentTypeMismatchException::class)
+    fun handleParameterTypeMismatch(ex: MethodArgumentTypeMismatchException): ResponseEntity<Map<String, String>> =
+        invalidRequest(ex.name, ex)
+
+    /** A query parameter that fails its constraint, e.g. `?q=a` or `?limit=21` (PIN-305). */
+    @ExceptionHandler(HandlerMethodValidationException::class)
+    fun handleInvalidParameter(ex: HandlerMethodValidationException): ResponseEntity<Map<String, String>> =
+        invalidRequest(ex.parameterValidationResults.mapNotNull { requestParamName(it.methodParameter) }.minOrNull(), ex)
+
+    /** A required query parameter that is missing, e.g. autocomplete without `q` (PIN-305). */
+    @ExceptionHandler(MissingServletRequestParameterException::class)
+    fun handleMissingParameter(ex: MissingServletRequestParameterException): ResponseEntity<Map<String, String>> =
+        invalidRequest(ex.parameterName, ex)
+
     private fun invalidRequest(field: String?, cause: Exception): ResponseEntity<Map<String, String>> {
         logger.debug("Rejected an invalid request: {}", cause.message)
         val message = if (field == null) "Invalid request" else "Invalid request: $field"
         return ResponseEntity.badRequest().body(mapOf("error" to message, "code" to INVALID_REQUEST))
+    }
+
+    /** The name the client sent, e.g. `q` for `@RequestParam("q") query`; the Kotlin name otherwise. */
+    private fun requestParamName(parameter: MethodParameter): String? {
+        val requestParam = parameter.getParameterAnnotation(RequestParam::class.java)
+        return requestParam?.value?.ifEmpty { requestParam.name }?.ifEmpty { null } ?: parameter.parameterName
     }
 
     /**

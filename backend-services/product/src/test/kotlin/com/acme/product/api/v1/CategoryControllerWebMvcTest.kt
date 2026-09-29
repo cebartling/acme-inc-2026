@@ -4,6 +4,8 @@ import com.acme.product.application.BrowseCategoriesUseCase
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.CsvSource
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest
@@ -107,6 +109,17 @@ class CategoryControllerWebMvcTest(
         mockMvc.get("/api/v1/categories/{name}/products", "Home Goods").andExpect {
             status { isOk() }
             jsonPath("$.category") { value("Home Goods") }
+        }
+    }
+
+    // PIN-305: a non-numeric or out-of-range page parameter is a 400 naming it
+    @ParameterizedTest
+    @CsvSource("page=x, page", "pageSize=0, pageSize", "pageSize=101, pageSize")
+    fun `an invalid pagination parameter is a 400 INVALID_REQUEST naming it`(params: String, name: String) {
+        mockMvc.get("/api/v1/categories/Electronics/products?$params").andExpect {
+            status { isBadRequest() }
+            jsonPath("$.error") { value("Invalid request: $name") }
+            jsonPath("$.code") { value(GlobalExceptionHandler.INVALID_REQUEST) }
         }
     }
 }
