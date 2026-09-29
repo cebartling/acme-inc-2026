@@ -594,6 +594,63 @@ class CartControllerWebMvcTest(
         verify(exactly = 0) { updateUseCase.execute(any(), any()) }
     }
 
+    // PIN-305: a path ID that is no UUID is a 400 naming it, not Spring's default body
+    @Test
+    fun `updating with a cart ID that is no UUID is a 400 INVALID_REQUEST naming cartId`() {
+        mockMvc.patch("/api/v1/carts/not-a-uuid/items/$itemId") {
+            cookie(Cookie(CartController.SESSION_COOKIE, sessionId))
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"quantity":2}"""
+        }.andExpect {
+            status { isBadRequest() }
+            jsonPath("$.error") { value("Invalid request: cartId") }
+            jsonPath("$.code") { value(CartController.INVALID_REQUEST) }
+        }
+
+        verify(exactly = 0) { updateUseCase.execute(any(), any()) }
+    }
+
+    @Test
+    fun `updating with an item ID that is no UUID is a 400 INVALID_REQUEST naming itemId`() {
+        mockMvc.patch("/api/v1/carts/$cartId/items/not-a-uuid") {
+            cookie(Cookie(CartController.SESSION_COOKIE, sessionId))
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"quantity":2}"""
+        }.andExpect {
+            status { isBadRequest() }
+            jsonPath("$.error") { value("Invalid request: itemId") }
+            jsonPath("$.code") { value(CartController.INVALID_REQUEST) }
+        }
+
+        verify(exactly = 0) { updateUseCase.execute(any(), any()) }
+    }
+
+    @Test
+    fun `removing with a cart ID that is no UUID is a 400 INVALID_REQUEST naming cartId`() {
+        mockMvc.delete("/api/v1/carts/not-a-uuid/items/$itemId") {
+            cookie(Cookie(CartController.SESSION_COOKIE, sessionId))
+        }.andExpect {
+            status { isBadRequest() }
+            jsonPath("$.error") { value("Invalid request: cartId") }
+            jsonPath("$.code") { value(CartController.INVALID_REQUEST) }
+        }
+
+        verify(exactly = 0) { removeUseCase.execute(any(), any()) }
+    }
+
+    @Test
+    fun `clearing with a cart ID that is no UUID is a 400 INVALID_REQUEST naming cartId`() {
+        mockMvc.delete("/api/v1/carts/not-a-uuid/items") {
+            cookie(Cookie(CartController.SESSION_COOKIE, sessionId))
+        }.andExpect {
+            status { isBadRequest() }
+            jsonPath("$.error") { value("Invalid request: cartId") }
+            jsonPath("$.code") { value(CartController.INVALID_REQUEST) }
+        }
+
+        verify(exactly = 0) { clearUseCase.execute(any(), any()) }
+    }
+
     @Test
     fun `removing an item returns the updated cart`() {
         val captured = slot<RemoveCartItemCommand>()
