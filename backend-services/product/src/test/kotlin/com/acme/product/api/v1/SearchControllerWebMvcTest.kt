@@ -23,6 +23,9 @@ import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
+import com.acme.product.domain.ProductSummary
+import java.math.BigDecimal
+import java.util.UUID
 import kotlin.test.assertEquals
 
 /**
@@ -180,6 +183,27 @@ class SearchControllerWebMvcTest(
             status { isBadRequest() }
             jsonPath("$.error") { value("Invalid request: $name") }
             jsonPath("$.code") { value(GlobalExceptionHandler.INVALID_REQUEST) }
+        }
+    }
+
+    // US-0004-10 AC-06 (PIN-273): the card needs each result's stock and image
+    @Test
+    fun `search results carry inStock and imageUrl`() {
+        val id = UUID.randomUUID()
+        every { searchProductsUseCase.execute(any(), any(), any()) } returns emptyResult.copy(
+            products = listOf(
+                ProductSummary(id, "old-widget", "Old Widget", BigDecimal("9.99"), inStock = false, imageUrl = "https://img/w")
+            ),
+            totalResults = 1L
+        )
+
+        mockMvc.post("/api/v1/search") {
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"query":"widget"}"""
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.results[0].inStock") { value(false) }
+            jsonPath("$.results[0].imageUrl") { value("https://img/w") }
         }
     }
 }

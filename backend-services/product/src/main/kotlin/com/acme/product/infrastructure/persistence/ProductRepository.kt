@@ -41,6 +41,16 @@ interface AutocompleteProductProjection {
 }
 
 /**
+ * Projection for [ProductRepository.findStockSummaries]: whether a product is in stock and its
+ * card image (US-0004-10).
+ */
+interface ProductStockProjection {
+    fun getProductId(): UUID
+    fun getInStock(): Boolean
+    fun getImageUrl(): String?
+}
+
+/**
  * Spring Data JPA repository for [Product] entities.
  *
  * Includes native PostgreSQL full-text search queries using tsvector/tsquery.
@@ -342,6 +352,31 @@ interface ProductRepository : JpaRepository<Product, UUID> {
      * Returns empty if the product does not exist or is not PUBLISHED.
      */
     fun findBySlugAndStatus(slug: String, status: ProductStatus): Optional<Product>
+
+    /**
+     * Stock and card image for a page of products, in one query (US-0004-10, PIN-273). A product
+     * is out of stock when it has variants and none is in stock; one without variants is in
+     * stock. The image is the default variant's first by `display_order`, or null. Pass a
+     * non-empty collection: `IN ()` is not valid SQL.
+     */
+    @Query(
+        value = """
+            SELECT p.id AS "productId",
+                   (COUNT(v.id) = 0 OR BOOL_OR(v.in_stock)) AS "inStock",
+                   (SELECT i.url
+                      FROM product_variant_images i
+                      JOIN product_variants dv ON dv.id = i.variant_id
+                     WHERE dv.product_id = p.id AND dv.is_default
+                     ORDER BY i.display_order
+                     LIMIT 1) AS "imageUrl"
+            FROM products p
+            LEFT JOIN product_variants v ON v.product_id = p.id
+            WHERE p.id IN (:ids)
+            GROUP BY p.id
+        """,
+        nativeQuery = true
+    )
+    fun findStockSummaries(@Param("ids") ids: Collection<UUID>): List<ProductStockProjection>
 
     /**
      * Finds published products in the same category, excluding the given product.

@@ -9,6 +9,7 @@ import com.acme.product.infrastructure.messaging.ProductEventPublisher
 import com.acme.product.infrastructure.persistence.CategoryFacetProjection
 import com.acme.product.infrastructure.persistence.ProductRepository
 import com.acme.product.infrastructure.persistence.ProductSearchProjection
+import com.acme.product.infrastructure.persistence.ProductStockProjection
 import io.mockk.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -30,6 +31,15 @@ class SearchProductsUseCaseTest {
         repository = mockk()
         eventPublisher = mockk()
         useCase = SearchProductsUseCase(repository, eventPublisher)
+        every { repository.findStockSummaries(any()) } returns emptyList()
+    }
+
+    private fun stock(id: UUID, inStock: Boolean, imageUrl: String? = null): ProductStockProjection {
+        val projection = mockk<ProductStockProjection>()
+        every { projection.getProductId() } returns id
+        every { projection.getInStock() } returns inStock
+        every { projection.getImageUrl() } returns imageUrl
+        return projection
     }
 
     private fun createProjection(
@@ -316,5 +326,29 @@ class SearchProductsUseCaseTest {
         // Then
         assertEquals(1, publishedEvents.size)
         assertTrue(publishedEvents.single() is SearchExecuted)
+    }
+
+    // US-0004-10 AC-06 (PIN-273): search cards show an Out of Stock badge and an image
+    @Test
+    fun `execute should give each result its stock and image, one lookup for the page`() {
+        val outId = UUID.randomUUID()
+        val inId = UUID.randomUUID()
+        val bareId = UUID.randomUUID()
+        val query = SearchQuery(query = "widget", page = 1, pageSize = 24, sort = SortOption.RELEVANCE)
+        every { repository.searchByRelevance("widget", 24, 0) } returns listOf(
+            createProjection(id = outId), createProjection(id = inId), createProjection(id = bareId)
+        )
+        every { repository.countByQuery("widget") } returns 3L
+        every { repository.getCategoryFacets("widget", null, null) } returns emptyList()
+        every { eventPublisher.publish(any()) } just Runs
+        every { repository.findStockSummaries(match { it.toSet() == setOf(outId, inId, bareId) }) } returns listOf(
+            stock(outId, inStock = false), stock(inId, inStock = true, imageUrl = "https://img/in")
+        )
+
+        val products = useCase.execute(query).products
+
+        assertEquals(listOf(false, true, true), products.map { it.inStock })
+        assertEquals(listOf(null, "https://img/in", null), products.map { it.imageUrl })
+        verify(exactly = 1) { repository.findStockSummaries(any()) }
     }
 }

@@ -3,6 +3,7 @@ package com.acme.product.application
 import com.acme.product.domain.Product
 import com.acme.product.domain.ProductStatus
 import com.acme.product.infrastructure.persistence.CategoryFacetProjection
+import com.acme.product.infrastructure.persistence.ProductStockProjection
 import com.acme.product.infrastructure.persistence.ProductRepository
 import io.mockk.every
 import io.mockk.mockk
@@ -27,6 +28,15 @@ class BrowseCategoriesUseCaseTest {
     fun setUp() {
         repository = mockk()
         useCase = BrowseCategoriesUseCase(repository)
+        every { repository.findStockSummaries(any()) } returns emptyList()
+    }
+
+    private fun stock(id: UUID, inStock: Boolean, imageUrl: String? = null): ProductStockProjection {
+        val projection = mockk<ProductStockProjection>()
+        every { projection.getProductId() } returns id
+        every { projection.getInStock() } returns inStock
+        every { projection.getImageUrl() } returns imageUrl
+        return projection
     }
 
     private fun createFacetProjection(category: String, count: Long): CategoryFacetProjection {
@@ -171,5 +181,22 @@ class BrowseCategoriesUseCaseTest {
         assertFailsWith<IllegalArgumentException> {
             useCase.productsInCategory("Electronics", pageSize = 101)
         }
+    }
+
+    // US-0004-10 (PIN-273): the category fallback's cards carry stock and image like search's
+    @Test
+    fun `productsInCategory should give each product its stock and image`() {
+        val out = createProduct(slug = "out")
+        val inStock = createProduct(slug = "in")
+        every { repository.countByCategory("Electronics") } returns 2L
+        every { repository.findByCategory("Electronics", any()) } returns listOf(out, inStock)
+        every { repository.findStockSummaries(match { it.toSet() == setOf(out.id, inStock.id) }) } returns listOf(
+            stock(out.id, inStock = false), stock(inStock.id, inStock = true, imageUrl = "https://img/in")
+        )
+
+        val products = useCase.productsInCategory("Electronics").products
+
+        assertEquals(listOf(false, true), products.map { it.inStock })
+        assertEquals(listOf(null, "https://img/in"), products.map { it.imageUrl })
     }
 }

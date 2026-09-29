@@ -11,13 +11,17 @@ import java.util.UUID
  * @property name Product display name.
  * @property price Product price.
  * @property category Optional category.
+ * @property inStock False when the product has variants and none is in stock (US-0004-10).
+ * @property imageUrl The default variant's first image, if any.
  */
 data class ProductSummary(
     val id: UUID,
     val slug: String,
     val name: String,
     val price: BigDecimal,
-    val category: String? = null
+    val category: String? = null,
+    val inStock: Boolean = true,
+    val imageUrl: String? = null
 )
 
 /**

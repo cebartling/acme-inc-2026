@@ -6,9 +6,11 @@ import com.acme.product.domain.ProductStatus
 import com.acme.product.domain.events.ProductViewed
 import com.acme.product.infrastructure.messaging.ProductEventPublisher
 import com.acme.product.infrastructure.persistence.ProductRepository
+import com.acme.product.infrastructure.persistence.ProductStockProjection
 import io.mockk.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Pageable
 import java.math.BigDecimal
 import java.time.Instant
@@ -29,6 +31,15 @@ class GetProductDetailUseCaseTest {
         repository = mockk()
         eventPublisher = mockk()
         useCase = GetProductDetailUseCase(repository, eventPublisher)
+        every { repository.findStockSummaries(any()) } returns emptyList()
+    }
+
+    private fun stock(id: UUID, inStock: Boolean, imageUrl: String? = null): ProductStockProjection {
+        val projection = mockk<ProductStockProjection>()
+        every { projection.getProductId() } returns id
+        every { projection.getInStock() } returns inStock
+        every { projection.getImageUrl() } returns imageUrl
+        return projection
     }
 
     private fun createProduct(
@@ -149,5 +160,28 @@ class GetProductDetailUseCaseTest {
 
         assertNotNull(result.product)
         assertEquals("resilient-product", result.product.slug)
+    }
+
+    // US-0004-10 AC-04 (PIN-273): alternatives to an out-of-stock product must be in stock, so
+    // more candidates are read than shown and the out-of-stock ones are dropped
+    @Test
+    fun `execute should return up to 4 in-stock related products, with their images`() {
+        val product = createProduct(slug = "main-product", category = "Electronics")
+        val candidates = (1..6).map { createProduct(slug = "related-$it") }
+        val (outA, outB) = candidates[1] to candidates[3]
+        every { repository.findBySlugAndStatus("main-product", ProductStatus.PUBLISHED) } returns Optional.of(product)
+        every { repository.findRelatedProducts("Electronics", product.id, PageRequest.of(0, 12)) } returns candidates
+        every { repository.findStockSummaries(any()) } returns listOf(
+            stock(outA.id, inStock = false),
+            stock(outB.id, inStock = false),
+            stock(candidates[0].id, inStock = true, imageUrl = "https://img/1")
+        )
+        every { eventPublisher.publish(any()) } just Runs
+
+        val related = useCase.execute("main-product").relatedProducts
+
+        assertEquals(listOf("related-1", "related-3", "related-5", "related-6"), related.map { it.slug })
+        assertEquals(true, related.all { it.inStock })
+        assertEquals("https://img/1", related.first().imageUrl)
     }
 }
