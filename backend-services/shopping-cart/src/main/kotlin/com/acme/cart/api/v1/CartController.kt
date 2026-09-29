@@ -37,6 +37,7 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
 import tools.jackson.core.JacksonException
 import java.util.UUID
 
@@ -196,6 +197,11 @@ class CartController(
         val jackson = generateSequence<Throwable>(unreadable) { it.cause }.filterIsInstance<JacksonException>().firstOrNull()
         return invalidRequestResponse(jackson?.path?.let(::fieldPath), unreadable)
     }
+
+    /** A path ID that is no UUID, e.g. `/carts/not-a-uuid/items` (PIN-305). Names the parameter. */
+    @ExceptionHandler(MethodArgumentTypeMismatchException::class)
+    fun invalidParameter(mismatch: MethodArgumentTypeMismatchException): ResponseEntity<Any> =
+        invalidRequestResponse(mismatch.name, mismatch)
 
     private fun invalidRequestResponse(field: String?, cause: Exception): ResponseEntity<Any> {
         logger.debug("Rejected an invalid cart request: {}", cause.message)
