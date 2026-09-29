@@ -66,18 +66,26 @@ class GlobalExceptionHandler {
     fun handleParameterTypeMismatch(ex: MethodArgumentTypeMismatchException): ResponseEntity<Map<String, String>> =
         invalidRequest(ex.name, ex)
 
-    /** A query parameter that fails its constraint, e.g. `?q=a` or `?limit=21` (PIN-305). */
+    /**
+     * A query parameter that fails its constraint, e.g. `?q=a` or `?limit=21` (PIN-305). Logs the
+     * results, not the message, which is just `Validation failure` with no value or constraint.
+     * An invalid return value is a server bug, not a bad request, so it is rethrown and Spring
+     * answers it with a 500.
+     */
     @ExceptionHandler(HandlerMethodValidationException::class)
-    fun handleInvalidParameter(ex: HandlerMethodValidationException): ResponseEntity<Map<String, String>> =
-        invalidRequest(ex.parameterValidationResults.mapNotNull { requestParamName(it.methodParameter) }.minOrNull(), ex)
+    fun handleInvalidParameter(ex: HandlerMethodValidationException): ResponseEntity<Map<String, String>> {
+        if (ex.isForReturnValue) throw ex
+        val results = ex.parameterValidationResults
+        return invalidRequest(results.mapNotNull { requestParamName(it.methodParameter) }.minOrNull(), ex, results)
+    }
 
     /** A required query parameter that is missing, e.g. autocomplete without `q` (PIN-305). */
     @ExceptionHandler(MissingServletRequestParameterException::class)
     fun handleMissingParameter(ex: MissingServletRequestParameterException): ResponseEntity<Map<String, String>> =
         invalidRequest(ex.parameterName, ex)
 
-    private fun invalidRequest(field: String?, cause: Exception): ResponseEntity<Map<String, String>> {
-        logger.debug("Rejected an invalid request: {}", cause.message)
+    private fun invalidRequest(field: String?, cause: Exception, detail: Any? = cause.message): ResponseEntity<Map<String, String>> {
+        logger.debug("Rejected an invalid request: {}", detail)
         val message = if (field == null) "Invalid request" else "Invalid request: $field"
         return ResponseEntity.badRequest().body(mapOf("error" to message, "code" to INVALID_REQUEST))
     }
@@ -85,7 +93,7 @@ class GlobalExceptionHandler {
     /** The name the client sent, e.g. `q` for `@RequestParam("q") query`; the Kotlin name otherwise. */
     private fun requestParamName(parameter: MethodParameter): String? {
         val requestParam = parameter.getParameterAnnotation(RequestParam::class.java)
-        return requestParam?.value?.ifEmpty { requestParam.name }?.ifEmpty { null } ?: parameter.parameterName
+        return requestParam?.name?.ifEmpty { null } ?: parameter.parameterName
     }
 
     /**
