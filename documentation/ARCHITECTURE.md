@@ -240,8 +240,10 @@ sequenceDiagram
   line but still explain a delisted variant whose line is still in the cart. A request body
   that fails `@Valid` (`"quantity": 0`) or can't be read (`"quantity": 2.9`, malformed JSON)
   is a 400 `INVALID_REQUEST` whose message names the failing field, e.g.
-  `"Invalid request: quantity"`, and never echoes Jackson's own message (PIN-303). The
-  product service answers an invalid search body the same way; see its **Error bodies** bullet.
+  `"Invalid request: quantity"`, and never echoes Jackson's own message (PIN-303). A cart or
+  item ID in the path that is no UUID is the same 400, naming `cartId` or `itemId` (PIN-305).
+  The product service answers an invalid search body or parameter the same way; see its
+  **Error bodies** bullet.
 - **Server-side pricing**: the unit price comes from the product service at the line's new
   total quantity, so crossing a tier threshold reprices the whole line. The request carries
   no price. If the product service is unreachable the add fails with 503 rather than
@@ -403,8 +405,11 @@ is no authentication.
   never Jackson's own message (PIN-303); top-level malformed JSON has no field to name, so its
   message is just `"Invalid request"`. An `IllegalArgumentException`, such as a comma in a
   category name, is a 400 with its own message and the same code. A missing product or
-  variant is a 404 `{"error": message}`. Bad path variables and query parameters still get
-  Spring's default 400 body (PIN-305).
+  variant is a 404 `{"error": message}`. A path or query parameter of the wrong type
+  (`?limit=abc`, a variant ID that is no UUID), outside its constraint (`?q=a`, `?limit=21`,
+  `?pageSize=0`) or missing (autocomplete without `q`) is the same `INVALID_REQUEST` 400,
+  naming the parameter as sent, e.g. `"Invalid request: q"`, never the parser's message
+  (PIN-305).
 - **Callers**: the customer app's `productApi`, `categoryApi`, `pricingApi` and
   `inventoryApi` (`services/api.ts`) use every endpoint above; its `VITE_PRODUCT_SERVICE_URL`,
   `VITE_PRICING_SERVICE_URL` and `VITE_INVENTORY_SERVICE_URL` all default to this service.
