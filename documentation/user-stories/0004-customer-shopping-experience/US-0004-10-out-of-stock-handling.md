@@ -41,7 +41,7 @@ sequenceDiagram
 
     CU->>WA: Click "Add to Cart"
     WA->>INV: GET /api/v1/inventory/availability/{variantId}
-    INV-->>WA: {status: "OUT_OF_STOCK", available: 0}
+    INV-->>WA: {variantId, availability: "OUT_OF_STOCK"}
 
     WA-->>CU: Show "Out of Stock" message
     WA-->>CU: Display "Notify When Available" option
@@ -150,7 +150,7 @@ frontend-apps/customer/src/
 
 ```typescript
 function AddToCartButton({ availability, onAdd }: Props) {
-  const isOutOfStock = availability?.status === 'OUT_OF_STOCK';
+  const isOutOfStock = availability?.availability === 'OUT_OF_STOCK';
 
   return (
     <Button
