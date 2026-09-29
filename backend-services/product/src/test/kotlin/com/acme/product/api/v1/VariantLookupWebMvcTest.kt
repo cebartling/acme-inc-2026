@@ -38,6 +38,6 @@ class VariantLookupWebMvcTest(
             jsonPath("$.code") { value(GlobalExceptionHandler.INVALID_REQUEST) }
         }
 
-        verify(exactly = 0) { variantRepository.findById(any()) }
+        verify(exactly = 0) { variantRepository.findByIdAndProductStatus(any(), any()) }
     }
 }

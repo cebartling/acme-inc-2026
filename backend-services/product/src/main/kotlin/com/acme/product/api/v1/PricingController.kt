@@ -1,5 +1,6 @@
 package com.acme.product.api.v1
 
+import com.acme.product.domain.ProductStatus
 import com.acme.product.domain.VariantNotFoundException
 import com.acme.product.infrastructure.persistence.ProductVariantRepository
 import org.springframework.http.ResponseEntity
@@ -17,7 +18,7 @@ class PricingController(
 
     @GetMapping("/{variantId}")
     fun getPrice(@PathVariable variantId: UUID): ResponseEntity<VariantPriceResponse> {
-        val variant = variantRepository.findById(variantId)
+        val variant = variantRepository.findByIdAndProductStatus(variantId, ProductStatus.PUBLISHED)
             .orElseThrow { VariantNotFoundException(variantId) }
 
         val override = variant.priceOverride

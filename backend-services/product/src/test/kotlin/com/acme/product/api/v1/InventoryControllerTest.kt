@@ -1,6 +1,7 @@
 package com.acme.product.api.v1
 
 import com.acme.product.domain.Product
+import com.acme.product.domain.ProductStatus
 import com.acme.product.domain.ProductVariant
 import com.acme.product.domain.VariantNotFoundException
 import com.acme.product.infrastructure.persistence.ProductVariantRepository
@@ -48,7 +49,7 @@ class InventoryControllerTest {
     fun `getAvailability returns IN_STOCK for in-stock variant`() {
         val variantId = UUID.randomUUID()
         val variant = makeVariant(makeProduct(), inStock = true)
-        every { variantRepository.findById(variantId) } returns Optional.of(variant)
+        every { variantRepository.findByIdAndProductStatus(variantId, ProductStatus.PUBLISHED) } returns Optional.of(variant)
 
         val response = controller.getAvailability(variantId)
 
@@ -63,7 +64,7 @@ class InventoryControllerTest {
     fun `getAvailability returns OUT_OF_STOCK for out-of-stock variant`() {
         val variantId = UUID.randomUUID()
         val variant = makeVariant(makeProduct(), inStock = false)
-        every { variantRepository.findById(variantId) } returns Optional.of(variant)
+        every { variantRepository.findByIdAndProductStatus(variantId, ProductStatus.PUBLISHED) } returns Optional.of(variant)
 
         val response = controller.getAvailability(variantId)
 
@@ -74,7 +75,7 @@ class InventoryControllerTest {
     @Test
     fun `getAvailability throws VariantNotFoundException for unknown variant`() {
         val variantId = UUID.randomUUID()
-        every { variantRepository.findById(variantId) } returns Optional.empty()
+        every { variantRepository.findByIdAndProductStatus(variantId, ProductStatus.PUBLISHED) } returns Optional.empty()
 
         assertThrows<VariantNotFoundException> {
             controller.getAvailability(variantId)

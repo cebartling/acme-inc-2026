@@ -1,6 +1,7 @@
 package com.acme.product.api.v1
 
 import com.acme.product.domain.Product
+import com.acme.product.domain.ProductStatus
 import com.acme.product.domain.ProductVariant
 import com.acme.product.domain.ProductVariantTierPricing
 import com.acme.product.domain.VariantNotFoundException
@@ -49,7 +50,7 @@ class PricingControllerTest {
             inStock = true,
             priceOverride = null
         )
-        every { variantRepository.findById(variantId) } returns Optional.of(variant)
+        every { variantRepository.findByIdAndProductStatus(variantId, ProductStatus.PUBLISHED) } returns Optional.of(variant)
 
         val response = controller.getPrice(variantId)
 
@@ -75,7 +76,7 @@ class PricingControllerTest {
             inStock = true,
             priceOverride = BigDecimal("189.99")
         )
-        every { variantRepository.findById(variantId) } returns Optional.of(variant)
+        every { variantRepository.findByIdAndProductStatus(variantId, ProductStatus.PUBLISHED) } returns Optional.of(variant)
 
         val response = controller.getPrice(variantId)
 
@@ -98,7 +99,7 @@ class PricingControllerTest {
             inStock = false,
             priceOverride = BigDecimal("219.99")
         )
-        every { variantRepository.findById(variantId) } returns Optional.of(variant)
+        every { variantRepository.findByIdAndProductStatus(variantId, ProductStatus.PUBLISHED) } returns Optional.of(variant)
 
         val response = controller.getPrice(variantId)
 
@@ -134,7 +135,7 @@ class PricingControllerTest {
             priceOverride = null,
             tierPricing = listOf(tierRow1, tierRow2)
         )
-        every { variantRepository.findById(variantId) } returns Optional.of(variant)
+        every { variantRepository.findByIdAndProductStatus(variantId, ProductStatus.PUBLISHED) } returns Optional.of(variant)
 
         val response = controller.getPrice(variantId)
 
@@ -150,7 +151,7 @@ class PricingControllerTest {
     @Test
     fun `getPrice throws VariantNotFoundException for unknown variant`() {
         val variantId = UUID.randomUUID()
-        every { variantRepository.findById(variantId) } returns Optional.empty()
+        every { variantRepository.findByIdAndProductStatus(variantId, ProductStatus.PUBLISHED) } returns Optional.empty()
 
         assertThrows<VariantNotFoundException> {
             controller.getPrice(variantId)
