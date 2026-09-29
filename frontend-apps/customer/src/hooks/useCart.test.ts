@@ -294,6 +294,42 @@ describe("mergeCartAfterSignIn", () => {
     );
   });
 
+  // PIN-306: a line left out of the merge is not in the merged cart, so its name comes from
+  // the snapshot the service returns with it
+  it("names each product left out as no longer available, after any capped ones", async () => {
+    queryClient.setQueryData(CART_QUERY_KEY, guestCart);
+    mockedMerge.mockResolvedValue({
+      ...mergedCart,
+      mergeResult: {
+        itemsMerged: 1,
+        quantitiesAdjusted: [
+          {
+            variantId: "variant-1",
+            requestedTotal: 12,
+            adjustedTo: 10,
+            reason: "MAX_ORDER_QUANTITY",
+          },
+        ],
+        itemsUnavailable: [
+          {
+            variantId: "variant-gone",
+            productSnapshot: {
+              ...mergedCart.items[0].productSnapshot,
+              name: "Old Widget",
+            },
+          },
+        ],
+      },
+    });
+
+    await mergeCartAfterSignIn(queryClient);
+
+    expect(useCartNoticeStore.getState().message).toBe(
+      "Quantity for Gadget Pro was adjusted to the maximum of 10. " +
+        "Old Widget is no longer available and wasn't added to your cart.",
+    );
+  });
+
   it("does not cache the account's cart when signed out before the merge returned", async () => {
     queryClient.setQueryData(CART_QUERY_KEY, guestCart);
     mockedMerge.mockImplementation(async () => {

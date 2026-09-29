@@ -144,18 +144,23 @@ export function useClearCart() {
   });
 }
 
-/** "Quantity for {name} was adjusted to the maximum of {N}", one sentence per capped line. */
-function adjustmentNotice(merged: MergeCartResponse): string | null {
-  const adjusted = merged.mergeResult?.quantitiesAdjusted ?? [];
-  if (adjusted.length === 0) return null;
-  return adjusted
-    .map((a) => {
-      const name =
-        merged.items.find((item) => item.variantId === a.variantId)
-          ?.productSnapshot.name ?? "an item";
-      return `Quantity for ${name} was adjusted to the maximum of ${a.adjustedTo}.`;
-    })
-    .join(" ");
+/**
+ * One sentence per capped line ("Quantity for {name} was adjusted to the maximum of {N}"), then
+ * one per line left out ("{name} is no longer available and wasn't added to your cart", PIN-306).
+ */
+function mergeNotice(merged: MergeCartResponse): string | null {
+  const adjusted = (merged.mergeResult?.quantitiesAdjusted ?? []).map((a) => {
+    const name =
+      merged.items.find((item) => item.variantId === a.variantId)
+        ?.productSnapshot.name ?? "an item";
+    return `Quantity for ${name} was adjusted to the maximum of ${a.adjustedTo}.`;
+  });
+  const unavailable = (merged.mergeResult?.itemsUnavailable ?? []).map(
+    (u) =>
+      `${u.productSnapshot.name} is no longer available and wasn't added to your cart.`,
+  );
+  const sentences = [...adjusted, ...unavailable];
+  return sentences.length === 0 ? null : sentences.join(" ");
 }
 
 /**
@@ -186,7 +191,7 @@ export async function mergeCartAfterSignIn(
     if (!useAuthStore.getState().isAuthenticated) return;
     if (merged) {
       await writeCart(queryClient, merged);
-      const notice = adjustmentNotice(merged);
+      const notice = mergeNotice(merged);
       if (notice) useCartNoticeStore.getState().show(notice);
       return;
     }
