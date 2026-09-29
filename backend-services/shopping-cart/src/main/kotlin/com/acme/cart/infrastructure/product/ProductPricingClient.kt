@@ -72,6 +72,6 @@ class ProductPricingClient(private val productRestClient: RestClient) {
 
     companion object {
         /** The product service's code for a variant it doesn't find, e.g. an archived product's. */
-        const val VARIANT_NOT_FOUND = "VARIANT_NOT_FOUND"
+        private const val VARIANT_NOT_FOUND = "VARIANT_NOT_FOUND"
     }
 }

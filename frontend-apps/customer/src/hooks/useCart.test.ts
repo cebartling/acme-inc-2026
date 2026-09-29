@@ -330,6 +330,32 @@ describe("mergeCartAfterSignIn", () => {
     );
   });
 
+  // An archived product loses every variant at once; the customer hears its name once
+  it("names a product left out once, however many of its variants were", async () => {
+    queryClient.setQueryData(CART_QUERY_KEY, guestCart);
+    const oldWidget = {
+      ...mergedCart.items[0].productSnapshot,
+      name: "Old Widget",
+    };
+    mockedMerge.mockResolvedValue({
+      ...mergedCart,
+      mergeResult: {
+        itemsMerged: 1,
+        quantitiesAdjusted: [],
+        itemsUnavailable: [
+          { variantId: "variant-blue", productSnapshot: oldWidget },
+          { variantId: "variant-red", productSnapshot: oldWidget },
+        ],
+      },
+    });
+
+    await mergeCartAfterSignIn(queryClient);
+
+    expect(useCartNoticeStore.getState().message).toBe(
+      "Old Widget is no longer available and wasn't added to your cart.",
+    );
+  });
+
   it("does not cache the account's cart when signed out before the merge returned", async () => {
     queryClient.setQueryData(CART_QUERY_KEY, guestCart);
     mockedMerge.mockImplementation(async () => {

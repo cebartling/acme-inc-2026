@@ -355,8 +355,8 @@ is no authentication.
 | `GET /api/v1/categories` | Every category with at least one published product, and its count |
 | `GET /api/v1/categories/{name}/products?page=&pageSize=` | A page of the category's published products, newest first |
 | `GET /api/v1/products/{slug}` | A published product with its variants and up to 4 related products; 404 otherwise |
-| `GET /api/v1/prices/{variantId}` | `{variantId, price, originalPrice, tierPricing}`; 404 for an unknown variant |
-| `GET /api/v1/inventory/availability/{variantId}` | `{variantId, availability}`, `IN_STOCK` or `OUT_OF_STOCK`; 404 for an unknown variant |
+| `GET /api/v1/prices/{variantId}` | `{variantId, price, originalPrice, tierPricing}`; 404 `VARIANT_NOT_FOUND` for an unknown variant or an archived product's |
+| `GET /api/v1/inventory/availability/{variantId}` | `{variantId, availability}`, `IN_STOCK` or `OUT_OF_STOCK`; 404 `VARIANT_NOT_FOUND` for an unknown variant or an archived product's |
 
 - **Search request rules** (`SearchRequest.kt`): `query` is required, not blank and at most
   200 characters; `page` ≥ 1 (default 1); `pageSize` 1–100 (default 24); the

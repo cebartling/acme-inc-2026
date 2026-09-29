@@ -146,7 +146,8 @@ export function useClearCart() {
 
 /**
  * One sentence per capped line ("Quantity for {name} was adjusted to the maximum of {N}"), then
- * one per line left out ("{name} is no longer available and wasn't added to your cart", PIN-306).
+ * one per product left out ("{name} is no longer available and wasn't added to your cart",
+ * PIN-306). An archived product loses every variant at once, so its name is said only once.
  */
 function mergeNotice(merged: MergeCartResponse): string | null {
   const adjusted = (merged.mergeResult?.quantitiesAdjusted ?? []).map((a) => {
@@ -155,9 +156,13 @@ function mergeNotice(merged: MergeCartResponse): string | null {
         ?.productSnapshot.name ?? "an item";
     return `Quantity for ${name} was adjusted to the maximum of ${a.adjustedTo}.`;
   });
-  const unavailable = (merged.mergeResult?.itemsUnavailable ?? []).map(
-    (u) =>
-      `${u.productSnapshot.name} is no longer available and wasn't added to your cart.`,
+  const unavailableNames = new Set(
+    (merged.mergeResult?.itemsUnavailable ?? []).map(
+      (u) => u.productSnapshot.name,
+    ),
+  );
+  const unavailable = [...unavailableNames].map(
+    (name) => `${name} is no longer available and wasn't added to your cart.`,
   );
   const sentences = [...adjusted, ...unavailable];
   return sentences.length === 0 ? null : sentences.join(" ");
