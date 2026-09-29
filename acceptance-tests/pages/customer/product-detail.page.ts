@@ -12,6 +12,7 @@ export class ProductDetailPage extends BasePage {
   readonly error: Locator;
   readonly cartBadge: Locator;
   readonly cartBadgeCount: Locator;
+  readonly availabilityBadge: Locator;
 
   constructor(
     page: Page,
@@ -24,6 +25,7 @@ export class ProductDetailPage extends BasePage {
     this.error = page.getByTestId('addToCartError');
     this.cartBadge = page.getByTestId('cartBadge');
     this.cartBadgeCount = page.getByTestId('cartBadgeCount');
+    this.availabilityBadge = page.getByTestId('availabilityBadge');
   }
 
   get url(): string {
@@ -37,6 +39,15 @@ export class ProductDetailPage extends BasePage {
 
   async setQuantity(quantity: number): Promise<void> {
     await this.quantityInput.fill(String(quantity));
+  }
+
+  /**
+   * Picks a color swatch. An out-of-stock one is still selectable (US-0004-10 AC-07), but it is
+   * `aria-disabled`, which Playwright treats as not clickable, so the click is forced: it is a
+   * real click, only the enabled check is skipped.
+   */
+  async selectColor(color: string): Promise<void> {
+    await this.page.getByRole('radio', { name: `Color: ${color}` }).click({ force: true });
   }
 
   async addToCart(): Promise<void> {

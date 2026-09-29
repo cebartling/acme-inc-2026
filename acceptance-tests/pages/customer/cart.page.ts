@@ -10,6 +10,7 @@ export class CartPage extends BasePage {
   readonly unitPrice: Locator;
   readonly lineTotal: Locator;
   readonly lineMessage: Locator;
+  readonly outOfStockWarning: Locator;
   readonly removeButton: Locator;
   readonly clearCartButton: Locator;
   readonly confirmClearCartButton: Locator;
@@ -26,6 +27,7 @@ export class CartPage extends BasePage {
     this.unitPrice = page.getByTestId('lineUnitPrice');
     this.lineTotal = page.getByTestId('lineTotal');
     this.lineMessage = page.getByTestId('lineMessage');
+    this.outOfStockWarning = page.getByTestId('lineOutOfStock');
     this.removeButton = page.getByTestId('removeLine');
     this.clearCartButton = page.getByTestId('clearCart');
     this.confirmClearCartButton = page.getByTestId('confirmClearCart');
