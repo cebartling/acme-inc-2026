@@ -173,12 +173,16 @@ class Cart(
         guest: Cart,
         pricing: Map<UUID, VariantPricing>,
         maxQuantity: Int,
+        unavailable: Set<UUID> = emptySet(),
         now: Instant = Instant.now()
     ): MergeResult {
         require(guest !== this) { "a cart cannot absorb itself" }
         require(guest.status == CartStatus.ACTIVE) { "cart ${guest.id} was already merged" }
 
-        val adjustments = guest.items.mapNotNull { guestLine ->
+        // A variant the product service no longer finds (PIN-306) can't be priced; its line stays
+        // behind in the MERGED guest cart and is reported instead.
+        val (dropped, carried) = guest.items.partition { it.variantId in unavailable }
+        val adjustments = carried.mapNotNull { guestLine ->
             val variantPricing = requireNotNull(pricing[guestLine.variantId]) {
                 "no pricing for variant ${guestLine.variantId}"
             }
@@ -208,7 +212,11 @@ class Cart(
         guest.status = CartStatus.MERGED
         guest.updatedAt = now
         touch(now)
-        return MergeResult(itemsMerged = guest.items.size, quantitiesAdjusted = adjustments)
+        return MergeResult(
+            itemsMerged = carried.size,
+            quantitiesAdjusted = adjustments,
+            itemsUnavailable = dropped.map { UnavailableItem(it.variantId, it.productSnapshot) }
+        )
     }
 
     /** A change by the owner: the cart is both modified and in use. */
@@ -220,11 +228,21 @@ class Cart(
 
 data class QuantityChange(val item: CartItem, val previousQuantity: Int)
 
-/** What a merge did: how many guest lines moved, and which quantities were capped. */
-data class MergeResult(val itemsMerged: Int, val quantitiesAdjusted: List<QuantityAdjustment>)
+/**
+ * What a merge did: how many guest lines moved, which quantities were capped, and which lines
+ * were left out because their variant is no longer found (PIN-306).
+ */
+data class MergeResult(
+    val itemsMerged: Int,
+    val quantitiesAdjusted: List<QuantityAdjustment>,
+    val itemsUnavailable: List<UnavailableItem> = emptyList()
+)
 
 /** A merged variant whose summed quantity ([requestedTotal]) was capped to [adjustedTo]. */
 data class QuantityAdjustment(val variantId: UUID, val requestedTotal: Int, val adjustedTo: Int)
+
+/** A guest line left out of a merge; [productSnapshot] is its stored JSON, so the client can name it. */
+data class UnavailableItem(val variantId: UUID, val productSnapshot: String)
 
 /** A new, empty ACTIVE cart for [owner]. */
 fun newCartFor(owner: CartOwner): Cart = when (owner) {

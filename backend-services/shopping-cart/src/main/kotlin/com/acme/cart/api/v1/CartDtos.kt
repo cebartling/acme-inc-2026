@@ -110,7 +110,7 @@ data class MergeResponse(
     val mergeResult: MergeResultResponse?
 ) {
     companion object {
-        fun from(cart: CartResponse, result: MergeResult?) = MergeResponse(
+        fun from(cart: CartResponse, result: MergeResult?, snapshotOf: (String) -> ProductSnapshot) = MergeResponse(
             id = cart.id,
             items = cart.items,
             summary = cart.summary,
@@ -119,6 +119,9 @@ data class MergeResponse(
                     itemsMerged = r.itemsMerged,
                     quantitiesAdjusted = r.quantitiesAdjusted.map {
                         QuantityAdjustmentResponse(it.variantId, it.requestedTotal, it.adjustedTo)
+                    },
+                    itemsUnavailable = r.itemsUnavailable.map {
+                        UnavailableItemResponse(it.variantId, snapshotOf(it.productSnapshot))
                     }
                 )
             }
@@ -128,7 +131,14 @@ data class MergeResponse(
 
 data class MergeResultResponse(
     val itemsMerged: Int,
-    val quantitiesAdjusted: List<QuantityAdjustmentResponse>
+    val quantitiesAdjusted: List<QuantityAdjustmentResponse>,
+    val itemsUnavailable: List<UnavailableItemResponse>
+)
+
+/** A guest line left out of a merge because its variant is no longer found (PIN-306). */
+data class UnavailableItemResponse(
+    val variantId: UUID,
+    val productSnapshot: ProductSnapshot
 )
 
 data class QuantityAdjustmentResponse(

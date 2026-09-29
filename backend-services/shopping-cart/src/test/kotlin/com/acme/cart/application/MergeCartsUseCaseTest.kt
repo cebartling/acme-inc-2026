@@ -6,6 +6,7 @@ import com.acme.cart.domain.Cart
 import com.acme.cart.domain.CartError
 import com.acme.cart.domain.CartOwner
 import com.acme.cart.domain.CartStatus
+import com.acme.cart.domain.UnavailableItem
 import com.acme.cart.domain.VariantPricing
 import com.acme.cart.domain.events.CartCreated
 import com.acme.cart.domain.events.CartMerged
@@ -143,6 +144,38 @@ class MergeCartsUseCaseTest {
         assertEquals(CartStatus.ACTIVE, guest.status)
         verify(exactly = 0) { cartRepository.save(any()) }
         assertEquals(emptyList(), published)
+    }
+
+    // PIN-306: an archived product's variant is a 404 from the product service. One such line
+    // must not fail every sign-in merge until the guest cart expires.
+    @Test
+    fun `a guest variant that is no longer found is left out and reported, and the rest merges`() {
+        val gone = UUID.randomUUID()
+        val guest = guestWith(2).apply { addItem(gone, 1, pricing, """{"name":"Old Widget"}""", 10) }
+        givenCarts(guest = guest, user = null)
+        every { pricingClient.getPricing(gone) } returns CartError.VariantNotFound(gone).left()
+
+        val outcome = useCase.execute(MergeCartsCommand(userId, "sess-1")).getOrNull()!!
+
+        assertEquals(listOf(variantId), outcome.cart!!.items.map { it.variantId })
+        assertEquals(1, outcome.result!!.itemsMerged)
+        assertEquals(listOf(UnavailableItem(gone, """{"name":"Old Widget"}""")), outcome.result!!.itemsUnavailable)
+        assertEquals(CartStatus.MERGED, guest.status)
+        assertEquals(1, assertIs<CartMerged>(published.last()).payload.itemsMerged)
+    }
+
+    @Test
+    fun `a guest cart whose every variant is gone still merges, carrying nothing over`() {
+        val guest = guestWith(2)
+        givenCarts(guest = guest, user = null)
+        every { pricingClient.getPricing(variantId) } returns CartError.VariantNotFound(variantId).left()
+
+        val outcome = useCase.execute(MergeCartsCommand(userId, "sess-1")).getOrNull()!!
+
+        assertEquals(0, outcome.cart!!.itemCount)
+        assertEquals(0, outcome.result!!.itemsMerged)
+        assertEquals(listOf(variantId), outcome.result!!.itemsUnavailable.map { it.variantId })
+        assertEquals(CartStatus.MERGED, guest.status)
     }
 
     @Test

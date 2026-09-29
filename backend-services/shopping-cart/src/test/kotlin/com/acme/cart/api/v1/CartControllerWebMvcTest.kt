@@ -26,6 +26,7 @@ import com.acme.cart.application.UpdateCartItemQuantityCommand
 import com.acme.cart.application.UpdateCartItemQuantityUseCase
 import com.acme.cart.domain.Cart
 import com.acme.cart.domain.CartError
+import com.acme.cart.domain.UnavailableItem
 import com.acme.cart.domain.VariantPricing
 import com.acme.cart.infrastructure.persistence.CartRepository
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -857,6 +858,32 @@ class CartControllerWebMvcTest(
         assertEquals(MergeCartsCommand(userId, sessionId), captured.captured)
         assertEquals(null, result.response.getHeader(HttpHeaders.SET_COOKIE))
         verify(exactly = 0) { cartRepository.touchGuestCart(any(), any(), any()) }
+    }
+
+    // PIN-306: a line left out because its variant is gone carries its snapshot, so the
+    // client can name it although it is not in the merged cart
+    @Test
+    fun `a merge reports lines left out with their product snapshot`() {
+        signedIn()
+        val gone = UUID.randomUUID()
+        every { mergeUseCase.execute(any(), any()) } returns MergeOutcome(
+            newCartFor(CartOwner.Customer(userId)),
+            MergeResult(
+                itemsMerged = 0,
+                quantitiesAdjusted = emptyList(),
+                itemsUnavailable = listOf(
+                    UnavailableItem(gone, """{"productId":"${UUID.randomUUID()}","name":"Old Widget","sku":"W","variantName":"Blue","imageUrl":null}""")
+                )
+            )
+        ).right()
+
+        mockMvc.post("/api/v1/carts/merge") {
+            cookie(accessToken(), Cookie(CartController.SESSION_COOKIE, sessionId))
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.mergeResult.itemsUnavailable[0].variantId") { value(gone.toString()) }
+            jsonPath("$.mergeResult.itemsUnavailable[0].productSnapshot.name") { value("Old Widget") }
+        }
     }
 
     @Test
