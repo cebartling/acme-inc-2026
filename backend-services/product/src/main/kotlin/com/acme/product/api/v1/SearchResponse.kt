@@ -14,7 +14,15 @@ data class ProductSummaryResponse(
     val imageUrl: String? = null
 ) {
     companion object {
-        fun from(p: ProductSummary) = ProductSummaryResponse(p.id, p.slug, p.name, p.price, p.category, p.inStock, p.imageUrl)
+        fun from(p: ProductSummary) = ProductSummaryResponse(
+            id = p.id,
+            slug = p.slug,
+            name = p.name,
+            price = p.price,
+            category = p.category,
+            inStock = p.inStock,
+            imageUrl = p.imageUrl
+        )
     }
 }
 

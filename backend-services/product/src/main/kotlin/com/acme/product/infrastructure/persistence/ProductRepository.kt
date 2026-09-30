@@ -356,8 +356,9 @@ interface ProductRepository : JpaRepository<Product, UUID> {
     /**
      * Stock and card image for a page of products, in one query (US-0004-10, PIN-273). A product
      * is out of stock when it has variants and none is in stock; one without variants is in
-     * stock. The image is the default variant's first by `display_order`, or null. Pass a
-     * non-empty collection: `IN ()` is not valid SQL.
+     * stock. The image is the first by `display_order` of the variant the product page opens on:
+     * the default, else the first in [com.acme.product.domain.Product.variants] order; or null.
+     * Pass a non-empty collection: `IN ()` is not valid SQL.
      */
     @Query(
         value = """
@@ -365,9 +366,12 @@ interface ProductRepository : JpaRepository<Product, UUID> {
                    (COUNT(v.id) = 0 OR BOOL_OR(v.in_stock)) AS "inStock",
                    (SELECT i.url
                       FROM product_variant_images i
-                      JOIN product_variants dv ON dv.id = i.variant_id
-                     WHERE dv.product_id = p.id AND dv.is_default
-                     ORDER BY i.display_order
+                     WHERE i.variant_id = (SELECT dv.id
+                                             FROM product_variants dv
+                                            WHERE dv.product_id = p.id
+                                            ORDER BY dv.is_default DESC, dv.created_at, dv.id
+                                            LIMIT 1)
+                     ORDER BY i.display_order, i.id
                      LIMIT 1) AS "imageUrl"
             FROM products p
             LEFT JOIN product_variants v ON v.product_id = p.id
@@ -382,7 +386,7 @@ interface ProductRepository : JpaRepository<Product, UUID> {
      * Finds published products in the same category, excluding the given product.
      * Used for the related products section on the product detail page.
      */
-    @Query("SELECT p FROM Product p WHERE p.category = :category AND p.id <> :excludeId AND p.status = com.acme.product.domain.ProductStatus.PUBLISHED ORDER BY p.createdAt DESC")
+    @Query("SELECT p FROM Product p WHERE p.category = :category AND p.id <> :excludeId AND p.status = com.acme.product.domain.ProductStatus.PUBLISHED ORDER BY p.createdAt DESC, p.id")
     fun findRelatedProducts(
         @Param("category") category: String,
         @Param("excludeId") excludeId: UUID,

@@ -1,5 +1,6 @@
 import { useQueries } from "@tanstack/react-query";
 import { useCart } from "@/hooks/useCart";
+import { availabilityQueryKey } from "@/hooks/useVariantSelection";
 import { inventoryApi } from "@/services/api";
 import { CartEmptyState } from "./CartEmptyState";
 import { CartLineItem } from "./CartLineItem";
@@ -64,15 +65,17 @@ export function CartPage() {
  * e.g. a 404 for a variant that is gone, flags nothing: the cart's own errors cover that case.
  */
 function useOutOfStockVariants(variantIds: string[]): Set<string> {
+  const uniqueIds = [...new Set(variantIds)];
   const results = useQueries({
-    queries: [...new Set(variantIds)].map((variantId) => ({
-      queryKey: ["availability", variantId],
+    queries: uniqueIds.map((variantId) => ({
+      queryKey: availabilityQueryKey(variantId),
       queryFn: () => inventoryApi.getAvailability(variantId),
     })),
   });
+  // Keyed on the id the line asked about, not the one the response echoes back
   return new Set(
-    results.flatMap(({ data }) =>
-      data?.availability === "OUT_OF_STOCK" ? [data.variantId] : [],
+    uniqueIds.filter(
+      (_, i) => results[i]?.data?.availability === "OUT_OF_STOCK",
     ),
   );
 }

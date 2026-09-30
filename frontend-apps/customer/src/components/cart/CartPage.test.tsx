@@ -124,16 +124,26 @@ describe("CartPage", () => {
   });
 
   it("does not flag a line whose stock could not be checked", async () => {
-    mockedGetCurrent.mockResolvedValue(cartOf(line(2, 119.99)));
-    mockedAvailability.mockRejectedValue(
-      new ApiError("Variant not found", 404),
-    );
+    const outOfStock = {
+      ...line(1, 19.99),
+      id: "line-2",
+      variantId: "variant-2",
+    };
+    mockedGetCurrent.mockResolvedValue(cartOf(line(2, 119.99), outOfStock));
+    mockedAvailability.mockImplementation(async (variantId) => {
+      if (variantId === "variant-1") {
+        throw new ApiError("Variant not found", 404);
+      }
+      return { variantId, availability: "OUT_OF_STOCK" };
+    });
     renderPage();
 
-    const row = await screen.findByTestId("cartLineItem");
-    await vi.waitFor(() => expect(mockedAvailability).toHaveBeenCalled());
-    expect(row).not.toHaveAttribute("data-out-of-stock");
-    expect(screen.queryByTestId("lineOutOfStock")).toBeNull();
+    // The other line's warning shows once the checks have settled, so the failed one has too
+    await screen.findByTestId("lineOutOfStock");
+    const [failedRow, outRow] = screen.getAllByTestId("cartLineItem");
+    expect(outRow).toHaveAttribute("data-out-of-stock", "true");
+    expect(failedRow).not.toHaveAttribute("data-out-of-stock");
+    expect(within(failedRow).queryByTestId("lineOutOfStock")).toBeNull();
   });
 
   it("shows each line and the totals to 2 decimals", async () => {

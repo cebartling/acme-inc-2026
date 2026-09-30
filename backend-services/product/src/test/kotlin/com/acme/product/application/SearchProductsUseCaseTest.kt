@@ -9,7 +9,6 @@ import com.acme.product.infrastructure.messaging.ProductEventPublisher
 import com.acme.product.infrastructure.persistence.CategoryFacetProjection
 import com.acme.product.infrastructure.persistence.ProductRepository
 import com.acme.product.infrastructure.persistence.ProductSearchProjection
-import com.acme.product.infrastructure.persistence.ProductStockProjection
 import io.mockk.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -32,14 +31,6 @@ class SearchProductsUseCaseTest {
         eventPublisher = mockk()
         useCase = SearchProductsUseCase(repository, eventPublisher)
         every { repository.findStockSummaries(any()) } returns emptyList()
-    }
-
-    private fun stock(id: UUID, inStock: Boolean, imageUrl: String? = null): ProductStockProjection {
-        val projection = mockk<ProductStockProjection>()
-        every { projection.getProductId() } returns id
-        every { projection.getInStock() } returns inStock
-        every { projection.getImageUrl() } returns imageUrl
-        return projection
     }
 
     private fun createProjection(
@@ -342,7 +333,8 @@ class SearchProductsUseCaseTest {
         every { repository.getCategoryFacets("widget", null, null) } returns emptyList()
         every { eventPublisher.publish(any()) } just Runs
         every { repository.findStockSummaries(match { it.toSet() == setOf(outId, inId, bareId) }) } returns listOf(
-            stock(outId, inStock = false), stock(inId, inStock = true, imageUrl = "https://img/in")
+            stockProjection(outId, inStock = false),
+            stockProjection(inId, inStock = true, imageUrl = "https://img/in")
         )
 
         val products = useCase.execute(query).products

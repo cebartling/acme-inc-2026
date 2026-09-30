@@ -3,7 +3,6 @@ package com.acme.product.application
 import com.acme.product.domain.Product
 import com.acme.product.domain.ProductStatus
 import com.acme.product.infrastructure.persistence.CategoryFacetProjection
-import com.acme.product.infrastructure.persistence.ProductStockProjection
 import com.acme.product.infrastructure.persistence.ProductRepository
 import io.mockk.every
 import io.mockk.mockk
@@ -29,14 +28,6 @@ class BrowseCategoriesUseCaseTest {
         repository = mockk()
         useCase = BrowseCategoriesUseCase(repository)
         every { repository.findStockSummaries(any()) } returns emptyList()
-    }
-
-    private fun stock(id: UUID, inStock: Boolean, imageUrl: String? = null): ProductStockProjection {
-        val projection = mockk<ProductStockProjection>()
-        every { projection.getProductId() } returns id
-        every { projection.getInStock() } returns inStock
-        every { projection.getImageUrl() } returns imageUrl
-        return projection
     }
 
     private fun createFacetProjection(category: String, count: Long): CategoryFacetProjection {
@@ -191,7 +182,8 @@ class BrowseCategoriesUseCaseTest {
         every { repository.countByCategory("Electronics") } returns 2L
         every { repository.findByCategory("Electronics", any()) } returns listOf(out, inStock)
         every { repository.findStockSummaries(match { it.toSet() == setOf(out.id, inStock.id) }) } returns listOf(
-            stock(out.id, inStock = false), stock(inStock.id, inStock = true, imageUrl = "https://img/in")
+            stockProjection(out.id, inStock = false),
+            stockProjection(inStock.id, inStock = true, imageUrl = "https://img/in")
         )
 
         val products = useCase.productsInCategory("Electronics").products

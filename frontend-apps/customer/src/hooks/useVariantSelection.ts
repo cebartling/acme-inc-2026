@@ -9,6 +9,10 @@ import type {
 import { inventoryApi, pricingApi } from "@/services/api";
 import { trackVariantSelected } from "@/services/analytics";
 
+/** Query key for a variant's availability. The cart page reads it too, so the two share a cache. */
+export const availabilityQueryKey = (variantId: string | undefined) =>
+  ["availability", variantId] as const;
+
 export interface UseVariantSelectionResult {
   selectedVariant: ProductVariant | undefined;
   selectedVariantId: string | undefined;
@@ -45,7 +49,7 @@ export function useVariantSelection(
   }, [selectedVariantId, product.id]);
 
   const availabilityQuery = useQuery({
-    queryKey: ["availability", selectedVariantId],
+    queryKey: availabilityQueryKey(selectedVariantId),
     queryFn: () => inventoryApi.getAvailability(selectedVariantId!),
     enabled: !!selectedVariantId,
   });

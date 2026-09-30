@@ -6,7 +6,6 @@ import com.acme.product.domain.ProductStatus
 import com.acme.product.domain.events.ProductViewed
 import com.acme.product.infrastructure.messaging.ProductEventPublisher
 import com.acme.product.infrastructure.persistence.ProductRepository
-import com.acme.product.infrastructure.persistence.ProductStockProjection
 import io.mockk.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -32,14 +31,6 @@ class GetProductDetailUseCaseTest {
         eventPublisher = mockk()
         useCase = GetProductDetailUseCase(repository, eventPublisher)
         every { repository.findStockSummaries(any()) } returns emptyList()
-    }
-
-    private fun stock(id: UUID, inStock: Boolean, imageUrl: String? = null): ProductStockProjection {
-        val projection = mockk<ProductStockProjection>()
-        every { projection.getProductId() } returns id
-        every { projection.getInStock() } returns inStock
-        every { projection.getImageUrl() } returns imageUrl
-        return projection
     }
 
     private fun createProduct(
@@ -172,9 +163,9 @@ class GetProductDetailUseCaseTest {
         every { repository.findBySlugAndStatus("main-product", ProductStatus.PUBLISHED) } returns Optional.of(product)
         every { repository.findRelatedProducts("Electronics", product.id, PageRequest.of(0, 12)) } returns candidates
         every { repository.findStockSummaries(any()) } returns listOf(
-            stock(outA.id, inStock = false),
-            stock(outB.id, inStock = false),
-            stock(candidates[0].id, inStock = true, imageUrl = "https://img/1")
+            stockProjection(outA.id, inStock = false),
+            stockProjection(outB.id, inStock = false),
+            stockProjection(candidates[0].id, inStock = true, imageUrl = "https://img/1")
         )
         every { eventPublisher.publish(any()) } just Runs
 

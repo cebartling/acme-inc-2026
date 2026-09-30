@@ -14,6 +14,7 @@ import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
 import org.testcontainers.postgresql.PostgreSQLContainer
 import java.math.BigDecimal
+import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -64,7 +65,12 @@ class ProductStockRepositoryIntegrationTest {
         )
     )
 
-    private fun variant(product: Product, inStock: Boolean, isDefault: Boolean = false): ProductVariant =
+    private fun variant(
+        product: Product,
+        inStock: Boolean,
+        isDefault: Boolean = false,
+        createdAt: Instant = Instant.now()
+    ): ProductVariant =
         variantRepository.save(
             ProductVariant(
                 id = UUID.randomUUID(),
@@ -72,7 +78,8 @@ class ProductStockRepositoryIntegrationTest {
                 sku = "PIN-273-${UUID.randomUUID()}",
                 name = "V",
                 isDefault = isDefault,
-                inStock = inStock
+                inStock = inStock,
+                createdAt = createdAt
             )
         )
 
@@ -118,5 +125,16 @@ class ProductStockRepositoryIntegrationTest {
         image(default, "https://img/default-0", 0)
 
         assertEquals("https://img/default-0", stockOf(withImages).getValue(withImages.id).getImageUrl())
+    }
+
+    @Test
+    fun `without a default variant, the image is the first variant's, as on the product page`() {
+        val noDefault = product()
+        val later = variant(noDefault, inStock = true, createdAt = Instant.parse("2026-01-02T00:00:00Z"))
+        val first = variant(noDefault, inStock = true, createdAt = Instant.parse("2026-01-01T00:00:00Z"))
+        image(later, "https://img/later-0", 0)
+        image(first, "https://img/first-0", 0)
+
+        assertEquals("https://img/first-0", stockOf(noDefault).getValue(noDefault.id).getImageUrl())
     }
 }

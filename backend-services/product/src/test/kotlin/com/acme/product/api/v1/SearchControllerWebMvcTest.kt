@@ -2,6 +2,7 @@ package com.acme.product.api.v1
 
 import com.acme.product.application.AutocompleteUseCase
 import com.acme.product.application.SearchProductsUseCase
+import com.acme.product.domain.ProductSummary
 import com.acme.product.domain.SearchQuery
 import com.acme.product.domain.SearchResult
 import com.acme.product.domain.SortOption
@@ -23,7 +24,6 @@ import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
-import com.acme.product.domain.ProductSummary
 import java.math.BigDecimal
 import java.util.UUID
 import kotlin.test.assertEquals

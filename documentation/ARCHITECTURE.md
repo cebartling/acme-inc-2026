@@ -399,7 +399,7 @@ is no authentication.
 - **Product summaries** (search, category browsing, related products) carry `inStock` and
   `imageUrl` (US-0004-10, PIN-273). A product is out of stock when it has variants and none is
   in stock; one without variants counts as in stock. `imageUrl` is the default variant's first
-  image by `display_order`. Both come from one `findStockSummaries` query per page, so the
+  image by `display_order` (the first variant's when none is default, as on the product page). Both come from one `findStockSummaries` query per page, so the
   search queries are unchanged. Related products read 12 candidates and keep the first 4 in
   stock, so they double as alternatives when the viewed variant is out of stock.
 - **Events**: product views (`ProductViewed`) and searches (`SearchExecuted`, plus
