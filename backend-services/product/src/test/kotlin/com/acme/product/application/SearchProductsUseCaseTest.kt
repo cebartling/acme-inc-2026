@@ -30,6 +30,7 @@ class SearchProductsUseCaseTest {
         repository = mockk()
         eventPublisher = mockk()
         useCase = SearchProductsUseCase(repository, eventPublisher)
+        every { repository.findStockSummaries(any()) } returns emptyList()
     }
 
     private fun createProjection(
@@ -316,5 +317,47 @@ class SearchProductsUseCaseTest {
         // Then
         assertEquals(1, publishedEvents.size)
         assertTrue(publishedEvents.single() is SearchExecuted)
+    }
+
+    // US-0004-10 AC-06 (PIN-273): search cards show an Out of Stock badge and an image
+    @Test
+    fun `execute should give each result its stock and image, one lookup for the page`() {
+        val outId = UUID.randomUUID()
+        val inId = UUID.randomUUID()
+        val bareId = UUID.randomUUID()
+        val query = SearchQuery(query = "widget", page = 1, pageSize = 24, sort = SortOption.RELEVANCE)
+        every { repository.searchByRelevance("widget", 24, 0) } returns listOf(
+            createProjection(id = outId), createProjection(id = inId), createProjection(id = bareId)
+        )
+        every { repository.countByQuery("widget") } returns 3L
+        every { repository.getCategoryFacets("widget", null, null) } returns emptyList()
+        every { eventPublisher.publish(any()) } just Runs
+        every { repository.findStockSummaries(match { it.toSet() == setOf(outId, inId, bareId) }) } returns listOf(
+            stockProjection(outId, inStock = false),
+            stockProjection(inId, inStock = true, imageUrl = "https://img/in")
+        )
+
+        val products = useCase.execute(query).products
+
+        assertEquals(listOf(false, true, true), products.map { it.inStock })
+        assertEquals(listOf(null, "https://img/in", null), products.map { it.imageUrl })
+        verify(exactly = 1) { repository.findStockSummaries(any()) }
+    }
+
+    // PIN-273 review: the stock lookup is best-effort like the facets; a failure must not 500
+    // search, which would also count toward the customer app's search circuit breaker
+    @Test
+    fun `execute should still answer, with products in stock, when the stock lookup fails`() {
+        val query = SearchQuery(query = "widget", page = 1, pageSize = 24, sort = SortOption.RELEVANCE)
+        every { repository.searchByRelevance("widget", 24, 0) } returns listOf(createProjection())
+        every { repository.countByQuery("widget") } returns 1L
+        every { repository.getCategoryFacets("widget", null, null) } returns emptyList()
+        every { eventPublisher.publish(any()) } just Runs
+        every { repository.findStockSummaries(any()) } throws RuntimeException("connection reset")
+
+        val products = useCase.execute(query).products
+
+        assertEquals(listOf(true), products.map { it.inStock })
+        assertEquals(listOf(null), products.map { it.imageUrl })
     }
 }

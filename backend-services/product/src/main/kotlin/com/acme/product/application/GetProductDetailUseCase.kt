@@ -3,6 +3,7 @@ package com.acme.product.application
 import com.acme.product.domain.Product
 import com.acme.product.domain.ProductNotFoundException
 import com.acme.product.domain.ProductStatus
+import com.acme.product.domain.ProductSummary
 import com.acme.product.domain.events.ProductViewed
 import com.acme.product.infrastructure.messaging.ProductEventPublisher
 import com.acme.product.infrastructure.persistence.ProductRepository
@@ -20,7 +21,7 @@ class GetProductDetailUseCase(
 
     data class Result(
         val product: Product,
-        val relatedProducts: List<Product>
+        val relatedProducts: List<ProductSummary>
     )
 
     fun execute(
@@ -32,11 +33,7 @@ class GetProductDetailUseCase(
             .orElseThrow { ProductNotFoundException(slug) }
 
         val category = product.category
-        val relatedProducts = if (category != null) {
-            repository.findRelatedProducts(category, product.id, PageRequest.of(0, 4))
-        } else {
-            emptyList()
-        }
+        val relatedProducts = if (category != null) inStockRelated(category, product.id) else emptyList()
 
         publishEvent(ProductViewed.create(
             productId = product.id,
@@ -48,11 +45,26 @@ class GetProductDetailUseCase(
         return Result(product = product, relatedProducts = relatedProducts)
     }
 
+    /**
+     * Up to [RELATED_LIMIT] in-stock products from the same category, newest first. They double
+     * as alternatives when the viewed variant is out of stock (US-0004-10 AC-04); the query
+     * itself keeps only in-stock ones, and the stock lookup adds their images.
+     */
+    private fun inStockRelated(category: String, excludeId: UUID): List<ProductSummary> {
+        val related = repository.findInStockRelatedProducts(category, excludeId, PageRequest.of(0, RELATED_LIMIT))
+        val stock = repository.stockOf(related.map { it.id })
+        return related.map { it.toSummary(stock[it.id]) }
+    }
+
     private fun publishEvent(event: com.acme.product.domain.events.DomainEvent, name: String) {
         try {
             eventPublisher.publish(event)
         } catch (ex: Exception) {
             logger.warn("Failed to publish {} event: {}", name, ex.message)
         }
+    }
+
+    private companion object {
+        const val RELATED_LIMIT = 4
     }
 }

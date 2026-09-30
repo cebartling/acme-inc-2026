@@ -4,6 +4,7 @@ import com.acme.product.application.GetProductDetailUseCase
 import com.acme.product.domain.Product
 import com.acme.product.domain.ProductNotFoundException
 import com.acme.product.domain.ProductStatus
+import com.acme.product.domain.ProductSummary
 import com.acme.product.domain.ProductVariant
 import com.acme.product.domain.ProductVariantImage
 import com.acme.product.domain.ProductVariantTierPricing
@@ -47,12 +48,13 @@ class ProductControllerTest {
             category = "Electronics",
             tags = "sale, featured, new"
         )
-        val relatedProduct = Product(
+        val relatedProduct = ProductSummary(
             id = relatedId,
             slug = "basic-widget",
             name = "Basic Widget",
             price = BigDecimal("19.99"),
-            category = "Electronics"
+            category = "Electronics",
+            imageUrl = "https://img/basic-widget"
         )
         every { getProductDetailUseCase.execute(any(), any(), any()) } returns
             GetProductDetailUseCase.Result(product = product, relatedProducts = listOf(relatedProduct))
@@ -78,6 +80,8 @@ class ProductControllerTest {
         assertEquals("Basic Widget", body.relatedProducts[0].name)
         assertEquals(BigDecimal("19.99"), body.relatedProducts[0].price)
         assertEquals("Electronics", body.relatedProducts[0].category)
+        assertEquals(true, body.relatedProducts[0].inStock)
+        assertEquals("https://img/basic-widget", body.relatedProducts[0].imageUrl)
     }
 
     @Test

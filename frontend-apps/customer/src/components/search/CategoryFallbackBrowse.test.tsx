@@ -56,6 +56,8 @@ const electronicsProducts = {
       name: "Widget One",
       price: 9.99,
       category: "Electronics",
+      inStock: true,
+      imageUrl: null,
     },
     {
       id: "p2",
@@ -63,6 +65,8 @@ const electronicsProducts = {
       name: "Widget Two",
       price: 19.99,
       category: "Electronics",
+      inStock: true,
+      imageUrl: null,
     },
   ],
 };

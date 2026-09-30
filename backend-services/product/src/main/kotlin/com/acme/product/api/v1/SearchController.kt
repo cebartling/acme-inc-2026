@@ -81,15 +81,7 @@ class SearchController(
             page = result.page,
             pageSize = result.pageSize,
             totalPages = result.totalPages,
-            results = result.products.map { p ->
-                ProductSummaryResponse(
-                    id = p.id,
-                    slug = p.slug,
-                    name = p.name,
-                    price = p.price,
-                    category = p.category
-                )
-            },
+            results = result.products.map { ProductSummaryResponse.from(it) },
             facets = SearchFacetsResponse(categories = result.facets.categories),
             spellingSuggestion = result.spellingSuggestion,
             executionTimeMs = result.executionTimeMs

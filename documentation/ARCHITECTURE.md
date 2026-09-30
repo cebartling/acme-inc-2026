@@ -263,7 +263,11 @@ sequenceDiagram
   e.g. removed in another tab or lost with an expired session) refetches the cart instead,
   without showing an error. `useAddToCart` re-checks availability
   before it POSTs. An over-max update is retried at the service's `maxQuantity` and the
-  line shows why (US-0004-07 AC-08).
+  line shows why (US-0004-07 AC-08). The `/cart` page checks each line's stock with
+  `GET /inventory/availability/{variantId}` under the product page's `["availability",
+  variantId]` query key, so the two share a cache. An out-of-stock line is dimmed and gets a
+  `role="alert"` warning and a labelled Remove button (US-0004-10 AC-05); a failed check
+  flags nothing. The cart service itself knows nothing about stock.
 - **Events are best-effort**: published directly to Kafka after the transaction commits,
   as the product service does. A Kafka failure is logged and does not fail the add; there
   is no outbox, so an event can be lost while the cart change is kept.
@@ -354,7 +358,7 @@ is no authentication.
 | `GET /api/v1/search/autocomplete?q=&limit=` | Up to 5 product and 3 category suggestions |
 | `GET /api/v1/categories` | Every category with at least one published product, and its count |
 | `GET /api/v1/categories/{name}/products?page=&pageSize=` | A page of the category's published products, newest first |
-| `GET /api/v1/products/{slug}` | A published product with its variants and up to 4 related products; 404 otherwise |
+| `GET /api/v1/products/{slug}` | A published product with its variants and up to 4 in-stock related products; 404 otherwise |
 | `GET /api/v1/prices/{variantId}` | `{variantId, price, originalPrice, tierPricing}`; 404 `VARIANT_NOT_FOUND` for an unknown variant or an archived product's |
 | `GET /api/v1/inventory/availability/{variantId}` | `{variantId, availability}`, `IN_STOCK` or `OUT_OF_STOCK`; 404 `VARIANT_NOT_FOUND` for an unknown variant or an archived product's |
 
@@ -392,6 +396,15 @@ is no authentication.
   stock is `variants[].inStock`. The price and availability lookups only find a variant whose
   product is `PUBLISHED` (`findByIdAndProductStatus`), so an archived product's variant is a
   404, like an unknown one (PIN-306).
+- **Product summaries** (search, category browsing, related products) carry `inStock` and
+  `imageUrl` (US-0004-10, PIN-273). A product is out of stock when it has variants and none is
+  in stock; one without variants counts as in stock. `imageUrl` is the first image, by
+  `display_order`, of the variant the product page opens on (the default, else the oldest).
+  Both come from one `findStockSummaries` query per page, so the search queries are unchanged.
+  That lookup is best-effort, like the facets: if it fails, it is logged and every product
+  shows as in stock with no image, so search and the category fallback keep answering. Related
+  products are in stock by query (`findInStockRelatedProducts`), newest first, up to 4, so they
+  double as alternatives when the viewed variant is out of stock.
 - **Events**: product views (`ProductViewed`) and searches (`SearchExecuted`, plus
   `FiltersApplied` when filters are set) are published to the `product.events` Kafka topic,
   keyed by aggregate ID (the product's ID for a view, a new random ID for each search event),

@@ -56,18 +56,11 @@ class BrowseCategoriesUseCase(
 
         val totalResults = repository.countByCategory(category)
         val products = repository.findByCategory(category, PageRequest.of(page - 1, pageSize))
+        val stock = repository.stockOf(products.map { it.id })
 
         return CategoryProducts(
             category = category,
-            products = products.map { p ->
-                ProductSummary(
-                    id = p.id,
-                    slug = p.slug,
-                    name = p.name,
-                    price = p.price,
-                    category = p.category
-                )
-            },
+            products = products.map { it.toSummary(stock[it.id]) },
             totalResults = totalResults,
             page = page,
             pageSize = pageSize,

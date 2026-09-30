@@ -162,7 +162,10 @@ export function ProductDetailPage({ product }: ProductDetailPageProps) {
         )}
       </div>
 
-      <RelatedProducts products={product.relatedProducts} />
+      <RelatedProducts
+        products={product.relatedProducts}
+        alternatives={isOutOfStock}
+      />
     </div>
   );
 }

@@ -48,6 +48,8 @@ const searchResponse = {
       name: "Widget One",
       price: 9.99,
       category: "Electronics",
+      inStock: true,
+      imageUrl: null,
     },
   ],
   facets: { categories: {} },

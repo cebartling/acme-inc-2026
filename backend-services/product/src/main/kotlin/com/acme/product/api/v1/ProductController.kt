@@ -42,15 +42,7 @@ class ProductController(
                 ?.filter { it.isNotEmpty() }
                 ?: emptyList(),
             availability = if (product.status == ProductStatus.PUBLISHED) "IN_STOCK" else "OUT_OF_STOCK",
-            relatedProducts = result.relatedProducts.map { p ->
-                ProductSummaryResponse(
-                    id = p.id,
-                    slug = p.slug,
-                    name = p.name,
-                    price = p.price,
-                    category = p.category
-                )
-            },
+            relatedProducts = result.relatedProducts.map { ProductSummaryResponse.from(it) },
             variants = product.variants.map { v ->
                 ProductVariantResponse(
                     id = v.id,

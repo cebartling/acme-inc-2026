@@ -27,6 +27,7 @@ class BrowseCategoriesUseCaseTest {
     fun setUp() {
         repository = mockk()
         useCase = BrowseCategoriesUseCase(repository)
+        every { repository.findStockSummaries(any()) } returns emptyList()
     }
 
     private fun createFacetProjection(category: String, count: Long): CategoryFacetProjection {
@@ -171,5 +172,37 @@ class BrowseCategoriesUseCaseTest {
         assertFailsWith<IllegalArgumentException> {
             useCase.productsInCategory("Electronics", pageSize = 101)
         }
+    }
+
+    // US-0004-10 (PIN-273): the category fallback's cards carry stock and image like search's
+    @Test
+    fun `productsInCategory should give each product its stock and image`() {
+        val out = createProduct(slug = "out")
+        val inStock = createProduct(slug = "in")
+        every { repository.countByCategory("Electronics") } returns 2L
+        every { repository.findByCategory("Electronics", any()) } returns listOf(out, inStock)
+        every { repository.findStockSummaries(match { it.toSet() == setOf(out.id, inStock.id) }) } returns listOf(
+            stockProjection(out.id, inStock = false),
+            stockProjection(inStock.id, inStock = true, imageUrl = "https://img/in")
+        )
+
+        val products = useCase.productsInCategory("Electronics").products
+
+        assertEquals(listOf(false, true), products.map { it.inStock })
+        assertEquals(listOf(null, "https://img/in"), products.map { it.imageUrl })
+    }
+
+    // PIN-273 review: the category fallback exists to stay up when search is failing, so a
+    // failing stock lookup must not take it down either
+    @Test
+    fun `productsInCategory should still answer, with products in stock, when the stock lookup fails`() {
+        val product = createProduct()
+        every { repository.countByCategory("Electronics") } returns 1L
+        every { repository.findByCategory("Electronics", any()) } returns listOf(product)
+        every { repository.findStockSummaries(any()) } throws RuntimeException("connection reset")
+
+        val products = useCase.productsInCategory("Electronics").products
+
+        assertEquals(listOf(true), products.map { it.inStock })
     }
 }

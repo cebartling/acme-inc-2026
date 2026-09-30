@@ -1,6 +1,5 @@
 package com.acme.product.application
 
-import com.acme.product.domain.ProductSummary
 import com.acme.product.domain.SearchFacets
 import com.acme.product.domain.SearchQuery
 import com.acme.product.domain.SearchResult
@@ -76,15 +75,10 @@ class SearchProductsUseCase(
             SearchFacets()
         }
 
+        val stock = repository.stockOf(results.map { it.getId() })
         val searchResult = SearchResult(
             products = results.map { p ->
-                ProductSummary(
-                    id = p.getId(),
-                    slug = p.getSlug(),
-                    name = p.getName(),
-                    price = p.getPrice(),
-                    category = p.getCategory()
-                )
+                summaryOf(p.getId(), p.getSlug(), p.getName(), p.getPrice(), p.getCategory(), stock[p.getId()])
             },
             totalResults = totalResults,
             page = query.page,

@@ -968,6 +968,10 @@ export interface ProductSummary {
   name: string;
   price: number;
   category: string | null;
+  /** False when the product has variants and none is in stock (US-0004-10). */
+  inStock: boolean;
+  /** The default variant's first image, if any. */
+  imageUrl: string | null;
 }
 
 export interface SearchFilters {

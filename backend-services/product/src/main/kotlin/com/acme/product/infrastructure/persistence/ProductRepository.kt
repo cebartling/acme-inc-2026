@@ -41,6 +41,16 @@ interface AutocompleteProductProjection {
 }
 
 /**
+ * Projection for [ProductRepository.findStockSummaries]: whether a product is in stock and its
+ * card image (US-0004-10).
+ */
+interface ProductStockProjection {
+    fun getProductId(): UUID
+    fun getInStock(): Boolean
+    fun getImageUrl(): String?
+}
+
+/**
  * Spring Data JPA repository for [Product] entities.
  *
  * Includes native PostgreSQL full-text search queries using tsvector/tsquery.
@@ -344,11 +354,53 @@ interface ProductRepository : JpaRepository<Product, UUID> {
     fun findBySlugAndStatus(slug: String, status: ProductStatus): Optional<Product>
 
     /**
-     * Finds published products in the same category, excluding the given product.
-     * Used for the related products section on the product detail page.
+     * Stock and card image for a page of products, in one query (US-0004-10, PIN-273). A product
+     * is out of stock when it has variants and none is in stock; one without variants is in
+     * stock. The image is the first by `display_order` of the variant the product page opens on:
+     * the default, else the first in [com.acme.product.domain.Product.variants] order; or null.
+     * Pass a non-empty collection: `IN ()` is not valid SQL.
      */
-    @Query("SELECT p FROM Product p WHERE p.category = :category AND p.id <> :excludeId AND p.status = com.acme.product.domain.ProductStatus.PUBLISHED ORDER BY p.createdAt DESC")
-    fun findRelatedProducts(
+    @Query(
+        value = """
+            SELECT p.id AS "productId",
+                   (COUNT(v.id) = 0 OR BOOL_OR(v.in_stock)) AS "inStock",
+                   (SELECT i.url
+                      FROM product_variant_images i
+                     WHERE i.variant_id = (SELECT dv.id
+                                             FROM product_variants dv
+                                            WHERE dv.product_id = p.id
+                                            ORDER BY dv.is_default DESC, dv.created_at, dv.id
+                                            LIMIT 1)
+                     ORDER BY i.display_order, i.id
+                     LIMIT 1) AS "imageUrl"
+            FROM products p
+            LEFT JOIN product_variants v ON v.product_id = p.id
+            WHERE p.id IN (:ids)
+            GROUP BY p.id
+        """,
+        nativeQuery = true
+    )
+    fun findStockSummaries(@Param("ids") ids: Collection<UUID>): List<ProductStockProjection>
+
+    /**
+     * Published, in-stock products in the same category, excluding the given product, newest
+     * first. Used for the related products on the product detail page, which double as
+     * alternatives when the viewed variant is out of stock (US-0004-10 AC-04, PIN-273). In stock
+     * follows [findStockSummaries]: no variants, or at least one variant in stock. The rule is in
+     * the query so older in-stock products are found however many newer ones are out of stock.
+     */
+    @Query(
+        """
+        SELECT p FROM Product p
+        WHERE p.category = :category
+          AND p.id <> :excludeId
+          AND p.status = com.acme.product.domain.ProductStatus.PUBLISHED
+          AND (NOT EXISTS (SELECT v FROM ProductVariant v WHERE v.product = p)
+               OR EXISTS (SELECT v FROM ProductVariant v WHERE v.product = p AND v.inStock = true))
+        ORDER BY p.createdAt DESC, p.id
+        """
+    )
+    fun findInStockRelatedProducts(
         @Param("category") category: String,
         @Param("excludeId") excludeId: UUID,
         pageable: Pageable
