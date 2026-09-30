@@ -343,4 +343,21 @@ class SearchProductsUseCaseTest {
         assertEquals(listOf(null, "https://img/in", null), products.map { it.imageUrl })
         verify(exactly = 1) { repository.findStockSummaries(any()) }
     }
+
+    // PIN-273 review: the stock lookup is best-effort like the facets; a failure must not 500
+    // search, which would also count toward the customer app's search circuit breaker
+    @Test
+    fun `execute should still answer, with products in stock, when the stock lookup fails`() {
+        val query = SearchQuery(query = "widget", page = 1, pageSize = 24, sort = SortOption.RELEVANCE)
+        every { repository.searchByRelevance("widget", 24, 0) } returns listOf(createProjection())
+        every { repository.countByQuery("widget") } returns 1L
+        every { repository.getCategoryFacets("widget", null, null) } returns emptyList()
+        every { eventPublisher.publish(any()) } just Runs
+        every { repository.findStockSummaries(any()) } throws RuntimeException("connection reset")
+
+        val products = useCase.execute(query).products
+
+        assertEquals(listOf(true), products.map { it.inStock })
+        assertEquals(listOf(null), products.map { it.imageUrl })
+    }
 }

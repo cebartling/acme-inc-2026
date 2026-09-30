@@ -58,7 +58,7 @@ class GetProductDetailUseCaseTest {
         val product = createProduct(slug = "premium-widget", name = "Premium Widget")
 
         every { repository.findBySlugAndStatus("premium-widget", ProductStatus.PUBLISHED) } returns Optional.of(product)
-        every { repository.findRelatedProducts(any(), any(), any()) } returns emptyList()
+        every { repository.findInStockRelatedProducts(any(), any(), any()) } returns emptyList()
         every { eventPublisher.publish(any()) } just Runs
 
         val result = useCase.execute("premium-widget")
@@ -95,7 +95,7 @@ class GetProductDetailUseCaseTest {
         val related2 = createProduct(slug = "related-2", name = "Related Two")
 
         every { repository.findBySlugAndStatus("main-product", ProductStatus.PUBLISHED) } returns Optional.of(product)
-        every { repository.findRelatedProducts("Electronics", product.id, any<Pageable>()) } returns listOf(related1, related2)
+        every { repository.findInStockRelatedProducts("Electronics", product.id, any<Pageable>()) } returns listOf(related1, related2)
         every { eventPublisher.publish(any()) } just Runs
 
         val result = useCase.execute("main-product")
@@ -115,7 +115,7 @@ class GetProductDetailUseCaseTest {
         val result = useCase.execute("no-category-product")
 
         assertEquals(emptyList(), result.relatedProducts)
-        verify(exactly = 0) { repository.findRelatedProducts(any(), any(), any()) }
+        verify(exactly = 0) { repository.findInStockRelatedProducts(any(), any(), any()) }
     }
 
     @Test
@@ -125,7 +125,7 @@ class GetProductDetailUseCaseTest {
         val eventSlot = slot<ProductViewed>()
 
         every { repository.findBySlugAndStatus("my-product", ProductStatus.PUBLISHED) } returns Optional.of(product)
-        every { repository.findRelatedProducts(any(), any(), any()) } returns emptyList()
+        every { repository.findInStockRelatedProducts(any(), any(), any()) } returns emptyList()
         every { eventPublisher.publish(capture(eventSlot)) } just Runs
 
         val correlationId = UUID.randomUUID()
@@ -144,7 +144,7 @@ class GetProductDetailUseCaseTest {
         val product = createProduct(slug = "resilient-product")
 
         every { repository.findBySlugAndStatus("resilient-product", ProductStatus.PUBLISHED) } returns Optional.of(product)
-        every { repository.findRelatedProducts(any(), any(), any()) } returns emptyList()
+        every { repository.findInStockRelatedProducts(any(), any(), any()) } returns emptyList()
         every { eventPublisher.publish(any()) } throws RuntimeException("Kafka unavailable")
 
         val result = useCase.execute("resilient-product")
@@ -153,26 +153,22 @@ class GetProductDetailUseCaseTest {
         assertEquals("resilient-product", result.product.slug)
     }
 
-    // US-0004-10 AC-04 (PIN-273): alternatives to an out-of-stock product must be in stock, so
-    // more candidates are read than shown and the out-of-stock ones are dropped
+    // US-0004-10 AC-04 (PIN-273): the query returns only in-stock products, so the use case asks
+    // for exactly 4 and adds their images
     @Test
     fun `execute should return up to 4 in-stock related products, with their images`() {
         val product = createProduct(slug = "main-product", category = "Electronics")
-        val candidates = (1..6).map { createProduct(slug = "related-$it") }
-        val (outA, outB) = candidates[1] to candidates[3]
+        val related = (1..4).map { createProduct(slug = "related-$it") }
         every { repository.findBySlugAndStatus("main-product", ProductStatus.PUBLISHED) } returns Optional.of(product)
-        every { repository.findRelatedProducts("Electronics", product.id, PageRequest.of(0, 12)) } returns candidates
+        every { repository.findInStockRelatedProducts("Electronics", product.id, PageRequest.of(0, 4)) } returns related
         every { repository.findStockSummaries(any()) } returns listOf(
-            stockProjection(outA.id, inStock = false),
-            stockProjection(outB.id, inStock = false),
-            stockProjection(candidates[0].id, inStock = true, imageUrl = "https://img/1")
+            stockProjection(related[0].id, inStock = true, imageUrl = "https://img/1")
         )
         every { eventPublisher.publish(any()) } just Runs
 
-        val related = useCase.execute("main-product").relatedProducts
+        val result = useCase.execute("main-product").relatedProducts
 
-        assertEquals(listOf("related-1", "related-3", "related-5", "related-6"), related.map { it.slug })
-        assertEquals(true, related.all { it.inStock })
-        assertEquals("https://img/1", related.first().imageUrl)
+        assertEquals(listOf("related-1", "related-2", "related-3", "related-4"), result.map { it.slug })
+        assertEquals("https://img/1", result.first().imageUrl)
     }
 }

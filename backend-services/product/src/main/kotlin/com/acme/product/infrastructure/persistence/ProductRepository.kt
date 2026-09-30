@@ -383,11 +383,24 @@ interface ProductRepository : JpaRepository<Product, UUID> {
     fun findStockSummaries(@Param("ids") ids: Collection<UUID>): List<ProductStockProjection>
 
     /**
-     * Finds published products in the same category, excluding the given product.
-     * Used for the related products section on the product detail page.
+     * Published, in-stock products in the same category, excluding the given product, newest
+     * first. Used for the related products on the product detail page, which double as
+     * alternatives when the viewed variant is out of stock (US-0004-10 AC-04, PIN-273). In stock
+     * follows [findStockSummaries]: no variants, or at least one variant in stock. The rule is in
+     * the query so older in-stock products are found however many newer ones are out of stock.
      */
-    @Query("SELECT p FROM Product p WHERE p.category = :category AND p.id <> :excludeId AND p.status = com.acme.product.domain.ProductStatus.PUBLISHED ORDER BY p.createdAt DESC, p.id")
-    fun findRelatedProducts(
+    @Query(
+        """
+        SELECT p FROM Product p
+        WHERE p.category = :category
+          AND p.id <> :excludeId
+          AND p.status = com.acme.product.domain.ProductStatus.PUBLISHED
+          AND (NOT EXISTS (SELECT v FROM ProductVariant v WHERE v.product = p)
+               OR EXISTS (SELECT v FROM ProductVariant v WHERE v.product = p AND v.inStock = true))
+        ORDER BY p.createdAt DESC, p.id
+        """
+    )
+    fun findInStockRelatedProducts(
         @Param("category") category: String,
         @Param("excludeId") excludeId: UUID,
         pageable: Pageable

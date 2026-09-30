@@ -398,10 +398,13 @@ is no authentication.
   404, like an unknown one (PIN-306).
 - **Product summaries** (search, category browsing, related products) carry `inStock` and
   `imageUrl` (US-0004-10, PIN-273). A product is out of stock when it has variants and none is
-  in stock; one without variants counts as in stock. `imageUrl` is the default variant's first
-  image by `display_order` (the first variant's when none is default, as on the product page). Both come from one `findStockSummaries` query per page, so the
-  search queries are unchanged. Related products read 12 candidates and keep the first 4 in
-  stock, so they double as alternatives when the viewed variant is out of stock.
+  in stock; one without variants counts as in stock. `imageUrl` is the first image, by
+  `display_order`, of the variant the product page opens on (the default, else the oldest).
+  Both come from one `findStockSummaries` query per page, so the search queries are unchanged.
+  That lookup is best-effort, like the facets: if it fails, it is logged and every product
+  shows as in stock with no image, so search and the category fallback keep answering. Related
+  products are in stock by query (`findInStockRelatedProducts`), newest first, up to 4, so they
+  double as alternatives when the viewed variant is out of stock.
 - **Events**: product views (`ProductViewed`) and searches (`SearchExecuted`, plus
   `FiltersApplied` when filters are set) are published to the `product.events` Kafka topic,
   keyed by aggregate ID (the product's ID for a view, a new random ID for each search event),

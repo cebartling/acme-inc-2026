@@ -191,4 +191,18 @@ class BrowseCategoriesUseCaseTest {
         assertEquals(listOf(false, true), products.map { it.inStock })
         assertEquals(listOf(null, "https://img/in"), products.map { it.imageUrl })
     }
+
+    // PIN-273 review: the category fallback exists to stay up when search is failing, so a
+    // failing stock lookup must not take it down either
+    @Test
+    fun `productsInCategory should still answer, with products in stock, when the stock lookup fails`() {
+        val product = createProduct()
+        every { repository.countByCategory("Electronics") } returns 1L
+        every { repository.findByCategory("Electronics", any()) } returns listOf(product)
+        every { repository.findStockSummaries(any()) } throws RuntimeException("connection reset")
+
+        val products = useCase.productsInCategory("Electronics").products
+
+        assertEquals(listOf(true), products.map { it.inStock })
+    }
 }

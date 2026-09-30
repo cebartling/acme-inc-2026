@@ -47,13 +47,13 @@ class GetProductDetailUseCase(
 
     /**
      * Up to [RELATED_LIMIT] in-stock products from the same category, newest first. They double
-     * as alternatives when the viewed variant is out of stock (US-0004-10 AC-04), so more
-     * candidates are read than shown and the out-of-stock ones are dropped.
+     * as alternatives when the viewed variant is out of stock (US-0004-10 AC-04); the query
+     * itself keeps only in-stock ones, and the stock lookup adds their images.
      */
     private fun inStockRelated(category: String, excludeId: UUID): List<ProductSummary> {
-        val candidates = repository.findRelatedProducts(category, excludeId, PageRequest.of(0, RELATED_CANDIDATES))
-        val stock = repository.stockOf(candidates.map { it.id })
-        return candidates.map { it.toSummary(stock[it.id]) }.filter { it.inStock }.take(RELATED_LIMIT)
+        val related = repository.findInStockRelatedProducts(category, excludeId, PageRequest.of(0, RELATED_LIMIT))
+        val stock = repository.stockOf(related.map { it.id })
+        return related.map { it.toSummary(stock[it.id]) }
     }
 
     private fun publishEvent(event: com.acme.product.domain.events.DomainEvent, name: String) {
@@ -66,6 +66,5 @@ class GetProductDetailUseCase(
 
     private companion object {
         const val RELATED_LIMIT = 4
-        const val RELATED_CANDIDATES = 12
     }
 }
