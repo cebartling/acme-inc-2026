@@ -131,8 +131,10 @@ customer re-submitting the same term would never trigger a probe.
 
 - **Cart identity**: a cart belongs to exactly one owner — a guest session
   (`carts.session_id`) or a signed-in user (`carts.user_id`, the access token's `sub`).
-  Only `ACTIVE` carts are resolved; partial unique indexes allow one ACTIVE cart per
-  session and per user, so a session whose cart was `MERGED` can start a new guest cart.
+  Only the owner's *current* cart is resolved: `ACTIVE`, or `CHECKOUT` while locked for
+  checkout (`CartStatus.CURRENT`, PIN-329). Partial unique indexes allow one current cart
+  per session and per user, so a session whose cart was `MERGED` can start a new guest cart,
+  but a cart in checkout can't have a second cart slipped in beside it.
 - **Signed-in callers (US-0004-08)**: the service verifies identity's `access_token`
   cookie against `GET /.well-known/jwks.json` (Spring OAuth2 resource server; signature,
   `exp`, `iss`, `aud`, plus `token_use=access` and a UUID `sub`). Every endpoint stays open to guests: with a valid token the caller
@@ -346,6 +348,50 @@ sequenceDiagram
   A failed merge is logged and the cart reloads as the user; a merge that returns after
   sign-out is dropped. Sign-out resets `["cart"]`, so the badge falls back to the guest
   cart: none once merged, otherwise the unmerged (empty or failed-merge) guest cart.
+
+**Starting checkout** (`POST /api/v1/carts/{cartId}/checkout`, PIN-329, journey 0005 step 1):
+
+```mermaid
+sequenceDiagram
+    participant FE as Client
+    participant CS as Cart service
+    participant PS as Product service
+    participant K as Kafka (cart.events)
+
+    FE->>CS: POST /api/v1/carts/{cartId}/checkout
+    CS->>CS: owner's cart; empty → 422 CART_EMPTY
+    loop each distinct variant
+        CS->>PS: GET /api/v1/inventory/availability/{variantId}
+    end
+    alt a line is OUT_OF_STOCK or NOT_AVAILABLE
+        CS-->>FE: 422 CART_VALIDATION_FAILED, validationErrors per line
+    else all available
+        CS->>CS: re-read, ACTIVE → CHECKOUT, new checkout session (one transaction)
+        CS-->>FE: 200 {checkoutSessionId, cartId, status: INITIATED, expiresAt, cart}
+        CS->>K: after commit: CheckoutInitiated
+    end
+```
+
+- **Locked, not hidden**: a `CHECKOUT` cart is still the owner's current cart, so `GET
+  /carts/current` returns it with `"status": "CHECKOUT"`. Every change (add, update, remove,
+  clear) is refused by `Cart` itself with 409 `CART_LOCKED`, rather than finding no cart and
+  starting a second one. Merge on sign-in leaves a guest cart in checkout alone, and refuses
+  to merge into an account cart in checkout (409 `CART_LOCKED`).
+- **Stock is checked on the server here**, one call per distinct variant against the product
+  service's availability endpoint. Its own `VARIANT_NOT_FOUND` 404 (a gone variant or an
+  archived product, PIN-306) is `NOT_AVAILABLE`. Any other lookup failure refuses checkout
+  with 503 `AVAILABILITY_UNAVAILABLE` rather than skipping the check. The service only knows
+  in or out of stock, so there are no quantities and no reservation (PIN-56). The checks run
+  outside the transaction, as add-to-cart's pricing does. The lock is saved with the cart's
+  version, so a change that lands in between makes the save conflict, and the
+  `retryOnConflict` retry checks the cart again.
+- **The checkout session** (`carts.checkout_session_id`, `checkout_expires_at`, V6) lasts 30
+  minutes and is the cart reference the order service will take. Starting again on a locked
+  cart returns the same session, with no re-check and no new event.
+- **Nothing unlocks yet**: the expiry job only touches ACTIVE guest carts and the purge job
+  only final ones, so a locked cart is neither expired, touched nor purged. Unlocking after
+  the 30 minutes, abandoning and resuming are PIN-330; converting the cart when the order is
+  placed is PIN-331.
 
 ### Product Service
 
