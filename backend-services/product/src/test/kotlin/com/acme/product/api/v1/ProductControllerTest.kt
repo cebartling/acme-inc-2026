@@ -73,6 +73,7 @@ class ProductControllerTest {
         assertEquals(BigDecimal("49.99"), body.price)
         assertEquals("Electronics", body.category)
         assertEquals(listOf("sale", "featured", "new"), body.tags)
+        // No variants counts as in stock, as in the summaries (PIN-318)
         assertEquals("IN_STOCK", body.availability)
         assertEquals(1, body.relatedProducts.size)
         assertEquals(relatedId, body.relatedProducts[0].id)
@@ -267,5 +268,39 @@ class ProductControllerTest {
         assertEquals(1, variantResponse.tierPricing.size)
         assertEquals(3, variantResponse.tierPricing[0].minQuantity)
         assertEquals(BigDecimal("109.99"), variantResponse.tierPricing[0].price)
+    }
+
+    // PIN-318: availability follows the summaries' rule, not just the product's status
+    @Test
+    fun `getProduct should report OUT_OF_STOCK when every variant is out of stock`() {
+        stubPublishedProductWithVariants(inStock = listOf(false, false))
+
+        val response = controller.getProduct(slug = "gadget-pro", sessionId = null, correlationId = null)
+
+        assertEquals("OUT_OF_STOCK", response.body?.availability)
+    }
+
+    @Test
+    fun `getProduct should report IN_STOCK when any variant is in stock`() {
+        stubPublishedProductWithVariants(inStock = listOf(false, true))
+
+        val response = controller.getProduct(slug = "gadget-pro", sessionId = null, correlationId = null)
+
+        assertEquals("IN_STOCK", response.body?.availability)
+    }
+
+    private fun stubPublishedProductWithVariants(inStock: List<Boolean>) {
+        val product = mockk<Product>(relaxed = true)
+        every { product.status } returns ProductStatus.PUBLISHED
+        every { product.tags } returns null
+        every { product.variants } returns inStock.map { stocked ->
+            mockk<ProductVariant>(relaxed = true).also {
+                every { it.inStock } returns stocked
+                every { it.images } returns emptyList()
+                every { it.tierPricing } returns emptyList()
+            }
+        }
+        every { getProductDetailUseCase.execute(any(), any(), any()) } returns
+            GetProductDetailUseCase.Result(product = product, relatedProducts = emptyList())
     }
 }

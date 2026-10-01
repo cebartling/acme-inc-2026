@@ -41,7 +41,11 @@ class ProductController(
                 ?.map { it.trim() }
                 ?.filter { it.isNotEmpty() }
                 ?: emptyList(),
-            availability = if (product.status == ProductStatus.PUBLISHED) "IN_STOCK" else "OUT_OF_STOCK",
+            // Same rule as ProductRepository.findStockSummaries: no variants, or one in stock (PIN-318)
+            availability = if (
+                product.status == ProductStatus.PUBLISHED &&
+                (product.variants.isEmpty() || product.variants.any { it.inStock })
+            ) "IN_STOCK" else "OUT_OF_STOCK",
             relatedProducts = result.relatedProducts.map { ProductSummaryResponse.from(it) },
             variants = product.variants.map { v ->
                 ProductVariantResponse(
