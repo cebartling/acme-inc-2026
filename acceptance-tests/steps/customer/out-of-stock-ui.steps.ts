@@ -87,3 +87,10 @@ Then(
     await expect(new CartPage(this.page).removeButton).toContainText(label);
   }
 );
+
+Then(
+  "the cart line's increase quantity button should be disabled",
+  async function (this: CustomWorld) {
+    await expect(new CartPage(this.page).increaseButton).toBeDisabled();
+  }
+);

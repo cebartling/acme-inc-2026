@@ -267,7 +267,9 @@ sequenceDiagram
   `GET /inventory/availability/{variantId}` under the product page's `["availability",
   variantId]` query key, so the two share a cache. An out-of-stock line is dimmed and gets a
   `role="alert"` warning and a labelled Remove button (US-0004-10 AC-05); a failed check
-  flags nothing. The cart service itself knows nothing about stock.
+  flags nothing. The page's totals leave flagged lines out, computed in the frontend, and a
+  flagged line's quantity can go down but not up (PIN-317). The cart service itself knows
+  nothing about stock, so its `summary`, and the header `CartBadge`, still count them.
 - **Events are best-effort**: published directly to Kafka after the transaction commits,
   as the product service does. A Kafka failure is logged and does not fail the add; there
   is no outbox, so an event can be lost while the cart change is kept.
