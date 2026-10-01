@@ -41,7 +41,8 @@ class ProductController(
                 ?.map { it.trim() }
                 ?.filter { it.isNotEmpty() }
                 ?: emptyList(),
-            // Same rule as ProductRepository.findStockSummaries: no variants, or one in stock (PIN-318)
+            // Published, and ProductRepository.findStockSummaries' stock rule: no variants, or one
+            // in stock (PIN-318)
             availability = if (
                 product.status == ProductStatus.PUBLISHED &&
                 (product.variants.isEmpty() || product.variants.any { it.inStock })

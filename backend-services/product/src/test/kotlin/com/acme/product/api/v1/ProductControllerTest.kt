@@ -273,7 +273,7 @@ class ProductControllerTest {
     // PIN-318: availability follows the summaries' rule, not just the product's status
     @Test
     fun `getProduct should report OUT_OF_STOCK when every variant is out of stock`() {
-        stubPublishedProductWithVariants(inStock = listOf(false, false))
+        stubProductWithVariants(inStock = listOf(false, false))
 
         val response = controller.getProduct(slug = "gadget-pro", sessionId = null, correlationId = null)
 
@@ -282,16 +282,28 @@ class ProductControllerTest {
 
     @Test
     fun `getProduct should report IN_STOCK when any variant is in stock`() {
-        stubPublishedProductWithVariants(inStock = listOf(false, true))
+        stubProductWithVariants(inStock = listOf(false, true))
 
         val response = controller.getProduct(slug = "gadget-pro", sessionId = null, correlationId = null)
 
         assertEquals("IN_STOCK", response.body?.availability)
     }
 
-    private fun stubPublishedProductWithVariants(inStock: List<Boolean>) {
+    @Test
+    fun `getProduct should report OUT_OF_STOCK for an ARCHIVED product even with a variant in stock`() {
+        stubProductWithVariants(inStock = listOf(true), status = ProductStatus.ARCHIVED)
+
+        val response = controller.getProduct(slug = "gadget-pro", sessionId = null, correlationId = null)
+
+        assertEquals("OUT_OF_STOCK", response.body?.availability)
+    }
+
+    private fun stubProductWithVariants(
+        inStock: List<Boolean>,
+        status: ProductStatus = ProductStatus.PUBLISHED
+    ) {
         val product = mockk<Product>(relaxed = true)
-        every { product.status } returns ProductStatus.PUBLISHED
+        every { product.status } returns status
         every { product.tags } returns null
         every { product.variants } returns inStock.map { stocked ->
             mockk<ProductVariant>(relaxed = true).also {
