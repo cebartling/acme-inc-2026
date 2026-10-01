@@ -393,9 +393,10 @@ is no authentication.
   cart's `ProductPricingClient` uses this endpoint to price every add, quantity change and
   sign-in merge (see the cart's **Server-side pricing** bullet).
 - **Inventory** is a per-variant `in_stock` flag: the service knows in or out of stock, not
-  quantities (PIN-273). A product's own `availability` is derived from its status, so it is
-  always `IN_STOCK` on the detail endpoint, which only returns published products; per-variant
-  stock is `variants[].inStock`. The price and availability lookups only find a variant whose
+  quantities (PIN-273). A product's own `availability` on the detail endpoint, which only
+  returns published products, follows the summaries' rule: `IN_STOCK` when it has no
+  variants or any variant is in stock, else `OUT_OF_STOCK` (PIN-318); per-variant stock is
+  `variants[].inStock`. The price and availability lookups only find a variant whose
   product is `PUBLISHED` (`findByIdAndProductStatus`), so an archived product's variant is a
   404, like an unknown one (PIN-306).
 - **Product summaries** (search, category browsing, related products) carry `inStock` and

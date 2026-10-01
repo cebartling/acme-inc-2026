@@ -356,8 +356,10 @@ interface ProductRepository : JpaRepository<Product, UUID> {
     /**
      * Stock and card image for a page of products, in one query (US-0004-10, PIN-273). A product
      * is out of stock when it has variants and none is in stock; one without variants is in
-     * stock. The image is the first by `display_order` of the variant the product page opens on:
-     * the default, else the first in [com.acme.product.domain.Product.variants] order; or null.
+     * stock. [findInStockRelatedProducts] filters by the same rule and `ProductController`
+     * applies it to a product's own `availability` (PIN-318); keep the three in sync. The image
+     * is the first by `display_order` of the variant the product page opens on: the default,
+     * else the first in [com.acme.product.domain.Product.variants] order; or null.
      * Pass a non-empty collection: `IN ()` is not valid SQL.
      */
     @Query(
