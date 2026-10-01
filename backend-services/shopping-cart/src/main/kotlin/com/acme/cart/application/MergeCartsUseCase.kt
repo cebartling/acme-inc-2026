@@ -88,8 +88,10 @@ class MergeCartsUseCase(
         }
     }
 
+    /** A guest cart locked for checkout (PIN-329) is not merged: its checkout keeps it. */
     private fun guestCart(command: MergeCartsCommand): Cart? =
         command.guestSessionId?.let { cartRepository.findActiveCart(CartOwner.Guest(it)) }
+            ?.takeIf { it.status == CartStatus.ACTIVE }
 
     private fun mergeInTransaction(
         command: MergeCartsCommand,
@@ -104,6 +106,8 @@ class MergeCartsUseCase(
             ?.takeIf { it.items.isNotEmpty() }
         val userCart = cartRepository.findActiveCart(customer)
         if (guest == null) return TransactionOutcome(MergeOutcome(userCart, result = null), merged = null).right()
+        // The account cart is in checkout (PIN-329): it takes no lines until checkout ends.
+        if (userCart?.status == CartStatus.CHECKOUT) return CartError.CartLocked(userCart.id).left()
 
         // A line added to the guest cart after pricing has no price yet; the caller can retry.
         guest.items.firstOrNull { it.variantId !in pricing && it.variantId !in unavailable }

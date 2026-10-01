@@ -442,4 +442,60 @@ class CartRepositoryIntegrationTest {
 
         assertEquals(before, versionOf(cart.id))
     }
+
+    // --- PIN-329: a cart in checkout is still the current cart, and is left alone ------
+
+    /** An idle guest cart past the expiry cutoff, with one line, locked for checkout. */
+    private fun lockedGuestCart(session: String, lastActive: Instant): Cart {
+        val cart = Cart(
+            id = UUID.randomUUID(), sessionId = session,
+            createdAt = lastActive, updatedAt = lastActive, lastActiveAt = lastActive
+        )
+        cart.addItem(UUID.randomUUID(), 1, pricing, snapshot, 10, now = lastActive)
+        cart.startCheckout(Duration.ofMinutes(30), now = lastActive)
+        return carts.saveAndFlush(cart)
+    }
+
+    @Test
+    fun `a cart in checkout is the session's current cart and blocks a second one`() {
+        val locked = lockedGuestCart("sess-checkout", now)
+        entityManager.clear()
+
+        val found = carts.findBySessionIdAndStatusIn("sess-checkout", CartStatus.CURRENT)
+        assertEquals(locked.id, found?.id)
+        assertEquals(CartStatus.CHECKOUT, found?.status)
+        assertEquals(locked.checkoutSessionId, found?.checkoutSessionId)
+        assertEquals(locked.checkoutExpiresAt, found?.checkoutExpiresAt)
+        assertThrows<DataIntegrityViolationException> {
+            carts.saveAndFlush(Cart(id = UUID.randomUUID(), sessionId = "sess-checkout"))
+        }
+    }
+
+    @Test
+    fun `a user's cart in checkout blocks a second current cart`() {
+        val userId = UUID.randomUUID()
+        val cart = Cart(id = UUID.randomUUID(), userId = userId)
+        cart.addItem(UUID.randomUUID(), 1, pricing, snapshot, 10)
+        cart.startCheckout(Duration.ofMinutes(30))
+        carts.saveAndFlush(cart)
+        entityManager.clear()
+
+        assertEquals(cart.id, carts.findByUserIdAndStatusIn(userId, CartStatus.CURRENT)?.id)
+        assertThrows<DataIntegrityViolationException> {
+            carts.saveAndFlush(Cart(id = UUID.randomUUID(), userId = userId))
+        }
+    }
+
+    @Test
+    fun `an idle cart in checkout is neither expired, touched nor purged`() {
+        val locked = lockedGuestCart("sess-checkout-idle", pastRetention)
+        entityManager.clear()
+
+        assertEquals(emptyList(), carts.findIdleGuestCarts(cutoff, PageRequest.of(0, 10)).filter { it.id == locked.id })
+        assertEquals(0, carts.expireIfIdle(locked.id, cutoff, now))
+        assertEquals(0, carts.touchGuestCart("sess-checkout-idle", now, now.minus(Duration.ofDays(1))))
+        assertEquals(emptyList(), carts.findFinalCartsBefore(retentionCutoff, PageRequest.of(0, 10)).filter { it.id == locked.id })
+        assertEquals(0, carts.deleteIfFinalBefore(locked.id, retentionCutoff))
+        assertEquals(CartStatus.CHECKOUT, statusOf(locked))
+    }
 }

@@ -29,4 +29,38 @@ sealed interface CartError {
     data class PricingUnavailable(val variantId: UUID) : CartError {
         override val message = "Pricing is temporarily unavailable for variant $variantId"
     }
+
+    /** The cart is in checkout (PIN-329) and refuses every change until checkout ends. */
+    data class CartLocked(val cartId: UUID) : CartError {
+        override val message = "Cart $cartId is locked for checkout"
+    }
+
+    data class CartEmpty(val cartId: UUID) : CartError {
+        override val message = "Cart $cartId is empty"
+    }
+
+    /** Checkout found lines that can't be ordered; the cart is not locked. */
+    data class CartUnavailableItems(val lines: List<UnavailableLine>) : CartError {
+        override val message = "Some items in your cart are no longer available"
+    }
+
+    data class AvailabilityUnavailable(val variantId: UUID) : CartError {
+        override val message = "Availability is temporarily unavailable for variant $variantId"
+    }
+}
+
+/** A cart line that checkout refused (PIN-329), and why. */
+data class UnavailableLine(
+    val cartItemId: UUID,
+    val variantId: UUID,
+    val productName: String,
+    val issue: AvailabilityIssue
+)
+
+enum class AvailabilityIssue {
+    /** The variant exists but is out of stock. */
+    OUT_OF_STOCK,
+
+    /** The variant is no longer found, e.g. its product was archived (PIN-306). */
+    NOT_AVAILABLE
 }

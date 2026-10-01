@@ -33,6 +33,17 @@ interface CartRepository : JpaRepository<Cart, UUID> {
     @EntityGraph(attributePaths = ["items"])
     fun findByUserIdAndStatus(userId: UUID, status: CartStatus): Cart?
 
+    /**
+     * The session's cart in any of [statuses]. With [CartStatus.CURRENT] there is at most one:
+     * the unique index covers ACTIVE and CHECKOUT carts together (PIN-329).
+     */
+    @EntityGraph(attributePaths = ["items"])
+    fun findBySessionIdAndStatusIn(sessionId: String, statuses: Collection<CartStatus>): Cart?
+
+    /** The user's cart in any of [statuses]; see [findBySessionIdAndStatusIn]. */
+    @EntityGraph(attributePaths = ["items"])
+    fun findByUserIdAndStatusIn(userId: UUID, statuses: Collection<CartStatus>): Cart?
+
     // --- PIN-287: idle guest carts expire ---------------------------------------------
 
     /**

@@ -20,6 +20,9 @@ import com.acme.cart.application.AddItemToCartCommand
 import com.acme.cart.application.AddItemToCartUseCase
 import com.acme.cart.application.ClearCartCommand
 import com.acme.cart.application.ClearCartUseCase
+import com.acme.cart.application.CheckoutStarted
+import com.acme.cart.application.StartCheckoutCommand
+import com.acme.cart.application.StartCheckoutUseCase
 import com.acme.cart.application.RemoveCartItemCommand
 import com.acme.cart.application.RemoveCartItemUseCase
 import com.acme.cart.application.UpdateCartItemQuantityCommand
@@ -27,6 +30,8 @@ import com.acme.cart.application.UpdateCartItemQuantityUseCase
 import com.acme.cart.domain.Cart
 import com.acme.cart.domain.CartError
 import com.acme.cart.domain.UnavailableItem
+import com.acme.cart.domain.UnavailableLine
+import com.acme.cart.domain.AvailabilityIssue
 import com.acme.cart.domain.VariantPricing
 import com.acme.cart.infrastructure.persistence.CartRepository
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -69,6 +74,7 @@ class CartControllerWebMvcTest(
     @Autowired private val clearUseCase: ClearCartUseCase,
     @Autowired private val cartRepository: CartRepository,
     @Autowired private val mergeUseCase: MergeCartsUseCase,
+    @Autowired private val checkoutUseCase: StartCheckoutUseCase,
     @Autowired private val jwtDecoder: JwtDecoder
 ) {
 
@@ -88,6 +94,9 @@ class CartControllerWebMvcTest(
 
         @Bean
         fun mergeCartsUseCase(): MergeCartsUseCase = mockk()
+
+        @Bean
+        fun startCheckoutUseCase(): StartCheckoutUseCase = mockk()
 
         @Bean
         fun cartRepository(): CartRepository = mockk()
@@ -112,7 +121,7 @@ class CartControllerWebMvcTest(
 
     @BeforeEach
     fun setUp() {
-        clearMocks(useCase, updateUseCase, removeUseCase, clearUseCase, cartRepository, jwtDecoder, mergeUseCase)
+        clearMocks(useCase, updateUseCase, removeUseCase, clearUseCase, cartRepository, jwtDecoder, mergeUseCase, checkoutUseCase)
         command.clear()
         every { cartRepository.touchGuestCart(any(), any(), any()) } returns 0
         every { useCase.execute(capture(command), any()) } answers {
@@ -288,7 +297,7 @@ class CartControllerWebMvcTest(
 
     @Test
     fun `current cart is 204 when the session has no cart yet`() {
-        every { cartRepository.findBySessionIdAndStatus(sessionId, CartStatus.ACTIVE) } returns null
+        every { cartRepository.findBySessionIdAndStatusIn(sessionId, CartStatus.CURRENT) } returns null
 
         val result = mockMvc.get("/api/v1/carts/current") { cookie(Cookie(CartController.SESSION_COOKIE, sessionId)) }
             .andExpect { status { isNoContent() } }.andReturn()
@@ -298,7 +307,7 @@ class CartControllerWebMvcTest(
 
     @Test
     fun `reading the cart re-issues the session cookie`() {
-        every { cartRepository.findBySessionIdAndStatus(sessionId, CartStatus.ACTIVE) } returns cartFor(sessionId)
+        every { cartRepository.findBySessionIdAndStatusIn(sessionId, CartStatus.CURRENT) } returns cartFor(sessionId)
 
         val result = mockMvc.get("/api/v1/carts/current") { cookie(Cookie(CartController.SESSION_COOKIE, sessionId)) }
             .andExpect { status { isOk() } }.andReturn()
@@ -308,7 +317,7 @@ class CartControllerWebMvcTest(
 
     @Test
     fun `every guest view records activity, leaving the once-a-day throttle to the query`() {
-        every { cartRepository.findBySessionIdAndStatus(sessionId, CartStatus.ACTIVE) } returns cartFor(sessionId)
+        every { cartRepository.findBySessionIdAndStatusIn(sessionId, CartStatus.CURRENT) } returns cartFor(sessionId)
 
         mockMvc.get("/api/v1/carts/current") { cookie(Cookie(CartController.SESSION_COOKIE, sessionId)) }
             .andExpect { status { isOk() } }
@@ -319,7 +328,7 @@ class CartControllerWebMvcTest(
     @Test
     fun `a signed-in caller viewing the cart does not touch the guest cart`() {
         signedIn()
-        every { cartRepository.findByUserIdAndStatus(userId, CartStatus.ACTIVE) } returns newCartFor(CartOwner.Customer(userId))
+        every { cartRepository.findByUserIdAndStatusIn(userId, CartStatus.CURRENT) } returns newCartFor(CartOwner.Customer(userId))
 
         mockMvc.get("/api/v1/carts/current") {
             cookie(accessToken(), Cookie(CartController.SESSION_COOKIE, sessionId))
@@ -480,7 +489,7 @@ class CartControllerWebMvcTest(
 
     @Test
     fun `current cart returns the session's cart`() {
-        every { cartRepository.findBySessionIdAndStatus(sessionId, CartStatus.ACTIVE) } returns cartFor(sessionId)
+        every { cartRepository.findBySessionIdAndStatusIn(sessionId, CartStatus.CURRENT) } returns cartFor(sessionId)
 
         mockMvc.get("/api/v1/carts/current") { cookie(Cookie(CartController.SESSION_COOKIE, sessionId)) }
             .andExpect {
@@ -764,7 +773,7 @@ class CartControllerWebMvcTest(
     @Test
     fun `current cart for a signed-in caller is the user's cart`() {
         signedIn()
-        every { cartRepository.findByUserIdAndStatus(userId, CartStatus.ACTIVE) } returns newCartFor(CartOwner.Customer(userId))
+        every { cartRepository.findByUserIdAndStatusIn(userId, CartStatus.CURRENT) } returns newCartFor(CartOwner.Customer(userId))
 
         val result = mockMvc.get("/api/v1/carts/current") {
             cookie(accessToken(), Cookie(CartController.SESSION_COOKIE, sessionId))
@@ -906,5 +915,111 @@ class CartControllerWebMvcTest(
         }.andExpect { status { isNoContent() } }
 
         assertEquals(null, captured.captured.guestSessionId)
+    }
+
+    // --- PIN-329: starting checkout ---------------------------------------------------
+
+    @Test
+    fun `starting checkout returns the session the cart is locked for`() {
+        val cart = cartFor(sessionId)
+        val session = cart.startCheckout(java.time.Duration.ofMinutes(30), now = java.time.Instant.parse("2026-10-01T15:00:00Z"))
+            .getOrNull()!!
+        val captured = slot<StartCheckoutCommand>()
+        every { checkoutUseCase.execute(capture(captured), any()) } returns CheckoutStarted(cart, session).right()
+
+        mockMvc.post("/api/v1/carts/$cartId/checkout") {
+            cookie(Cookie(CartController.SESSION_COOKIE, sessionId))
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.checkoutSessionId") { value(session.id.toString()) }
+            jsonPath("$.cartId") { value(cartId.toString()) }
+            jsonPath("$.status") { value("INITIATED") }
+            jsonPath("$.expiresAt") { value("2026-10-01T15:30:00Z") }
+            jsonPath("$.cart.itemCount") { value(2) }
+            jsonPath("$.cart.subtotal") { value(139.98) }
+            jsonPath("$.cart.currency") { value("USD") }
+        }
+
+        assertEquals(StartCheckoutCommand(CartOwner.Guest(sessionId), cartId), captured.captured)
+    }
+
+    @Test
+    fun `starting checkout on an empty cart is a 422 CART_EMPTY`() {
+        every { checkoutUseCase.execute(any(), any()) } returns CartError.CartEmpty(cartId).left()
+
+        mockMvc.post("/api/v1/carts/$cartId/checkout") {
+            cookie(Cookie(CartController.SESSION_COOKIE, sessionId))
+        }.andExpect {
+            status { isUnprocessableContent() }
+            jsonPath("$.code") { value("CART_EMPTY") }
+        }
+    }
+
+    @Test
+    fun `unavailable lines refuse checkout with a 422 listing each one`() {
+        val itemId = UUID.randomUUID()
+        every { checkoutUseCase.execute(any(), any()) } returns CartError.CartUnavailableItems(
+            listOf(UnavailableLine(itemId, variantId, "Gadget Pro", AvailabilityIssue.OUT_OF_STOCK))
+        ).left()
+
+        mockMvc.post("/api/v1/carts/$cartId/checkout") {
+            cookie(Cookie(CartController.SESSION_COOKIE, sessionId))
+        }.andExpect {
+            status { isUnprocessableContent() }
+            jsonPath("$.code") { value("CART_VALIDATION_FAILED") }
+            jsonPath("$.error") { value("Some items in your cart are no longer available") }
+            jsonPath("$.validationErrors.length()") { value(1) }
+            jsonPath("$.validationErrors[0].cartItemId") { value(itemId.toString()) }
+            jsonPath("$.validationErrors[0].variantId") { value(variantId.toString()) }
+            jsonPath("$.validationErrors[0].productName") { value("Gadget Pro") }
+            jsonPath("$.validationErrors[0].issue") { value("OUT_OF_STOCK") }
+        }
+    }
+
+    @Test
+    fun `an availability lookup failure is a 503`() {
+        every { checkoutUseCase.execute(any(), any()) } returns CartError.AvailabilityUnavailable(variantId).left()
+
+        mockMvc.post("/api/v1/carts/$cartId/checkout") {
+            cookie(Cookie(CartController.SESSION_COOKIE, sessionId))
+        }.andExpect {
+            status { isServiceUnavailable() }
+            jsonPath("$.code") { value("AVAILABILITY_UNAVAILABLE") }
+        }
+    }
+
+    @Test
+    fun `starting checkout without a session or token is a 404`() {
+        mockMvc.post("/api/v1/carts/$cartId/checkout").andExpect {
+            status { isNotFound() }
+            jsonPath("$.code") { value("CART_NOT_FOUND") }
+        }
+        verify(exactly = 0) { checkoutUseCase.execute(any(), any()) }
+    }
+
+    @Test
+    fun `a change to a cart in checkout is a 409 CART_LOCKED`() {
+        every { clearUseCase.execute(any(), any()) } returns CartError.CartLocked(cartId).left()
+
+        mockMvc.delete("/api/v1/carts/$cartId/items") {
+            cookie(Cookie(CartController.SESSION_COOKIE, sessionId))
+        }.andExpect {
+            status { isConflict() }
+            jsonPath("$.code") { value("CART_LOCKED") }
+        }
+    }
+
+    @Test
+    fun `the current cart shows that it is locked for checkout`() {
+        val cart = cartFor(sessionId)
+        cart.startCheckout(java.time.Duration.ofMinutes(30))
+        every { cartRepository.findBySessionIdAndStatusIn(sessionId, CartStatus.CURRENT) } returns cart
+
+        mockMvc.get("/api/v1/carts/current") {
+            cookie(Cookie(CartController.SESSION_COOKIE, sessionId))
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.status") { value("CHECKOUT") }
+        }
     }
 }

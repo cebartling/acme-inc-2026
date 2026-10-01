@@ -41,7 +41,7 @@ class RemoveCartItemUseCaseTest {
 
     @BeforeEach
     fun setUp() {
-        every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } returns cart
+        every { cartRepository.findBySessionIdAndStatusIn("sess-1", CartStatus.CURRENT) } returns cart
         every { cartRepository.save(any()) } answers { firstArg() }
         every { eventPublisher.publish(capture(published)) } returns Unit
     }
@@ -76,7 +76,7 @@ class RemoveCartItemUseCaseTest {
 
     @Test
     fun `a version conflict is retried once against a fresh read, and published once`() {
-        every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } answers { freshCart() }
+        every { cartRepository.findBySessionIdAndStatusIn("sess-1", CartStatus.CURRENT) } answers { freshCart() }
         every { cartRepository.save(any()) } throws conflict() andThenAnswer { firstArg() }
 
         val updated = useCase.execute(RemoveCartItemCommand(CartOwner.Guest("sess-1"), cart.id, item.id)).getOrNull()!!
@@ -89,7 +89,7 @@ class RemoveCartItemUseCaseTest {
     fun `a retry that finds the line already gone is a CartItemNotFound, not a failure`() {
         // The first attempt read the line before a concurrent request removed it and committed;
         // the retry reads the committed cart, which no longer has it.
-        every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } returnsMany
+        every { cartRepository.findBySessionIdAndStatusIn("sess-1", CartStatus.CURRENT) } returnsMany
             listOf(freshCart(), Cart(id = cart.id, sessionId = "sess-1"))
         every { cartRepository.save(any()) } throws conflict() andThenAnswer { firstArg() }
 
@@ -101,7 +101,7 @@ class RemoveCartItemUseCaseTest {
 
     @Test
     fun `a second conflict in a row is left to the caller`() {
-        every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } answers { freshCart() }
+        every { cartRepository.findBySessionIdAndStatusIn("sess-1", CartStatus.CURRENT) } answers { freshCart() }
         every { cartRepository.save(any()) } throws conflict()
 
         assertFailsWith<ObjectOptimisticLockingFailureException> {

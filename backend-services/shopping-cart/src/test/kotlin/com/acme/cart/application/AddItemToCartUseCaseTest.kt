@@ -80,7 +80,7 @@ class AddItemToCartUseCaseTest {
 
     @Test
     fun `first add creates a cart and publishes CartCreated then ItemAddedToCart`() {
-        every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } returns null
+        every { cartRepository.findBySessionIdAndStatusIn("sess-1", CartStatus.CURRENT) } returns null
 
         val cart = useCase.execute(command()).getOrNull()!!
 
@@ -104,7 +104,7 @@ class AddItemToCartUseCaseTest {
 
     @Test
     fun `adding to an existing cart publishes only ItemAddedToCart`() {
-        every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } returns Cart(id = UUID.randomUUID(), sessionId = "sess-1")
+        every { cartRepository.findBySessionIdAndStatusIn("sess-1", CartStatus.CURRENT) } returns Cart(id = UUID.randomUUID(), sessionId = "sess-1")
 
         useCase.execute(command())
 
@@ -113,7 +113,7 @@ class AddItemToCartUseCaseTest {
 
     @Test
     fun `the product snapshot is stored as JSON on the line`() {
-        every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } returns null
+        every { cartRepository.findBySessionIdAndStatusIn("sess-1", CartStatus.CURRENT) } returns null
 
         val cart = useCase.execute(command()).getOrNull()!!
 
@@ -128,14 +128,14 @@ class AddItemToCartUseCaseTest {
         val result = useCase.execute(command())
 
         assertEquals(CartError.VariantNotFound(variantId), result.leftOrNull())
-        verify(exactly = 0) { cartRepository.findBySessionIdAndStatus(any(), any()) }
+        verify(exactly = 0) { cartRepository.findBySessionIdAndStatusIn(any(), any()) }
         verify(exactly = 0) { cartRepository.save(any()) }
         assertEquals(emptyList(), published)
     }
 
     @Test
     fun `exceeding the max quantity saves nothing and publishes nothing`() {
-        every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } returns null
+        every { cartRepository.findBySessionIdAndStatusIn("sess-1", CartStatus.CURRENT) } returns null
 
         val result = useCase.execute(command(quantity = 6))
 
@@ -146,7 +146,7 @@ class AddItemToCartUseCaseTest {
 
     @Test
     fun `a Kafka failure does not fail the add`() {
-        every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } returns null
+        every { cartRepository.findBySessionIdAndStatusIn("sess-1", CartStatus.CURRENT) } returns null
         every { eventPublisher.publish(any()) } throws IllegalStateException("broker down")
 
         val result = useCase.execute(command())
@@ -157,7 +157,7 @@ class AddItemToCartUseCaseTest {
     @Test
     fun `a signed-in owner's first add creates a user cart and the events carry the user`() {
         val userId = UUID.randomUUID()
-        every { cartRepository.findByUserIdAndStatus(userId, CartStatus.ACTIVE) } returns null
+        every { cartRepository.findByUserIdAndStatusIn(userId, CartStatus.CURRENT) } returns null
 
         val cart = useCase.execute(
             AddItemToCartCommand(CartOwner.Customer(userId), variantId, 2, snapshot, startedNewSession = false)
@@ -175,7 +175,7 @@ class AddItemToCartUseCaseTest {
 
     @Test
     fun `a returning guest session with no active cart is counted`() {
-        every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } returns null
+        every { cartRepository.findBySessionIdAndStatusIn("sess-1", CartStatus.CURRENT) } returns null
 
         useCase.execute(command())
 
@@ -184,7 +184,7 @@ class AddItemToCartUseCaseTest {
 
     @Test
     fun `a brand-new session's first cart is not counted`() {
-        every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } returns null
+        every { cartRepository.findBySessionIdAndStatusIn("sess-1", CartStatus.CURRENT) } returns null
 
         useCase.execute(command(startedNewSession = true))
 
@@ -193,7 +193,7 @@ class AddItemToCartUseCaseTest {
 
     @Test
     fun `adding to an existing cart is not counted`() {
-        every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } returns Cart(id = UUID.randomUUID(), sessionId = "sess-1")
+        every { cartRepository.findBySessionIdAndStatusIn("sess-1", CartStatus.CURRENT) } returns Cart(id = UUID.randomUUID(), sessionId = "sess-1")
 
         useCase.execute(command())
 
@@ -203,7 +203,7 @@ class AddItemToCartUseCaseTest {
     @Test
     fun `a signed-in owner's first cart is not counted`() {
         val userId = UUID.randomUUID()
-        every { cartRepository.findByUserIdAndStatus(userId, CartStatus.ACTIVE) } returns null
+        every { cartRepository.findByUserIdAndStatusIn(userId, CartStatus.CURRENT) } returns null
 
         useCase.execute(AddItemToCartCommand(CartOwner.Customer(userId), variantId, 2, snapshot, startedNewSession = false))
 
@@ -212,7 +212,7 @@ class AddItemToCartUseCaseTest {
 
     @Test
     fun `a failed add is not counted`() {
-        every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } returns null
+        every { cartRepository.findBySessionIdAndStatusIn("sess-1", CartStatus.CURRENT) } returns null
 
         useCase.execute(command(quantity = 6))
 
@@ -221,7 +221,7 @@ class AddItemToCartUseCaseTest {
 
     @Test
     fun `the new-cart log line names the cart but never the session ID`(output: CapturedOutput) {
-        every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } returns null
+        every { cartRepository.findBySessionIdAndStatusIn("sess-1", CartStatus.CURRENT) } returns null
 
         val cart = useCase.execute(command()).getOrNull()!!
 
@@ -235,7 +235,7 @@ class AddItemToCartUseCaseTest {
 
     @Test
     fun `a version conflict is retried once, and the add is published once`() {
-        every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } returns null
+        every { cartRepository.findBySessionIdAndStatusIn("sess-1", CartStatus.CURRENT) } returns null
         every { cartRepository.save(any()) } throws conflict() andThenAnswer { firstArg() }
 
         val cart = useCase.execute(command()).getOrNull()!!
@@ -247,7 +247,7 @@ class AddItemToCartUseCaseTest {
 
     @Test
     fun `a second conflict in a row is left to the caller, and nothing is published`() {
-        every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } returns null
+        every { cartRepository.findBySessionIdAndStatusIn("sess-1", CartStatus.CURRENT) } returns null
         every { cartRepository.save(any()) } throws conflict()
 
         assertFailsWith<ObjectOptimisticLockingFailureException> { useCase.execute(command()) }
@@ -260,7 +260,7 @@ class AddItemToCartUseCaseTest {
 
     @Test
     fun `losing a unique-key race is retried like a version conflict, and priced once`() {
-        every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } returns null
+        every { cartRepository.findBySessionIdAndStatusIn("sess-1", CartStatus.CURRENT) } returns null
         every { cartRepository.save(any()) } throws violation("23505") andThenAnswer { firstArg() }
 
         val cart = useCase.execute(command()).getOrNull()!!
@@ -273,7 +273,7 @@ class AddItemToCartUseCaseTest {
 
     @Test
     fun `losing a unique-key race twice in a row is a conflict for the caller`() {
-        every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } returns null
+        every { cartRepository.findBySessionIdAndStatusIn("sess-1", CartStatus.CURRENT) } returns null
         every { cartRepository.save(any()) } throws violation("23505")
 
         assertFailsWith<ObjectOptimisticLockingFailureException> { useCase.execute(command()) }
@@ -282,7 +282,7 @@ class AddItemToCartUseCaseTest {
 
     @Test
     fun `any other constraint violation is not a race, so it is not retried`() {
-        every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } returns null
+        every { cartRepository.findBySessionIdAndStatusIn("sess-1", CartStatus.CURRENT) } returns null
         every { cartRepository.save(any()) } throws violation("23514")
 
         assertFailsWith<DataIntegrityViolationException> { useCase.execute(command()) }

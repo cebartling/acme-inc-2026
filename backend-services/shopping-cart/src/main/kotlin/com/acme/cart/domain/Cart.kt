@@ -4,6 +4,8 @@ import arrow.core.Either
 import arrow.core.left
 import arrow.core.right
 import jakarta.persistence.*
+import java.math.BigDecimal
+import java.time.Duration
 import java.time.Instant
 import java.util.UUID
 
@@ -49,6 +51,14 @@ class Cart(
     @Column(name = "version")
     var version: Long? = null,
 
+    /** The checkout session a CHECKOUT cart is locked for (PIN-329); null otherwise. */
+    @Column(name = "checkout_session_id")
+    var checkoutSessionId: UUID? = null,
+
+    /** When a CHECKOUT cart's checkout session lapses (PIN-329); null otherwise. */
+    @Column(name = "checkout_expires_at")
+    var checkoutExpiresAt: Instant? = null,
+
     @OneToMany(
         mappedBy = "cart",
         fetch = FetchType.LAZY,
@@ -68,6 +78,10 @@ class Cart(
     val itemCount: Int
         get() = items.sumOf { it.quantity }
 
+    /** Sum of the line totals. */
+    val subtotal: BigDecimal
+        get() = items.fold(BigDecimal.ZERO) { sum, item -> sum + item.lineTotal }
+
     /**
      * Adds [quantity] of a variant, merging into an existing line for the same variant
      * (AC-0004-06-04). The line's unit price is re-read from [pricing] at the new total
@@ -85,6 +99,7 @@ class Cart(
         now: Instant = Instant.now()
     ): Either<CartError, CartItem> {
         require(quantity > 0) { "quantity must be positive, was $quantity" }
+        lockedError()?.let { return it.left() }
 
         val existing = items.find { it.variantId == variantId }
         val newQuantity = (existing?.quantity ?: 0) + quantity
@@ -125,6 +140,7 @@ class Cart(
         now: Instant = Instant.now()
     ): Either<CartError, QuantityChange> {
         require(quantity > 0) { "quantity must be positive, was $quantity" }
+        lockedError()?.let { return it.left() }
 
         val item = items.find { it.id == itemId } ?: return CartError.CartItemNotFound(itemId).left()
         if (quantity > maxQuantity) {
@@ -141,6 +157,7 @@ class Cart(
 
     /** Removes a line (AC-0004-07-05). Removing the last line leaves an empty cart. */
     fun removeItem(itemId: UUID, now: Instant = Instant.now()): Either<CartError, CartItem> {
+        lockedError()?.let { return it.left() }
         val item = items.find { it.id == itemId } ?: return CartError.CartItemNotFound(itemId).left()
         items.remove(item)
         touch(now)
@@ -151,12 +168,13 @@ class Cart(
      * Removes every line (PIN-294), leaving an empty cart that still belongs to its owner.
      * Clearing an empty cart changes nothing. Returns the removed lines.
      */
-    fun clear(now: Instant = Instant.now()): List<CartItem> {
-        if (items.isEmpty()) return emptyList()
+    fun clear(now: Instant = Instant.now()): Either<CartError, List<CartItem>> {
+        lockedError()?.let { return it.left() }
+        if (items.isEmpty()) return emptyList<CartItem>().right()
         val removed = items.toList()
         items.clear()
         touch(now)
-        return removed
+        return removed.right()
     }
 
     /**
@@ -180,6 +198,8 @@ class Cart(
     ): MergeResult {
         require(guest !== this) { "a cart cannot absorb itself" }
         require(guest.status == CartStatus.ACTIVE) { "cart ${guest.id} was already merged" }
+        // A locked cart refuses changes (PIN-329); the merge use case checks before absorbing.
+        require(status == CartStatus.ACTIVE) { "cart $id is $status and cannot absorb a guest cart" }
 
         // A variant the product service no longer finds (PIN-306) can't be priced; its line stays
         // behind in the MERGED guest cart and is reported instead.
@@ -221,6 +241,32 @@ class Cart(
         )
     }
 
+    /**
+     * Locks the cart for checkout (PIN-329): it becomes CHECKOUT with a new checkout session
+     * lasting [sessionLength], and refuses every change until checkout ends. A cart already
+     * in checkout returns its session unchanged, so starting twice is not an error.
+     *
+     * @return the checkout session, or [CartError.CartEmpty] with the cart unchanged.
+     */
+    fun startCheckout(sessionLength: Duration, now: Instant = Instant.now()): Either<CartError, CheckoutSession> {
+        if (status == CartStatus.CHECKOUT) return checkoutSession().right()
+        check(status == CartStatus.ACTIVE) { "cart $id is $status and cannot start checkout" }
+        if (items.isEmpty()) return CartError.CartEmpty(id).left()
+
+        status = CartStatus.CHECKOUT
+        checkoutSessionId = UUID.randomUUID()
+        checkoutExpiresAt = now.plus(sessionLength)
+        touch(now)
+        return checkoutSession().right()
+    }
+
+    private fun checkoutSession() = CheckoutSession(
+        id = checkNotNull(checkoutSessionId) { "CHECKOUT cart $id has no checkout session" },
+        expiresAt = checkNotNull(checkoutExpiresAt) { "CHECKOUT cart $id has no checkout expiry" }
+    )
+
+    private fun lockedError(): CartError? = if (status == CartStatus.CHECKOUT) CartError.CartLocked(id) else null
+
     /** A change by the owner: the cart is both modified and in use. */
     private fun touch(now: Instant) {
         updatedAt = now
@@ -229,6 +275,9 @@ class Cart(
 }
 
 data class QuantityChange(val item: CartItem, val previousQuantity: Int)
+
+/** The checkout session a cart is locked for (PIN-329). */
+data class CheckoutSession(val id: UUID, val expiresAt: Instant)
 
 /**
  * What a merge did: how many guest lines moved, which quantities were capped, and which lines

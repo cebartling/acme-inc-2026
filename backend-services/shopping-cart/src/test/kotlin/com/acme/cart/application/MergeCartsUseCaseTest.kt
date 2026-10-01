@@ -54,9 +54,9 @@ class MergeCartsUseCaseTest {
         newCartFor(CartOwner.Guest("sess-1")).apply { addItem(variantId, quantity, pricing, "{}", 10) }
 
     private fun givenCarts(guest: Cart?, user: Cart?) {
-        every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } returns guest
+        every { cartRepository.findBySessionIdAndStatusIn("sess-1", CartStatus.CURRENT) } returns guest
         every { cartRepository.findForUpdateBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } returns guest
-        every { cartRepository.findByUserIdAndStatus(userId, CartStatus.ACTIVE) } returns user
+        every { cartRepository.findByUserIdAndStatusIn(userId, CartStatus.CURRENT) } returns user
     }
 
     @BeforeEach
@@ -92,7 +92,7 @@ class MergeCartsUseCaseTest {
     @Test
     fun `no session is a no-op that returns the user's cart unchanged (AC-09)`() {
         val user = newCartFor(CartOwner.Customer(userId))
-        every { cartRepository.findByUserIdAndStatus(userId, CartStatus.ACTIVE) } returns user
+        every { cartRepository.findByUserIdAndStatusIn(userId, CartStatus.CURRENT) } returns user
 
         val outcome = useCase.execute(MergeCartsCommand(userId, guestSessionId = null)).getOrNull()!!
 
@@ -225,9 +225,9 @@ class MergeCartsUseCaseTest {
 
     /** Each read returns what is committed: the failed attempt's changes were rolled back. */
     private fun givenFreshCarts() {
-        every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } answers { guestWith(2) }
+        every { cartRepository.findBySessionIdAndStatusIn("sess-1", CartStatus.CURRENT) } answers { guestWith(2) }
         every { cartRepository.findForUpdateBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } answers { guestWith(2) }
-        every { cartRepository.findByUserIdAndStatus(userId, CartStatus.ACTIVE) } returns null
+        every { cartRepository.findByUserIdAndStatusIn(userId, CartStatus.CURRENT) } returns null
     }
 
     @Test
@@ -248,6 +248,41 @@ class MergeCartsUseCaseTest {
         every { cartRepository.save(any()) } throws conflict()
 
         assertFailsWith<ObjectOptimisticLockingFailureException> { useCase.execute(MergeCartsCommand(userId, "sess-1")) }
+        assertEquals(emptyList(), published)
+    }
+
+    // --- PIN-329: a cart in checkout is locked ---------------------------------------
+
+    @Test
+    fun `a guest cart in checkout is not merged, so its checkout keeps it`() {
+        val guest = guestWith(2).apply { startCheckout(StartCheckoutUseCase.SESSION_LENGTH) }
+        val user = newCartFor(CartOwner.Customer(userId))
+        givenCarts(guest = guest, user = user)
+        // The row-locked re-read only finds an ACTIVE guest cart
+        every { cartRepository.findForUpdateBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } returns null
+
+        val outcome = useCase.execute(MergeCartsCommand(userId, "sess-1")).getOrNull()!!
+
+        assertEquals(user, outcome.cart)
+        assertNull(outcome.result)
+        assertEquals(CartStatus.CHECKOUT, guest.status)
+        verify(exactly = 0) { pricingClient.getPricing(any()) }
+        assertEquals(emptyList(), published)
+    }
+
+    @Test
+    fun `an account cart in checkout refuses the merge with CART_LOCKED`() {
+        val guest = guestWith(2)
+        val user = newCartFor(CartOwner.Customer(userId)).apply {
+            addItem(UUID.randomUUID(), 1, pricing, "{}", 10)
+            startCheckout(StartCheckoutUseCase.SESSION_LENGTH)
+        }
+        givenCarts(guest = guest, user = user)
+
+        assertEquals(CartError.CartLocked(user.id), useCase.execute(MergeCartsCommand(userId, "sess-1")).leftOrNull())
+        assertEquals(CartStatus.ACTIVE, guest.status)
+        assertEquals(1, user.items.size)
+        verify(exactly = 0) { cartRepository.save(any()) }
         assertEquals(emptyList(), published)
     }
 }

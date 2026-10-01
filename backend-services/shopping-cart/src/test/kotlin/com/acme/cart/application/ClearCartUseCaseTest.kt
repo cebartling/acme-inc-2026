@@ -45,7 +45,7 @@ class ClearCartUseCaseTest {
 
     @BeforeEach
     fun setUp() {
-        every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } returns cart
+        every { cartRepository.findBySessionIdAndStatusIn("sess-1", CartStatus.CURRENT) } returns cart
         every { cartRepository.save(any()) } answers { firstArg() }
         every { eventPublisher.publish(capture(published)) } returns Unit
     }
@@ -70,7 +70,7 @@ class ClearCartUseCaseTest {
         val userCart = Cart(id = UUID.randomUUID(), userId = userId).also {
             it.addItem(UUID.randomUUID(), 1, pricing, "{}", 10)
         }
-        every { cartRepository.findByUserIdAndStatus(userId, CartStatus.ACTIVE) } returns userCart
+        every { cartRepository.findByUserIdAndStatusIn(userId, CartStatus.CURRENT) } returns userCart
 
         val updated = useCase.execute(ClearCartCommand(CartOwner.Customer(userId), userCart.id)).getOrNull()!!
 
@@ -95,7 +95,7 @@ class ClearCartUseCaseTest {
     @Test
     fun `clearing an empty cart returns it without saving or publishing`() {
         val empty = Cart(id = UUID.randomUUID(), sessionId = "sess-1")
-        every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } returns empty
+        every { cartRepository.findBySessionIdAndStatusIn("sess-1", CartStatus.CURRENT) } returns empty
 
         val result = useCase.execute(ClearCartCommand(CartOwner.Guest("sess-1"), empty.id))
 
@@ -114,7 +114,7 @@ class ClearCartUseCaseTest {
 
     @Test
     fun `a version conflict is retried once against a fresh read, and published once`() {
-        every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } answers { freshCart() }
+        every { cartRepository.findBySessionIdAndStatusIn("sess-1", CartStatus.CURRENT) } answers { freshCart() }
         every { cartRepository.save(any()) } throws conflict() andThenAnswer { firstArg() }
 
         val updated = useCase.execute(ClearCartCommand(CartOwner.Guest("sess-1"), cart.id)).getOrNull()!!
@@ -125,7 +125,7 @@ class ClearCartUseCaseTest {
 
     @Test
     fun `a second conflict in a row is left to the caller`() {
-        every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } answers { freshCart() }
+        every { cartRepository.findBySessionIdAndStatusIn("sess-1", CartStatus.CURRENT) } answers { freshCart() }
         every { cartRepository.save(any()) } throws conflict()
 
         assertFailsWith<ObjectOptimisticLockingFailureException> {

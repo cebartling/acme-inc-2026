@@ -1,7 +1,10 @@
 package com.acme.cart.api.v1
 
 import com.acme.cart.application.AddItemToCartUseCase
+import com.acme.cart.application.CheckoutStarted
+import com.acme.cart.domain.AvailabilityIssue
 import com.acme.cart.domain.Cart
+import com.acme.cart.domain.CartStatus
 import com.acme.cart.domain.MergeResult
 import com.acme.cart.domain.ProductSnapshot
 import jakarta.validation.Valid
@@ -9,6 +12,7 @@ import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotNull
 import java.math.BigDecimal
+import java.time.Instant
 import java.util.UUID
 
 data class AddToCartRequest(
@@ -59,12 +63,15 @@ data class UpdateQuantityRequest(
 
 data class CartResponse(
     val id: UUID,
+    /** ACTIVE, or CHECKOUT while the cart is locked for checkout (PIN-329). */
+    val status: CartStatus,
     val items: List<CartItemResponse>,
     val summary: CartSummaryResponse
 ) {
     companion object {
         fun from(cart: Cart, snapshotOf: (String) -> ProductSnapshot) = CartResponse(
             id = cart.id,
+            status = cart.status,
             items = cart.items.map {
                 CartItemResponse(
                     id = it.id,
@@ -77,7 +84,7 @@ data class CartResponse(
             },
             summary = CartSummaryResponse(
                 itemCount = cart.itemCount,
-                subtotal = cart.items.fold(BigDecimal.ZERO) { sum, item -> sum + item.lineTotal },
+                subtotal = cart.subtotal,
                 currency = AddItemToCartUseCase.CURRENCY
             )
         )
@@ -97,6 +104,40 @@ data class CartSummaryResponse(
     val itemCount: Int,
     val subtotal: BigDecimal,
     val currency: String
+)
+
+/**
+ * A started checkout (PIN-329, journey 0005 "Initiate Checkout"): the session the cart is
+ * locked for, which the order service will need with the cart reference.
+ */
+data class CheckoutResponse(
+    val checkoutSessionId: UUID,
+    val cartId: UUID,
+    val status: String,
+    val expiresAt: Instant,
+    val cart: CartSummaryResponse
+) {
+    companion object {
+        fun from(started: CheckoutStarted) = CheckoutResponse(
+            checkoutSessionId = started.session.id,
+            cartId = started.cart.id,
+            status = "INITIATED",
+            expiresAt = started.session.expiresAt,
+            cart = CartSummaryResponse(
+                itemCount = started.cart.itemCount,
+                subtotal = started.cart.subtotal,
+                currency = AddItemToCartUseCase.CURRENCY
+            )
+        )
+    }
+}
+
+/** A line that refused checkout (PIN-329): `OUT_OF_STOCK`, or `NOT_AVAILABLE` for a gone variant. */
+data class CheckoutValidationErrorResponse(
+    val cartItemId: UUID,
+    val variantId: UUID,
+    val productName: String,
+    val issue: AvailabilityIssue
 )
 
 /**
