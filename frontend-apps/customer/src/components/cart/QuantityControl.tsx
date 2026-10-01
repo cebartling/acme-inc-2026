@@ -79,6 +79,7 @@ export function QuantityControl({
         type="button"
         data-testid="increaseQuantity"
         aria-label={`Increase quantity of ${itemName}`}
+        aria-describedby={canIncrease ? undefined : describedBy}
         disabled={disabled || !canIncrease}
         onClick={() => onChange(quantity + 1)}
         className={buttonClass}

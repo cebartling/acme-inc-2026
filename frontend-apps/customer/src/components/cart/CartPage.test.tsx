@@ -143,6 +143,36 @@ describe("CartPage", () => {
     );
   });
 
+  it("shows zero totals when every line is out of stock", async () => {
+    mockedGetCurrent.mockResolvedValue(cartOf(line(2, 119.99)));
+    mockedAvailability.mockResolvedValue({
+      variantId: "variant-1",
+      availability: "OUT_OF_STOCK",
+    });
+    renderPage();
+
+    await screen.findByTestId("cartExcludesOutOfStock");
+    expect(screen.getByText("Subtotal (0 items)")).toBeInTheDocument();
+    expect(screen.getByTestId("cartSubtotal")).toHaveTextContent("$0.00");
+    expect(screen.getByTestId("cartEstimatedTotal")).toHaveTextContent("$0.00");
+  });
+
+  it("still decrements an out-of-stock line with the − button", async () => {
+    mockedGetCurrent.mockResolvedValue(cartOf(line(3, 119.99)));
+    mockedAvailability.mockResolvedValue({
+      variantId: "variant-1",
+      availability: "OUT_OF_STOCK",
+    });
+    mockedUpdate.mockResolvedValue(cartOf(line(2, 119.99)));
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByTestId("lineOutOfStock");
+    await user.click(screen.getByTestId("decreaseQuantity"));
+
+    expect(mockedUpdate).toHaveBeenCalledWith("cart-1", "line-1", 2);
+  });
+
   // PIN-317: decrease and Remove still work; only a larger quantity is refused
   it("does not let an out-of-stock line's quantity go up", async () => {
     mockedGetCurrent.mockResolvedValue(cartOf(line(3, 119.99)));
@@ -157,8 +187,15 @@ describe("CartPage", () => {
     await screen.findByTestId("lineOutOfStock");
     expect(screen.getByTestId("increaseQuantity")).toBeDisabled();
     expect(screen.getByTestId("decreaseQuantity")).toBeEnabled();
+    // The warning tells a screen reader why the quantity can't go up
+    const reason =
+      "Gadget Pro is now out of stock and cannot be included in your order.";
+    expect(screen.getByTestId("increaseQuantity")).toHaveAccessibleDescription(
+      reason,
+    );
 
     const input = screen.getByTestId("lineQuantityInput");
+    expect(input).toHaveAccessibleDescription(reason);
     // The native stepper and ArrowUp stop at the current quantity too
     expect(input).toHaveAttribute("max", "3");
     await user.clear(input);
