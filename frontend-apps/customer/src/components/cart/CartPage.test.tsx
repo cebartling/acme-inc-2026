@@ -159,6 +159,8 @@ describe("CartPage", () => {
     expect(screen.getByTestId("decreaseQuantity")).toBeEnabled();
 
     const input = screen.getByTestId("lineQuantityInput");
+    // The native stepper and ArrowUp stop at the current quantity too
+    expect(input).toHaveAttribute("max", "3");
     await user.clear(input);
     await user.type(input, "5{Enter}");
     expect(mockedUpdate).not.toHaveBeenCalled();

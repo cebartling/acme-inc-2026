@@ -64,6 +64,7 @@ export function QuantityControl({
         aria-label={`Quantity of ${itemName}`}
         aria-describedby={describedBy}
         min={1}
+        max={canIncrease ? undefined : quantity}
         step={1}
         value={input}
         disabled={disabled}
