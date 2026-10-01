@@ -11,6 +11,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # These jobs mirror scripts/run-unit-tests.sh on purpose rather than calling
+  # it: the per-service matrix gives parallel jobs, a separate result per
+  # service and uploaded test results, and the script is zsh-only and written
+  # for local use. The cost is that the two can drift — when a service or app
+  # is added to one, add it to the other. See PIN-253.
   backend-tests:
     name: Backend · ${{ matrix.service }}
     runs-on: ubuntu-latest
@@ -153,6 +158,29 @@ jobs:
 
       - name: Check formatting
         run: bun run format:check
+
+  # demos is a scripted UI demo runner, not a test suite, and running it needs
+  # the full stack -- so CI only typechecks it. That still catches the failure
+  # mode that matters: a Playwright, Serenity/JS or TypeScript upgrade breaking
+  # the demo scripts. See PIN-253.
+  demos-checks:
+    name: Demos · typecheck
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: demos
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        run: bun run typecheck
 
   # .agents/skills (Codex) and .claude/skills (Claude Code) are hand-maintained
   # copies of the same files, and they have drifted twice — most recently when
