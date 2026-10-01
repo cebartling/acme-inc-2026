@@ -98,7 +98,7 @@ class CartController(
 
     /**
      * The caller's cart (US-0004-07, AC-02/03/10): the user cart when signed in, else the
-     * session's. 204 when there is no owner or no ACTIVE cart yet, so a first-time
+     * session's. 204 when there is no owner or no current cart yet, so a first-time
      * visitor's page load is not an error.
      */
     @GetMapping("/current")

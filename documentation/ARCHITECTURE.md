@@ -382,9 +382,9 @@ sequenceDiagram
   archived product, PIN-306) is `NOT_AVAILABLE`. Any other lookup failure refuses checkout
   with 503 `AVAILABILITY_UNAVAILABLE` rather than skipping the check. The service only knows
   in or out of stock, so there are no quantities and no reservation (PIN-56). The checks run
-  outside the transaction, as add-to-cart's pricing does. The lock is saved with the cart's
-  version, so a change that lands in between makes the save conflict, and the
-  `retryOnConflict` retry checks the cart again.
+  outside the transaction, as add-to-cart's pricing does. The transaction's re-read is fresh,
+  so it must still be at the version that was checked: a change that lands in between is a
+  conflict, and the `retryOnConflict` retry checks the changed cart again.
 - **The checkout session** (`carts.checkout_session_id`, `checkout_expires_at`, V6) lasts 30
   minutes and is the cart reference the order service will take. Starting again on a locked
   cart returns the same session, with no re-check and no new event.

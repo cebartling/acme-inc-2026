@@ -856,6 +856,7 @@ class CartControllerWebMvcTest(
             cookie(accessToken(), Cookie(CartController.SESSION_COOKIE, sessionId))
         }.andExpect {
             status { isOk() }
+            jsonPath("$.status") { value("ACTIVE") }
             jsonPath("$.summary.itemCount") { value(10) }
             jsonPath("$.mergeResult.itemsMerged") { value(1) }
             jsonPath("$.mergeResult.quantitiesAdjusted[0].variantId") { value(variantId.toString()) }

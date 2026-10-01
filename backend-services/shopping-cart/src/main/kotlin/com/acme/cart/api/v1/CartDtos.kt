@@ -146,6 +146,8 @@ data class CheckoutValidationErrorResponse(
  */
 data class MergeResponse(
     val id: UUID,
+    /** As in [CartResponse]: the account cart can already be locked for checkout (PIN-329). */
+    val status: CartStatus,
     val items: List<CartItemResponse>,
     val summary: CartSummaryResponse,
     val mergeResult: MergeResultResponse?
@@ -153,6 +155,7 @@ data class MergeResponse(
     companion object {
         fun from(cart: CartResponse, result: MergeResult?, snapshotOf: (String) -> ProductSnapshot) = MergeResponse(
             id = cart.id,
+            status = cart.status,
             items = cart.items,
             summary = cart.summary,
             mergeResult = result?.let { r ->

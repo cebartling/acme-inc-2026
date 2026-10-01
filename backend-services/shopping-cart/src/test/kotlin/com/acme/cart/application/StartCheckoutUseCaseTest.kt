@@ -131,6 +131,28 @@ class StartCheckoutUseCaseTest {
     }
 
     @Test
+    fun `a line added after the stock check is checked by the retry, not locked unchecked`() {
+        val gone = UUID.randomUUID()
+        fun cartAt(version: Long) = Cart(id = cart.id, sessionId = "sess-1", version = version).also {
+            it.addItem(mouse, 2, VariantPricing(BigDecimal("69.99")), snapshot("Mouse"), 10)
+        }
+        val checked = cartAt(version = 0)
+        val changed = cartAt(version = 1).also {
+            it.addItem(gone, 1, VariantPricing(BigDecimal("9.99")), snapshot("Gone"), 10)
+        }
+        // The stock check reads the cart, then a concurrent add commits before the lock's re-read
+        every { cartRepository.findBySessionIdAndStatusIn("sess-1", CartStatus.CURRENT) } returnsMany listOf(checked, changed)
+        every { availabilityClient.issueWith(gone) } returns AvailabilityIssue.OUT_OF_STOCK.right()
+
+        val error = assertIs<CartError.CartUnavailableItems>(start().leftOrNull())
+
+        assertEquals(listOf(gone), error.lines.map { it.variantId })
+        assertEquals(CartStatus.ACTIVE, changed.status)
+        verify(exactly = 0) { cartRepository.save(any()) }
+        assertEquals(emptyList(), published)
+    }
+
+    @Test
     fun `someone else's cart is not found`() {
         val otherId = UUID.randomUUID()
 

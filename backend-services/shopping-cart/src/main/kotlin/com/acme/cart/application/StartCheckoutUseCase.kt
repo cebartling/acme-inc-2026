@@ -18,6 +18,7 @@ import com.acme.cart.infrastructure.persistence.CartRepository
 import com.acme.cart.infrastructure.product.ProductAvailabilityClient
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
+import org.springframework.orm.ObjectOptimisticLockingFailureException
 import org.springframework.stereotype.Service
 import org.springframework.transaction.support.TransactionTemplate
 import java.time.Duration
@@ -35,7 +36,7 @@ data class CheckoutStarted(val cart: Cart, val session: CheckoutSession)
  * outside the transaction, as add-to-cart does for pricing; any line that can't be ordered
  * refuses checkout, listed with why. Otherwise the cart is re-read and locked as CHECKOUT in
  * a transaction, and `CheckoutInitiated` is published after commit. If the cart changed in
- * between, the save conflicts and the retry checks it again.
+ * between (its version moved), that is a conflict and the retry checks it again.
  *
  * A cart already in checkout returns its session as is: nothing is re-checked or published.
  */
@@ -61,7 +62,7 @@ class StartCheckoutUseCase(
             if (unavailable.isNotEmpty()) raise(CartError.CartUnavailableItems(unavailable))
         }
 
-        val locked = checkNotNull(transactionTemplate.execute { lockInTransaction(command) }) {
+        val locked = checkNotNull(transactionTemplate.execute { lockInTransaction(command, checkedVersion = cart.version) }) {
             "checkout transaction for cart ${command.cartId} returned no result"
         }.bind()
         if (locked.isNew) publish(locked.started, correlationId)
@@ -79,9 +80,15 @@ class StartCheckoutUseCase(
         }
     }
 
-    private fun lockInTransaction(command: StartCheckoutCommand): Either<CartError, Locked> {
+    /**
+     * The re-read is fresh (no open-in-view), so its version is the committed one and saving it
+     * could never conflict. A change since [checkedVersion], whose lines were checked, is a
+     * conflict instead: the retry checks the changed cart.
+     */
+    private fun lockInTransaction(command: StartCheckoutCommand, checkedVersion: Long?): Either<CartError, Locked> {
         val cart = cartRepository.findOwnedCart(command.owner, command.cartId)
             ?: return CartError.CartNotFound(command.cartId).left()
+        if (cart.version != checkedVersion) throw ObjectOptimisticLockingFailureException(Cart::class.java, cart.id)
         val wasLocked = cart.status == CartStatus.CHECKOUT
         return cart.startCheckout(SESSION_LENGTH).map { session ->
             val saved = if (wasLocked) cart else cartRepository.save(cart)
