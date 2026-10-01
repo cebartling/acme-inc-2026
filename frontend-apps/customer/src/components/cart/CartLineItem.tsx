@@ -75,6 +75,7 @@ export function CartLineItem({
         quantity={item.quantity}
         itemName={itemName}
         disabled={isBusy}
+        canIncrease={!isOutOfStock}
         describedBy={message ? messageId : undefined}
         onChange={(quantity) =>
           update.mutate({ cartId, itemId: item.id, quantity })

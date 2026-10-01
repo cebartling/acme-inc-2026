@@ -2,9 +2,16 @@ import type { Cart } from "@/services/api";
 
 /**
  * Cart totals (AC-0004-07-07). There is no tax or shipping service yet, so the estimated
- * total equals the subtotal.
+ * total equals the subtotal. `excludesOutOfStock` says the totals leave out-of-stock lines out
+ * (PIN-317).
  */
-export function CartSummary({ summary }: { summary: Cart["summary"] }) {
+export function CartSummary({
+  summary,
+  excludesOutOfStock = false,
+}: {
+  summary: Cart["summary"];
+  excludesOutOfStock?: boolean;
+}) {
   const itemLabel =
     summary.itemCount === 1 ? "1 item" : `${summary.itemCount} items`;
 
@@ -25,6 +32,14 @@ export function CartSummary({ summary }: { summary: Cart["summary"] }) {
           </dd>
         </div>
       </dl>
+      {excludesOutOfStock && (
+        <p
+          data-testid="cartExcludesOutOfStock"
+          className="mt-3 text-xs text-slate-400"
+        >
+          Out-of-stock items are not included.
+        </p>
+      )}
       <p className="mt-3 text-xs text-slate-400">
         Taxes and shipping calculated at checkout. Prices in {summary.currency}.
       </p>
