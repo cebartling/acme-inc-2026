@@ -5,7 +5,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "demo": "bun run src/run.ts"
+    "demo": "bun run src/run.ts",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@serenity-js/core": "^3.43.2",
