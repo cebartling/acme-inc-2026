@@ -13,10 +13,14 @@ import org.springframework.orm.ObjectOptimisticLockingFailureException
 import java.sql.SQLException
 import java.util.UUID
 
-/** The owner's ACTIVE cart, if any. A MERGED guest cart reads as no cart (AC-0004-08-05). */
+/**
+ * The owner's current cart, ACTIVE or locked for checkout (PIN-329), if any. A locked cart is
+ * still found, so a change to it is refused rather than starting a second cart. A MERGED or
+ * EXPIRED guest cart reads as no cart (AC-0004-08-05).
+ */
 internal fun CartRepository.findActiveCart(owner: CartOwner): Cart? = when (owner) {
-    is CartOwner.Guest -> findBySessionIdAndStatus(owner.sessionId, CartStatus.ACTIVE)
-    is CartOwner.Customer -> findByUserIdAndStatus(owner.userId, CartStatus.ACTIVE)
+    is CartOwner.Guest -> findBySessionIdAndStatusIn(owner.sessionId, CartStatus.CURRENT)
+    is CartOwner.Customer -> findByUserIdAndStatusIn(owner.userId, CartStatus.CURRENT)
 }
 
 /**

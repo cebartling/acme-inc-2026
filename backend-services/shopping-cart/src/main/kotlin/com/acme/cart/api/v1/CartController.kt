@@ -8,6 +8,8 @@ import com.acme.cart.application.MergeCartsCommand
 import com.acme.cart.application.MergeCartsUseCase
 import com.acme.cart.application.RemoveCartItemCommand
 import com.acme.cart.application.RemoveCartItemUseCase
+import com.acme.cart.application.StartCheckoutCommand
+import com.acme.cart.application.StartCheckoutUseCase
 import com.acme.cart.application.UpdateCartItemQuantityCommand
 import com.acme.cart.application.UpdateCartItemQuantityUseCase
 import com.acme.cart.application.findActiveCart
@@ -49,6 +51,7 @@ class CartController(
     private val removeCartItemUseCase: RemoveCartItemUseCase,
     private val clearCartUseCase: ClearCartUseCase,
     private val mergeCartsUseCase: MergeCartsUseCase,
+    private val startCheckoutUseCase: StartCheckoutUseCase,
     private val cartRepository: CartRepository,
     private val objectMapper: ObjectMapper,
     private val guestSessionCookies: GuestSessionCookies
@@ -95,7 +98,7 @@ class CartController(
 
     /**
      * The caller's cart (US-0004-07, AC-02/03/10): the user cart when signed in, else the
-     * session's. 204 when there is no owner or no ACTIVE cart yet, so a first-time
+     * session's. 204 when there is no owner or no current cart yet, so a first-time
      * visitor's page load is not an error.
      */
     @GetMapping("/current")
@@ -146,6 +149,22 @@ class CartController(
         val owner = ownerOf(jwt, sessionCookie) ?: return errorResponse(CartError.CartNotFound(cartId))
         return clearCartUseCase.execute(ClearCartCommand(owner, cartId))
             .fold(ifLeft = ::errorResponse, ifRight = { ResponseEntity.ok(toResponse(it)) })
+    }
+
+    /**
+     * Starts checkout on the caller's own cart (PIN-329): checks every line is available,
+     * then locks the cart as CHECKOUT and returns the checkout session. Starting again on a
+     * locked cart returns the same session.
+     */
+    @PostMapping("/{cartId}/checkout")
+    fun startCheckout(
+        @AuthenticationPrincipal jwt: Jwt?,
+        @CookieValue(SESSION_COOKIE, required = false) sessionCookie: String?,
+        @PathVariable cartId: UUID
+    ): ResponseEntity<Any> {
+        val owner = ownerOf(jwt, sessionCookie) ?: return errorResponse(CartError.CartNotFound(cartId))
+        return startCheckoutUseCase.execute(StartCheckoutCommand(owner, cartId))
+            .fold(ifLeft = ::errorResponse, ifRight = { ResponseEntity.ok(CheckoutResponse.from(it)) })
     }
 
     /**
@@ -231,15 +250,24 @@ class CartController(
         val body = when (error) {
             is CartError.MaxQuantityExceeded ->
                 mapOf("error" to error.message, "code" to codeFor(error), "maxQuantity" to error.maxQuantity)
+            is CartError.CartUnavailableItems -> mapOf(
+                "error" to error.message,
+                "code" to codeFor(error),
+                "validationErrors" to error.lines.map {
+                    CheckoutValidationErrorResponse(it.cartItemId, it.variantId, it.productName, it.issue)
+                }
+            )
             else -> mapOf("error" to error.message, "code" to codeFor(error))
         }
         return ResponseEntity.status(statusFor(error)).body(body)
     }
 
     private fun statusFor(error: CartError): HttpStatus = when (error) {
-        is CartError.MaxQuantityExceeded -> HttpStatus.UNPROCESSABLE_CONTENT
+        is CartError.MaxQuantityExceeded, is CartError.CartEmpty, is CartError.CartUnavailableItems ->
+            HttpStatus.UNPROCESSABLE_CONTENT
         is CartError.VariantNotFound, is CartError.CartItemNotFound, is CartError.CartNotFound -> HttpStatus.NOT_FOUND
-        is CartError.PricingUnavailable -> HttpStatus.SERVICE_UNAVAILABLE
+        is CartError.CartLocked -> HttpStatus.CONFLICT
+        is CartError.PricingUnavailable, is CartError.AvailabilityUnavailable -> HttpStatus.SERVICE_UNAVAILABLE
     }
 
     private fun codeFor(error: CartError): String = when (error) {
@@ -248,6 +276,10 @@ class CartController(
         is CartError.CartItemNotFound -> "CART_ITEM_NOT_FOUND"
         is CartError.CartNotFound -> "CART_NOT_FOUND"
         is CartError.PricingUnavailable -> "PRICING_UNAVAILABLE"
+        is CartError.CartLocked -> "CART_LOCKED"
+        is CartError.CartEmpty -> "CART_EMPTY"
+        is CartError.CartUnavailableItems -> "CART_VALIDATION_FAILED"
+        is CartError.AvailabilityUnavailable -> "AVAILABILITY_UNAVAILABLE"
     }
 
     private fun validSession(cookie: String?): String? = guestSessionCookies.validSessionId(cookie)

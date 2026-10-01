@@ -29,10 +29,17 @@ const VARIANTS: Record<string, { variantId: string; productId: string; sku: stri
     productId: '11111111-1111-1111-1111-111111111111',
     sku: 'ACME-GP-WHT',
   },
+  // Seeded out of stock (PIN-273). The cart API doesn't check stock on add; checkout does.
+  'Gadget Pro / Silver': {
+    variantId: '11111111-1111-1111-1111-000000000003',
+    productId: '11111111-1111-1111-1111-111111111111',
+    sku: 'ACME-GP-SLV',
+  },
 };
 
 interface CartResponse {
   id: string;
+  status?: string;
   items: {
     id: string;
     variantId: string;
@@ -406,5 +413,72 @@ Then(
     const variantId = VARIANTS[name]?.variantId;
     expect(variantId, `unknown test variant "${name}"`).toBeDefined();
     expect(cart.items.find((i) => i.variantId === variantId)?.quantity).toBe(quantity);
+  }
+);
+
+// --- PIN-329: start checkout -----------------------------------------------------------
+
+interface CheckoutResponse {
+  checkoutSessionId: string;
+  cartId: string;
+  status: string;
+  expiresAt: string;
+  cart: { itemCount: number; subtotal: number; currency: string };
+}
+
+interface CheckoutValidationError {
+  validationErrors?: {
+    cartItemId: string;
+    variantId: string;
+    productName: string;
+    issue: string;
+  }[];
+}
+
+async function startCheckout(world: CustomWorld) {
+  const response = await world.cartApiClient.post<CheckoutResponse>(
+    `/api/v1/carts/${world.getTestData<string>('cartId')}/checkout`,
+    undefined,
+    { headers: sessionHeaders(world.getTestData<string>('cartSessionId')) }
+  );
+  world.setLastResponse(response);
+  return response;
+}
+
+When('I start checkout on my cart', async function (this: CustomWorld) {
+  await startCheckout(this);
+});
+
+Given('I have started checkout on my cart', async function (this: CustomWorld) {
+  const response = await startCheckout(this);
+  expect(response.status, 'setup checkout').toBe(200);
+  this.setTestData('checkoutSessionId', response.data.checkoutSessionId);
+});
+
+Then('a checkout session should be started for my cart', async function (this: CustomWorld) {
+  const checkout = this.getLastResponse<CheckoutResponse>()!.data;
+  expect(checkout.status).toBe('INITIATED');
+  expect(checkout.cartId).toBe(this.getTestData<string>('cartId'));
+  expect(checkout.checkoutSessionId).toMatch(/^[0-9a-f-]{36}$/);
+  expect(new Date(checkout.expiresAt).getTime()).toBeGreaterThan(Date.now());
+});
+
+Then('it should be the same checkout session', async function (this: CustomWorld) {
+  const checkout = this.getLastResponse<CheckoutResponse>()!.data;
+  expect(checkout.checkoutSessionId).toBe(this.getTestData<string>('checkoutSessionId'));
+});
+
+Then('my cart should be locked for checkout', async function (this: CustomWorld) {
+  expect(this.getLastResponse<CartResponse>()!.data.status).toBe('CHECKOUT');
+});
+
+Then(
+  'checkout should report {string} as {string}',
+  async function (this: CustomWorld, name: string, issue: string) {
+    const errors = this.getLastResponse<CheckoutValidationError>()!.data.validationErrors ?? [];
+    const variantId = VARIANTS[name]?.variantId;
+    expect(errors).toContainEqual(
+      expect.objectContaining({ variantId, productName: name.split(' / ')[0], issue })
+    );
   }
 );

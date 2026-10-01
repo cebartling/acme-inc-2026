@@ -2,7 +2,6 @@ package com.acme.cart.application
 
 import arrow.core.Either
 import arrow.core.left
-import arrow.core.right
 import com.acme.cart.domain.Cart
 import com.acme.cart.domain.CartError
 import com.acme.cart.domain.CartItem
@@ -37,9 +36,10 @@ class ClearCartUseCase(
         val result = transactionTemplate.execute {
             val cart = cartRepository.findOwnedCart(command.owner, command.cartId)
                 ?: return@execute CartError.CartNotFound(command.cartId).left()
-            val removed = cart.clear()
-            val saved = if (removed.isEmpty()) cart else cartRepository.save(cart)
-            (saved to removed).right()
+            cart.clear().map { removed ->
+                val saved = if (removed.isEmpty()) cart else cartRepository.save(cart)
+                saved to removed
+            }
         }
         return checkNotNull(result) { "transaction for cart ${command.cartId} returned no result" }
             .map { (cart, removed) ->

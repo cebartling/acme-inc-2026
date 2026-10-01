@@ -53,7 +53,7 @@ class UpdateCartItemQuantityUseCaseTest {
 
     @BeforeEach
     fun setUp() {
-        every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } returns cart
+        every { cartRepository.findBySessionIdAndStatusIn("sess-1", CartStatus.CURRENT) } returns cart
         every { cartRepository.save(any()) } answers { firstArg() }
         every { pricingClient.getPricing(variantId) } returns pricing.right()
         every { eventPublisher.publish(capture(published)) } returns Unit
@@ -116,7 +116,7 @@ class UpdateCartItemQuantityUseCaseTest {
 
     @Test
     fun `a version conflict is retried once against a fresh read, and published once`() {
-        every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } answers { freshCart() }
+        every { cartRepository.findBySessionIdAndStatusIn("sess-1", CartStatus.CURRENT) } answers { freshCart() }
         every { cartRepository.save(any()) } throws conflict() andThenAnswer { firstArg() }
 
         val updated = useCase.execute(command(3)).getOrNull()!!
@@ -128,7 +128,7 @@ class UpdateCartItemQuantityUseCaseTest {
 
     @Test
     fun `a second conflict in a row is left to the caller, and nothing is published`() {
-        every { cartRepository.findBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } answers { freshCart() }
+        every { cartRepository.findBySessionIdAndStatusIn("sess-1", CartStatus.CURRENT) } answers { freshCart() }
         every { cartRepository.save(any()) } throws conflict()
 
         assertFailsWith<ObjectOptimisticLockingFailureException> { useCase.execute(command(3)) }

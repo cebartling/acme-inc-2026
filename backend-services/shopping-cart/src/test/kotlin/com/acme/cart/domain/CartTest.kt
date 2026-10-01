@@ -132,7 +132,7 @@ class CartTest {
         val second = cart.addItem(UUID.randomUUID(), 1, basePricing, """{"name":"Pad"}""", 10).getOrNull()!!
         val cleared = java.time.Instant.parse("2026-09-01T00:00:00Z")
 
-        val removed = cart.clear(now = cleared)
+        val removed = cart.clear(now = cleared).getOrNull()!!
 
         assertEquals(listOf(first, second), removed)
         assertEquals(emptyList(), cart.items)
@@ -147,7 +147,7 @@ class CartTest {
         val cart = newCart()
         val before = cart.updatedAt
 
-        val removed = cart.clear(now = before.plusSeconds(60))
+        val removed = cart.clear(now = before.plusSeconds(60)).getOrNull()!!
 
         assertEquals(emptyList(), removed)
         assertEquals(before, cart.updatedAt)
@@ -211,5 +211,75 @@ class CartTest {
         user.absorb(guest, mapOf(variantId to basePricing), maxQuantity = 10, now = merged)
 
         assertEquals(merged, user.lastActiveAt)
+    }
+
+    // --- PIN-329: starting checkout locks the cart ---------------------------------------
+
+    private val sessionLength = java.time.Duration.ofMinutes(30)
+
+    @Test
+    fun `starting checkout locks the cart for a new session`() {
+        val cart = newCart()
+        cart.add(2)
+        val started = java.time.Instant.parse("2026-09-01T00:00:00Z")
+
+        val session = cart.startCheckout(sessionLength, now = started).getOrNull()!!
+
+        assertEquals(CartStatus.CHECKOUT, cart.status)
+        assertEquals(cart.checkoutSessionId, session.id)
+        assertEquals(started.plus(sessionLength), session.expiresAt)
+        assertEquals(session.expiresAt, cart.checkoutExpiresAt)
+        assertEquals(started, cart.updatedAt)
+    }
+
+    @Test
+    fun `an empty cart cannot start checkout`() {
+        val cart = newCart()
+
+        assertEquals(CartError.CartEmpty(cart.id), cart.startCheckout(sessionLength).leftOrNull())
+        assertEquals(CartStatus.ACTIVE, cart.status)
+        assertEquals(null, cart.checkoutSessionId)
+    }
+
+    @Test
+    fun `starting checkout again returns the same session`() {
+        val cart = newCart()
+        cart.add(1)
+        val first = cart.startCheckout(sessionLength).getOrNull()!!
+        val updated = cart.updatedAt
+
+        val second = cart.startCheckout(sessionLength, now = updated.plusSeconds(60)).getOrNull()!!
+
+        assertEquals(first, second)
+        assertEquals(updated, cart.updatedAt)
+    }
+
+    @Test
+    fun `a cart in checkout refuses every change`() {
+        val cart = newCart()
+        val item = cart.add(2).getOrNull()!!
+        cart.startCheckout(sessionLength)
+        val locked = CartError.CartLocked(cart.id)
+
+        assertEquals(locked, cart.add(1).leftOrNull())
+        assertEquals(locked, cart.updateItemQuantity(item.id, 3, basePricing, 10).leftOrNull())
+        assertEquals(locked, cart.removeItem(item.id).leftOrNull())
+        assertEquals(locked, cart.clear().leftOrNull())
+        assertEquals(listOf(item), cart.items)
+        assertEquals(2, item.quantity)
+    }
+
+    @Test
+    fun `a cart in checkout cannot absorb a guest cart`() {
+        val guest = newCart()
+        guest.add(1)
+        val user = Cart(id = UUID.randomUUID(), userId = UUID.randomUUID())
+        user.addItem(UUID.randomUUID(), 1, basePricing, """{"name":"Pad"}""", 10)
+        user.startCheckout(sessionLength)
+
+        assertThrows<IllegalArgumentException> {
+            user.absorb(guest, mapOf(variantId to basePricing), maxQuantity = 10)
+        }
+        assertEquals(CartStatus.ACTIVE, guest.status)
     }
 }
