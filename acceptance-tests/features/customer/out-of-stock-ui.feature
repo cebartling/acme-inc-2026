@@ -29,3 +29,6 @@ Feature: Out of Stock Handling
     And I am on the cart page
     Then the cart line should warn "Gadget Pro is now out of stock and cannot be included in your order."
     And the cart line's Remove button should read "Remove"
+    # PIN-317
+    And the cart subtotal should be "$0.00"
+    And the cart line's increase quantity button should be disabled

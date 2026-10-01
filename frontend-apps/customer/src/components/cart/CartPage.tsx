@@ -1,4 +1,5 @@
 import { useQueries } from "@tanstack/react-query";
+import type { Cart } from "@/services/api";
 import { useCart } from "@/hooks/useCart";
 import { availabilityQueryKey } from "@/hooks/useVariantSelection";
 import { inventoryApi } from "@/services/api";
@@ -50,7 +51,10 @@ export function CartPage() {
             ))}
           </ul>
           <div>
-            <CartSummary summary={cart.summary} />
+            <CartSummary
+              summary={orderableSummary(cart, outOfStock)}
+              excludesOutOfStock={outOfStock.size > 0}
+            />
             <ClearCartButton cartId={cart.id} />
           </div>
         </div>
@@ -78,4 +82,24 @@ function useOutOfStockVariants(variantIds: string[]): Set<string> {
       (_, i) => results[i]?.data?.availability === "OUT_OF_STOCK",
     ),
   );
+}
+
+/**
+ * The totals of the lines that can be ordered (PIN-317). The cart service knows nothing about
+ * stock, so its summary still counts an out-of-stock line; leave those lines out here.
+ */
+function orderableSummary(
+  cart: Cart,
+  outOfStock: Set<string>,
+): Cart["summary"] {
+  if (outOfStock.size === 0) return cart.summary;
+  const orderable = cart.items.filter(
+    (item) => !outOfStock.has(item.variantId),
+  );
+  const subtotal = orderable.reduce((sum, item) => sum + item.lineTotal, 0);
+  return {
+    itemCount: orderable.reduce((sum, item) => sum + item.quantity, 0),
+    subtotal: Math.round(subtotal * 100) / 100,
+    currency: cart.summary.currency,
+  };
 }

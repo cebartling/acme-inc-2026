@@ -1,5 +1,7 @@
 interface CartItemOutOfStockWarningProps {
   name: string;
+  /** Lets the line's quantity control point at this warning (PIN-317). */
+  id?: string;
 }
 
 /**
@@ -8,9 +10,11 @@ interface CartItemOutOfStockWarningProps {
  */
 export function CartItemOutOfStockWarning({
   name,
+  id,
 }: CartItemOutOfStockWarningProps) {
   return (
     <p
+      id={id}
       role="alert"
       data-testid="lineOutOfStock"
       className="w-full rounded-md bg-red-950/60 px-3 py-2 text-sm text-red-300"

@@ -8,11 +8,14 @@ interface QuantityControlProps {
   /** Used for accessible names, e.g. "Gadget Pro (Black)". */
   itemName: string;
   describedBy?: string;
+  /** False for an out-of-stock line (PIN-317): + is disabled and a typed increase is refused. */
+  canIncrease?: boolean;
 }
 
 /**
  * −/+ buttons and a numeric input for a cart line (AC-0004-07-04). Typed values commit on
  * blur or Enter, not per keystroke. Quantity 0 is not offered here; Remove deletes a line.
+ * Without `canIncrease` the quantity can only go down.
  *
  * Remount it (via `key`) after each change is applied so the input resyncs.
  */
@@ -22,12 +25,18 @@ export function QuantityControl({
   disabled = false,
   itemName,
   describedBy,
+  canIncrease = true,
 }: QuantityControlProps) {
   const [input, setInput] = useState(String(quantity));
 
   const commit = () => {
     const next = Number(input);
-    if (Number.isInteger(next) && next >= 1 && next !== quantity) {
+    if (
+      Number.isInteger(next) &&
+      next >= 1 &&
+      next !== quantity &&
+      (canIncrease || next < quantity)
+    ) {
       onChange(next);
     } else {
       setInput(String(quantity));
@@ -55,6 +64,7 @@ export function QuantityControl({
         aria-label={`Quantity of ${itemName}`}
         aria-describedby={describedBy}
         min={1}
+        max={canIncrease ? undefined : quantity}
         step={1}
         value={input}
         disabled={disabled}
@@ -69,7 +79,8 @@ export function QuantityControl({
         type="button"
         data-testid="increaseQuantity"
         aria-label={`Increase quantity of ${itemName}`}
-        disabled={disabled}
+        aria-describedby={canIncrease ? undefined : describedBy}
+        disabled={disabled || !canIncrease}
         onClick={() => onChange(quantity + 1)}
         className={buttonClass}
       >

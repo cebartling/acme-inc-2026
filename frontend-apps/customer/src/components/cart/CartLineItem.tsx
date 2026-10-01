@@ -28,6 +28,7 @@ export function CartLineItem({
   const update = useUpdateCartItem();
   const remove = useRemoveCartItem();
   const messageId = useId();
+  const outOfStockId = useId();
 
   const { name, variantName, imageUrl } = item.productSnapshot;
   const itemName = `${name} (${variantName})`;
@@ -40,6 +41,11 @@ export function CartLineItem({
     remove.submittedAt > update.submittedAt
       ? errorText(remove.error)
       : (update.data?.clampedMessage ?? errorText(update.error));
+  // The warning explains why the quantity can't go up (PIN-317)
+  const describedBy =
+    [isOutOfStock && outOfStockId, message && messageId]
+      .filter(Boolean)
+      .join(" ") || undefined;
 
   return (
     <li
@@ -75,7 +81,8 @@ export function CartLineItem({
         quantity={item.quantity}
         itemName={itemName}
         disabled={isBusy}
-        describedBy={message ? messageId : undefined}
+        canIncrease={!isOutOfStock}
+        describedBy={describedBy}
         onChange={(quantity) =>
           update.mutate({ cartId, itemId: item.id, quantity })
         }
@@ -109,7 +116,9 @@ export function CartLineItem({
         {isOutOfStock && <span aria-hidden="true">Remove</span>}
       </button>
 
-      {isOutOfStock && <CartItemOutOfStockWarning name={name} />}
+      {isOutOfStock && (
+        <CartItemOutOfStockWarning id={outOfStockId} name={name} />
+      )}
 
       {message && (
         <p

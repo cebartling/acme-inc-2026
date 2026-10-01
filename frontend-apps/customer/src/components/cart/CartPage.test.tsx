@@ -123,6 +123,91 @@ describe("CartPage", () => {
     expect(within(inRow).queryByTestId("lineOutOfStock")).toBeNull();
   });
 
+  // PIN-317: the page says the line can't be ordered, so it must not be charged for
+  it("leaves an out-of-stock line out of the totals", async () => {
+    const inStock = { ...line(1, 19.99), id: "line-2", variantId: "variant-2" };
+    mockedGetCurrent.mockResolvedValue(cartOf(line(2, 119.99), inStock));
+    mockedAvailability.mockImplementation(async (variantId) => ({
+      variantId,
+      availability: variantId === "variant-1" ? "OUT_OF_STOCK" : "IN_STOCK",
+    }));
+    renderPage();
+
+    expect(
+      await screen.findByTestId("cartExcludesOutOfStock"),
+    ).toHaveTextContent("Out-of-stock items are not included.");
+    expect(screen.getByText("Subtotal (1 item)")).toBeInTheDocument();
+    expect(screen.getByTestId("cartSubtotal")).toHaveTextContent("$19.99");
+    expect(screen.getByTestId("cartEstimatedTotal")).toHaveTextContent(
+      "$19.99",
+    );
+  });
+
+  it("shows zero totals when every line is out of stock", async () => {
+    mockedGetCurrent.mockResolvedValue(cartOf(line(2, 119.99)));
+    mockedAvailability.mockResolvedValue({
+      variantId: "variant-1",
+      availability: "OUT_OF_STOCK",
+    });
+    renderPage();
+
+    await screen.findByTestId("cartExcludesOutOfStock");
+    expect(screen.getByText("Subtotal (0 items)")).toBeInTheDocument();
+    expect(screen.getByTestId("cartSubtotal")).toHaveTextContent("$0.00");
+    expect(screen.getByTestId("cartEstimatedTotal")).toHaveTextContent("$0.00");
+  });
+
+  it("still decrements an out-of-stock line with the − button", async () => {
+    mockedGetCurrent.mockResolvedValue(cartOf(line(3, 119.99)));
+    mockedAvailability.mockResolvedValue({
+      variantId: "variant-1",
+      availability: "OUT_OF_STOCK",
+    });
+    mockedUpdate.mockResolvedValue(cartOf(line(2, 119.99)));
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByTestId("lineOutOfStock");
+    await user.click(screen.getByTestId("decreaseQuantity"));
+
+    expect(mockedUpdate).toHaveBeenCalledWith("cart-1", "line-1", 2);
+  });
+
+  // PIN-317: decrease and Remove still work; only a larger quantity is refused
+  it("does not let an out-of-stock line's quantity go up", async () => {
+    mockedGetCurrent.mockResolvedValue(cartOf(line(3, 119.99)));
+    mockedAvailability.mockResolvedValue({
+      variantId: "variant-1",
+      availability: "OUT_OF_STOCK",
+    });
+    mockedUpdate.mockResolvedValue(cartOf(line(2, 119.99)));
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByTestId("lineOutOfStock");
+    expect(screen.getByTestId("increaseQuantity")).toBeDisabled();
+    expect(screen.getByTestId("decreaseQuantity")).toBeEnabled();
+    // The warning tells a screen reader why the quantity can't go up
+    const reason =
+      "Gadget Pro is now out of stock and cannot be included in your order.";
+    expect(screen.getByTestId("increaseQuantity")).toHaveAccessibleDescription(
+      reason,
+    );
+
+    const input = screen.getByTestId("lineQuantityInput");
+    expect(input).toHaveAccessibleDescription(reason);
+    // The native stepper and ArrowUp stop at the current quantity too
+    expect(input).toHaveAttribute("max", "3");
+    await user.clear(input);
+    await user.type(input, "5{Enter}");
+    expect(mockedUpdate).not.toHaveBeenCalled();
+    expect(input).toHaveValue(3);
+
+    await user.clear(input);
+    await user.type(input, "2{Enter}");
+    expect(mockedUpdate).toHaveBeenCalledWith("cart-1", "line-1", 2);
+  });
+
   it("does not flag a line whose stock could not be checked", async () => {
     const outOfStock = {
       ...line(1, 19.99),
@@ -160,6 +245,7 @@ describe("CartPage", () => {
     expect(screen.getByTestId("cartEstimatedTotal")).toHaveTextContent(
       "$239.98",
     );
+    expect(screen.queryByTestId("cartExcludesOutOfStock")).toBeNull();
   });
 
   it("shows the empty state with a link home when there is no cart", async () => {
