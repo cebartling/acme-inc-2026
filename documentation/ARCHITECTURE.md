@@ -646,6 +646,19 @@ Device trust allows users to bypass MFA for 30 days on trusted devices, improvin
   instead of calling identity per request. Because keys are regenerated on restart, a
   verifier must re-fetch the set when it meets an unknown `kid`.
 
+### Email Verification Redirects
+
+`GET /api/v1/users/verify?token=…` (`VerificationController`) verifies the address on the
+server, then answers with a redirect to the customer app: `/login?verified=true`, or a
+`/verify/resend` page for an expired or invalid token. The base comes from
+`identity.frontend.base-url` (`FRONTEND_BASE_URL`), which defaults to production's
+`https://www.acme.com`. `docker-compose.apps.yml` sets it to `http://localhost:7600` for the
+local stack (PIN-332), so a link clicked locally lands on the local app.
+
+Code that calls verify outside a browser, such as acceptance-test setup steps, must not
+follow the redirect (`redirect: 'manual'`): the verification is already done, and following
+it to an unreachable base used to hang until the step timed out.
+
 ### CORS and Browser-Facing Backend URLs
 
 - The customer frontend calls the identity, customer, product and shopping cart services directly from the browser
