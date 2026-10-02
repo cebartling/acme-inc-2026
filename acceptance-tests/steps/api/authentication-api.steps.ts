@@ -1,6 +1,7 @@
 import { Given, When, Then, DataTable } from '@cucumber/cucumber';
 import { expect } from '@playwright/test';
 import { CustomWorld } from '../../support/world.js';
+import { verifyEmail } from '../../support/verify-email.js';
 import { ApiResponse } from '../../support/api-client.js';
 
 interface SigninRequest {
@@ -52,11 +53,6 @@ function makeUniqueEmail(base: string): string {
   }
   const [local, domain] = base.split('@');
   return `${local}-${Date.now()}@${domain}`;
-}
-
-interface VerificationTokenResponse {
-  token: string;
-  userId: string;
 }
 
 /**
@@ -114,19 +110,7 @@ async function createTestUser(
 
   // If the user needs to be ACTIVE, verify their email using the test endpoint
   if (options.status === 'ACTIVE' || options.status === undefined) {
-    // Get the verification token from the test endpoint
-    const tokenResponse = await world.identityApiClient.get<VerificationTokenResponse>(
-      `/api/v1/test/users/${userId}/verification-token`
-    );
-
-    if (tokenResponse.status === 200 && tokenResponse.data.token) {
-      // Verify the email using the token
-      await world.identityApiClient.get<void>(
-        `/api/v1/users/verify?token=${tokenResponse.data.token}`,
-        // Verify redirects to the frontend (FRONTEND_BASE_URL); following it can hang (PIN-332)
-        { redirect: 'manual' }
-      );
-    }
+    await verifyEmail(world.identityApiClient, userId);
   }
 
   // For non-ACTIVE inactive statuses (SUSPENDED, DEACTIVATED, LOCKED) or for
