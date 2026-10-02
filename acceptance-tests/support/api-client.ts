@@ -7,8 +7,16 @@ export interface ApiResponse<T = unknown> {
   };
 }
 
+/**
+ * Default per-request timeout. Well inside Cucumber's 30s step limit (support/hooks.ts), so a
+ * hung request fails on its own, naming the call, instead of timing out the whole step
+ * (PIN-332).
+ */
+const DEFAULT_TIMEOUT_MS = 10000;
+
 export interface RequestOptions {
   headers?: Record<string, string>;
+  /** Milliseconds before the request is aborted; defaults to DEFAULT_TIMEOUT_MS. */
   timeout?: number;
   redirect?: 'follow' | 'manual' | 'error';
 }
@@ -93,8 +101,9 @@ export class ApiClient {
     const url = `${this.baseUrl}${path.startsWith('/') ? path : `/${path}`}`;
     const headers = this.getHeaders(options.headers);
 
+    const timeoutMs = options.timeout || DEFAULT_TIMEOUT_MS;
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), options.timeout || 30000);
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
       const response = await fetch(url, {
@@ -142,7 +151,11 @@ export class ApiClient {
       };
     } catch (error) {
       clearTimeout(timeoutId);
-      throw error;
+      // Name the call, so a failed step says which request it was (PIN-332)
+      if (controller.signal.aborted) {
+        throw new Error(`${method} ${url} timed out after ${timeoutMs} ms`, { cause: error });
+      }
+      throw new Error(`${method} ${url} failed: ${(error as Error).message}`, { cause: error });
     }
   }
 
