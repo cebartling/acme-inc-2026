@@ -51,7 +51,6 @@ class TestControllerIntegrationTest {
             registry.add("spring.kafka.bootstrap-servers") { kafkaContainer.bootstrapServers }
             registry.add("spring.data.redis.host") { redisContainer.host }
             registry.add("spring.data.redis.port") { redisContainer.getMappedPort(6379) }
-            registry.add("acme.test-api.enabled") { "true" }
         }
     }
 

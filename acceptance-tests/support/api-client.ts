@@ -114,8 +114,6 @@ export class ApiClient {
         redirect: options.redirect || 'follow',
       });
 
-      clearTimeout(timeoutId);
-
       let data: T;
       const contentType = response.headers.get('content-type');
 
@@ -150,12 +148,14 @@ export class ApiClient {
         headers: headersObj,
       };
     } catch (error) {
-      clearTimeout(timeoutId);
       // Name the call, so a failed step says which request it was (PIN-332)
       if (controller.signal.aborted) {
         throw new Error(`${method} ${url} timed out after ${timeoutMs} ms`, { cause: error });
       }
       throw new Error(`${method} ${url} failed: ${(error as Error).message}`, { cause: error });
+    } finally {
+      // Cleared only now, so the timeout also covers reading the body
+      clearTimeout(timeoutId);
     }
   }
 

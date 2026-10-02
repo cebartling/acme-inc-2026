@@ -100,7 +100,7 @@ class GlobalExceptionHandler {
     fun handleResponseStatus(ex: ResponseStatusException): ResponseEntity<ErrorResponse> {
         logger.warn("Request refused with {}: {}", ex.statusCode, ex.reason)
 
-        return ResponseEntity.status(ex.statusCode).body(
+        return ResponseEntity.status(ex.statusCode).headers(ex.headers).body(
             ErrorResponse(
                 error = HttpStatus.resolve(ex.statusCode.value())?.name ?: ex.statusCode.toString(),
                 message = ex.reason ?: "Request refused"
