@@ -58,7 +58,9 @@ async function createActiveUser(world: CustomWorld): Promise<string> {
   );
   if (tokenResponse.status === 200 && tokenResponse.data.token) {
     await world.identityApiClient.get<void>(
-      `/api/v1/users/verify?token=${tokenResponse.data.token}`
+      `/api/v1/users/verify?token=${tokenResponse.data.token}`,
+      // Verify redirects to the frontend (FRONTEND_BASE_URL); following it can hang (PIN-332)
+      { redirect: 'manual' }
     );
   }
 
