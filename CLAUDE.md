@@ -94,6 +94,11 @@ The test hooks in `support/hooks.ts` conditionally launch Playwright:
 
 This optimization improves performance for API/backend tests.
 
+### API Calls in Steps
+
+- Call identity's `GET /api/v1/users/verify` with `{ redirect: 'manual' }`: it redirects to the customer app, and following that redirect can hang (PIN-332).
+- `ApiClient` requests time out after 10s by default, inside Cucumber's 30s step limit, and a failure names the method and URL.
+
 ### Running Tests
 
 ```bash

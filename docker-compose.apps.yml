@@ -75,6 +75,10 @@ services:
 
       # Test API (enabled for acceptance tests)
       TEST_API_ENABLED: "true"
+
+      # Email verification redirects go to the local customer app, not the production
+      # default https://www.acme.com (PIN-332)
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:7600}
     networks:
       - acme-network
     healthcheck:

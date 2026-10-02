@@ -9,6 +9,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException
 import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
+import org.springframework.web.server.ResponseStatusException
 
 /**
  * Global exception handler for REST API endpoints.
@@ -84,6 +85,25 @@ class GlobalExceptionHandler {
             ErrorResponse(
                 error = "INVALID_ARGUMENT",
                 message = ex.message ?: "Invalid argument provided"
+            )
+        )
+    }
+
+    /**
+     * Handles a [ResponseStatusException] with its own status, e.g. the test API's 403 for a
+     * missing or wrong `X-Test-Api-Key` (PIN-332), instead of the generic 500.
+     *
+     * @param ex The exception, carrying the status and reason to return.
+     * @return The exception's status, with the status name as the error code.
+     */
+    @ExceptionHandler(ResponseStatusException::class)
+    fun handleResponseStatus(ex: ResponseStatusException): ResponseEntity<ErrorResponse> {
+        logger.warn("Request refused with {}: {}", ex.statusCode, ex.reason)
+
+        return ResponseEntity.status(ex.statusCode).headers(ex.headers).body(
+            ErrorResponse(
+                error = HttpStatus.resolve(ex.statusCode.value())?.name ?: ex.statusCode.toString(),
+                message = ex.reason ?: "Request refused"
             )
         )
     }

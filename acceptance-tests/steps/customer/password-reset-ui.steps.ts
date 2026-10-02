@@ -1,13 +1,9 @@
 import { Given, When, Then } from '@cucumber/cucumber';
 import { expect } from '@playwright/test';
 import { CustomWorld } from '../../support/world.js';
+import { verifyEmail } from '../../support/verify-email.js';
 
 interface PasswordResetTokenResponse {
-  token: string;
-  userId: string;
-}
-
-interface VerificationTokenResponse {
   token: string;
   userId: string;
 }
@@ -53,14 +49,7 @@ async function createActiveUser(world: CustomWorld): Promise<string> {
   world.setTestData('testUserEmail', email);
   world.setTestData('testUserPassword', password);
 
-  const tokenResponse = await world.identityApiClient.get<VerificationTokenResponse>(
-    `/api/v1/test/users/${userId}/verification-token`
-  );
-  if (tokenResponse.status === 200 && tokenResponse.data.token) {
-    await world.identityApiClient.get<void>(
-      `/api/v1/users/verify?token=${tokenResponse.data.token}`
-    );
-  }
+  await verifyEmail(world.identityApiClient, userId);
 
   return userId;
 }

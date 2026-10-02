@@ -1,6 +1,7 @@
 import { Given, When, Then } from '@cucumber/cucumber';
 import { expect } from '@playwright/test';
 import { CustomWorld } from '../../support/world.js';
+import { verifyEmail } from '../../support/verify-email.js';
 
 interface RegistrationRequest {
   email: string;
@@ -135,16 +136,8 @@ Given(
 
     // The user is created with status PENDING_VERIFICATION; without verifying
     // the email the user cannot sign in, which is what an "active customer"
-    // implies. Hit the test endpoint for the verification token and consume it
-    // (same pattern createTestUser uses in authentication-api.steps.ts).
-    const tokenResponse = await this.identityApiClient.get<{ token: string }>(
-      `/api/v1/test/users/${response.data.userId}/verification-token`
-    );
-    if (tokenResponse.status === 200 && tokenResponse.data.token) {
-      await this.identityApiClient.get<void>(
-        `/api/v1/users/verify?token=${tokenResponse.data.token}`
-      );
-    }
+    // implies. verifyEmail fetches the token from the test endpoint and consumes it.
+    await verifyEmail(this.identityApiClient, response.data.userId);
 
     // Wait for customer profile to be created
     const found = await waitFor(async () => {
