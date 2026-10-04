@@ -29,6 +29,7 @@ import java.time.Duration
 import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 /**
  * Exercises the add-to-cart persistence path against real Postgres: a cart reloaded in a
@@ -570,5 +571,30 @@ class CartRepositoryIntegrationTest {
             carts.save(mine)
         }
         assertEquals(2L, rowCount("select count(*) from cart_items where cart_id = :id", guest.id))
+    }
+
+    /** Each insert in its own transaction: a rejected one aborts the transaction it ran in. */
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    fun `the database rejects a cart in checkout without its session or expiry`() {
+        listOf(
+            "gen_random_uuid(), null",
+            "null, now()"
+        ).forEach { sessionAndExpiry ->
+            val rejected = assertThrows<Exception> {
+                concurrently().execute {
+                    entityManager.createNativeQuery(
+                    """insert into carts (id, session_id, created_at, updated_at, last_active_at, status,
+                           checkout_session_id, checkout_expires_at)
+                       values (gen_random_uuid(), 'sess-checkout-invalid', now(), now(), now(), 'CHECKOUT',
+                           $sessionAndExpiry)"""
+                    ).executeUpdate()
+                }
+            }
+            assertTrue(
+                generateSequence<Throwable>(rejected) { it.cause }.any { it.message?.contains("ck_carts_checkout_session") == true },
+                "rejected by ck_carts_checkout_session ($sessionAndExpiry)"
+            )
+        }
     }
 }

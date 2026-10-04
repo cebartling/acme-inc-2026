@@ -385,8 +385,9 @@ sequenceDiagram
   outside the transaction, as add-to-cart's pricing does. The transaction's re-read is fresh,
   so it must still be at the version that was checked: a change that lands in between is a
   conflict, and the `retryOnConflict` retry checks the changed cart again.
-- **The checkout session** (`carts.checkout_session_id`, `checkout_expires_at`, V6) lapses
-  after 30 minutes without activity and is the cart reference the order service will take.
+- **The checkout session** (`carts.checkout_session_id`, `checkout_expires_at`, V6; a
+  `CHECKOUT` cart must have both, `ck_carts_checkout_session`, V8) lapses after 30 minutes
+  without activity and is the cart reference the order service will take.
   Converting the cart when the order is placed is PIN-331.
 - **Resume and activity (PIN-330)**: starting again while the session is live resumes it:
   same session, no re-check and no new event, but the expiry moves out to 30 minutes from
