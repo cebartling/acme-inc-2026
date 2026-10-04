@@ -6,7 +6,6 @@ import arrow.core.raise.either
 import com.acme.cart.domain.Cart
 import com.acme.cart.domain.CartError
 import com.acme.cart.domain.CartOwner
-import com.acme.cart.domain.CartStatus
 import com.acme.cart.domain.CheckoutSession
 import com.acme.cart.domain.ProductSnapshot
 import com.acme.cart.domain.UnavailableLine
@@ -22,6 +21,7 @@ import org.springframework.orm.ObjectOptimisticLockingFailureException
 import org.springframework.stereotype.Service
 import org.springframework.transaction.support.TransactionTemplate
 import java.time.Duration
+import java.time.Instant
 import java.util.UUID
 
 data class StartCheckoutCommand(val owner: CartOwner, val cartId: UUID)
@@ -38,7 +38,10 @@ data class CheckoutStarted(val cart: Cart, val session: CheckoutSession)
  * a transaction, and `CheckoutInitiated` is published after commit. If the cart changed in
  * between (its version moved), that is a conflict and the retry checks it again.
  *
- * A cart already in checkout returns its session as is: nothing is re-checked or published.
+ * A cart already in checkout resumes its session (PIN-330): the expiry moves out, but nothing
+ * is re-checked or published. A session that has lapsed but is not unlocked yet is treated as
+ * no session: the cart is checked again and gets a new one, and the lapsed session is reported
+ * as expired before `CheckoutInitiated`, since the unlock job will no longer find it.
  */
 @Service
 class StartCheckoutUseCase(
@@ -46,7 +49,8 @@ class StartCheckoutUseCase(
     private val availabilityClient: ProductAvailabilityClient,
     private val eventPublisher: CartEventPublisher,
     private val transactionTemplate: TransactionTemplate,
-    private val objectMapper: ObjectMapper
+    private val objectMapper: ObjectMapper,
+    private val checkoutSessionExpiry: CheckoutSessionExpiry
 ) {
     private val logger = LoggerFactory.getLogger(StartCheckoutUseCase::class.java)
 
@@ -54,17 +58,19 @@ class StartCheckoutUseCase(
         retryOnConflict("Start checkout") { startOnce(command, correlationId) }
 
     private fun startOnce(command: StartCheckoutCommand, correlationId: UUID): Either<CartError, CheckoutStarted> = either {
+        val now = Instant.now()
         val cart = cartRepository.findOwnedCart(command.owner, command.cartId)
             ?: raise(CartError.CartNotFound(command.cartId))
-        if (cart.status != CartStatus.CHECKOUT) {
+        if (!cart.isInLiveCheckout(now)) {
             if (cart.items.isEmpty()) raise(CartError.CartEmpty(cart.id))
             val unavailable = unavailableLines(cart).bind()
             if (unavailable.isNotEmpty()) raise(CartError.CartUnavailableItems(unavailable))
         }
 
-        val locked = checkNotNull(transactionTemplate.execute { lockInTransaction(command, checkedVersion = cart.version) }) {
+        val locked = checkNotNull(transactionTemplate.execute { lockInTransaction(command, checkedVersion = cart.version, now) }) {
             "checkout transaction for cart ${command.cartId} returned no result"
         }.bind()
+        locked.lapsed?.let { checkoutSessionExpiry.report(locked.started.cart, it, correlationId) }
         if (locked.isNew) publish(locked.started, correlationId)
         locked.started
     }
@@ -85,18 +91,19 @@ class StartCheckoutUseCase(
      * could never conflict. A change since [checkedVersion], whose lines were checked, is a
      * conflict instead: the retry checks the changed cart.
      */
-    private fun lockInTransaction(command: StartCheckoutCommand, checkedVersion: Long?): Either<CartError, Locked> {
+    private fun lockInTransaction(command: StartCheckoutCommand, checkedVersion: Long?, now: Instant): Either<CartError, Locked> {
         val cart = cartRepository.findOwnedCart(command.owner, command.cartId)
             ?: return CartError.CartNotFound(command.cartId).left()
         if (cart.version != checkedVersion) throw ObjectOptimisticLockingFailureException(Cart::class.java, cart.id)
-        val wasLocked = cart.status == CartStatus.CHECKOUT
-        return cart.startCheckout(SESSION_LENGTH).map { session ->
-            val saved = if (wasLocked) cart else cartRepository.save(cart)
-            Locked(CheckoutStarted(saved, session), isNew = !wasLocked)
+        val resumed = cart.isInLiveCheckout(now)
+        val lapsed = cart.lapsedCheckoutSession(now)
+        return cart.startCheckout(SESSION_LENGTH, now).map { session ->
+            Locked(CheckoutStarted(cartRepository.save(cart), session), isNew = !resumed, lapsed = lapsed)
         }
     }
 
-    private data class Locked(val started: CheckoutStarted, val isNew: Boolean)
+    /** [lapsed] is the session this start replaced because it had lapsed, if any. */
+    private data class Locked(val started: CheckoutStarted, val isNew: Boolean, val lapsed: CheckoutSession?)
 
     private fun productNameOf(snapshot: String): String =
         objectMapper.readValue(snapshot, ProductSnapshot::class.java).name
@@ -121,7 +128,7 @@ class StartCheckoutUseCase(
     }
 
     companion object {
-        /** A checkout session lapses after this long (journey 0005 AC-1.3; unlocking is PIN-330). */
+        /** A checkout session lapses after this long without activity (journey 0005 AC-1.3, PIN-330). */
         val SESSION_LENGTH: Duration = Duration.ofMinutes(30)
     }
 }

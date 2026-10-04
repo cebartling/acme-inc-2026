@@ -453,6 +453,7 @@ Given('I have started checkout on my cart', async function (this: CustomWorld) {
   const response = await startCheckout(this);
   expect(response.status, 'setup checkout').toBe(200);
   this.setTestData('checkoutSessionId', response.data.checkoutSessionId);
+  this.setTestData('checkoutExpiresAt', response.data.expiresAt);
 });
 
 Then('a checkout session should be started for my cart', async function (this: CustomWorld) {
@@ -482,3 +483,24 @@ Then(
     );
   }
 );
+
+// --- PIN-330: resume and leave checkout ------------------------------------------------
+
+Then('its expiry should be pushed out', async function (this: CustomWorld) {
+  const checkout = this.getLastResponse<CheckoutResponse>()!.data;
+  expect(new Date(checkout.expiresAt).getTime()).toBeGreaterThan(
+    new Date(this.getTestData<string>('checkoutExpiresAt')).getTime()
+  );
+});
+
+When('I leave checkout on my cart', async function (this: CustomWorld) {
+  const response = await this.cartApiClient.delete<CartResponse>(
+    `/api/v1/carts/${this.getTestData<string>('cartId')}/checkout`,
+    { headers: sessionHeaders(this.getTestData<string>('cartSessionId')) }
+  );
+  this.setLastResponse(response);
+});
+
+Then('my cart should no longer be locked', async function (this: CustomWorld) {
+  expect(this.getLastResponse<CartResponse>()!.data.status).toBe('ACTIVE');
+});

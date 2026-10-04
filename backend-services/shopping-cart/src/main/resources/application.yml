@@ -34,9 +34,10 @@ spring:
   task:
     scheduling:
       pool:
-        # One thread per job (cart expiry, cart purge), so a slow purge run, e.g. one blocked
-        # on Kafka publishes, never holds up expiry. The default is a single shared thread.
-        size: 2
+        # One thread per job (cart expiry, cart purge, checkout unlock), so a slow purge run,
+        # e.g. one blocked on Kafka publishes, never holds up the others. The default is a
+        # single shared thread.
+        size: 3
   security:
     oauth2:
       resourceserver:
@@ -81,6 +82,12 @@ acme:
       enabled: ${ACME_CART_PURGE_ENABLED:true}
       initial-delay: ${ACME_CART_PURGE_INITIAL_DELAY:PT10M}
       interval: ${ACME_CART_PURGE_INTERVAL:PT6H}
+    checkout-unlock:
+      # The job that unlocks carts whose 30-minute checkout session lapsed (PIN-330); ISO-8601
+      # durations. A lapsed cart stays locked for up to one interval.
+      enabled: ${ACME_CART_CHECKOUT_UNLOCK_ENABLED:true}
+      initial-delay: ${ACME_CART_CHECKOUT_UNLOCK_INITIAL_DELAY:PT1M}
+      interval: ${ACME_CART_CHECKOUT_UNLOCK_INTERVAL:PT1M}
   product:
     base-url: ${PRODUCT_SERVICE_URL:http://localhost:10303}
 

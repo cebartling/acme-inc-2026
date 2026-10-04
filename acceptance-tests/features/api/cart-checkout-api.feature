@@ -5,7 +5,8 @@ Feature: Start Checkout API
   So that my cart is checked and held while I complete my order
 
   # PIN-329 (journey 0005, step 1). Gadget Pro Black is seeded in stock and Silver out of stock.
-  # Unlocking an abandoned checkout is PIN-330.
+  # PIN-330: resuming and leaving checkout. The 30-minute timeout is covered by the service's
+  # own tests, not here.
 
   # AC-1.2, AC-1.5
   Scenario: Starting checkout locks the cart against changes
@@ -20,12 +21,22 @@ Feature: Start Checkout API
     Then my cart should be locked for checkout
     And the cart should have 1 line with quantity 2 at unit price 119.99
 
-  Scenario: Starting checkout again returns the same session
+  Scenario: Starting checkout again resumes the same session
     Given I have added 1 "Gadget Pro / Black" to a new cart
     And I have started checkout on my cart
     When I start checkout on my cart
     Then the API should respond with status 200
     And it should be the same checkout session
+    And its expiry should be pushed out
+
+  Scenario: Leaving checkout unlocks the cart
+    Given I have added 2 "Gadget Pro / Black" to a new cart
+    And I have started checkout on my cart
+    When I leave checkout on my cart
+    Then the API should respond with status 200
+    And my cart should no longer be locked
+    When I add 1 more of the same variant to my cart
+    Then the API should respond with status 201
 
   # AC-1.1
   Scenario: An empty cart cannot start checkout

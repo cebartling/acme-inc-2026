@@ -1,5 +1,7 @@
 package com.acme.cart.api.v1
 
+import com.acme.cart.application.AbandonCheckoutCommand
+import com.acme.cart.application.AbandonCheckoutUseCase
 import com.acme.cart.application.AddItemToCartCommand
 import com.acme.cart.application.AddItemToCartUseCase
 import com.acme.cart.application.ClearCartCommand
@@ -52,6 +54,7 @@ class CartController(
     private val clearCartUseCase: ClearCartUseCase,
     private val mergeCartsUseCase: MergeCartsUseCase,
     private val startCheckoutUseCase: StartCheckoutUseCase,
+    private val abandonCheckoutUseCase: AbandonCheckoutUseCase,
     private val cartRepository: CartRepository,
     private val objectMapper: ObjectMapper,
     private val guestSessionCookies: GuestSessionCookies
@@ -153,8 +156,8 @@ class CartController(
 
     /**
      * Starts checkout on the caller's own cart (PIN-329): checks every line is available,
-     * then locks the cart as CHECKOUT and returns the checkout session. Starting again on a
-     * locked cart returns the same session.
+     * then locks the cart as CHECKOUT and returns the checkout session. Starting again while
+     * the session is live resumes it with its expiry pushed out; a lapsed one is replaced (PIN-330).
      */
     @PostMapping("/{cartId}/checkout")
     fun startCheckout(
@@ -165,6 +168,21 @@ class CartController(
         val owner = ownerOf(jwt, sessionCookie) ?: return errorResponse(CartError.CartNotFound(cartId))
         return startCheckoutUseCase.execute(StartCheckoutCommand(owner, cartId))
             .fold(ifLeft = ::errorResponse, ifRight = { ResponseEntity.ok(CheckoutResponse.from(it)) })
+    }
+
+    /**
+     * Leaves checkout on the caller's own cart (PIN-330): the cart is ACTIVE again with its
+     * lines. Leaving a cart that is not in checkout returns it unchanged.
+     */
+    @DeleteMapping("/{cartId}/checkout")
+    fun abandonCheckout(
+        @AuthenticationPrincipal jwt: Jwt?,
+        @CookieValue(SESSION_COOKIE, required = false) sessionCookie: String?,
+        @PathVariable cartId: UUID
+    ): ResponseEntity<Any> {
+        val owner = ownerOf(jwt, sessionCookie) ?: return errorResponse(CartError.CartNotFound(cartId))
+        return abandonCheckoutUseCase.execute(AbandonCheckoutCommand(owner, cartId))
+            .fold(ifLeft = ::errorResponse, ifRight = { ResponseEntity.ok(toResponse(it)) })
     }
 
     /**

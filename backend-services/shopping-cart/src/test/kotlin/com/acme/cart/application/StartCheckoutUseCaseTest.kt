@@ -10,12 +10,14 @@ import com.acme.cart.domain.CartStatus
 import com.acme.cart.domain.UnavailableLine
 import com.acme.cart.domain.VariantPricing
 import com.acme.cart.domain.events.CheckoutInitiated
+import com.acme.cart.domain.events.CheckoutSessionExpired
 import com.acme.cart.domain.events.DomainEvent
 import com.acme.cart.domain.events.Money
 import com.acme.cart.infrastructure.messaging.CartEventPublisher
 import com.acme.cart.infrastructure.persistence.CartRepository
 import com.acme.cart.infrastructure.product.ProductAvailabilityClient
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -24,9 +26,12 @@ import org.junit.jupiter.api.Test
 import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.support.TransactionTemplate
 import java.math.BigDecimal
+import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertNotEquals
+import kotlin.test.assertTrue
 
 class StartCheckoutUseCaseTest {
 
@@ -40,7 +45,8 @@ class StartCheckoutUseCaseTest {
         availabilityClient = availabilityClient,
         eventPublisher = eventPublisher,
         transactionTemplate = TransactionTemplate(mockk<PlatformTransactionManager>(relaxed = true)),
-        objectMapper = jacksonObjectMapper()
+        objectMapper = jacksonObjectMapper(),
+        checkoutSessionExpiry = CheckoutSessionExpiry(eventPublisher, SimpleMeterRegistry())
     )
 
     private val owner = CartOwner.Guest("sess-1")
@@ -118,16 +124,35 @@ class StartCheckoutUseCaseTest {
     }
 
     @Test
-    fun `starting again on a locked cart returns the same session and publishes nothing new`() {
+    fun `starting again on a locked cart resumes the same session and publishes nothing new`() {
         val first = start().getOrNull()!!
         published.clear()
 
         val second = start().getOrNull()!!
 
-        assertEquals(first.session, second.session)
+        assertEquals(first.session.id, second.session.id)
+        assertTrue(second.session.expiresAt >= first.session.expiresAt)
         assertEquals(emptyList(), published)
-        verify(exactly = 1) { cartRepository.save(any()) }
+        verify(exactly = 2) { cartRepository.save(any()) }
         verify(exactly = 2) { availabilityClient.issueWith(any()) }
+    }
+
+    @Test
+    fun `starting again after the session lapsed reports it expired, checks the cart again and starts a new session`() {
+        val first = start().getOrNull()!!
+        val lapsedAt = Instant.now().minusSeconds(1)
+        cart.checkoutExpiresAt = lapsedAt
+        published.clear()
+
+        val second = start().getOrNull()!!
+
+        assertNotEquals(first.session.id, second.session.id)
+        assertEquals(2, published.size)
+        val expired = assertIs<CheckoutSessionExpired>(published[0]).payload
+        assertEquals(first.session.id, expired.checkoutSessionId)
+        assertEquals(lapsedAt, expired.expiredAt)
+        assertEquals(second.session.id, assertIs<CheckoutInitiated>(published[1]).payload.checkoutSessionId)
+        verify(exactly = 4) { availabilityClient.issueWith(any()) }
     }
 
     @Test

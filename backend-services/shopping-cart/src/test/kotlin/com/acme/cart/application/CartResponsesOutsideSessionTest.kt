@@ -90,6 +90,7 @@ class CartResponsesOutsideSessionTest {
     private val remove by lazy { RemoveCartItemUseCase(carts, eventPublisher, transactions) }
     private val clear by lazy { ClearCartUseCase(carts, eventPublisher, transactions) }
     private val merge by lazy { MergeCartsUseCase(carts, pricingClient, eventPublisher, transactions, 10) }
+    private val abandon by lazy { AbandonCheckoutUseCase(carts, eventPublisher, transactions, CheckoutSessionExpiry(eventPublisher, SimpleMeterRegistry())) }
 
     private fun session() = "sess-${UUID.randomUUID()}"
 
@@ -188,6 +189,19 @@ class CartResponsesOutsideSessionTest {
         val unchanged = merge.execute(MergeCartsCommand(userId, guestSessionId = null)).getOrNull()!!.cart!!
 
         assertEquals(listOf(2), respond(unchanged).items.map { it.quantity })
+    }
+
+    @Test
+    fun `leaving checkout maps to a response with no session open`() {
+        val guest = CartOwner.Guest(session())
+        val cart = addTo(guest)
+        transactions.execute {
+            carts.save(carts.findActiveCart(guest)!!.apply { startCheckout(StartCheckoutUseCase.SESSION_LENGTH) })
+        }
+
+        val unlocked = abandon.execute(AbandonCheckoutCommand(guest, cart.id)).getOrNull()!!
+
+        assertEquals(listOf(2), respond(unlocked).items.map { it.quantity })
     }
 
     @Test

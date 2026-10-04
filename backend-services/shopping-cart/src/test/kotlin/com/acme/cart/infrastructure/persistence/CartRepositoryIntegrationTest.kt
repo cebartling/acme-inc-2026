@@ -29,6 +29,7 @@ import java.time.Duration
 import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 /**
  * Exercises the add-to-cart persistence path against real Postgres: a cart reloaded in a
@@ -445,13 +446,13 @@ class CartRepositoryIntegrationTest {
 
     // --- PIN-329: a cart in checkout is still the current cart, and is left alone ------
 
-    /** An idle guest cart past the expiry cutoff, with one line, locked for checkout. */
+    /** A guest cart last active at [lastActive], with one line of 2 units, locked for checkout then. */
     private fun lockedGuestCart(session: String, lastActive: Instant): Cart {
         val cart = Cart(
             id = UUID.randomUUID(), sessionId = session,
             createdAt = lastActive, updatedAt = lastActive, lastActiveAt = lastActive
         )
-        cart.addItem(UUID.randomUUID(), 1, pricing, snapshot, 10, now = lastActive)
+        cart.addItem(UUID.randomUUID(), 2, pricing, snapshot, 10, now = lastActive)
         cart.startCheckout(Duration.ofMinutes(30), now = lastActive)
         return carts.saveAndFlush(cart)
     }
@@ -497,5 +498,103 @@ class CartRepositoryIntegrationTest {
         assertEquals(emptyList(), carts.findFinalCartsBefore(retentionCutoff, PageRequest.of(0, 10)).filter { it.id == locked.id })
         assertEquals(0, carts.deleteIfFinalBefore(locked.id, retentionCutoff))
         assertEquals(CartStatus.CHECKOUT, statusOf(locked))
+    }
+
+    // --- PIN-330: lapsed checkout sessions unlock -----------------------------------------
+
+    private fun lastActiveOf(cart: Cart): Instant {
+        entityManager.clear()
+        return carts.findById(cart.id).get().lastActiveAt
+    }
+
+    @Test
+    fun `a lapsed checkout is found and unlocked once, keeping its lines and activity`() {
+        val lapsed = lockedGuestCart("sess-checkout-lapsed", now.minus(Duration.ofHours(1)))
+        entityManager.clear()
+
+        val found = carts.findLapsedCheckouts(now, PageRequest.of(0, 10)).single { it.id == lapsed.id }
+        assertEquals(lapsed.checkoutSessionId, found.checkoutSessionId)
+        assertEquals(lapsed.checkoutExpiresAt, found.expiredAt)
+        assertEquals("sess-checkout-lapsed", found.sessionId)
+        assertEquals(1, found.lineCount)
+        assertEquals(2L, found.itemCount)
+
+        assertEquals(1, carts.unlockIfLapsed(lapsed.id, now))
+        assertEquals(0, carts.unlockIfLapsed(lapsed.id, now), "an unlocked cart is not unlocked again")
+        entityManager.clear()
+        val unlocked = carts.findById(lapsed.id).get()
+        assertEquals(CartStatus.ACTIVE, unlocked.status)
+        assertEquals(null, unlocked.checkoutSessionId)
+        assertEquals(null, unlocked.checkoutExpiresAt)
+        assertEquals(1, unlocked.items.size)
+        assertEquals(now, unlocked.updatedAt)
+        assertEquals(lapsed.lastActiveAt, unlocked.lastActiveAt)
+    }
+
+    @Test
+    fun `a live checkout is neither found nor unlocked`() {
+        val live = lockedGuestCart("sess-checkout-live", now)
+        entityManager.clear()
+
+        assertEquals(emptyList(), carts.findLapsedCheckouts(now, PageRequest.of(0, 10)).filter { it.id == live.id })
+        assertEquals(0, carts.unlockIfLapsed(live.id, now))
+        assertEquals(CartStatus.CHECKOUT, statusOf(live))
+    }
+
+    @Test
+    fun `a lapsed idle guest checkout unlocks, then expires like any idle guest cart`() {
+        val stale = lockedGuestCart("sess-checkout-then-expire", longAgo)
+
+        assertEquals(1, carts.unlockIfLapsed(stale.id, now))
+        assertEquals(longAgo, lastActiveOf(stale))
+        assertEquals(1, carts.expireIfIdle(stale.id, cutoff, now))
+        assertEquals(CartStatus.EXPIRED, statusOf(stale))
+    }
+
+    /**
+     * The guest cart stranded by sign-in: merge leaves a guest cart in checkout alone
+     * (MergeCartsUseCaseTest), so while the user shops on their own cart the guest one stays
+     * locked. Once its session lapses it is unlocked, and the guest session can use it again.
+     */
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    fun `a guest cart left in checkout by signing in is unlocked and usable again by its session`() {
+        val guest = lockedGuestCart("sess-version-signin", now.minus(Duration.ofHours(1)))
+
+        assertEquals(1, carts.unlockIfLapsed(guest.id, now))
+
+        inTransaction().execute {
+            val mine = carts.findBySessionIdAndStatusIn("sess-version-signin", CartStatus.CURRENT)!!
+            assertEquals(guest.id, mine.id)
+            assertEquals(CartStatus.ACTIVE, mine.status)
+            mine.addItem(UUID.randomUUID(), 1, pricing, snapshot, 10)
+            carts.save(mine)
+        }
+        assertEquals(2L, rowCount("select count(*) from cart_items where cart_id = :id", guest.id))
+    }
+
+    /** Each insert in its own transaction: a rejected one aborts the transaction it ran in. */
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    fun `the database rejects a cart in checkout without its session or expiry`() {
+        listOf(
+            "gen_random_uuid(), null",
+            "null, now()"
+        ).forEach { sessionAndExpiry ->
+            val rejected = assertThrows<Exception> {
+                concurrently().execute {
+                    entityManager.createNativeQuery(
+                    """insert into carts (id, session_id, created_at, updated_at, last_active_at, status,
+                           checkout_session_id, checkout_expires_at)
+                       values (gen_random_uuid(), 'sess-checkout-invalid', now(), now(), now(), 'CHECKOUT',
+                           $sessionAndExpiry)"""
+                    ).executeUpdate()
+                }
+            }
+            assertTrue(
+                generateSequence<Throwable>(rejected) { it.cause }.any { it.message?.contains("ck_carts_checkout_session") == true },
+                "rejected by ck_carts_checkout_session ($sessionAndExpiry)"
+            )
+        }
     }
 }
