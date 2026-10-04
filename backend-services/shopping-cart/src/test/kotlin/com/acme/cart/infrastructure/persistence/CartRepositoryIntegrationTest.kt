@@ -445,13 +445,13 @@ class CartRepositoryIntegrationTest {
 
     // --- PIN-329: a cart in checkout is still the current cart, and is left alone ------
 
-    /** An idle guest cart past the expiry cutoff, with one line, locked for checkout. */
+    /** A guest cart last active at [lastActive], with one line of 2 units, locked for checkout then. */
     private fun lockedGuestCart(session: String, lastActive: Instant): Cart {
         val cart = Cart(
             id = UUID.randomUUID(), sessionId = session,
             createdAt = lastActive, updatedAt = lastActive, lastActiveAt = lastActive
         )
-        cart.addItem(UUID.randomUUID(), 1, pricing, snapshot, 10, now = lastActive)
+        cart.addItem(UUID.randomUUID(), 2, pricing, snapshot, 10, now = lastActive)
         cart.startCheckout(Duration.ofMinutes(30), now = lastActive)
         return carts.saveAndFlush(cart)
     }
@@ -516,6 +516,7 @@ class CartRepositoryIntegrationTest {
         assertEquals(lapsed.checkoutExpiresAt, found.expiredAt)
         assertEquals("sess-checkout-lapsed", found.sessionId)
         assertEquals(1, found.lineCount)
+        assertEquals(2L, found.itemCount)
 
         assertEquals(1, carts.unlockIfLapsed(lapsed.id, now))
         assertEquals(0, carts.unlockIfLapsed(lapsed.id, now), "an unlocked cart is not unlocked again")

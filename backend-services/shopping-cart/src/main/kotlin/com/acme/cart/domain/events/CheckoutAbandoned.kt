@@ -8,6 +8,8 @@ data class CheckoutAbandonedPayload(
     val cartId: UUID,
     /** The checkout session that was left. */
     val checkoutSessionId: UUID,
+    /** Lines in the cart. */
+    val lineCount: Int,
     /** Units across the cart's lines. */
     val itemCount: Int,
     val sessionId: String?,

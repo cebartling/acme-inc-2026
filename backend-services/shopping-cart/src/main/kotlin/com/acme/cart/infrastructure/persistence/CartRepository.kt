@@ -103,7 +103,8 @@ interface CartRepository : JpaRepository<Cart, UUID> {
      */
     @Query(
         """SELECT new com.acme.cart.infrastructure.persistence.LapsedCheckout(
-               c.id, c.checkoutSessionId, c.checkoutExpiresAt, c.sessionId, c.userId, SIZE(c.items))
+               c.id, c.checkoutSessionId, c.checkoutExpiresAt, c.sessionId, c.userId, SIZE(c.items),
+               (SELECT COALESCE(SUM(i.quantity), 0L) FROM CartItem i WHERE i.cart = c))
            FROM Cart c
            WHERE c.status = com.acme.cart.domain.CartStatus.CHECKOUT AND c.checkoutExpiresAt < :now
            ORDER BY c.checkoutExpiresAt ASC"""

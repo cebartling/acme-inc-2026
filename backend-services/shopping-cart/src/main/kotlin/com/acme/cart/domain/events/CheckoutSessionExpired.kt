@@ -12,8 +12,10 @@ data class CheckoutSessionExpiredPayload(
     val checkoutSessionId: UUID,
     /** When the session lapsed; the cart was unlocked at the event's timestamp. */
     val expiredAt: Instant,
-    /** Lines in the cart, not units. */
+    /** Lines in the cart. */
     val lineCount: Int,
+    /** Units across the cart's lines. */
+    val itemCount: Int,
     val sessionId: String?,
     val userId: UUID?
 )

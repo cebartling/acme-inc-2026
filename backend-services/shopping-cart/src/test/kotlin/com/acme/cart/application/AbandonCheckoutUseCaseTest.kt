@@ -61,6 +61,7 @@ class AbandonCheckoutUseCaseTest {
         val payload = assertIs<CheckoutAbandoned>(published.single()).payload
         assertEquals(cart.id, payload.cartId)
         assertEquals(session.id, payload.checkoutSessionId)
+        assertEquals(1, payload.lineCount)
         assertEquals(2, payload.itemCount)
         assertEquals("sess-1", payload.sessionId)
     }

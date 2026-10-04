@@ -10,6 +10,8 @@ data class LapsedCheckout(
     val expiredAt: Instant,
     val sessionId: String?,
     val userId: UUID?,
-    /** Lines in the cart, not units. */
-    val lineCount: Int
+    /** Lines in the cart. */
+    val lineCount: Int,
+    /** Units across the cart's lines; JPQL's SUM is a Long. */
+    val itemCount: Long
 )

@@ -55,6 +55,7 @@ class AbandonCheckoutUseCase(
                 CheckoutAbandonedPayload(
                     cartId = cart.id,
                     checkoutSessionId = abandoned.id,
+                    lineCount = cart.items.size,
                     itemCount = cart.itemCount,
                     sessionId = cart.sessionId,
                     userId = cart.userId

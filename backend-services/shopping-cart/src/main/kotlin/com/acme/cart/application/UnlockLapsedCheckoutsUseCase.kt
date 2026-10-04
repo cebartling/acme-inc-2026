@@ -54,6 +54,7 @@ class UnlockLapsedCheckoutsUseCase(
                     checkoutSessionId = cart.checkoutSessionId,
                     expiredAt = cart.expiredAt,
                     lineCount = cart.lineCount,
+                    itemCount = cart.itemCount.toInt(),
                     sessionId = cart.sessionId,
                     userId = cart.userId
                 ),

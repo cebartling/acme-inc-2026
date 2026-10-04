@@ -28,13 +28,14 @@ class UnlockLapsedCheckoutsUseCaseTest {
 
     private val now = Instant.parse("2026-10-03T12:00:00Z")
 
-    private fun lapsed(lineCount: Int = 2) = LapsedCheckout(
+    private fun lapsed(lineCount: Int = 2, itemCount: Long = 3) = LapsedCheckout(
         id = UUID.randomUUID(),
         checkoutSessionId = UUID.randomUUID(),
         expiredAt = now.minusSeconds(90),
         sessionId = "sess-${UUID.randomUUID()}",
         userId = null,
-        lineCount = lineCount
+        lineCount = lineCount,
+        itemCount = itemCount
     )
 
     private fun expiredCount() = meterRegistry.counter(UnlockLapsedCheckoutsUseCase.EXPIRED_METRIC).count()
@@ -56,7 +57,7 @@ class UnlockLapsedCheckoutsUseCaseTest {
 
     @Test
     fun `each lapsed cart is unlocked and announced with a CheckoutSessionExpired event`() {
-        val cart = lapsed(lineCount = 3)
+        val cart = lapsed(lineCount = 3, itemCount = 5)
         every { cartRepository.findLapsedCheckouts(now, any()) } returnsMany listOf(listOf(cart), emptyList())
 
         assertEquals(1, useCase.execute(now))
@@ -66,6 +67,7 @@ class UnlockLapsedCheckoutsUseCaseTest {
         assertEquals(cart.checkoutSessionId, payload.checkoutSessionId)
         assertEquals(cart.expiredAt, payload.expiredAt)
         assertEquals(3, payload.lineCount)
+        assertEquals(5, payload.itemCount)
         assertEquals(cart.sessionId, payload.sessionId)
         assertEquals(1.0, expiredCount())
     }
