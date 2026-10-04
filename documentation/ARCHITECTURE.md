@@ -390,9 +390,9 @@ sequenceDiagram
   Converting the cart when the order is placed is PIN-331.
 - **Resume and activity (PIN-330)**: starting again while the session is live resumes it:
   same session, no re-check and no new event, but the expiry moves out to 30 minutes from
-  now. Viewing the cart (`GET /carts/current`) is activity too: a conditional UPDATE pushes a
-  live session's expiry out without bumping the version, as the guest activity touch does.
-  A session that has lapsed but is not unlocked yet counts as none: starting again checks
+  now. That is the only activity for now; later checkout steps will extend it the same way.
+  Viewing the cart (`GET /carts/current`) deliberately does not: the header cart badge reads
+  it on every page, so browsing would keep a checkout alive forever. A session that has lapsed but is not unlocked yet counts as none: starting again checks
   the cart and opens a new session, publishing `CheckoutInitiated`.
 - **Leaving checkout (PIN-330)**: `DELETE /api/v1/carts/{cartId}/checkout` makes the cart
   `ACTIVE` again with its lines and clears the session, publishing `CheckoutAbandoned`. A

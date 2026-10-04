@@ -94,21 +94,7 @@ interface CartRepository : JpaRepository<Cart, UUID> {
     )
     fun expireIfIdle(id: UUID, cutoff: Instant, now: Instant): Int
 
-    // --- PIN-330: checkout sessions lapse without activity ------------------------------
-
-    /**
-     * Pushes a live checkout session's expiry out to [expiresAt]: the owner viewing the cart is
-     * activity. A session already lapsed as of [now] is left for the unlock job. Returns 1 if it
-     * extended. Leaves the version alone, as [touchGuestCart] does: activity is not a change.
-     */
-    @Transactional
-    @Modifying(flushAutomatically = true, clearAutomatically = true)
-    @Query(
-        """UPDATE Cart c SET c.checkoutExpiresAt = :expiresAt
-           WHERE c.id = :id AND c.status = com.acme.cart.domain.CartStatus.CHECKOUT
-             AND c.checkoutExpiresAt > :now"""
-    )
-    fun extendCheckout(id: UUID, now: Instant, expiresAt: Instant): Int
+    // --- PIN-330: lapsed checkout sessions unlock -----------------------------------------
 
     /**
      * CHECKOUT carts whose session lapsed before [now], oldest first, with what a

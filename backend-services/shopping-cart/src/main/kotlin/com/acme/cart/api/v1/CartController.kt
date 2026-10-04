@@ -18,7 +18,6 @@ import com.acme.cart.application.findActiveCart
 import com.acme.cart.domain.Cart
 import com.acme.cart.domain.CartError
 import com.acme.cart.domain.CartOwner
-import com.acme.cart.domain.CartStatus
 import com.acme.cart.domain.ProductSnapshot
 import com.acme.cart.infrastructure.persistence.CartRepository
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -44,7 +43,6 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
 import tools.jackson.core.JacksonException
-import java.time.Instant
 import java.util.UUID
 
 @RestController
@@ -104,8 +102,7 @@ class CartController(
     /**
      * The caller's cart (US-0004-07, AC-02/03/10): the user cart when signed in, else the
      * session's. 204 when there is no owner or no current cart yet, so a first-time
-     * visitor's page load is not an error. Viewing a cart in checkout is activity: it pushes
-     * the checkout session's expiry out (PIN-330).
+     * visitor's page load is not an error.
      */
     @GetMapping("/current")
     fun getCurrent(
@@ -114,10 +111,6 @@ class CartController(
     ): ResponseEntity<Any> {
         val cart = ownerOf(jwt, sessionCookie)?.let(cartRepository::findActiveCart)
             ?: return ResponseEntity.noContent().build()
-        if (cart.status == CartStatus.CHECKOUT) {
-            val now = Instant.now()
-            cartRepository.extendCheckout(cart.id, now, now.plus(StartCheckoutUseCase.SESSION_LENGTH))
-        }
         return ResponseEntity.ok(toResponse(cart))
     }
 

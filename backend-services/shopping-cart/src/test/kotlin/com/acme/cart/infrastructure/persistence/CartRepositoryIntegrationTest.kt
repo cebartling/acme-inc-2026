@@ -499,7 +499,7 @@ class CartRepositoryIntegrationTest {
         assertEquals(CartStatus.CHECKOUT, statusOf(locked))
     }
 
-    // --- PIN-330: lapsed checkout sessions unlock; activity extends a live one ----------
+    // --- PIN-330: lapsed checkout sessions unlock -----------------------------------------
 
     private fun lastActiveOf(cart: Cart): Instant {
         entityManager.clear()
@@ -537,19 +537,6 @@ class CartRepositoryIntegrationTest {
         assertEquals(emptyList(), carts.findLapsedCheckouts(now, PageRequest.of(0, 10)).filter { it.id == live.id })
         assertEquals(0, carts.unlockIfLapsed(live.id, now))
         assertEquals(CartStatus.CHECKOUT, statusOf(live))
-    }
-
-    @Test
-    fun `viewing extends a live checkout session but not a lapsed one`() {
-        val live = lockedGuestCart("sess-checkout-extend", now.minus(Duration.ofMinutes(10)))
-        val lapsed = lockedGuestCart("sess-checkout-gone", now.minus(Duration.ofHours(1)))
-        val later = now.plus(Duration.ofMinutes(30))
-
-        assertEquals(1, carts.extendCheckout(live.id, now, later))
-        assertEquals(0, carts.extendCheckout(lapsed.id, now, later))
-        entityManager.clear()
-        assertEquals(later, carts.findById(live.id).get().checkoutExpiresAt)
-        assertEquals(lapsed.checkoutExpiresAt, carts.findById(lapsed.id).get().checkoutExpiresAt)
     }
 
     @Test
