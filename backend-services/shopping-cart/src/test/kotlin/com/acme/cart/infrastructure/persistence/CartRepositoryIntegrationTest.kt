@@ -571,7 +571,6 @@ class CartRepositoryIntegrationTest {
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     fun `a guest cart left in checkout by signing in is unlocked and usable again by its session`() {
         val guest = lockedGuestCart("sess-version-signin", now.minus(Duration.ofHours(1)))
-        val user = carts.saveAndFlush(Cart(id = UUID.randomUUID(), userId = UUID.randomUUID()))
 
         assertEquals(1, carts.unlockIfLapsed(guest.id, now))
 
@@ -583,6 +582,5 @@ class CartRepositoryIntegrationTest {
             carts.save(mine)
         }
         assertEquals(2L, rowCount("select count(*) from cart_items where cart_id = :id", guest.id))
-        concurrently().execute { carts.deleteById(user.id) }
     }
 }

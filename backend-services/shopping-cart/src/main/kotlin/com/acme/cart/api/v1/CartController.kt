@@ -163,8 +163,8 @@ class CartController(
 
     /**
      * Starts checkout on the caller's own cart (PIN-329): checks every line is available,
-     * then locks the cart as CHECKOUT and returns the checkout session. Starting again on a
-     * locked cart returns the same session.
+     * then locks the cart as CHECKOUT and returns the checkout session. Starting again while
+     * the session is live resumes it with its expiry pushed out; a lapsed one is replaced (PIN-330).
      */
     @PostMapping("/{cartId}/checkout")
     fun startCheckout(

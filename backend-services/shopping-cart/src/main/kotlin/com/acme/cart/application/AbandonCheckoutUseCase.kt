@@ -38,23 +38,23 @@ class AbandonCheckoutUseCase(
         val result = transactionTemplate.execute {
             val cart = cartRepository.findOwnedCart(command.owner, command.cartId)
                 ?: return@execute CartError.CartNotFound(command.cartId).left()
-            val left = cart.abandonCheckout()
-            val saved = if (left == null) cart else cartRepository.save(cart)
-            (saved to left).right()
+            val abandoned = cart.abandonCheckout()
+            val saved = if (abandoned == null) cart else cartRepository.save(cart)
+            (saved to abandoned).right()
         }
         return checkNotNull(result) { "transaction for cart ${command.cartId} returned no result" }
-            .map { (cart, left) ->
-                if (left != null) publish(cart, left, correlationId)
+            .map { (cart, abandoned) ->
+                if (abandoned != null) publish(cart, abandoned, correlationId)
                 cart
             }
     }
 
-    private fun publish(cart: Cart, left: CheckoutSession, correlationId: UUID) {
+    private fun publish(cart: Cart, abandoned: CheckoutSession, correlationId: UUID) {
         eventPublisher.publishLoggingFailure(
             CheckoutAbandoned.create(
                 CheckoutAbandonedPayload(
                     cartId = cart.id,
-                    checkoutSessionId = left.id,
+                    checkoutSessionId = abandoned.id,
                     itemCount = cart.itemCount,
                     sessionId = cart.sessionId,
                     userId = cart.userId
