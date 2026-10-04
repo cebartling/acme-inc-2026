@@ -498,4 +498,91 @@ class CartRepositoryIntegrationTest {
         assertEquals(0, carts.deleteIfFinalBefore(locked.id, retentionCutoff))
         assertEquals(CartStatus.CHECKOUT, statusOf(locked))
     }
+
+    // --- PIN-330: lapsed checkout sessions unlock; activity extends a live one ----------
+
+    private fun lastActiveOf(cart: Cart): Instant {
+        entityManager.clear()
+        return carts.findById(cart.id).get().lastActiveAt
+    }
+
+    @Test
+    fun `a lapsed checkout is found and unlocked once, keeping its lines and activity`() {
+        val lapsed = lockedGuestCart("sess-checkout-lapsed", now.minus(Duration.ofHours(1)))
+        entityManager.clear()
+
+        val found = carts.findLapsedCheckouts(now, PageRequest.of(0, 10)).single { it.id == lapsed.id }
+        assertEquals(lapsed.checkoutSessionId, found.checkoutSessionId)
+        assertEquals(lapsed.checkoutExpiresAt, found.expiredAt)
+        assertEquals("sess-checkout-lapsed", found.sessionId)
+        assertEquals(1, found.lineCount)
+
+        assertEquals(1, carts.unlockIfLapsed(lapsed.id, now))
+        assertEquals(0, carts.unlockIfLapsed(lapsed.id, now), "an unlocked cart is not unlocked again")
+        entityManager.clear()
+        val unlocked = carts.findById(lapsed.id).get()
+        assertEquals(CartStatus.ACTIVE, unlocked.status)
+        assertEquals(null, unlocked.checkoutSessionId)
+        assertEquals(null, unlocked.checkoutExpiresAt)
+        assertEquals(1, unlocked.items.size)
+        assertEquals(now, unlocked.updatedAt)
+        assertEquals(lapsed.lastActiveAt, unlocked.lastActiveAt)
+    }
+
+    @Test
+    fun `a live checkout is neither found nor unlocked`() {
+        val live = lockedGuestCart("sess-checkout-live", now)
+        entityManager.clear()
+
+        assertEquals(emptyList(), carts.findLapsedCheckouts(now, PageRequest.of(0, 10)).filter { it.id == live.id })
+        assertEquals(0, carts.unlockIfLapsed(live.id, now))
+        assertEquals(CartStatus.CHECKOUT, statusOf(live))
+    }
+
+    @Test
+    fun `viewing extends a live checkout session but not a lapsed one`() {
+        val live = lockedGuestCart("sess-checkout-extend", now.minus(Duration.ofMinutes(10)))
+        val lapsed = lockedGuestCart("sess-checkout-gone", now.minus(Duration.ofHours(1)))
+        val later = now.plus(Duration.ofMinutes(30))
+
+        assertEquals(1, carts.extendCheckout(live.id, now, later))
+        assertEquals(0, carts.extendCheckout(lapsed.id, now, later))
+        entityManager.clear()
+        assertEquals(later, carts.findById(live.id).get().checkoutExpiresAt)
+        assertEquals(lapsed.checkoutExpiresAt, carts.findById(lapsed.id).get().checkoutExpiresAt)
+    }
+
+    @Test
+    fun `a lapsed idle guest checkout unlocks, then expires like any idle guest cart`() {
+        val stale = lockedGuestCart("sess-checkout-then-expire", longAgo)
+
+        assertEquals(1, carts.unlockIfLapsed(stale.id, now))
+        assertEquals(longAgo, lastActiveOf(stale))
+        assertEquals(1, carts.expireIfIdle(stale.id, cutoff, now))
+        assertEquals(CartStatus.EXPIRED, statusOf(stale))
+    }
+
+    /**
+     * The guest cart stranded by sign-in: merge leaves a guest cart in checkout alone
+     * (MergeCartsUseCaseTest), so while the user shops on their own cart the guest one stays
+     * locked. Once its session lapses it is unlocked, and the guest session can use it again.
+     */
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    fun `a guest cart left in checkout by signing in is unlocked and usable again by its session`() {
+        val guest = lockedGuestCart("sess-version-signin", now.minus(Duration.ofHours(1)))
+        val user = carts.saveAndFlush(Cart(id = UUID.randomUUID(), userId = UUID.randomUUID()))
+
+        assertEquals(1, carts.unlockIfLapsed(guest.id, now))
+
+        inTransaction().execute {
+            val mine = carts.findBySessionIdAndStatusIn("sess-version-signin", CartStatus.CURRENT)!!
+            assertEquals(guest.id, mine.id)
+            assertEquals(CartStatus.ACTIVE, mine.status)
+            mine.addItem(UUID.randomUUID(), 1, pricing, snapshot, 10)
+            carts.save(mine)
+        }
+        assertEquals(2L, rowCount("select count(*) from cart_items where cart_id = :id", guest.id))
+        concurrently().execute { carts.deleteById(user.id) }
+    }
 }

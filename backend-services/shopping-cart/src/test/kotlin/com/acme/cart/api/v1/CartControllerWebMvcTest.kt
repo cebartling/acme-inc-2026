@@ -1017,10 +1017,13 @@ class CartControllerWebMvcTest(
     }
 
     @Test
-    fun `the current cart shows that it is locked for checkout`() {
+    fun `the current cart shows that it is locked for checkout, and viewing it extends the session`() {
         val cart = cartFor(sessionId)
         cart.startCheckout(java.time.Duration.ofMinutes(30))
         every { cartRepository.findBySessionIdAndStatusIn(sessionId, CartStatus.CURRENT) } returns cart
+        val now = slot<Instant>()
+        val expiresAt = slot<Instant>()
+        every { cartRepository.extendCheckout(cartId, capture(now), capture(expiresAt)) } returns 1
 
         mockMvc.get("/api/v1/carts/current") {
             cookie(Cookie(CartController.SESSION_COOKIE, sessionId))
@@ -1028,6 +1031,19 @@ class CartControllerWebMvcTest(
             status { isOk() }
             jsonPath("$.status") { value("CHECKOUT") }
         }
+
+        assertEquals(now.captured.plus(java.time.Duration.ofMinutes(30)), expiresAt.captured)
+    }
+
+    @Test
+    fun `viewing a cart that is not in checkout extends nothing`() {
+        every { cartRepository.findBySessionIdAndStatusIn(sessionId, CartStatus.CURRENT) } returns cartFor(sessionId)
+
+        mockMvc.get("/api/v1/carts/current") {
+            cookie(Cookie(CartController.SESSION_COOKIE, sessionId))
+        }.andExpect { status { isOk() } }
+
+        verify(exactly = 0) { cartRepository.extendCheckout(any(), any(), any()) }
     }
 
     // --- PIN-330: leaving checkout -----------------------------------------------------

@@ -94,6 +94,53 @@ interface CartRepository : JpaRepository<Cart, UUID> {
     )
     fun expireIfIdle(id: UUID, cutoff: Instant, now: Instant): Int
 
+    // --- PIN-330: checkout sessions lapse without activity ------------------------------
+
+    /**
+     * Pushes a live checkout session's expiry out to [expiresAt]: the owner viewing the cart is
+     * activity. A session already lapsed as of [now] is left for the unlock job. Returns 1 if it
+     * extended. Leaves the version alone, as [touchGuestCart] does: activity is not a change.
+     */
+    @Transactional
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(
+        """UPDATE Cart c SET c.checkoutExpiresAt = :expiresAt
+           WHERE c.id = :id AND c.status = com.acme.cart.domain.CartStatus.CHECKOUT
+             AND c.checkoutExpiresAt > :now"""
+    )
+    fun extendCheckout(id: UUID, now: Instant, expiresAt: Instant): Int
+
+    /**
+     * CHECKOUT carts whose session lapsed before [now], oldest first, with what a
+     * `CheckoutSessionExpired` event needs. Guest and user carts alike, including a guest cart
+     * stranded in checkout by its owner signing in.
+     */
+    @Query(
+        """SELECT new com.acme.cart.infrastructure.persistence.LapsedCheckout(
+               c.id, c.checkoutSessionId, c.checkoutExpiresAt, c.sessionId, c.userId, SIZE(c.items))
+           FROM Cart c
+           WHERE c.status = com.acme.cart.domain.CartStatus.CHECKOUT AND c.checkoutExpiresAt < :now
+           ORDER BY c.checkoutExpiresAt ASC"""
+    )
+    fun findLapsedCheckouts(now: Instant, page: Pageable): List<LapsedCheckout>
+
+    /**
+     * Unlocks one cart if its checkout session is still lapsed as of [now]: ACTIVE again, lines
+     * kept, session cleared. Re-checked in the UPDATE itself, so a session resumed after the scan
+     * is left alone and two runs never unlock twice. `lastActiveAt` is kept, so an idle guest
+     * cart goes on to expire as usual. Bumps the version (PIN-278), so a request that loaded the
+     * locked cart cannot save it back as CHECKOUT. Returns 1 if this call unlocked it.
+     */
+    @Transactional
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(
+        """UPDATE Cart c SET c.status = com.acme.cart.domain.CartStatus.ACTIVE, c.checkoutSessionId = NULL,
+               c.checkoutExpiresAt = NULL, c.updatedAt = :now, c.version = c.version + 1
+           WHERE c.id = :id AND c.status = com.acme.cart.domain.CartStatus.CHECKOUT
+             AND c.checkoutExpiresAt < :now"""
+    )
+    fun unlockIfLapsed(id: UUID, now: Instant): Int
+
     // --- PIN-289: final carts are deleted after the retention period ---------------------
 
     /** EXPIRED and MERGED carts that became final before [cutoff], oldest first. Nothing is loaded. */
