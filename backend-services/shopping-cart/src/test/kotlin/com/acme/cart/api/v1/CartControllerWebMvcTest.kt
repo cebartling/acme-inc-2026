@@ -16,6 +16,8 @@ import com.acme.cart.domain.CartOwner
 import com.acme.cart.domain.CartStatus
 import arrow.core.left
 import arrow.core.right
+import com.acme.cart.application.AbandonCheckoutCommand
+import com.acme.cart.application.AbandonCheckoutUseCase
 import com.acme.cart.application.AddItemToCartCommand
 import com.acme.cart.application.AddItemToCartUseCase
 import com.acme.cart.application.ClearCartCommand
@@ -75,6 +77,7 @@ class CartControllerWebMvcTest(
     @Autowired private val cartRepository: CartRepository,
     @Autowired private val mergeUseCase: MergeCartsUseCase,
     @Autowired private val checkoutUseCase: StartCheckoutUseCase,
+    @Autowired private val abandonUseCase: AbandonCheckoutUseCase,
     @Autowired private val jwtDecoder: JwtDecoder
 ) {
 
@@ -99,6 +102,9 @@ class CartControllerWebMvcTest(
         fun startCheckoutUseCase(): StartCheckoutUseCase = mockk()
 
         @Bean
+        fun abandonCheckoutUseCase(): AbandonCheckoutUseCase = mockk()
+
+        @Bean
         fun cartRepository(): CartRepository = mockk()
 
         @Bean
@@ -121,7 +127,7 @@ class CartControllerWebMvcTest(
 
     @BeforeEach
     fun setUp() {
-        clearMocks(useCase, updateUseCase, removeUseCase, clearUseCase, cartRepository, jwtDecoder, mergeUseCase, checkoutUseCase)
+        clearMocks(useCase, updateUseCase, removeUseCase, clearUseCase, cartRepository, jwtDecoder, mergeUseCase, checkoutUseCase, abandonUseCase)
         command.clear()
         every { cartRepository.touchGuestCart(any(), any(), any()) } returns 0
         every { useCase.execute(capture(command), any()) } answers {
@@ -1022,5 +1028,45 @@ class CartControllerWebMvcTest(
             status { isOk() }
             jsonPath("$.status") { value("CHECKOUT") }
         }
+    }
+
+    // --- PIN-330: leaving checkout -----------------------------------------------------
+
+    @Test
+    fun `leaving checkout returns the unlocked cart`() {
+        val cart = cartFor(sessionId)
+        val captured = slot<AbandonCheckoutCommand>()
+        every { abandonUseCase.execute(capture(captured), any()) } returns cart.right()
+
+        mockMvc.delete("/api/v1/carts/$cartId/checkout") {
+            cookie(Cookie(CartController.SESSION_COOKIE, sessionId))
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.id") { value(cartId.toString()) }
+            jsonPath("$.status") { value("ACTIVE") }
+        }
+
+        assertEquals(AbandonCheckoutCommand(CartOwner.Guest(sessionId), cartId), captured.captured)
+    }
+
+    @Test
+    fun `leaving checkout on a cart the caller does not own is a 404`() {
+        every { abandonUseCase.execute(any(), any()) } returns CartError.CartNotFound(cartId).left()
+
+        mockMvc.delete("/api/v1/carts/$cartId/checkout") {
+            cookie(Cookie(CartController.SESSION_COOKIE, sessionId))
+        }.andExpect {
+            status { isNotFound() }
+            jsonPath("$.code") { value("CART_NOT_FOUND") }
+        }
+    }
+
+    @Test
+    fun `leaving checkout without a session or token is a 404`() {
+        mockMvc.delete("/api/v1/carts/$cartId/checkout").andExpect {
+            status { isNotFound() }
+            jsonPath("$.code") { value("CART_NOT_FOUND") }
+        }
+        verify(exactly = 0) { abandonUseCase.execute(any(), any()) }
     }
 }
