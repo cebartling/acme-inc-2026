@@ -25,15 +25,11 @@ class UnlockLapsedCheckoutsUseCase(
     /** Unlocks every cart whose checkout session lapsed before [now] and returns how many. */
     fun execute(now: Instant = Instant.now()): Int {
         val correlationId = UUID.randomUUID()
-        var total = 0
-        while (true) {
-            val batch = cartRepository.findLapsedCheckouts(now, PageRequest.of(0, BATCH_SIZE))
-            val unlocked = batch.count { unlock(it, now, correlationId) }
-            total += unlocked
-            // A short batch was the last one; a batch that unlocked nothing would be found again.
-            if (batch.size < BATCH_SIZE || unlocked == 0) break
-        }
-        return total
+        return drainInBatches(
+            BATCH_SIZE,
+            nextBatch = { cartRepository.findLapsedCheckouts(now, PageRequest.of(0, BATCH_SIZE)) },
+            act = { unlock(it, now, correlationId) }
+        )
     }
 
     private fun unlock(cart: LapsedCheckout, now: Instant, correlationId: UUID): Boolean {

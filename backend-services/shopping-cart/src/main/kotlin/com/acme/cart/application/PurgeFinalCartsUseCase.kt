@@ -43,15 +43,11 @@ class PurgeFinalCartsUseCase(
     fun execute(now: Instant = Instant.now()): Int {
         val cutoff = now.minus(retention)
         val correlationId = UUID.randomUUID()
-        var total = 0
-        while (true) {
-            val batch = cartRepository.findFinalCartsBefore(cutoff, PageRequest.of(0, BATCH_SIZE))
-            val purged = batch.count { purge(it, cutoff, correlationId) }
-            total += purged
-            // A short batch was the last one; a batch that deleted nothing would be found again.
-            if (batch.size < BATCH_SIZE || purged == 0) break
-        }
-        return total
+        return drainInBatches(
+            BATCH_SIZE,
+            nextBatch = { cartRepository.findFinalCartsBefore(cutoff, PageRequest.of(0, BATCH_SIZE)) },
+            act = { purge(it, cutoff, correlationId) }
+        )
     }
 
     private fun purge(cart: FinalCart, cutoff: Instant, correlationId: UUID): Boolean {

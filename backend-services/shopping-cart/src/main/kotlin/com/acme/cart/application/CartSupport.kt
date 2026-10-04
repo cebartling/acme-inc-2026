@@ -79,3 +79,21 @@ private fun <T> uniqueKeyRaceAsConflict(block: () -> T): T =
         val message: String? = "A concurrent change to the cart took a unique key first"
         throw ObjectOptimisticLockingFailureException(message, ex)
     }
+
+/**
+ * A cart job's scan-and-act loop (expiry, purge, checkout unlock): [nextBatch] finds up to
+ * [batchSize] candidates and [act] handles one, returning whether it did anything (its
+ * conditional write may find the cart has changed since the scan). Returns how many it did.
+ *
+ * A short batch was the last one. A batch where nothing was done stops the run too: the next
+ * scan would only find the same carts again.
+ */
+internal fun <T> drainInBatches(batchSize: Int, nextBatch: () -> List<T>, act: (T) -> Boolean): Int {
+    var total = 0
+    while (true) {
+        val batch = nextBatch()
+        val done = batch.count(act)
+        total += done
+        if (batch.size < batchSize || done == 0) return total
+    }
+}

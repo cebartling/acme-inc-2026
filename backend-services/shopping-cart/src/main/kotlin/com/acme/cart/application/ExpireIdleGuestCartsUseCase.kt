@@ -44,15 +44,11 @@ class ExpireIdleGuestCartsUseCase(
         // cart must never expire while its cookie could still be valid.
         val cutoff = now.minus(guestTtl).minus(ACTIVITY_REFRESH_INTERVAL)
         val correlationId = UUID.randomUUID()
-        var total = 0
-        while (true) {
-            val batch = cartRepository.findIdleGuestCarts(cutoff, PageRequest.of(0, BATCH_SIZE))
-            val expired = batch.count { expire(it, cutoff, now, correlationId) }
-            total += expired
-            // A short batch was the last one; a batch that expired nothing would be found again.
-            if (batch.size < BATCH_SIZE || expired == 0) break
-        }
-        return total
+        return drainInBatches(
+            BATCH_SIZE,
+            nextBatch = { cartRepository.findIdleGuestCarts(cutoff, PageRequest.of(0, BATCH_SIZE)) },
+            act = { expire(it, cutoff, now, correlationId) }
+        )
     }
 
     private fun expire(cart: IdleGuestCart, cutoff: Instant, now: Instant, correlationId: UUID): Boolean {
