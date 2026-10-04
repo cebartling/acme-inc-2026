@@ -271,6 +271,14 @@ class Cart(
         status == CartStatus.CHECKOUT && checkoutSession().expiresAt > now
 
     /**
+     * The checkout session the cart is still locked for although it lapsed by [now], because the
+     * unlock job has not reached it yet (PIN-330); null if the cart is not in checkout or its
+     * session is live.
+     */
+    fun lapsedCheckoutSession(now: Instant): CheckoutSession? =
+        if (status == CartStatus.CHECKOUT && !isInLiveCheckout(now)) checkoutSession() else null
+
+    /**
      * Leaves checkout (PIN-330): the cart is ACTIVE again with its lines, and its checkout
      * session is gone. Returns the session left, or null if the cart was not in checkout,
      * in which case nothing changes, so leaving twice is not an error.

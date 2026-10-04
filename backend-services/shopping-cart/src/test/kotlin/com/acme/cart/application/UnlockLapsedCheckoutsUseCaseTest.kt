@@ -24,7 +24,7 @@ class UnlockLapsedCheckoutsUseCaseTest {
     private val meterRegistry = SimpleMeterRegistry()
     private val published = mutableListOf<DomainEvent>()
 
-    private val useCase = UnlockLapsedCheckoutsUseCase(cartRepository, eventPublisher, meterRegistry)
+    private val useCase = UnlockLapsedCheckoutsUseCase(cartRepository, CheckoutSessionExpiry(eventPublisher, meterRegistry))
 
     private val now = Instant.parse("2026-10-03T12:00:00Z")
 
@@ -38,7 +38,7 @@ class UnlockLapsedCheckoutsUseCaseTest {
         itemCount = itemCount
     )
 
-    private fun expiredCount() = meterRegistry.counter(UnlockLapsedCheckoutsUseCase.EXPIRED_METRIC).count()
+    private fun expiredCount() = meterRegistry.counter(CheckoutSessionExpiry.EXPIRED_METRIC).count()
 
     @BeforeEach
     fun setUp() {

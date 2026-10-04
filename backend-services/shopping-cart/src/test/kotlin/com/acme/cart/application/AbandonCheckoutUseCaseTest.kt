@@ -6,9 +6,11 @@ import com.acme.cart.domain.CartOwner
 import com.acme.cart.domain.CartStatus
 import com.acme.cart.domain.VariantPricing
 import com.acme.cart.domain.events.CheckoutAbandoned
+import com.acme.cart.domain.events.CheckoutSessionExpired
 import com.acme.cart.domain.events.DomainEvent
 import com.acme.cart.infrastructure.messaging.CartEventPublisher
 import com.acme.cart.infrastructure.persistence.CartRepository
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -18,6 +20,7 @@ import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.support.TransactionTemplate
 import java.math.BigDecimal
 import java.time.Duration
+import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -28,11 +31,13 @@ class AbandonCheckoutUseCaseTest {
     private val cartRepository = mockk<CartRepository>()
     private val eventPublisher = mockk<CartEventPublisher>()
     private val published = mutableListOf<DomainEvent>()
+    private val meterRegistry = SimpleMeterRegistry()
 
     private val useCase = AbandonCheckoutUseCase(
         cartRepository = cartRepository,
         eventPublisher = eventPublisher,
-        transactionTemplate = TransactionTemplate(mockk<PlatformTransactionManager>(relaxed = true))
+        transactionTemplate = TransactionTemplate(mockk<PlatformTransactionManager>(relaxed = true)),
+        checkoutSessionExpiry = CheckoutSessionExpiry(eventPublisher, meterRegistry)
     )
 
     private val cart = Cart(id = UUID.randomUUID(), sessionId = "sess-1").also {
@@ -64,6 +69,19 @@ class AbandonCheckoutUseCaseTest {
         assertEquals(1, payload.lineCount)
         assertEquals(2, payload.itemCount)
         assertEquals("sess-1", payload.sessionId)
+    }
+
+    @Test
+    fun `leaving a session that already lapsed reports it as expired, not abandoned`() {
+        val session = cart.startCheckout(Duration.ofMinutes(30), now = Instant.now().minusSeconds(3600)).getOrNull()!!
+
+        val unlocked = abandon().getOrNull()!!
+
+        assertEquals(CartStatus.ACTIVE, unlocked.status)
+        val payload = assertIs<CheckoutSessionExpired>(published.single()).payload
+        assertEquals(session.id, payload.checkoutSessionId)
+        assertEquals(session.expiresAt, payload.expiredAt)
+        assertEquals(1.0, meterRegistry.counter(CheckoutSessionExpiry.EXPIRED_METRIC).count())
     }
 
     @Test

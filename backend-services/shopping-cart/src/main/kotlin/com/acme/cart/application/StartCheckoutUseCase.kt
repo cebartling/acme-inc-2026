@@ -40,7 +40,8 @@ data class CheckoutStarted(val cart: Cart, val session: CheckoutSession)
  *
  * A cart already in checkout resumes its session (PIN-330): the expiry moves out, but nothing
  * is re-checked or published. A session that has lapsed but is not unlocked yet is treated as
- * no session: the cart is checked again and gets a new one.
+ * no session: the cart is checked again and gets a new one, and the lapsed session is reported
+ * as expired before `CheckoutInitiated`, since the unlock job will no longer find it.
  */
 @Service
 class StartCheckoutUseCase(
@@ -48,7 +49,8 @@ class StartCheckoutUseCase(
     private val availabilityClient: ProductAvailabilityClient,
     private val eventPublisher: CartEventPublisher,
     private val transactionTemplate: TransactionTemplate,
-    private val objectMapper: ObjectMapper
+    private val objectMapper: ObjectMapper,
+    private val checkoutSessionExpiry: CheckoutSessionExpiry
 ) {
     private val logger = LoggerFactory.getLogger(StartCheckoutUseCase::class.java)
 
@@ -68,6 +70,7 @@ class StartCheckoutUseCase(
         val locked = checkNotNull(transactionTemplate.execute { lockInTransaction(command, checkedVersion = cart.version, now) }) {
             "checkout transaction for cart ${command.cartId} returned no result"
         }.bind()
+        locked.lapsed?.let { checkoutSessionExpiry.report(locked.started.cart, it, correlationId) }
         if (locked.isNew) publish(locked.started, correlationId)
         locked.started
     }
@@ -93,12 +96,14 @@ class StartCheckoutUseCase(
             ?: return CartError.CartNotFound(command.cartId).left()
         if (cart.version != checkedVersion) throw ObjectOptimisticLockingFailureException(Cart::class.java, cart.id)
         val resumed = cart.isInLiveCheckout(now)
+        val lapsed = cart.lapsedCheckoutSession(now)
         return cart.startCheckout(SESSION_LENGTH, now).map { session ->
-            Locked(CheckoutStarted(cartRepository.save(cart), session), isNew = !resumed)
+            Locked(CheckoutStarted(cartRepository.save(cart), session), isNew = !resumed, lapsed = lapsed)
         }
     }
 
-    private data class Locked(val started: CheckoutStarted, val isNew: Boolean)
+    /** [lapsed] is the session this start replaced because it had lapsed, if any. */
+    private data class Locked(val started: CheckoutStarted, val isNew: Boolean, val lapsed: CheckoutSession?)
 
     private fun productNameOf(snapshot: String): String =
         objectMapper.readValue(snapshot, ProductSnapshot::class.java).name

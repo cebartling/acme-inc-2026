@@ -266,6 +266,8 @@ class CartTest {
         val lapsed = first.expiresAt.plusSeconds(1)
 
         assertEquals(false, cart.isInLiveCheckout(lapsed))
+        assertEquals(first, cart.lapsedCheckoutSession(lapsed))
+        assertEquals(null, cart.lapsedCheckoutSession(first.expiresAt.minusSeconds(1)))
         val second = cart.startCheckout(sessionLength, now = lapsed).getOrNull()!!
 
         assertTrue(first.id != second.id)

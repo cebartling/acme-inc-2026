@@ -392,11 +392,16 @@ sequenceDiagram
   same session, no re-check and no new event, but the expiry moves out to 30 minutes from
   now. That is the only activity for now; later checkout steps will extend it the same way.
   Viewing the cart (`GET /carts/current`) deliberately does not: the header cart badge reads
-  it on every page, so browsing would keep a checkout alive forever. A session that has lapsed but is not unlocked yet counts as none: starting again checks
-  the cart and opens a new session, publishing `CheckoutInitiated`.
+  it on every page, so browsing would keep a checkout alive forever. A session that has
+  lapsed but is not unlocked yet counts as none: starting again checks the cart and opens a
+  new session, publishing `CheckoutSessionExpired` for the lapsed one and then
+  `CheckoutInitiated`.
 - **Leaving checkout (PIN-330)**: `DELETE /api/v1/carts/{cartId}/checkout` makes the cart
-  `ACTIVE` again with its lines and clears the session, publishing `CheckoutAbandoned`. A
-  cart not in checkout comes back unchanged, with nothing published.
+  `ACTIVE` again with its lines and clears the session, publishing `CheckoutAbandoned`, or
+  `CheckoutSessionExpired` if the session had already lapsed (it timed out; the job just
+  hadn't reached it). A cart not in checkout comes back unchanged, with nothing published.
+  Whichever path ends a lapsed session reports it, so each is reported exactly once
+  (`CheckoutSessionExpiry`). Both ending events carry `lineCount` and `itemCount` (units).
 - **Lapsed sessions unlock (PIN-330, journey 0005 E6)**: a job every minute
   (`acme.cart.checkout-unlock.*`) scans `CHECKOUT` carts past `checkout_expires_at` (partial
   index `ix_carts_checkout_expiry`, V7) and unlocks each with a conditional UPDATE that

@@ -14,20 +14,24 @@ import com.acme.cart.infrastructure.persistence.CartRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.support.TransactionTemplate
+import java.time.Instant
 import java.util.UUID
 
 data class AbandonCheckoutCommand(val owner: CartOwner, val cartId: UUID)
 
 /**
  * Leaves checkout on the caller's own cart (PIN-330): the cart is ACTIVE again with its lines,
- * and `CheckoutAbandoned` is published after commit. A cart not in checkout is returned as is:
- * nothing is saved or published.
+ * and `CheckoutAbandoned` is published after commit. A session that had already lapsed, but
+ * that the unlock job had not reached yet, is reported as expired instead: it ended by timing
+ * out, not by the customer leaving. A cart not in checkout is returned as is: nothing is saved
+ * or published.
  */
 @Service
 class AbandonCheckoutUseCase(
     private val cartRepository: CartRepository,
     private val eventPublisher: CartEventPublisher,
-    private val transactionTemplate: TransactionTemplate
+    private val transactionTemplate: TransactionTemplate,
+    private val checkoutSessionExpiry: CheckoutSessionExpiry
 ) {
     private val logger = LoggerFactory.getLogger(AbandonCheckoutUseCase::class.java)
 
@@ -35,19 +39,27 @@ class AbandonCheckoutUseCase(
         retryOnConflict("Abandon checkout") { abandonOnce(command, correlationId) }
 
     private fun abandonOnce(command: AbandonCheckoutCommand, correlationId: UUID): Either<CartError, Cart> {
+        val now = Instant.now()
         val result = transactionTemplate.execute {
             val cart = cartRepository.findOwnedCart(command.owner, command.cartId)
                 ?: return@execute CartError.CartNotFound(command.cartId).left()
-            val abandoned = cart.abandonCheckout()
+            val lapsed = cart.lapsedCheckoutSession(now) != null
+            val abandoned = cart.abandonCheckout(now)
             val saved = if (abandoned == null) cart else cartRepository.save(cart)
-            (saved to abandoned).right()
+            Abandoned(saved, abandoned, lapsed).right()
         }
         return checkNotNull(result) { "transaction for cart ${command.cartId} returned no result" }
-            .map { (cart, abandoned) ->
-                if (abandoned != null) publish(cart, abandoned, correlationId)
+            .map { (cart, abandoned, lapsed) ->
+                when {
+                    abandoned == null -> Unit
+                    lapsed -> checkoutSessionExpiry.report(cart, abandoned, correlationId)
+                    else -> publish(cart, abandoned, correlationId)
+                }
                 cart
             }
     }
+
+    private data class Abandoned(val cart: Cart, val session: CheckoutSession?, val lapsed: Boolean)
 
     private fun publish(cart: Cart, abandoned: CheckoutSession, correlationId: UUID) {
         eventPublisher.publishLoggingFailure(
