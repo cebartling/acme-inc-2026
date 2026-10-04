@@ -243,14 +243,20 @@ class Cart(
 
     /**
      * Locks the cart for checkout (PIN-329): it becomes CHECKOUT with a new checkout session
-     * lasting [sessionLength], and refuses every change until checkout ends. A cart already
-     * in checkout returns its session unchanged, so starting twice is not an error.
+     * lasting [sessionLength], and refuses every change until checkout ends. Starting again
+     * while the session is live resumes it (PIN-330): same session, expiry pushed out to
+     * [sessionLength] from [now]. A session that has lapsed but not yet been unlocked is
+     * replaced by a new one, as if the cart were ACTIVE.
      *
      * @return the checkout session, or [CartError.CartEmpty] with the cart unchanged.
      */
     fun startCheckout(sessionLength: Duration, now: Instant = Instant.now()): Either<CartError, CheckoutSession> {
-        if (status == CartStatus.CHECKOUT) return checkoutSession().right()
-        check(status == CartStatus.ACTIVE) { "cart $id is $status and cannot start checkout" }
+        if (isInLiveCheckout(now)) {
+            checkoutExpiresAt = now.plus(sessionLength)
+            touch(now)
+            return checkoutSession().right()
+        }
+        check(status in CartStatus.CURRENT) { "cart $id is $status and cannot start checkout" }
         if (items.isEmpty()) return CartError.CartEmpty(id).left()
 
         status = CartStatus.CHECKOUT
@@ -258,6 +264,25 @@ class Cart(
         checkoutExpiresAt = now.plus(sessionLength)
         touch(now)
         return checkoutSession().right()
+    }
+
+    /** Whether the cart is in checkout and its session has not lapsed as of [now] (PIN-330). */
+    fun isInLiveCheckout(now: Instant): Boolean =
+        status == CartStatus.CHECKOUT && checkoutSession().expiresAt > now
+
+    /**
+     * Leaves checkout (PIN-330): the cart is ACTIVE again with its lines, and its checkout
+     * session is gone. Returns the session left, or null if the cart was not in checkout,
+     * in which case nothing changes, so leaving twice is not an error.
+     */
+    fun abandonCheckout(now: Instant = Instant.now()): CheckoutSession? {
+        if (status != CartStatus.CHECKOUT) return null
+        val session = checkoutSession()
+        status = CartStatus.ACTIVE
+        checkoutSessionId = null
+        checkoutExpiresAt = null
+        touch(now)
+        return session
     }
 
     private fun checkoutSession() = CheckoutSession(

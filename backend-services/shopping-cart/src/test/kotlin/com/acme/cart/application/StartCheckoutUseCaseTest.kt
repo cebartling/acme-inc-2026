@@ -24,9 +24,12 @@ import org.junit.jupiter.api.Test
 import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.support.TransactionTemplate
 import java.math.BigDecimal
+import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertNotEquals
+import kotlin.test.assertTrue
 
 class StartCheckoutUseCaseTest {
 
@@ -118,16 +121,30 @@ class StartCheckoutUseCaseTest {
     }
 
     @Test
-    fun `starting again on a locked cart returns the same session and publishes nothing new`() {
+    fun `starting again on a locked cart resumes the same session and publishes nothing new`() {
         val first = start().getOrNull()!!
         published.clear()
 
         val second = start().getOrNull()!!
 
-        assertEquals(first.session, second.session)
+        assertEquals(first.session.id, second.session.id)
+        assertTrue(second.session.expiresAt >= first.session.expiresAt)
         assertEquals(emptyList(), published)
-        verify(exactly = 1) { cartRepository.save(any()) }
+        verify(exactly = 2) { cartRepository.save(any()) }
         verify(exactly = 2) { availabilityClient.issueWith(any()) }
+    }
+
+    @Test
+    fun `starting again after the session lapsed checks the cart again and starts a new session`() {
+        val first = start().getOrNull()!!
+        cart.checkoutExpiresAt = Instant.now().minusSeconds(1)
+        published.clear()
+
+        val second = start().getOrNull()!!
+
+        assertNotEquals(first.session.id, second.session.id)
+        assertIs<CheckoutInitiated>(published.single())
+        verify(exactly = 4) { availabilityClient.issueWith(any()) }
     }
 
     @Test

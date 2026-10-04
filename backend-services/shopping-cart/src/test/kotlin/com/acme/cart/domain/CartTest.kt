@@ -242,15 +242,62 @@ class CartTest {
     }
 
     @Test
-    fun `starting checkout again returns the same session`() {
+    fun `starting checkout again resumes the same session and extends it`() {
         val cart = newCart()
         cart.add(1)
         val first = cart.startCheckout(sessionLength).getOrNull()!!
+        val resumed = cart.updatedAt.plusSeconds(60)
+
+        val second = cart.startCheckout(sessionLength, now = resumed).getOrNull()!!
+
+        assertEquals(first.id, second.id)
+        assertEquals(resumed.plus(sessionLength), second.expiresAt)
+        assertEquals(second.expiresAt, cart.checkoutExpiresAt)
+        assertEquals(resumed, cart.lastActiveAt)
+    }
+
+    // --- PIN-330: lapsed sessions and leaving checkout -----------------------------------
+
+    @Test
+    fun `starting checkout after the session lapsed starts a new session`() {
+        val cart = newCart()
+        cart.add(1)
+        val first = cart.startCheckout(sessionLength).getOrNull()!!
+        val lapsed = first.expiresAt.plusSeconds(1)
+
+        assertEquals(false, cart.isInLiveCheckout(lapsed))
+        val second = cart.startCheckout(sessionLength, now = lapsed).getOrNull()!!
+
+        assertTrue(first.id != second.id)
+        assertEquals(lapsed.plus(sessionLength), second.expiresAt)
+        assertEquals(CartStatus.CHECKOUT, cart.status)
+    }
+
+    @Test
+    fun `abandoning checkout unlocks the cart and keeps its lines`() {
+        val cart = newCart()
+        val item = cart.add(2).getOrNull()!!
+        val session = cart.startCheckout(sessionLength).getOrNull()!!
+        val left = session.expiresAt.minusSeconds(60)
+
+        assertEquals(session, cart.abandonCheckout(now = left))
+
+        assertEquals(CartStatus.ACTIVE, cart.status)
+        assertEquals(null, cart.checkoutSessionId)
+        assertEquals(null, cart.checkoutExpiresAt)
+        assertEquals(listOf(item), cart.items)
+        assertEquals(left, cart.updatedAt)
+        assertTrue(cart.add(1).isRight())
+    }
+
+    @Test
+    fun `abandoning a cart that is not in checkout changes nothing`() {
+        val cart = newCart()
+        cart.add(1)
         val updated = cart.updatedAt
 
-        val second = cart.startCheckout(sessionLength, now = updated.plusSeconds(60)).getOrNull()!!
-
-        assertEquals(first, second)
+        assertEquals(null, cart.abandonCheckout(now = updated.plusSeconds(60)))
+        assertEquals(CartStatus.ACTIVE, cart.status)
         assertEquals(updated, cart.updatedAt)
     }
 
