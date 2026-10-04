@@ -235,8 +235,8 @@ sequenceDiagram
   longer final is kept. `CartPurged` is published only for carts it deleted (counted as
   `cart.purged`). ACTIVE carts are never deleted. `acme.cart.purge.enabled=false` turns the
   job off. Debezium only captures `acme_orders`, so these deletes emit no change events.
-  The scheduler has two threads (`spring.task.scheduling.pool.size`), so a slow purge run
-  never holds up expiry.
+  The scheduler has three threads (`spring.task.scheduling.pool.size`), one per job (expiry,
+  purge, checkout unlock), so a slow purge run never holds up the others.
 - **Error bodies**: `{"error": message, "code": ...}`. `CART_ITEM_NOT_FOUND` and
   `VARIANT_NOT_FOUND` are both 404s; the code lets the client reload quietly for a gone
   line but still explain a delisted variant whose line is still in the cart. A request body
@@ -385,13 +385,27 @@ sequenceDiagram
   outside the transaction, as add-to-cart's pricing does. The transaction's re-read is fresh,
   so it must still be at the version that was checked: a change that lands in between is a
   conflict, and the `retryOnConflict` retry checks the changed cart again.
-- **The checkout session** (`carts.checkout_session_id`, `checkout_expires_at`, V6) lasts 30
-  minutes and is the cart reference the order service will take. Starting again on a locked
-  cart returns the same session, with no re-check and no new event.
-- **Nothing unlocks yet**: the expiry job only touches ACTIVE guest carts and the purge job
-  only final ones, so a locked cart is neither expired, touched nor purged. Unlocking after
-  the 30 minutes, abandoning and resuming are PIN-330; converting the cart when the order is
-  placed is PIN-331.
+- **The checkout session** (`carts.checkout_session_id`, `checkout_expires_at`, V6) lapses
+  after 30 minutes without activity and is the cart reference the order service will take.
+  Converting the cart when the order is placed is PIN-331.
+- **Resume and activity (PIN-330)**: starting again while the session is live resumes it:
+  same session, no re-check and no new event, but the expiry moves out to 30 minutes from
+  now. Viewing the cart (`GET /carts/current`) is activity too: a conditional UPDATE pushes a
+  live session's expiry out without bumping the version, as the guest activity touch does.
+  A session that has lapsed but is not unlocked yet counts as none: starting again checks
+  the cart and opens a new session, publishing `CheckoutInitiated`.
+- **Leaving checkout (PIN-330)**: `DELETE /api/v1/carts/{cartId}/checkout` makes the cart
+  `ACTIVE` again with its lines and clears the session, publishing `CheckoutAbandoned`. A
+  cart not in checkout comes back unchanged, with nothing published.
+- **Lapsed sessions unlock (PIN-330, journey 0005 E6)**: a job every minute
+  (`acme.cart.checkout-unlock.*`) scans `CHECKOUT` carts past `checkout_expires_at` (partial
+  index `ix_carts_checkout_expiry`, V7) and unlocks each with a conditional UPDATE that
+  re-checks the lapse and bumps the version. The cart is `ACTIVE` again with its lines, and
+  `CheckoutSessionExpired` is published (counted as `cart.checkout.expired`). Guest and user
+  carts alike, so a guest cart left in checkout when its owner signed in (merge skips it) is
+  freed for its session. `last_active_at` is kept, so an idle guest cart then expires as
+  usual. A lapsed cart can stay locked for up to a minute until the job runs; changes in
+  that gap are still 409 `CART_LOCKED`, but starting checkout again works.
 
 ### Product Service
 
