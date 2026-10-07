@@ -357,6 +357,8 @@ describe("CartPage", () => {
         "$239.98",
       );
     } finally {
+      // Unmount first: if an assertion failed while offline, the paused cart would resume after the test
+      cleanup();
       onlineManager.setOnline(true);
     }
   });
