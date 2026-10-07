@@ -3,17 +3,37 @@ import type { Cart } from "@/services/api";
 /**
  * Cart totals (AC-0004-07-07). There is no tax or shipping service yet, so the estimated
  * total equals the subtotal. `excludesOutOfStock` says the totals leave out-of-stock lines out
- * (PIN-317).
+ * (PIN-317). While `checkingAvailability`, the totals are held back so they don't jump once
+ * a line turns out to be out of stock (PIN-328).
  */
 export function CartSummary({
   summary,
   excludesOutOfStock = false,
+  checkingAvailability = false,
 }: {
   summary: Cart["summary"];
   excludesOutOfStock?: boolean;
+  checkingAvailability?: boolean;
 }) {
   const itemLabel =
     summary.itemCount === 1 ? "1 item" : `${summary.itemCount} items`;
+
+  if (checkingAvailability) {
+    return (
+      <section
+        aria-label="Order summary"
+        aria-busy="true"
+        className="rounded-xl bg-slate-800 p-6 shadow-lg"
+      >
+        <p
+          data-testid="cartCheckingAvailability"
+          className="text-sm text-slate-300"
+        >
+          Checking availability…
+        </p>
+      </section>
+    );
+  }
 
   return (
     <section

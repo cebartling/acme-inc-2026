@@ -84,15 +84,21 @@ function lineGone() {
   });
 }
 
-function renderPage() {
-  const queryClient = new QueryClient({
+function renderPage(
+  queryClient = new QueryClient({
     defaultOptions: { queries: { retry: 0 }, mutations: { retry: 0 } },
-  });
+  }),
+) {
   return render(
     <QueryClientProvider client={queryClient}>
       <CartPage />
     </QueryClientProvider>,
   );
+}
+
+/** The totals show, and a line's quantity can go up, once every stock check has settled (PIN-328). */
+function stockChecksSettled() {
+  return screen.findByTestId("cartSubtotal");
 }
 
 describe("CartPage", () => {
@@ -231,11 +237,91 @@ describe("CartPage", () => {
     expect(within(failedRow).queryByTestId("lineOutOfStock")).toBeNull();
   });
 
+  // PIN-328: until a line's check answers, it might still be out of stock
+  it("holds back the totals until every stock check has settled", async () => {
+    const inStock = { ...line(1, 19.99), id: "line-2", variantId: "variant-2" };
+    mockedGetCurrent.mockResolvedValue(cartOf(line(2, 119.99), inStock));
+    let settleCheck = () => {};
+    mockedAvailability.mockImplementation((variantId) =>
+      variantId === "variant-1"
+        ? new Promise((resolve) => {
+            settleCheck = () =>
+              resolve({ variantId, availability: "OUT_OF_STOCK" });
+          })
+        : Promise.resolve({ variantId, availability: "IN_STOCK" }),
+    );
+    renderPage();
+
+    expect(
+      await screen.findByTestId("cartCheckingAvailability"),
+    ).toHaveTextContent("Checking availability…");
+    expect(
+      screen.getByRole("region", { name: "Order summary" }),
+    ).toHaveAttribute("aria-busy", "true");
+    expect(screen.queryByTestId("cartSubtotal")).toBeNull();
+    expect(screen.queryByTestId("cartEstimatedTotal")).toBeNull();
+
+    settleCheck();
+
+    expect(await screen.findByTestId("cartSubtotal")).toHaveTextContent(
+      "$19.99",
+    );
+    expect(screen.queryByTestId("cartCheckingAvailability")).toBeNull();
+  });
+
+  it("does not let a line's quantity go up while its stock check is pending", async () => {
+    mockedGetCurrent.mockResolvedValue(cartOf(line(3, 119.99)));
+    let settleCheck = () => {};
+    mockedAvailability.mockImplementation(
+      (variantId) =>
+        new Promise((resolve) => {
+          settleCheck = () => resolve({ variantId, availability: "IN_STOCK" });
+        }),
+    );
+    mockedUpdate.mockResolvedValue(cartOf(line(2, 119.99)));
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByTestId("cartCheckingAvailability");
+    expect(screen.getByTestId("increaseQuantity")).toBeDisabled();
+    const input = screen.getByTestId("lineQuantityInput");
+    await user.clear(input);
+    await user.type(input, "5{Enter}");
+    expect(mockedUpdate).not.toHaveBeenCalled();
+    expect(input).toHaveValue(3);
+
+    await user.click(screen.getByTestId("decreaseQuantity"));
+    expect(mockedUpdate).toHaveBeenCalledWith("cart-1", "line-1", 2);
+
+    settleCheck();
+    await screen.findByTestId("cartSubtotal");
+    expect(screen.getByTestId("increaseQuantity")).toBeEnabled();
+  });
+
+  it("shows the totals and allows + once a stock check has failed", async () => {
+    mockedGetCurrent.mockResolvedValue(cartOf(line(2, 119.99)));
+    mockedAvailability.mockRejectedValue(
+      new ApiError("Variant not found", 404),
+    );
+    // The app's default retries: the failed check must not wait out their backoff
+    renderPage(new QueryClient());
+
+    expect(await screen.findByTestId("cartSubtotal")).toHaveTextContent(
+      "$239.98",
+    );
+    expect(screen.getByTestId("increaseQuantity")).toBeEnabled();
+    expect(mockedAvailability).toHaveBeenCalledTimes(1);
+  });
+
   it("shows each line and the totals to 2 decimals", async () => {
     mockedGetCurrent.mockResolvedValue(cartOf(line(2, 119.99)));
     renderPage();
 
-    const row = await screen.findByTestId("cartLineItem");
+    // The totals show once the line's stock check has settled (PIN-328)
+    expect(await screen.findByTestId("cartSubtotal")).toHaveTextContent(
+      "$239.98",
+    );
+    const row = screen.getByTestId("cartLineItem");
     expect(within(row).getByTestId("lineName")).toHaveTextContent("Gadget Pro");
     expect(within(row).getByTestId("lineUnitPrice")).toHaveTextContent(
       "$119.99 each",
@@ -262,8 +348,9 @@ describe("CartPage", () => {
     const user = userEvent.setup();
     renderPage();
 
+    await stockChecksSettled();
     await user.click(
-      await screen.findByRole("button", {
+      screen.getByRole("button", {
         name: "Increase quantity of Gadget Pro (Black)",
       }),
     );
@@ -285,7 +372,8 @@ describe("CartPage", () => {
     const user = userEvent.setup();
     renderPage();
 
-    const input = await screen.findByTestId("lineQuantityInput");
+    await stockChecksSettled();
+    const input = screen.getByTestId("lineQuantityInput");
     await user.clear(input);
     await user.type(input, "11{Enter}");
 
@@ -344,8 +432,9 @@ describe("CartPage", () => {
     const user = userEvent.setup();
     renderPage();
 
+    await stockChecksSettled();
     await user.click(
-      await screen.findByRole("button", {
+      screen.getByRole("button", {
         name: "Increase quantity of Gadget Pro (Black)",
       }),
     );
@@ -365,8 +454,9 @@ describe("CartPage", () => {
     const user = userEvent.setup();
     renderPage();
 
+    await stockChecksSettled();
     await user.click(
-      await screen.findByRole("button", {
+      screen.getByRole("button", {
         name: "Increase quantity of Gadget Pro (Black)",
       }),
     );
@@ -391,8 +481,9 @@ describe("CartPage", () => {
     const user = userEvent.setup();
     renderPage();
 
+    await stockChecksSettled();
     await user.click(
-      await screen.findByRole("button", {
+      screen.getByRole("button", {
         name: "Increase quantity of Gadget Pro (Black)",
       }),
     );
@@ -412,8 +503,9 @@ describe("CartPage", () => {
     const user = userEvent.setup();
     renderPage();
 
+    await stockChecksSettled();
     await user.click(
-      await screen.findByRole("button", {
+      screen.getByRole("button", {
         name: "Increase quantity of Gadget Pro (Black)",
       }),
     );
