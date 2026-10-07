@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
 import { useVariantSelection } from "./useVariantSelection";
 import { trackVariantSelected } from "@/services/analytics";
+import { inventoryApi } from "@/services/api";
 import type { ProductDetail } from "@/services/api";
 
 vi.mock("@/services/api", () => ({
@@ -170,6 +171,25 @@ describe("useVariantSelection", () => {
     });
     expect(result.current.selectedVariantId).toBe("var-2");
     expect(result.current.selectedVariant?.sku).toBe("ACME-GP-WHT");
+  });
+
+  it("doesn't retry a failed stock check, so a cart that joins it isn't held back (PIN-352)", async () => {
+    vi.mocked(inventoryApi.getAvailability).mockRejectedValueOnce(
+      new Error("Inventory service unavailable"),
+    );
+    // The app's default retries: the check must fail on its first attempt
+    const queryClient = new QueryClient();
+    const { result } = renderHook(() => useVariantSelection(makeProduct()), {
+      wrapper: ({ children }: { children: React.ReactNode }) =>
+        React.createElement(
+          QueryClientProvider,
+          { client: queryClient },
+          children,
+        ),
+    });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(inventoryApi.getAvailability).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -52,6 +52,8 @@ export function useVariantSelection(
     queryKey: availabilityQueryKey(selectedVariantId),
     queryFn: () => inventoryApi.getAvailability(selectedVariantId!),
     enabled: !!selectedVariantId,
+    // A cart that opens mid-check joins this run and its retries, so don't retry (PIN-352)
+    retry: false,
   });
 
   const priceQuery = useQuery({
