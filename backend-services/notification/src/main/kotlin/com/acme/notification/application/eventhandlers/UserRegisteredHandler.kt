@@ -80,14 +80,6 @@ class UserRegisteredHandler(
                 )
             }
 
-            is SendVerificationEmailResult.AlreadySent -> {
-                logger.info(
-                    "Verification email already sent for user {}, notification ID: {}",
-                    event.payload.userId,
-                    result.notificationId
-                )
-            }
-
             is SendVerificationEmailResult.Failure -> {
                 logger.error(
                     "Failed to send verification email to {} for user {}: {}",

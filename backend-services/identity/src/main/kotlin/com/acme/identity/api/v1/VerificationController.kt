@@ -56,7 +56,8 @@ class VerificationController(
      *
      * @param token The verification token from the email link; missing if the link was truncated.
      * @param correlationId Optional correlation ID for distributed tracing.
-     * @return 302 Redirect to the sign-in page, with the outcome in the query string.
+     * @return 302 Redirect with the outcome in the query string: to the resend page for an expired,
+     *   invalid or missing token, otherwise to the sign-in page.
      */
     @GetMapping("/verify")
     fun verifyEmail(
@@ -65,7 +66,7 @@ class VerificationController(
     ): ResponseEntity<Void> {
         if (token.isNullOrBlank()) {
             logger.info("Verification failed: missing token")
-            return redirectTo("$frontendBaseUrl/signin?verify_error=invalid")
+            return redirectTo("$frontendBaseUrl/verify/resend?error=invalid")
         }
 
         val corrId = correlationId?.let {
@@ -88,11 +89,11 @@ class VerificationController(
                 when (error) {
                     is VerificationError.ExpiredToken -> {
                         logger.info("Verification failed: expired token")
-                        redirectTo("$frontendBaseUrl/signin?verify_error=expired")
+                        redirectTo("$frontendBaseUrl/verify/resend?error=expired")
                     }
                     is VerificationError.InvalidToken -> {
                         logger.info("Verification failed: invalid token")
-                        redirectTo("$frontendBaseUrl/signin?verify_error=invalid")
+                        redirectTo("$frontendBaseUrl/verify/resend?error=invalid")
                     }
                     is VerificationError.AlreadyVerified -> {
                         logger.info("Verification attempt for already-verified user")

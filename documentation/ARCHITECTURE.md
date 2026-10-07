@@ -673,14 +673,19 @@ The verification email links straight to identity: the notification service buil
 `/api/v1/users/verify` (`http://localhost:10300/api/v1/users/verify` locally).
 
 `GET /api/v1/users/verify?token=…` (`VerificationController`) verifies the address on the
-server, then answers with a redirect to the customer app's sign-in page:
-`/signin?verified=true`, `/signin?already_verified=true`, or `/signin?verify_error=expired|invalid|error`.
-A missing token counts as `invalid`. An `InternalError` from the use case, or an exception it throws,
-becomes `error` (logged with the correlation id), so the browser never gets a JSON error page.
-`routes/signin.tsx` shows a notice for each, and ignores a value it doesn't know. For an expired or
-invalid link, the notice asks the user to sign in, where an unverified account gets the resend option
-(`InactiveAccountMessage`); for `error` it asks them to try the link again (PIN-333).
-The base comes from `identity.frontend.base-url` (`FRONTEND_BASE_URL`), which defaults to
+server, then answers with a redirect to the customer app:
+- success: `/signin?verified=true` or `/signin?already_verified=true`;
+- an expired, invalid or missing token: `/verify/resend?error=expired|invalid`;
+- an `InternalError` from the use case, or an exception it throws (logged with the correlation id):
+  `/signin?verify_error=error`, so the browser never gets a JSON error page.
+
+`routes/signin.tsx` shows a notice for the sign-in cases. `routes/verify.resend.tsx` explains the
+expired or invalid link and takes just an email, posting it to `POST /api/v1/users/verify/resend`
+(rate limited to 3 an hour, same answer whether or not the account exists), so a customer who has
+forgotten their password can still get a new link (PIN-333, PIN-346). Both pages ignore a search
+value they don't know rather than failing validation.
+
+The redirect base comes from `identity.frontend.base-url` (`FRONTEND_BASE_URL`), which defaults to
 production's `https://www.acme.com`. `docker-compose.apps.yml` sets it to
 `http://localhost:7600` for the local stack (PIN-332), so a link followed locally goes to the
 local app.
@@ -688,6 +693,11 @@ local app.
 Code that calls verify outside a browser, such as acceptance-test setup steps, must not
 follow the redirect (`redirect: 'manual'`): the verification is already done, and following
 it to an unreachable base used to hang until the step timed out.
+
+A resend reaches the customer as a new `UserRegistered` event with a new token. The notification
+service sends one verification email per event: `UserRegisteredHandler` skips an event id it has
+already processed, and `SendVerificationEmailUseCase` has no once-per-user check, so every resend
+sends (PIN-346). The welcome email keeps its once-per-customer check.
 
 ### CORS and Browser-Facing Backend URLs
 

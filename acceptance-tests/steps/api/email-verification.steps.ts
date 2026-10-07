@@ -206,21 +206,34 @@ When(
   }
 );
 
+/** Asserts identity's verify redirect went to `path`, with `param` ("name=value") in its query. */
+function expectRedirect(location: string | undefined, path: RegExp, param: string): void {
+  expect(location).toBeDefined();
+  // Compare the parsed parameter, not a substring: "verified=true" is inside
+  // "already_verified=true".
+  const url = new URL(location!);
+  const [name, value] = param.split('=');
+  expect(url.pathname).toMatch(path);
+  expect(url.searchParams.get(name)).toBe(value);
+}
+
 Then(
   'I should be redirected to the sign-in page with {string}',
   async function (this: CustomWorld, expectedParam: string) {
     const response = this.getTestData<ApiResponse>('lastResponse');
     expect(response).toBeDefined();
+    expectRedirect(this.getTestData<string>('redirectLocation'), /\/signin$/, expectedParam);
+  }
+);
 
-    // Check for redirect status or follow redirect
-    const location = this.getTestData<string>('redirectLocation');
-    expect(location).toBeDefined();
-    // Compare the parsed parameter, not a substring: "verified=true" is inside
-    // "already_verified=true".
-    const url = new URL(location!);
-    const [name, value] = expectedParam.split('=');
-    expect(url.pathname).toMatch(/\/signin$/);
-    expect(url.searchParams.get(name)).toBe(value);
+Then(
+  'I should be redirected to the resend verification page with {string}',
+  async function (this: CustomWorld, expectedParam: string) {
+    expectRedirect(
+      this.getTestData<string>('redirectLocation'),
+      /\/verify\/resend$/,
+      expectedParam
+    );
   }
 );
 

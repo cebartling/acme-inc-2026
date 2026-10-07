@@ -1,6 +1,5 @@
 package com.acme.notification.application
 
-import com.acme.notification.domain.NotificationDelivery
 import com.acme.notification.domain.NotificationType
 import com.acme.notification.infrastructure.email.EmailSendResult
 import com.acme.notification.infrastructure.email.SendGridEmailSender
@@ -42,7 +41,6 @@ class SendVerificationEmailUseCaseTest {
         val firstName = "John"
         val verificationToken = "test-token-123"
 
-        every { deliveryRepository.existsByRecipientIdAndNotificationType(userId, NotificationType.EMAIL_VERIFICATION) } returns false
         every { deliveryRepository.save(any()) } answers { firstArg() }
         every { emailSender.sendVerificationEmail(email, firstName, verificationToken, correlationId.toString()) } returns
                 EmailSendResult.Success("sg-msg-123", 202)
@@ -64,31 +62,28 @@ class SendVerificationEmailUseCaseTest {
     }
 
     @Test
-    fun `should return AlreadySent when email was already sent for user`() {
+    fun `should send again when the user was already sent a verification email`() {
+        // A resend from identity is a new event with a new token, and must not be skipped (PIN-346)
         val userId = UUID.randomUUID()
         val correlationId = UUID.randomUUID()
-        val existingDelivery = NotificationDelivery(
-            id = UUID.randomUUID(),
-            notificationType = NotificationType.EMAIL_VERIFICATION,
-            recipientId = userId,
-            recipientEmail = "user@example.com"
-        )
+        val email = "user@example.com"
 
         every { deliveryRepository.existsByRecipientIdAndNotificationType(userId, NotificationType.EMAIL_VERIFICATION) } returns true
-        every { deliveryRepository.findByRecipientId(userId) } returns listOf(existingDelivery)
+        every { deliveryRepository.save(any()) } answers { firstArg() }
+        every { emailSender.sendVerificationEmail(email, "John", "resent-token", correlationId.toString()) } returns
+                EmailSendResult.Success("sg-msg-456", 202)
 
         val result = useCase.execute(
             userId = userId,
-            email = "user@example.com",
+            email = email,
             firstName = "John",
-            verificationToken = "test-token",
+            verificationToken = "resent-token",
             correlationId = correlationId
         )
 
-        assertTrue(result is SendVerificationEmailResult.AlreadySent)
-
-        verify(exactly = 0) { emailSender.sendVerificationEmail(any(), any(), any(), any()) }
-        verify(exactly = 0) { eventPublisher.publish(any()) }
+        assertTrue(result is SendVerificationEmailResult.Success)
+        verify(exactly = 1) { emailSender.sendVerificationEmail(email, "John", "resent-token", correlationId.toString()) }
+        verify { eventPublisher.publish(any()) }
     }
 
     @Test
@@ -99,7 +94,6 @@ class SendVerificationEmailUseCaseTest {
         val firstName = "John"
         val verificationToken = "test-token"
 
-        every { deliveryRepository.existsByRecipientIdAndNotificationType(userId, NotificationType.EMAIL_VERIFICATION) } returns false
         every { deliveryRepository.save(any()) } answers { firstArg() }
         every { emailSender.sendVerificationEmail(email, firstName, verificationToken, correlationId.toString()) } returns
                 EmailSendResult.Failure("SendGrid returned 500", 500)
@@ -125,7 +119,6 @@ class SendVerificationEmailUseCaseTest {
         val userId = UUID.randomUUID()
         val correlationId = UUID.randomUUID()
 
-        every { deliveryRepository.existsByRecipientIdAndNotificationType(userId, NotificationType.EMAIL_VERIFICATION) } returns false
         every { deliveryRepository.save(any()) } answers { firstArg() }
         every { emailSender.sendVerificationEmail(any(), any(), any(), any()) } throws RuntimeException("Network error")
 

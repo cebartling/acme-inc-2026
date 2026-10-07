@@ -95,16 +95,12 @@ const signinSearchSchema = z.object({
   // the whole sign-in page with the router's error boundary.
   verified: z.boolean().optional().catch(undefined),
   already_verified: z.boolean().optional().catch(undefined),
-  verify_error: z
-    .enum(["expired", "invalid", "error"])
-    .optional()
-    .catch(undefined),
+  // Expired and invalid links go to /verify/resend instead (PIN-346).
+  verify_error: z.enum(["error"]).optional().catch(undefined),
 });
 
 /**
  * Maps identity's email verification redirect to a notice, if there is one.
- * Failures point the user at sign-in, where an unverified account can
- * request a new link.
  */
 function verificationNoticeFor(
   search: z.infer<typeof signinSearchSchema>,
@@ -119,18 +115,6 @@ function verificationNoticeFor(
     return {
       success: true,
       message: "Your email is already verified. Sign in to continue.",
-    };
-  }
-  if (search.verify_error === "expired") {
-    return {
-      success: false,
-      message: "That verification link has expired. Sign in to get a new one.",
-    };
-  }
-  if (search.verify_error === "invalid") {
-    return {
-      success: false,
-      message: "That verification link isn't valid. Sign in to get a new one.",
     };
   }
   if (search.verify_error === "error") {

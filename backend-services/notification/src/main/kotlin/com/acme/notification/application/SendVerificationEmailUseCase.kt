@@ -35,24 +35,20 @@ sealed class SendVerificationEmailResult {
         val message: String,
         val cause: Throwable? = null
     ) : SendVerificationEmailResult()
-
-    /**
-     * Email was already sent (idempotency).
-     */
-    data class AlreadySent(
-        val notificationId: UUID
-    ) : SendVerificationEmailResult()
 }
 
 /**
  * Use case for sending verification emails.
  *
  * Orchestrates the process of:
- * - Checking if email was already sent (idempotency)
  * - Rendering the email template
  * - Sending via SendGrid
  * - Recording delivery status
  * - Publishing NotificationSent event
+ *
+ * There is deliberately no once-per-user check: a resend from identity is a new
+ * UserRegistered event with a new token, and must send again (PIN-346).
+ * Redelivery of the same event is stopped by UserRegisteredHandler's per-event check.
  */
 @Service
 class SendVerificationEmailUseCase(
@@ -105,14 +101,6 @@ class SendVerificationEmailUseCase(
         correlationId: UUID
     ): SendVerificationEmailResult {
         try {
-            // Check if verification email was already sent for this user
-            if (deliveryRepository.existsByRecipientIdAndNotificationType(userId, NotificationType.EMAIL_VERIFICATION)) {
-                logger.info("Verification email already sent for user {}, skipping", userId)
-                val existing = deliveryRepository.findByRecipientId(userId)
-                    .firstOrNull { it.notificationType == NotificationType.EMAIL_VERIFICATION }
-                return SendVerificationEmailResult.AlreadySent(existing?.id ?: userId)
-            }
-
             // Create delivery record
             val notificationId = UUID.randomUUID()
             val delivery = NotificationDelivery(

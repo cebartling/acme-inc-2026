@@ -102,7 +102,7 @@ class VerificationControllerIntegrationTest {
     }
 
     @Test
-    fun `GET verify with expired token should redirect to sign-in with error`() {
+    fun `GET verify with expired token should redirect to the resend page with error`() {
         // Given
         val user = createAndSavePendingUser()
         val token = createAndSaveExpiredToken(user.id)
@@ -110,7 +110,7 @@ class VerificationControllerIntegrationTest {
         // When/Then
         mockMvc.perform(get("/api/v1/users/verify").param("token", token.token))
             .andExpect(status().isFound)
-            .andExpect(header().string("Location", "https://www.acme.com/signin?verify_error=expired"))
+            .andExpect(header().string("Location", "https://www.acme.com/verify/resend?error=expired"))
 
         // Verify user is still pending
         val updatedUser = userRepository.findById(user.id).get()
@@ -118,19 +118,19 @@ class VerificationControllerIntegrationTest {
     }
 
     @Test
-    fun `GET verify with invalid token should redirect to sign-in with error`() {
+    fun `GET verify with invalid token should redirect to the resend page with error`() {
         // When/Then
         mockMvc.perform(get("/api/v1/users/verify").param("token", "invalid-token-xyz"))
             .andExpect(status().isFound)
-            .andExpect(header().string("Location", "https://www.acme.com/signin?verify_error=invalid"))
+            .andExpect(header().string("Location", "https://www.acme.com/verify/resend?error=invalid"))
     }
 
     @Test
-    fun `GET verify without a token should redirect to sign-in with error`() {
+    fun `GET verify without a token should redirect to the resend page with error`() {
         // When/Then: a truncated email link redirects instead of answering with 500 JSON
         mockMvc.perform(get("/api/v1/users/verify"))
             .andExpect(status().isFound)
-            .andExpect(header().string("Location", "https://www.acme.com/signin?verify_error=invalid"))
+            .andExpect(header().string("Location", "https://www.acme.com/verify/resend?error=invalid"))
     }
 
     @Test
