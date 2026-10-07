@@ -77,7 +77,8 @@ export function CartPage() {
 /**
  * The cart's variants that are out of stock now (US-0004-10 AC-05), and those whose check has
  * no answer yet (PIN-328). One availability check per variant, with the product page's query
- * options so the two share a cache. A check that fails, e.g. a 404 for a variant that is gone,
+ * options so the two share a cache; an answer cached there still waits for the cart's own
+ * check (PIN-350). A check that fails, e.g. a 404 for a variant that is gone,
  * flags nothing: the cart's own errors cover that case. The first failure ends the wait, so it
  * doesn't hold back the totals and + through the retries' backoff. A check that stalls times out
  * (PIN-349), and one paused while the browser is offline doesn't hold anything back either.
@@ -100,11 +101,16 @@ function useStockChecks(variantIds: string[]): {
         (_, i) => results[i]?.data?.availability === "OUT_OF_STOCK",
       ),
     ),
-    // isLoading: no answer yet and actually fetching, so not a check paused offline (PIN-349).
-    // A failure ends the wait even when the product page's check, joined mid-run, retries (PIN-352)
+    // Fetching and no answer since the page mounted: a cached answer from the product page waits
+    // for the cart's own check (PIN-350), a later refetch doesn't, and a check paused offline isn't
+    // fetching (PIN-349). A failure ends the wait even when the product page's check, joined
+    // mid-run, retries (PIN-352)
     pending: new Set(
       uniqueIds.filter(
-        (_, i) => results[i]?.isLoading && results[i].failureCount === 0,
+        (_, i) =>
+          results[i]?.isFetching &&
+          !results[i].isFetchedAfterMount &&
+          results[i].failureCount === 0,
       ),
     ),
   };

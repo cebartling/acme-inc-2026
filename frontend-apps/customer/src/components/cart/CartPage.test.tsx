@@ -348,6 +348,70 @@ describe("CartPage", () => {
     }
   });
 
+  it("holds back the totals and + while an answer cached by the product page is refetched (PIN-350)", async () => {
+    const inStock = { ...line(1, 19.99), id: "line-2", variantId: "variant-2" };
+    mockedGetCurrent.mockResolvedValue(cartOf(line(2, 119.99), inStock));
+    let settleCheck = () => {};
+    mockedAvailability.mockImplementation((variantId) =>
+      variantId === "variant-1"
+        ? new Promise((resolve) => {
+            settleCheck = () =>
+              resolve({ variantId, availability: "OUT_OF_STOCK" });
+          })
+        : Promise.resolve({ variantId, availability: "IN_STOCK" }),
+    );
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: 0 } },
+    });
+    // The product page's answer, now stale
+    queryClient.setQueryData(availabilityQueryOptions("variant-1").queryKey, {
+      variantId: "variant-1",
+      availability: "IN_STOCK",
+    });
+    renderPage(queryClient);
+
+    expect(
+      await screen.findByTestId("cartCheckingAvailability"),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("cartSubtotal")).toBeNull();
+    expect(screen.getAllByTestId("increaseQuantity")[0]).toBeDisabled();
+
+    settleCheck();
+
+    expect(await screen.findByTestId("cartSubtotal")).toHaveTextContent(
+      "$19.99",
+    );
+  });
+
+  it("keeps the totals while a stock check that has answered refetches", async () => {
+    mockedGetCurrent.mockResolvedValue(cartOf(line(2, 119.99)));
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: 0 } },
+    });
+    renderPage(queryClient);
+    expect(await screen.findByTestId("cartSubtotal")).toHaveTextContent(
+      "$239.98",
+    );
+
+    let settleCheck = () => {};
+    mockedAvailability.mockImplementation(
+      (variantId) =>
+        new Promise((resolve) => {
+          settleCheck = () => resolve({ variantId, availability: "IN_STOCK" });
+        }),
+    );
+    // e.g. the window regaining focus
+    void queryClient.refetchQueries({
+      queryKey: availabilityQueryOptions("variant-1").queryKey,
+    });
+    await vi.waitFor(() => expect(mockedAvailability).toHaveBeenCalledTimes(2));
+
+    expect(screen.getByTestId("cartSubtotal")).toHaveTextContent("$239.98");
+    expect(screen.queryByTestId("cartCheckingAvailability")).toBeNull();
+    expect(screen.getByTestId("increaseQuantity")).toBeEnabled();
+    await act(async () => settleCheck());
+  });
+
   it("shows the totals and allows + while offline, when no stock check can run (PIN-349)", async () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: 0 } },
