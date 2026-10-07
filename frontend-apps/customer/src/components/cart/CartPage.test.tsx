@@ -9,6 +9,7 @@ import {
 } from "@tanstack/react-query";
 import { CartPage } from "./CartPage";
 import { CART_QUERY_KEY } from "@/hooks/useCart";
+import { availabilityQueryOptions } from "@/hooks/useVariantSelection";
 import type { Cart, CartItem } from "@/services/api";
 import { ApiError, cartApi, inventoryApi } from "@/services/api";
 
@@ -316,6 +317,35 @@ describe("CartPage", () => {
     );
     expect(screen.getByTestId("increaseQuantity")).toBeEnabled();
     expect(mockedAvailability).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the totals and allows + while a check the product page started is retrying (PIN-352)", async () => {
+    mockedGetCurrent.mockResolvedValue(cartOf(line(2, 119.99)));
+    mockedAvailability.mockRejectedValue(
+      new ApiError("Service unavailable", 503),
+    );
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: 0 } },
+    });
+    // The product page's check, with its retries, is still running when the cart opens
+    void queryClient.prefetchQuery({
+      ...availabilityQueryOptions("variant-1"),
+      retry: 3,
+      retryDelay: 60_000,
+    });
+    try {
+      renderPage(queryClient);
+
+      expect(await screen.findByTestId("cartSubtotal")).toHaveTextContent(
+        "$239.98",
+      );
+      expect(screen.getByTestId("increaseQuantity")).toBeEnabled();
+      expect(mockedAvailability).toHaveBeenCalledTimes(1);
+    } finally {
+      // Unmount first, then stop the check waiting out its retry delay
+      cleanup();
+      await queryClient.cancelQueries();
+    }
   });
 
   it("shows the totals and allows + while offline, when no stock check can run (PIN-349)", async () => {
