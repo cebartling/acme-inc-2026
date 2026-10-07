@@ -103,3 +103,15 @@ Feature: Customer Signin Form
     And I enter signin password "ValidP@ssw0rd!"
     And I submit the signin form
     Then I should be on the "home" page
+
+  # PIN-333: identity's email verification redirect lands on signin
+  Scenario Outline: Show the email verification outcome after the verify redirect
+    When I open the signin page with "<query>"
+    Then I should see the verification notice "<notice>"
+
+    Examples:
+      | query                 | notice                                                         |
+      | verified=true         | Your email is verified. Sign in to continue.                   |
+      | already_verified=true | Your email is already verified. Sign in to continue.           |
+      | verify_error=expired  | That verification link has expired. Sign in to get a new one. |
+      | verify_error=invalid  | That verification link isn't valid. Sign in to get a new one. |

@@ -84,7 +84,7 @@ class VerificationControllerIntegrationTest {
     // ===== Verify Email Tests =====
 
     @Test
-    fun `GET verify with valid token should redirect to login with success`() {
+    fun `GET verify with valid token should redirect to sign-in with success`() {
         // Given
         val user = createAndSavePendingUser()
         val token = createAndSaveValidToken(user.id)
@@ -92,7 +92,7 @@ class VerificationControllerIntegrationTest {
         // When/Then
         mockMvc.perform(get("/api/v1/users/verify").param("token", token.token))
             .andExpect(status().isFound)
-            .andExpect(header().string("Location", "https://www.acme.com/login?verified=true"))
+            .andExpect(header().string("Location", "https://www.acme.com/signin?verified=true"))
 
         // Verify user is now active
         val updatedUser = userRepository.findById(user.id).get()
@@ -102,7 +102,7 @@ class VerificationControllerIntegrationTest {
     }
 
     @Test
-    fun `GET verify with expired token should redirect to resend page with error`() {
+    fun `GET verify with expired token should redirect to sign-in with error`() {
         // Given
         val user = createAndSavePendingUser()
         val token = createAndSaveExpiredToken(user.id)
@@ -110,7 +110,7 @@ class VerificationControllerIntegrationTest {
         // When/Then
         mockMvc.perform(get("/api/v1/users/verify").param("token", token.token))
             .andExpect(status().isFound)
-            .andExpect(header().string("Location", "https://www.acme.com/verify/resend?error=expired"))
+            .andExpect(header().string("Location", "https://www.acme.com/signin?verify_error=expired"))
 
         // Verify user is still pending
         val updatedUser = userRepository.findById(user.id).get()
@@ -118,15 +118,15 @@ class VerificationControllerIntegrationTest {
     }
 
     @Test
-    fun `GET verify with invalid token should redirect to resend page with error`() {
+    fun `GET verify with invalid token should redirect to sign-in with error`() {
         // When/Then
         mockMvc.perform(get("/api/v1/users/verify").param("token", "invalid-token-xyz"))
             .andExpect(status().isFound)
-            .andExpect(header().string("Location", "https://www.acme.com/verify/resend?error=invalid"))
+            .andExpect(header().string("Location", "https://www.acme.com/signin?verify_error=invalid"))
     }
 
     @Test
-    fun `GET verify with already used token should redirect to login with already verified`() {
+    fun `GET verify with already used token should redirect to sign-in with already verified`() {
         // Given
         val user = createAndSavePendingUser()
         val token = createAndSaveUsedToken(user.id)
@@ -134,11 +134,11 @@ class VerificationControllerIntegrationTest {
         // When/Then
         mockMvc.perform(get("/api/v1/users/verify").param("token", token.token))
             .andExpect(status().isFound)
-            .andExpect(header().string("Location", "https://www.acme.com/login?already_verified=true"))
+            .andExpect(header().string("Location", "https://www.acme.com/signin?already_verified=true"))
     }
 
     @Test
-    fun `GET verify for already verified user should redirect to login`() {
+    fun `GET verify for already verified user should redirect to sign-in`() {
         // Given
         val user = createAndSaveVerifiedUser()
         val token = createAndSaveValidToken(user.id)
@@ -146,7 +146,7 @@ class VerificationControllerIntegrationTest {
         // When/Then
         mockMvc.perform(get("/api/v1/users/verify").param("token", token.token))
             .andExpect(status().isFound)
-            .andExpect(header().string("Location", "https://www.acme.com/login?already_verified=true"))
+            .andExpect(header().string("Location", "https://www.acme.com/signin?already_verified=true"))
     }
 
     // ===== Resend Verification Tests =====

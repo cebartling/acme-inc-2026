@@ -52,7 +52,7 @@ class VerificationController(
      *
      * @param token The verification token from the email link.
      * @param correlationId Optional correlation ID for distributed tracing.
-     * @return 302 Redirect to login page on success, or to resend page on failure.
+     * @return 302 Redirect to the sign-in page, with the outcome in the query string.
      */
     @GetMapping("/verify")
     fun verifyEmail(
@@ -72,25 +72,25 @@ class VerificationController(
                 when (error) {
                     is VerificationError.ExpiredToken -> {
                         logger.info("Verification failed: expired token")
-                        redirectTo("$frontendBaseUrl/verify/resend?error=expired")
+                        redirectTo("$frontendBaseUrl/signin?verify_error=expired")
                     }
                     is VerificationError.InvalidToken -> {
                         logger.info("Verification failed: invalid token")
-                        redirectTo("$frontendBaseUrl/verify/resend?error=invalid")
+                        redirectTo("$frontendBaseUrl/signin?verify_error=invalid")
                     }
                     is VerificationError.AlreadyVerified -> {
                         logger.info("Verification attempt for already-verified user")
-                        redirectTo("$frontendBaseUrl/login?already_verified=true")
+                        redirectTo("$frontendBaseUrl/signin?already_verified=true")
                     }
                     is VerificationError.InternalError -> {
                         logger.error("Verification failed with error: {}", error.message)
-                        redirectTo("$frontendBaseUrl/verify/resend?error=invalid")
+                        redirectTo("$frontendBaseUrl/signin?verify_error=invalid")
                     }
                 }
             },
             ifRight = { success ->
                 logger.info("Email verified successfully for user: {}", success.userId)
-                redirectTo("$frontendBaseUrl/login?verified=true")
+                redirectTo("$frontendBaseUrl/signin?verified=true")
             }
         )
     }

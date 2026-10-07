@@ -14,7 +14,7 @@ Feature: Email Verification API (US-0002-05)
     Given a user has registered with email "verify-valid@example.com"
     And the user has a valid verification token
     When I click the verification link with the token
-    Then I should be redirected to the login page with "verified=true"
+    Then I should be redirected to the sign-in page with "verified=true"
     And the user's email should be marked as verified
     And the user's account status should be "ACTIVE"
 
@@ -26,7 +26,7 @@ Feature: Email Verification API (US-0002-05)
     Given a user has registered with email "verify-expired@example.com"
     And the user has an expired verification token
     When I click the verification link with the token
-    Then I should be redirected to the resend verification page with "error=expired"
+    Then I should be redirected to the sign-in page with "verify_error=expired"
     And the user's account status should still be "PENDING_VERIFICATION"
 
   # AC-0002-05-03: Already Used Token
@@ -36,12 +36,12 @@ Feature: Email Verification API (US-0002-05)
     Given a user has registered with email "verify-used@example.com"
     And the user has already verified their email
     When I click the verification link with an already used token
-    Then I should be redirected to the login page with "already_verified=true"
+    Then I should be redirected to the sign-in page with "already_verified=true"
 
   # AC-0002-05-04: Invalid Token (Security)
   Scenario: Reject verification with invalid token
     When I click the verification link with token "invalid-token-xyz123"
-    Then I should be redirected to the resend verification page with "error=invalid"
+    Then I should be redirected to the sign-in page with "verify_error=invalid"
 
   # AC-0002-05-06: Atomic Event Publishing
   # Note: This scenario requires database access to retrieve the actual verification token

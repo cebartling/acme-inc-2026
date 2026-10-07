@@ -401,3 +401,17 @@ When(
     await signinPage.passwordInput.blur();
   }
 );
+
+// Email verification redirect notices (PIN-333)
+When('I open the signin page with {string}', async function (this: CustomWorld, query: string) {
+  const signinPage = new SigninPage(this.page);
+  await this.page.goto(`${signinPage.url}?${query}`);
+  await this.page.waitForLoadState('networkidle');
+});
+
+Then(
+  'I should see the verification notice {string}',
+  async function (this: CustomWorld, notice: string) {
+    await expect(this.page.getByTestId('verification-notice')).toHaveText(notice);
+  }
+);

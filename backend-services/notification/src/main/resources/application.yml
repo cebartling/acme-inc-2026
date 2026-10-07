@@ -84,7 +84,7 @@ notification:
     verification:
       subject: "Verify your ACME account"
       expiration-hours: 24
-      base-url: ${VERIFICATION_BASE_URL:https://www.acme.com/verify}
+      base-url: ${VERIFICATION_BASE_URL:https://www.acme.com/api/v1/users/verify}
     password-reset:
       subject: "Reset your ACME password"
       expiration-minutes: 60

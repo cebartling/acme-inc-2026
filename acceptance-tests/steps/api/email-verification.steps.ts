@@ -207,7 +207,7 @@ When(
 );
 
 Then(
-  'I should be redirected to the login page with {string}',
+  'I should be redirected to the sign-in page with {string}',
   async function (this: CustomWorld, expectedParam: string) {
     const response = this.getTestData<ApiResponse>('lastResponse');
     expect(response).toBeDefined();
@@ -215,20 +215,7 @@ Then(
     // Check for redirect status or follow redirect
     const location = this.getTestData<string>('redirectLocation');
     expect(location).toBeDefined();
-    expect(location).toContain('/login');
-    expect(location).toContain(expectedParam);
-  }
-);
-
-Then(
-  'I should be redirected to the resend verification page with {string}',
-  async function (this: CustomWorld, expectedParam: string) {
-    const response = this.getTestData<ApiResponse>('lastResponse');
-    expect(response).toBeDefined();
-
-    const location = this.getTestData<string>('redirectLocation');
-    expect(location).toBeDefined();
-    expect(location).toContain('/verify/resend');
+    expect(location).toContain('/signin?');
     expect(location).toContain(expectedParam);
   }
 );
