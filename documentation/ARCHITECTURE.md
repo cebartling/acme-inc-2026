@@ -674,9 +674,12 @@ The verification email links straight to identity: the notification service buil
 
 `GET /api/v1/users/verify?token=…` (`VerificationController`) verifies the address on the
 server, then answers with a redirect to the customer app's sign-in page:
-`/signin?verified=true`, `/signin?already_verified=true`, or `/signin?verify_error=expired|invalid`.
-`routes/signin.tsx` shows a notice for each. For a failure, the notice asks the user to sign in,
-where an unverified account gets the resend option (`InactiveAccountMessage`) (PIN-333).
+`/signin?verified=true`, `/signin?already_verified=true`, or `/signin?verify_error=expired|invalid|error`.
+A missing token counts as `invalid`. An `InternalError` from the use case, or an exception it throws,
+becomes `error` (logged with the correlation id), so the browser never gets a JSON error page.
+`routes/signin.tsx` shows a notice for each, and ignores a value it doesn't know. For an expired or
+invalid link, the notice asks the user to sign in, where an unverified account gets the resend option
+(`InactiveAccountMessage`); for `error` it asks them to try the link again (PIN-333).
 The base comes from `identity.frontend.base-url` (`FRONTEND_BASE_URL`), which defaults to
 production's `https://www.acme.com`. `docker-compose.apps.yml` sets it to
 `http://localhost:7600` for the local stack (PIN-332), so a link followed locally goes to the

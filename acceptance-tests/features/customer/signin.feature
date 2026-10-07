@@ -110,8 +110,9 @@ Feature: Customer Signin Form
     Then I should see the verification notice "<notice>"
 
     Examples:
-      | query                 | notice                                                         |
-      | verified=true         | Your email is verified. Sign in to continue.                   |
-      | already_verified=true | Your email is already verified. Sign in to continue.           |
-      | verify_error=expired  | That verification link has expired. Sign in to get a new one. |
-      | verify_error=invalid  | That verification link isn't valid. Sign in to get a new one. |
+      | query                 | notice                                                                       |
+      | verified=true         | Your email is verified. Sign in to continue.                                 |
+      | already_verified=true | Your email is already verified. Sign in to continue.                         |
+      | verify_error=expired  | That verification link has expired. Sign in to get a new one.                |
+      | verify_error=invalid  | That verification link isn't valid. Sign in to get a new one.                |
+      | verify_error=error    | We couldn't verify your email just now. Try the link again in a few minutes. |

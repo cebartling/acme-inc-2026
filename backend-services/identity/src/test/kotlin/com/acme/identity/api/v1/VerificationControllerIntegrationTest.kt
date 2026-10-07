@@ -126,6 +126,14 @@ class VerificationControllerIntegrationTest {
     }
 
     @Test
+    fun `GET verify without a token should redirect to sign-in with error`() {
+        // When/Then: a truncated email link redirects instead of answering with 500 JSON
+        mockMvc.perform(get("/api/v1/users/verify"))
+            .andExpect(status().isFound)
+            .andExpect(header().string("Location", "https://www.acme.com/signin?verify_error=invalid"))
+    }
+
+    @Test
     fun `GET verify with already used token should redirect to sign-in with already verified`() {
         // Given
         val user = createAndSavePendingUser()

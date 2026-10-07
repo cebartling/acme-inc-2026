@@ -95,7 +95,10 @@ const signinSearchSchema = z.object({
   // the whole sign-in page with the router's error boundary.
   verified: z.boolean().optional().catch(undefined),
   already_verified: z.boolean().optional().catch(undefined),
-  verify_error: z.enum(["expired", "invalid"]).optional().catch(undefined),
+  verify_error: z
+    .enum(["expired", "invalid", "error"])
+    .optional()
+    .catch(undefined),
 });
 
 /**
@@ -128,6 +131,13 @@ function verificationNoticeFor(
     return {
       success: false,
       message: "That verification link isn't valid. Sign in to get a new one.",
+    };
+  }
+  if (search.verify_error === "error") {
+    return {
+      success: false,
+      message:
+        "We couldn't verify your email just now. Try the link again in a few minutes.",
     };
   }
   return undefined;

@@ -50,15 +50,24 @@ class VerificationController(
      * in their email. It validates the token and redirects to the appropriate
      * frontend page based on the result.
      *
-     * @param token The verification token from the email link.
+     * The email link opens this endpoint in the user's browser, so every outcome,
+     * including a missing token or an unexpected exception, is a redirect rather
+     * than a JSON error.
+     *
+     * @param token The verification token from the email link; missing if the link was truncated.
      * @param correlationId Optional correlation ID for distributed tracing.
      * @return 302 Redirect to the sign-in page, with the outcome in the query string.
      */
     @GetMapping("/verify")
     fun verifyEmail(
-        @RequestParam("token") token: String,
+        @RequestParam("token", required = false) token: String?,
         @RequestHeader("X-Correlation-ID", required = false) correlationId: String?
     ): ResponseEntity<Void> {
+        if (token.isNullOrBlank()) {
+            logger.info("Verification failed: missing token")
+            return redirectTo("$frontendBaseUrl/signin?verify_error=invalid")
+        }
+
         val corrId = correlationId?.let {
             try {
                 UUID.fromString(it)
@@ -67,7 +76,14 @@ class VerificationController(
             }
         } ?: UUID.randomUUID()
 
-        return verifyEmailUseCase.execute(token, corrId).fold(
+        val result = try {
+            verifyEmailUseCase.execute(token, corrId)
+        } catch (e: Exception) {
+            logger.error("Verification failed with an unexpected exception, correlationId: {}", corrId, e)
+            return redirectTo("$frontendBaseUrl/signin?verify_error=error")
+        }
+
+        return result.fold(
             ifLeft = { error ->
                 when (error) {
                     is VerificationError.ExpiredToken -> {
@@ -84,7 +100,7 @@ class VerificationController(
                     }
                     is VerificationError.InternalError -> {
                         logger.error("Verification failed with error: {}", error.message)
-                        redirectTo("$frontendBaseUrl/signin?verify_error=invalid")
+                        redirectTo("$frontendBaseUrl/signin?verify_error=error")
                     }
                 }
             },
