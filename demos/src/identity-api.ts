@@ -55,8 +55,8 @@ export async function registerAndVerifyUser(
   }
   const { token } = (await tokenRes.json()) as { token: string };
 
-  // The verify endpoint ALWAYS returns 302 — success goes to /login?verified=true
-  // or /login?already_verified=true; failures go to /verify/resend?error=…. We
+  // The verify endpoint ALWAYS returns 302 — success goes to /signin?verified=true
+  // or /signin?already_verified=true; failures go to /signin?verify_error=…. We
   // must inspect the Location header to tell the cases apart.
   const verifyRes = await fetch(
     `${config.identityApiUrl}/api/v1/users/verify?token=${encodeURIComponent(token)}`,

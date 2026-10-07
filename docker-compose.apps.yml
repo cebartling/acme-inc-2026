@@ -250,7 +250,7 @@ services:
       # Email configuration
       EMAIL_FROM_ADDRESS: ${EMAIL_FROM_ADDRESS:-noreply@acme.com}
       EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-ACME}
-      VERIFICATION_BASE_URL: ${VERIFICATION_BASE_URL:-http://localhost:7600/verify}
+      VERIFICATION_BASE_URL: ${VERIFICATION_BASE_URL:-http://localhost:10300/api/v1/users/verify}
       SUPPORT_EMAIL: ${SUPPORT_EMAIL:-support@acme.com}
       COMPANY_NAME: ${COMPANY_NAME:-ACME Inc.}
 

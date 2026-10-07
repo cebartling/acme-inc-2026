@@ -90,7 +90,58 @@ const signinSearchSchema = z.object({
       message: "Invalid redirect URL",
     }),
   logout: z.boolean().optional(),
+  // Outcome of identity's email verification redirect (PIN-333). An unknown
+  // value is dropped rather than rejected: validateSearch throwing would replace
+  // the whole sign-in page with the router's error boundary.
+  verified: z.boolean().optional().catch(undefined),
+  already_verified: z.boolean().optional().catch(undefined),
+  verify_error: z
+    .enum(["expired", "invalid", "error"])
+    .optional()
+    .catch(undefined),
 });
+
+/**
+ * Maps identity's email verification redirect to a notice, if there is one.
+ * Failures point the user at sign-in, where an unverified account can
+ * request a new link.
+ */
+function verificationNoticeFor(
+  search: z.infer<typeof signinSearchSchema>,
+): { success: boolean; message: string } | undefined {
+  if (search.verified === true) {
+    return {
+      success: true,
+      message: "Your email is verified. Sign in to continue.",
+    };
+  }
+  if (search.already_verified === true) {
+    return {
+      success: true,
+      message: "Your email is already verified. Sign in to continue.",
+    };
+  }
+  if (search.verify_error === "expired") {
+    return {
+      success: false,
+      message: "That verification link has expired. Sign in to get a new one.",
+    };
+  }
+  if (search.verify_error === "invalid") {
+    return {
+      success: false,
+      message: "That verification link isn't valid. Sign in to get a new one.",
+    };
+  }
+  if (search.verify_error === "error") {
+    return {
+      success: false,
+      message:
+        "We couldn't verify your email just now. Try the link again in a few minutes.",
+    };
+  }
+  return undefined;
+}
 
 export const Route = createFileRoute("/signin")({
   component: SigninPage,
@@ -110,6 +161,9 @@ function SigninPage() {
   // Show logout message if redirected after logout
   const logoutMessage =
     search.logout === true ? "You have been signed out." : undefined;
+
+  // Show the email verification outcome if identity redirected here
+  const verificationNotice = verificationNoticeFor(search);
 
   /**
    * Formats remaining seconds as "Xm Ys" or "Xs" for display.
@@ -327,6 +381,21 @@ function SigninPage() {
             aria-live="polite"
           >
             {logoutMessage}
+          </div>
+        )}
+
+        {verificationNotice && (
+          <div
+            className={
+              verificationNotice.success
+                ? "mb-6 p-3 text-sm text-green-600 bg-green-50 dark:bg-green-950/50 border border-green-200 dark:border-green-800 rounded-md"
+                : "mb-6 p-3 text-sm text-amber-700 bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 rounded-md"
+            }
+            role="status"
+            aria-live="polite"
+            data-testid="verification-notice"
+          >
+            {verificationNotice.message}
           </div>
         )}
 

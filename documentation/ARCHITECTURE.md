@@ -668,14 +668,22 @@ Device trust allows users to bypass MFA for 30 days on trusted devices, improvin
 
 ### Email Verification Redirects
 
+The verification email links straight to identity: the notification service builds
+`${VERIFICATION_BASE_URL}?token=…`, and `VERIFICATION_BASE_URL` is identity's
+`/api/v1/users/verify` (`http://localhost:10300/api/v1/users/verify` locally).
+
 `GET /api/v1/users/verify?token=…` (`VerificationController`) verifies the address on the
-server, then answers with a redirect to the customer app: `/login?verified=true`,
-`/login?already_verified=true`, or `/verify/resend?error=…` for an expired or invalid token.
+server, then answers with a redirect to the customer app's sign-in page:
+`/signin?verified=true`, `/signin?already_verified=true`, or `/signin?verify_error=expired|invalid|error`.
+A missing token counts as `invalid`. An `InternalError` from the use case, or an exception it throws,
+becomes `error` (logged with the correlation id), so the browser never gets a JSON error page.
+`routes/signin.tsx` shows a notice for each, and ignores a value it doesn't know. For an expired or
+invalid link, the notice asks the user to sign in, where an unverified account gets the resend option
+(`InactiveAccountMessage`); for `error` it asks them to try the link again (PIN-333).
 The base comes from `identity.frontend.base-url` (`FRONTEND_BASE_URL`), which defaults to
 production's `https://www.acme.com`. `docker-compose.apps.yml` sets it to
 `http://localhost:7600` for the local stack (PIN-332), so a link followed locally goes to the
-local app. The customer app has no `/login` or `/verify/resend` route yet (it signs in at
-`/signin`), so those redirects currently reach its not-found page.
+local app.
 
 Code that calls verify outside a browser, such as acceptance-test setup steps, must not
 follow the redirect (`redirect: 'manual'`): the verification is already done, and following
