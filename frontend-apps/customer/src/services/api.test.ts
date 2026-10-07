@@ -6,6 +6,7 @@ import {
   categoryApi,
   customerApi,
   identityApi,
+  inventoryApi,
   productApi,
   __resetRefreshStateForTests,
 } from "./api";
@@ -14,6 +15,17 @@ import {
   searchCircuitBreaker,
   __resetCircuitBreakerForTests,
 } from "@/lib/searchCircuitBreaker";
+
+/** Settles only when aborted, standing in for a service that hangs. */
+function rejectOnAbort(signal: AbortSignal | null | undefined) {
+  return new Promise<never>((_resolve, reject) => {
+    signal?.addEventListener("abort", () => {
+      const abortError = new Error("Aborted");
+      abortError.name = "AbortError";
+      reject(abortError);
+    });
+  });
+}
 
 describe("ApiError", () => {
   it("creates error with message and status", () => {
@@ -1178,16 +1190,8 @@ describe("search circuit breaker integration", () => {
   it("times out a slow search and counts it as a failure", async () => {
     vi.useFakeTimers();
 
-    // A service that responds only when aborted, standing in for one that hangs.
-    mockFetch.mockImplementationOnce(
-      (_url: string, init: RequestInit) =>
-        new Promise((_resolve, reject) => {
-          init.signal?.addEventListener("abort", () => {
-            const abortError = new Error("Aborted");
-            abortError.name = "AbortError";
-            reject(abortError);
-          });
-        }),
+    mockFetch.mockImplementationOnce((_url: string, init: RequestInit) =>
+      rejectOnAbort(init.signal),
     );
 
     // Attach the rejection handler before advancing timers. The abort fires inside
@@ -1212,14 +1216,7 @@ describe("search circuit breaker integration", () => {
         ok: true,
         status: 200,
         headers: new Headers({ "content-type": "application/json" }),
-        json: () =>
-          new Promise((_resolve, reject) => {
-            init.signal?.addEventListener("abort", () => {
-              const abortError = new Error("Aborted");
-              abortError.name = "AbortError";
-              reject(abortError);
-            });
-          }),
+        json: () => rejectOnAbort(init.signal),
       }),
     );
 
@@ -1547,5 +1544,41 @@ describe("cartApi reads and updates", () => {
       expect.stringMatching(/\/api\/v1\/carts\/cart-1\/items$/),
       expect.objectContaining({ method: "DELETE", credentials: "include" }),
     );
+  });
+});
+
+describe("inventoryApi", () => {
+  const mockFetch = vi.fn();
+  const originalFetch = global.fetch;
+
+  beforeEach(() => {
+    global.fetch = mockFetch;
+    mockFetch.mockReset();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    global.fetch = originalFetch;
+  });
+
+  it("times out a stalled availability check (PIN-349)", async () => {
+    vi.useFakeTimers();
+
+    mockFetch.mockImplementationOnce((_url: string, init: RequestInit) =>
+      rejectOnAbort(init.signal),
+    );
+
+    const check = inventoryApi.getAvailability("variant-1");
+    let settled = false;
+    check.catch(() => (settled = true));
+    // Attach the rejection handler before the abort fires inside advanceTimersByTimeAsync.
+    const assertion = expect(check).rejects.toBeInstanceOf(TimeoutError);
+
+    // Not a moment before the 5s deadline
+    await vi.advanceTimersByTimeAsync(4_999);
+    expect(settled).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(1);
+    await assertion;
   });
 });

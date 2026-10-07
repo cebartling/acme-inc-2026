@@ -70,7 +70,8 @@ export function CartPage() {
  * no answer yet (PIN-328). One availability check per variant, under the product page's query
  * key so the two share a cache. A check that fails, e.g. a 404 for a variant that is gone,
  * flags nothing: the cart's own errors cover that case. It is not retried, so it doesn't hold
- * back the totals and + through the retries' backoff.
+ * back the totals and + through the retries' backoff. A check that stalls times out
+ * (PIN-349), and one paused while the browser is offline doesn't hold anything back either.
  */
 function useStockChecks(variantIds: string[]): {
   outOfStock: Set<string>;
@@ -91,7 +92,8 @@ function useStockChecks(variantIds: string[]): {
         (_, i) => results[i]?.data?.availability === "OUT_OF_STOCK",
       ),
     ),
-    pending: new Set(uniqueIds.filter((_, i) => results[i]?.isPending)),
+    // isLoading: no answer yet and actually fetching, so not a check paused offline (PIN-349)
+    pending: new Set(uniqueIds.filter((_, i) => results[i]?.isLoading)),
   };
 }
 

@@ -2,8 +2,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
-import { OUT_OF_STOCK_MESSAGE, useAddToCart } from "./useAddToCart";
-import { ApiError, cartApi, inventoryApi } from "@/services/api";
+import {
+  AVAILABILITY_TIMEOUT_MESSAGE,
+  OUT_OF_STOCK_MESSAGE,
+  useAddToCart,
+} from "./useAddToCart";
+import { ApiError, TimeoutError, cartApi, inventoryApi } from "@/services/api";
 import { CART_QUERY_KEY } from "./useCart";
 
 vi.mock("@/services/api", async (importOriginal) => ({
@@ -82,6 +86,19 @@ describe("useAddToCart", () => {
     expect(result.current.error?.message).toBe(OUT_OF_STOCK_MESSAGE);
     expect(mockedAddItem).not.toHaveBeenCalled();
     expect(queryClient.getQueryData(CART_QUERY_KEY)).toBeUndefined();
+  });
+
+  it("explains a stock check that timed out, without calling the cart service (PIN-349)", async () => {
+    mockedAvailability.mockRejectedValue(new TimeoutError(5_000));
+    const { result } = renderHook(() => useAddToCart(), {
+      wrapper: makeWrapper(),
+    });
+
+    act(() => result.current.mutate(request));
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.error?.message).toBe(AVAILABILITY_TIMEOUT_MESSAGE);
+    expect(mockedAddItem).not.toHaveBeenCalled();
   });
 
   it("exposes the cart service's error message and leaves the cached cart alone", async () => {

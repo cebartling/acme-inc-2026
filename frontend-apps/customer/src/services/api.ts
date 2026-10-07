@@ -1064,6 +1064,9 @@ export interface ProductDetail {
 /** Deadline for a search request before the fallback takes over (AC-0004-09-05). */
 const SEARCH_TIMEOUT_MS = 2_000;
 
+/** Deadline for a stock check, so a stalled inventory service can't hold back the cart (PIN-349). */
+const AVAILABILITY_TIMEOUT_MS = 5_000;
+
 /**
  * Whether an error means the search service itself is unhealthy, and so should count
  * toward opening the circuit.
@@ -1125,7 +1128,11 @@ export const inventoryApi = {
   async getAvailability(variantId: string): Promise<VariantAvailability> {
     return apiRequest<VariantAvailability>(
       `${INVENTORY_SERVICE_URL}/api/v1/inventory/availability/${encodeURIComponent(variantId)}`,
-      { method: "GET", credentials: "include" },
+      {
+        method: "GET",
+        credentials: "include",
+        timeoutMs: AVAILABILITY_TIMEOUT_MS,
+      },
     );
   },
 };
