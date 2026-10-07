@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type React from "react";
-import { render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
   QueryClient,
@@ -333,6 +333,8 @@ describe("CartPage", () => {
       expect(screen.getByTestId("increaseQuantity")).toBeEnabled();
       expect(mockedAvailability).not.toHaveBeenCalled();
     } finally {
+      // Unmount first: back online, the paused cart and stock checks would resume after the test
+      cleanup();
       onlineManager.setOnline(true);
     }
   });

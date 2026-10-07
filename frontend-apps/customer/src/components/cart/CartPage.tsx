@@ -92,12 +92,8 @@ function useStockChecks(variantIds: string[]): {
         (_, i) => results[i]?.data?.availability === "OUT_OF_STOCK",
       ),
     ),
-    pending: new Set(
-      uniqueIds.filter(
-        (_, i) =>
-          results[i]?.isPending && results[i]?.fetchStatus === "fetching",
-      ),
-    ),
+    // isLoading: no answer yet and actually fetching, so not a check paused offline (PIN-349)
+    pending: new Set(uniqueIds.filter((_, i) => results[i]?.isLoading)),
   };
 }
 

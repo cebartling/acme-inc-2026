@@ -16,6 +16,17 @@ import {
   __resetCircuitBreakerForTests,
 } from "@/lib/searchCircuitBreaker";
 
+/** Settles only when aborted, standing in for a service that hangs. */
+function rejectOnAbort(signal: AbortSignal | null | undefined) {
+  return new Promise<never>((_resolve, reject) => {
+    signal?.addEventListener("abort", () => {
+      const abortError = new Error("Aborted");
+      abortError.name = "AbortError";
+      reject(abortError);
+    });
+  });
+}
+
 describe("ApiError", () => {
   it("creates error with message and status", () => {
     const error = new ApiError("Not found", 404);
@@ -1179,16 +1190,8 @@ describe("search circuit breaker integration", () => {
   it("times out a slow search and counts it as a failure", async () => {
     vi.useFakeTimers();
 
-    // A service that responds only when aborted, standing in for one that hangs.
-    mockFetch.mockImplementationOnce(
-      (_url: string, init: RequestInit) =>
-        new Promise((_resolve, reject) => {
-          init.signal?.addEventListener("abort", () => {
-            const abortError = new Error("Aborted");
-            abortError.name = "AbortError";
-            reject(abortError);
-          });
-        }),
+    mockFetch.mockImplementationOnce((_url: string, init: RequestInit) =>
+      rejectOnAbort(init.signal),
     );
 
     // Attach the rejection handler before advancing timers. The abort fires inside
@@ -1213,14 +1216,7 @@ describe("search circuit breaker integration", () => {
         ok: true,
         status: 200,
         headers: new Headers({ "content-type": "application/json" }),
-        json: () =>
-          new Promise((_resolve, reject) => {
-            init.signal?.addEventListener("abort", () => {
-              const abortError = new Error("Aborted");
-              abortError.name = "AbortError";
-              reject(abortError);
-            });
-          }),
+        json: () => rejectOnAbort(init.signal),
       }),
     );
 
@@ -1568,16 +1564,8 @@ describe("inventoryApi", () => {
   it("times out a stalled availability check (PIN-349)", async () => {
     vi.useFakeTimers();
 
-    // A service that responds only when aborted, standing in for one that hangs.
-    mockFetch.mockImplementationOnce(
-      (_url: string, init: RequestInit) =>
-        new Promise((_resolve, reject) => {
-          init.signal?.addEventListener("abort", () => {
-            const abortError = new Error("Aborted");
-            abortError.name = "AbortError";
-            reject(abortError);
-          });
-        }),
+    mockFetch.mockImplementationOnce((_url: string, init: RequestInit) =>
+      rejectOnAbort(init.signal),
     );
 
     // Attach the rejection handler before the abort fires inside advanceTimersByTimeAsync.
