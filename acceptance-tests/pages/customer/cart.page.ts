@@ -46,7 +46,8 @@ export class CartPage extends BasePage {
    * until the line's stock check settles, a typed increase is refused (PIN-328).
    */
   async typeQuantity(quantity: number): Promise<void> {
-    await this.subtotal.waitFor();
+    // Inside Cucumber's 30s step limit, so a check that never settles names this locator
+    await this.subtotal.waitFor({ timeout: config.timeout.action });
     await this.quantityInput.fill(String(quantity));
     await this.quantityInput.press('Enter');
   }

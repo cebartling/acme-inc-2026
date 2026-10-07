@@ -84,15 +84,21 @@ function lineGone() {
   });
 }
 
-function renderPage() {
-  const queryClient = new QueryClient({
+function renderPage(
+  queryClient = new QueryClient({
     defaultOptions: { queries: { retry: 0 }, mutations: { retry: 0 } },
-  });
+  }),
+) {
   return render(
     <QueryClientProvider client={queryClient}>
       <CartPage />
     </QueryClientProvider>,
   );
+}
+
+/** The totals show, and a line's quantity can go up, once every stock check has settled (PIN-328). */
+function stockChecksSettled() {
+  return screen.findByTestId("cartSubtotal");
 }
 
 describe("CartPage", () => {
@@ -297,12 +303,14 @@ describe("CartPage", () => {
     mockedAvailability.mockRejectedValue(
       new ApiError("Variant not found", 404),
     );
-    renderPage();
+    // The app's default retries: the failed check must not wait out their backoff
+    renderPage(new QueryClient());
 
     expect(await screen.findByTestId("cartSubtotal")).toHaveTextContent(
       "$239.98",
     );
     expect(screen.getByTestId("increaseQuantity")).toBeEnabled();
+    expect(mockedAvailability).toHaveBeenCalledTimes(1);
   });
 
   it("shows each line and the totals to 2 decimals", async () => {
@@ -340,8 +348,7 @@ describe("CartPage", () => {
     const user = userEvent.setup();
     renderPage();
 
-    // + stays disabled until the line's stock check has settled (PIN-328)
-    await screen.findByTestId("cartSubtotal");
+    await stockChecksSettled();
     await user.click(
       screen.getByRole("button", {
         name: "Increase quantity of Gadget Pro (Black)",
@@ -365,8 +372,7 @@ describe("CartPage", () => {
     const user = userEvent.setup();
     renderPage();
 
-    // A typed increase waits for the line's stock check too (PIN-328)
-    await screen.findByTestId("cartSubtotal");
+    await stockChecksSettled();
     const input = screen.getByTestId("lineQuantityInput");
     await user.clear(input);
     await user.type(input, "11{Enter}");
@@ -426,8 +432,7 @@ describe("CartPage", () => {
     const user = userEvent.setup();
     renderPage();
 
-    // + stays disabled until the line's stock check has settled (PIN-328)
-    await screen.findByTestId("cartSubtotal");
+    await stockChecksSettled();
     await user.click(
       screen.getByRole("button", {
         name: "Increase quantity of Gadget Pro (Black)",
@@ -449,8 +454,7 @@ describe("CartPage", () => {
     const user = userEvent.setup();
     renderPage();
 
-    // + stays disabled until the line's stock check has settled (PIN-328)
-    await screen.findByTestId("cartSubtotal");
+    await stockChecksSettled();
     await user.click(
       screen.getByRole("button", {
         name: "Increase quantity of Gadget Pro (Black)",
@@ -477,8 +481,7 @@ describe("CartPage", () => {
     const user = userEvent.setup();
     renderPage();
 
-    // + stays disabled until the line's stock check has settled (PIN-328)
-    await screen.findByTestId("cartSubtotal");
+    await stockChecksSettled();
     await user.click(
       screen.getByRole("button", {
         name: "Increase quantity of Gadget Pro (Black)",
@@ -500,8 +503,7 @@ describe("CartPage", () => {
     const user = userEvent.setup();
     renderPage();
 
-    // + stays disabled until the line's stock check has settled (PIN-328)
-    await screen.findByTestId("cartSubtotal");
+    await stockChecksSettled();
     await user.click(
       screen.getByRole("button", {
         name: "Increase quantity of Gadget Pro (Black)",

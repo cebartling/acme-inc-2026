@@ -69,7 +69,8 @@ export function CartPage() {
  * The cart's variants that are out of stock now (US-0004-10 AC-05), and those whose check has
  * no answer yet (PIN-328). One availability check per variant, under the product page's query
  * key so the two share a cache. A check that fails, e.g. a 404 for a variant that is gone,
- * flags nothing: the cart's own errors cover that case.
+ * flags nothing: the cart's own errors cover that case. It is not retried, so it doesn't hold
+ * back the totals and + through the retries' backoff.
  */
 function useStockChecks(variantIds: string[]): {
   outOfStock: Set<string>;
@@ -80,6 +81,7 @@ function useStockChecks(variantIds: string[]): {
     queries: uniqueIds.map((variantId) => ({
       queryKey: availabilityQueryKey(variantId),
       queryFn: () => inventoryApi.getAvailability(variantId),
+      retry: false,
     })),
   });
   // Keyed on the id the line asked about, not the one the response echoes back

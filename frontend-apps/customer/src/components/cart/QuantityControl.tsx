@@ -8,7 +8,10 @@ interface QuantityControlProps {
   /** Used for accessible names, e.g. "Gadget Pro (Black)". */
   itemName: string;
   describedBy?: string;
-  /** False for an out-of-stock line (PIN-317): + is disabled and a typed increase is refused. */
+  /**
+   * False for an out-of-stock line (PIN-317), or one whose stock check is pending (PIN-328):
+   * + is disabled and a typed increase is refused.
+   */
   canIncrease?: boolean;
 }
 
