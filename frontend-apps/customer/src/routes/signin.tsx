@@ -90,10 +90,12 @@ const signinSearchSchema = z.object({
       message: "Invalid redirect URL",
     }),
   logout: z.boolean().optional(),
-  // Outcome of identity's email verification redirect (PIN-333)
-  verified: z.boolean().optional(),
-  already_verified: z.boolean().optional(),
-  verify_error: z.enum(["expired", "invalid"]).optional(),
+  // Outcome of identity's email verification redirect (PIN-333). An unknown
+  // value is dropped rather than rejected: validateSearch throwing would replace
+  // the whole sign-in page with the router's error boundary.
+  verified: z.boolean().optional().catch(undefined),
+  already_verified: z.boolean().optional().catch(undefined),
+  verify_error: z.enum(["expired", "invalid"]).optional().catch(undefined),
 });
 
 /**

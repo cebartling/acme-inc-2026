@@ -215,8 +215,12 @@ Then(
     // Check for redirect status or follow redirect
     const location = this.getTestData<string>('redirectLocation');
     expect(location).toBeDefined();
-    expect(location).toContain('/signin?');
-    expect(location).toContain(expectedParam);
+    // Compare the parsed parameter, not a substring: "verified=true" is inside
+    // "already_verified=true".
+    const url = new URL(location!);
+    const [name, value] = expectedParam.split('=');
+    expect(url.pathname).toMatch(/\/signin$/);
+    expect(url.searchParams.get(name)).toBe(value);
   }
 );
 
