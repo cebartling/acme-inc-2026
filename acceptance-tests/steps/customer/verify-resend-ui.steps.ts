@@ -69,7 +69,10 @@ When('I request a new verification link for that customer', async function (this
 When(
   'I request a new verification link for {string}',
   async function (this: CustomWorld, email: string) {
-    await submitResendForm(this, email);
+    // Unique per run: identity keeps every resend request, even for an unknown email, so with
+    // rate limiting on a fixed address would hit the hourly limit after a few runs.
+    const [local, domain] = email.split('@');
+    await submitResendForm(this, `${local}-${Date.now()}@${domain}`);
   }
 );
 

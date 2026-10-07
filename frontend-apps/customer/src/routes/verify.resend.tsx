@@ -44,6 +44,7 @@ function VerifyResendPage() {
         const data = err.data as { message?: string } | undefined;
         setError(data?.message ?? "Unable to send a new verification link.");
       } else {
+        console.error("Verification resend failed:", err);
         setError("Unable to send a new verification link.");
       }
     }

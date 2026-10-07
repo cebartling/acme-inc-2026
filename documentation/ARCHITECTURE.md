@@ -685,11 +685,7 @@ expired or invalid link and takes just an email, posting it to `POST /api/v1/use
 forgotten their password can still get a new link (PIN-333, PIN-346). Both pages ignore a search
 value they don't know rather than failing validation.
 
-A resend reaches the customer as a new `UserRegistered` event with a new token. The notification
-service sends one verification email per event: `UserRegisteredHandler` skips an event id it has
-already processed, and `SendVerificationEmailUseCase` has no once-per-user check, so every resend
-sends (PIN-346). The welcome email keeps its once-per-customer check.
-The base comes from `identity.frontend.base-url` (`FRONTEND_BASE_URL`), which defaults to
+The redirect base comes from `identity.frontend.base-url` (`FRONTEND_BASE_URL`), which defaults to
 production's `https://www.acme.com`. `docker-compose.apps.yml` sets it to
 `http://localhost:7600` for the local stack (PIN-332), so a link followed locally goes to the
 local app.
@@ -697,6 +693,11 @@ local app.
 Code that calls verify outside a browser, such as acceptance-test setup steps, must not
 follow the redirect (`redirect: 'manual'`): the verification is already done, and following
 it to an unreachable base used to hang until the step timed out.
+
+A resend reaches the customer as a new `UserRegistered` event with a new token. The notification
+service sends one verification email per event: `UserRegisteredHandler` skips an event id it has
+already processed, and `SendVerificationEmailUseCase` has no once-per-user check, so every resend
+sends (PIN-346). The welcome email keeps its once-per-customer check.
 
 ### CORS and Browser-Facing Backend URLs
 

@@ -5,7 +5,8 @@ import { ApiClient } from './api-client.js';
  *
  * Fetches the token from identity's test endpoint, then calls `GET /api/v1/users/verify`.
  * Verify always answers with a redirect: `…/signin?verified=true` or `?already_verified=true`
- * on success, `…/signin?verify_error=…` on failure. The redirect is not followed (it points
+ * on success; `…/verify/resend?error=…` (expired or invalid token) or `…/signin?verify_error=error`
+ * on failure. The redirect is not followed (it points
  * at FRONTEND_BASE_URL, and following it can hang, PIN-332); its Location tells the cases
  * apart. Any failure throws, naming the user, so setup fails where it went wrong rather
  * than at a later sign-in. Mirrors `demos/src/identity-api.ts`.

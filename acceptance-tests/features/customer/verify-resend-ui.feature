@@ -14,7 +14,7 @@ Feature: Request a new verification link (US-0002-05, PIN-346)
     And I should see the resend verification form
 
     Examples:
-      | query         | message                                                  |
+      | query         | message                                                |
       | error=expired | Your verification link has expired. Request a new one. |
       | error=invalid | Invalid verification link. Request a new one.          |
 
