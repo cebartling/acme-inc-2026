@@ -94,25 +94,28 @@ function useStockChecks(variantIds: string[]): {
       retry: false,
     })),
   });
-  // Keyed on the id the line asked about, not the one the response echoes back
+  // Fetching and no answer since the page mounted: a cached answer from the product page waits
+  // for the cart's own check (PIN-350), a later refetch doesn't, and a check paused offline isn't
+  // fetching (PIN-349). A failure ends the wait even when the product page's check, joined
+  // mid-run, retries (PIN-352)
+  const pending = new Set(
+    uniqueIds.filter(
+      (_, i) =>
+        results[i]?.isFetching &&
+        !results[i].isFetchedAfterMount &&
+        results[i].failureCount === 0,
+    ),
+  );
+  // Keyed on the id the line asked about, not the one the response echoes back. A pending line's
+  // cached answer isn't the cart's own yet, so it flags nothing until its check answers.
   return {
     outOfStock: new Set(
       uniqueIds.filter(
-        (_, i) => results[i]?.data?.availability === "OUT_OF_STOCK",
+        (id, i) =>
+          !pending.has(id) && results[i]?.data?.availability === "OUT_OF_STOCK",
       ),
     ),
-    // Fetching and no answer since the page mounted: a cached answer from the product page waits
-    // for the cart's own check (PIN-350), a later refetch doesn't, and a check paused offline isn't
-    // fetching (PIN-349). A failure ends the wait even when the product page's check, joined
-    // mid-run, retries (PIN-352)
-    pending: new Set(
-      uniqueIds.filter(
-        (_, i) =>
-          results[i]?.isFetching &&
-          !results[i].isFetchedAfterMount &&
-          results[i].failureCount === 0,
-      ),
-    ),
+    pending,
   };
 }
 

@@ -273,7 +273,8 @@ sequenceDiagram
   flagged line's quantity can go down but not up (PIN-317). Until every check has answered,
   the summary shows "Checking availability…" instead of totals, and a line whose check is
   still pending can't go up either (PIN-328). An answer the product page cached still waits for
-  the cart's own check, but a later refetch, e.g. on window focus, holds nothing back (PIN-350). The page doesn't retry a failed check, so it
+  the cart's own check, and flags nothing until then, but a later refetch, e.g. on window
+  focus, holds nothing back (PIN-350). The page doesn't retry a failed check, so it
   doesn't hold them back through a retry backoff. The product page does retry, and a cart
   that opens mid-check joins its run, so the cart stops waiting at the first failure instead
   (PIN-352). A check times out after 5s, and one paused

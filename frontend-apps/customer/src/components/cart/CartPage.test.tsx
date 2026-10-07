@@ -383,6 +383,38 @@ describe("CartPage", () => {
     );
   });
 
+  it("doesn't flag a line out of stock from the product page's cached answer while the cart's own check runs (PIN-350)", async () => {
+    mockedGetCurrent.mockResolvedValue(cartOf(line(2, 119.99)));
+    let settleCheck = () => {};
+    mockedAvailability.mockImplementation(
+      (variantId) =>
+        new Promise((resolve) => {
+          settleCheck = () => resolve({ variantId, availability: "IN_STOCK" });
+        }),
+    );
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: 0 } },
+    });
+    // The product page's answer, now stale
+    queryClient.setQueryData(availabilityQueryOptions("variant-1").queryKey, {
+      variantId: "variant-1",
+      availability: "OUT_OF_STOCK",
+    });
+    renderPage(queryClient);
+
+    expect(
+      await screen.findByTestId("cartCheckingAvailability"),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("lineOutOfStock")).toBeNull();
+
+    settleCheck();
+
+    expect(await screen.findByTestId("cartSubtotal")).toHaveTextContent(
+      "$239.98",
+    );
+    expect(screen.queryByTestId("lineOutOfStock")).toBeNull();
+  });
+
   it("keeps the totals while a stock check that has answered refetches", async () => {
     mockedGetCurrent.mockResolvedValue(cartOf(line(2, 119.99)));
     const queryClient = new QueryClient({
