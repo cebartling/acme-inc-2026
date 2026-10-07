@@ -273,7 +273,8 @@ sequenceDiagram
   flagged line's quantity can go down but not up (PIN-317). Until every check has answered,
   the summary shows "Checking availability…" instead of totals, and a line whose check is
   still pending can't go up either (PIN-328); the page doesn't retry a failed check, so it
-  doesn't hold them back through a retry backoff. The cart service itself knows
+  doesn't hold them back through a retry backoff. A check times out after 5s, and one paused
+  while the browser is offline doesn't hold them back either (PIN-349). The cart service itself knows
   nothing about stock, so its `summary`, and the header `CartBadge`, still count them.
 - **Events are best-effort**: published directly to Kafka after the transaction commits,
   as the product service does. A Kafka failure is logged and does not fail the add; there

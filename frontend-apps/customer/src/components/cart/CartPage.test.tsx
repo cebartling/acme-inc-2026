@@ -2,8 +2,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type React from "react";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  QueryClient,
+  QueryClientProvider,
+  onlineManager,
+} from "@tanstack/react-query";
 import { CartPage } from "./CartPage";
+import { CART_QUERY_KEY } from "@/hooks/useCart";
 import type { Cart, CartItem } from "@/services/api";
 import { ApiError, cartApi, inventoryApi } from "@/services/api";
 
@@ -311,6 +316,25 @@ describe("CartPage", () => {
     );
     expect(screen.getByTestId("increaseQuantity")).toBeEnabled();
     expect(mockedAvailability).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the totals and allows + while offline, when no stock check can run (PIN-349)", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: 0 } },
+    });
+    queryClient.setQueryData(CART_QUERY_KEY, cartOf(line(2, 119.99)));
+    onlineManager.setOnline(false);
+    try {
+      renderPage(queryClient);
+
+      expect(await screen.findByTestId("cartSubtotal")).toHaveTextContent(
+        "$239.98",
+      );
+      expect(screen.getByTestId("increaseQuantity")).toBeEnabled();
+      expect(mockedAvailability).not.toHaveBeenCalled();
+    } finally {
+      onlineManager.setOnline(true);
+    }
   });
 
   it("shows each line and the totals to 2 decimals", async () => {

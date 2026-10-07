@@ -6,6 +6,7 @@ import {
   categoryApi,
   customerApi,
   identityApi,
+  inventoryApi,
   productApi,
   __resetRefreshStateForTests,
 } from "./api";
@@ -1547,5 +1548,43 @@ describe("cartApi reads and updates", () => {
       expect.stringMatching(/\/api\/v1\/carts\/cart-1\/items$/),
       expect.objectContaining({ method: "DELETE", credentials: "include" }),
     );
+  });
+});
+
+describe("inventoryApi", () => {
+  const mockFetch = vi.fn();
+  const originalFetch = global.fetch;
+
+  beforeEach(() => {
+    global.fetch = mockFetch;
+    mockFetch.mockReset();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    global.fetch = originalFetch;
+  });
+
+  it("times out a stalled availability check (PIN-349)", async () => {
+    vi.useFakeTimers();
+
+    // A service that responds only when aborted, standing in for one that hangs.
+    mockFetch.mockImplementationOnce(
+      (_url: string, init: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          init.signal?.addEventListener("abort", () => {
+            const abortError = new Error("Aborted");
+            abortError.name = "AbortError";
+            reject(abortError);
+          });
+        }),
+    );
+
+    // Attach the rejection handler before the abort fires inside advanceTimersByTimeAsync.
+    const assertion = expect(
+      inventoryApi.getAvailability("variant-1"),
+    ).rejects.toBeInstanceOf(TimeoutError);
+    await vi.advanceTimersByTimeAsync(5_000);
+    await assertion;
   });
 });
