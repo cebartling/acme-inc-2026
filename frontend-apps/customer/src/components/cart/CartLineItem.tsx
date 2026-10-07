@@ -14,6 +14,8 @@ interface CartLineItemProps {
   item: CartItem;
   /** The variant went out of stock after it was added (US-0004-10 AC-05). */
   isOutOfStock?: boolean;
+  /** The line's stock check has no answer yet, so its quantity can't go up (PIN-328). */
+  isStockPending?: boolean;
 }
 
 /**
@@ -24,6 +26,7 @@ export function CartLineItem({
   cartId,
   item,
   isOutOfStock = false,
+  isStockPending = false,
 }: CartLineItemProps) {
   const update = useUpdateCartItem();
   const remove = useRemoveCartItem();
@@ -81,7 +84,7 @@ export function CartLineItem({
         quantity={item.quantity}
         itemName={itemName}
         disabled={isBusy}
-        canIncrease={!isOutOfStock}
+        canIncrease={!isOutOfStock && !isStockPending}
         describedBy={describedBy}
         onChange={(quantity) =>
           update.mutate({ cartId, itemId: item.id, quantity })

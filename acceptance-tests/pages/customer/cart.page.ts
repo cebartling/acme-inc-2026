@@ -41,8 +41,12 @@ export class CartPage extends BasePage {
     return `${config.baseUrl.customer}/cart`;
   }
 
-  /** Types a quantity and commits it with Enter, as a customer would. */
+  /**
+   * Types a quantity and commits it with Enter, as a customer would. Waits for the totals first:
+   * until the line's stock check settles, a typed increase is refused (PIN-328).
+   */
   async typeQuantity(quantity: number): Promise<void> {
+    await this.subtotal.waitFor();
     await this.quantityInput.fill(String(quantity));
     await this.quantityInput.press('Enter');
   }
