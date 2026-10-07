@@ -1,8 +1,7 @@
 import { useQueries } from "@tanstack/react-query";
 import type { Cart } from "@/services/api";
 import { useCart } from "@/hooks/useCart";
-import { availabilityQueryKey } from "@/hooks/useVariantSelection";
-import { inventoryApi } from "@/services/api";
+import { availabilityQueryOptions } from "@/hooks/useVariantSelection";
 import { CartEmptyState } from "./CartEmptyState";
 import { CartLineItem } from "./CartLineItem";
 import { CartSummary } from "./CartSummary";
@@ -77,10 +76,10 @@ export function CartPage() {
 
 /**
  * The cart's variants that are out of stock now (US-0004-10 AC-05), and those whose check has
- * no answer yet (PIN-328). One availability check per variant, under the product page's query
- * key so the two share a cache. A check that fails, e.g. a 404 for a variant that is gone,
- * flags nothing: the cart's own errors cover that case. It is not retried, so it doesn't hold
- * back the totals and + through the retries' backoff. A check that stalls times out
+ * no answer yet (PIN-328). One availability check per variant, with the product page's query
+ * options so the two share a cache. A check that fails, e.g. a 404 for a variant that is gone,
+ * flags nothing: the cart's own errors cover that case. The first failure ends the wait, so it
+ * doesn't hold back the totals and + through the retries' backoff. A check that stalls times out
  * (PIN-349), and one paused while the browser is offline doesn't hold anything back either.
  */
 function useStockChecks(variantIds: string[]): {
@@ -90,8 +89,7 @@ function useStockChecks(variantIds: string[]): {
   const uniqueIds = [...new Set(variantIds)];
   const results = useQueries({
     queries: uniqueIds.map((variantId) => ({
-      queryKey: availabilityQueryKey(variantId),
-      queryFn: () => inventoryApi.getAvailability(variantId),
+      ...availabilityQueryOptions(variantId),
       retry: false,
     })),
   });
@@ -102,8 +100,13 @@ function useStockChecks(variantIds: string[]): {
         (_, i) => results[i]?.data?.availability === "OUT_OF_STOCK",
       ),
     ),
-    // isLoading: no answer yet and actually fetching, so not a check paused offline (PIN-349)
-    pending: new Set(uniqueIds.filter((_, i) => results[i]?.isLoading)),
+    // isLoading: no answer yet and actually fetching, so not a check paused offline (PIN-349).
+    // A failure ends the wait even when the product page's check, joined mid-run, retries (PIN-352)
+    pending: new Set(
+      uniqueIds.filter(
+        (_, i) => results[i]?.isLoading && results[i].failureCount === 0,
+      ),
+    ),
   };
 }
 

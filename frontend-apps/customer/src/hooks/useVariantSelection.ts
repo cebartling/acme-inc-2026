@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { queryOptions, useQuery } from "@tanstack/react-query";
 import type {
   ProductDetail,
   ProductVariant,
@@ -9,9 +9,13 @@ import type {
 import { inventoryApi, pricingApi } from "@/services/api";
 import { trackVariantSelected } from "@/services/analytics";
 
-/** Query key for a variant's availability. The cart page reads it too, so the two share a cache. */
-export const availabilityQueryKey = (variantId: string | undefined) =>
-  ["availability", variantId] as const;
+/** A variant's stock check. The cart page runs it too, so the two share a cache. */
+export const availabilityQueryOptions = (variantId: string | undefined) =>
+  queryOptions({
+    queryKey: ["availability", variantId] as const,
+    queryFn: () => inventoryApi.getAvailability(variantId!),
+    enabled: !!variantId,
+  });
 
 export interface UseVariantSelectionResult {
   selectedVariant: ProductVariant | undefined;
@@ -48,11 +52,9 @@ export function useVariantSelection(
     }
   }, [selectedVariantId, product.id]);
 
-  const availabilityQuery = useQuery({
-    queryKey: availabilityQueryKey(selectedVariantId),
-    queryFn: () => inventoryApi.getAvailability(selectedVariantId!),
-    enabled: !!selectedVariantId,
-  });
+  const availabilityQuery = useQuery(
+    availabilityQueryOptions(selectedVariantId),
+  );
 
   const priceQuery = useQuery({
     queryKey: ["price", selectedVariantId],
