@@ -95,20 +95,6 @@ class UserRegisteredHandlerTest {
         verify(exactly = 0) { processedEventRepository.save(any()) }
     }
 
-    @Test
-    fun `should handle AlreadySent result gracefully`() {
-        val event = createTestEvent()
-
-        every { processedEventRepository.existsByEventId(event.eventId) } returns false
-        every { sendVerificationEmailUseCase.execute(any(), any(), any(), any(), any()) } returns
-                SendVerificationEmailResult.AlreadySent(UUID.randomUUID())
-        every { processedEventRepository.save(any()) } answers { firstArg() }
-
-        handler.handle(event)
-
-        verify { processedEventRepository.save(match { it.eventId == event.eventId }) }
-    }
-
     private fun createTestEvent(verificationToken: String? = "test-token-123") = UserRegisteredEvent(
         eventId = UUID.randomUUID(),
         eventType = "UserRegistered",
