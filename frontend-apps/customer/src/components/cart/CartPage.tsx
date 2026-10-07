@@ -10,10 +10,24 @@ import { ClearCartButton } from "./ClearCartButton";
 
 /** The guest's cart (US-0004-07): lines, totals, or the empty state. */
 export function CartPage() {
-  const { data: cart, isLoading, isError } = useCart();
+  const { data: cart, isLoading, isPaused, isError } = useCart();
   const { outOfStock, pending } = useStockChecks(
     cart?.items.map((item) => item.variantId) ?? [],
   );
+
+  // Paused offline before the first load: isLoading is false, but there is no cart to show
+  // yet, and `undefined` must not read as an empty cart (PIN-353). It loads once back online.
+  if (isPaused && cart === undefined) {
+    return (
+      <p
+        role="status"
+        data-testid="cartOffline"
+        className="text-center text-slate-300"
+      >
+        You’re offline. Your cart will load when you’re back online.
+      </p>
+    );
+  }
 
   if (isLoading) {
     return (

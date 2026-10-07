@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type React from "react";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { act, cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
   QueryClient,
@@ -335,6 +335,28 @@ describe("CartPage", () => {
     } finally {
       // Unmount first: back online, the paused cart and stock checks would resume after the test
       cleanup();
+      onlineManager.setOnline(true);
+    }
+  });
+
+  it("says the customer is offline, not that the cart is empty, when the cart can't load (PIN-353)", async () => {
+    mockedGetCurrent.mockResolvedValue(cartOf(line(2, 119.99)));
+    onlineManager.setOnline(false);
+    try {
+      renderPage();
+
+      expect(await screen.findByTestId("cartOffline")).toHaveTextContent(
+        "You’re offline",
+      );
+      expect(screen.queryByTestId("cartEmptyState")).toBeNull();
+      expect(mockedGetCurrent).not.toHaveBeenCalled();
+
+      // Back online, the paused cart query resumes on its own
+      act(() => onlineManager.setOnline(true));
+      expect(await screen.findByTestId("cartSubtotal")).toHaveTextContent(
+        "$239.98",
+      );
+    } finally {
       onlineManager.setOnline(true);
     }
   });
