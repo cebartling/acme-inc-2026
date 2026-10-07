@@ -1568,11 +1568,17 @@ describe("inventoryApi", () => {
       rejectOnAbort(init.signal),
     );
 
+    const check = inventoryApi.getAvailability("variant-1");
+    let settled = false;
+    check.catch(() => (settled = true));
     // Attach the rejection handler before the abort fires inside advanceTimersByTimeAsync.
-    const assertion = expect(
-      inventoryApi.getAvailability("variant-1"),
-    ).rejects.toBeInstanceOf(TimeoutError);
-    await vi.advanceTimersByTimeAsync(5_000);
+    const assertion = expect(check).rejects.toBeInstanceOf(TimeoutError);
+
+    // Not a moment before the 5s deadline
+    await vi.advanceTimersByTimeAsync(4_999);
+    expect(settled).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(1);
     await assertion;
   });
 });

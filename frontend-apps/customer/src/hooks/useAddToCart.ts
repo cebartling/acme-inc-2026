@@ -1,9 +1,11 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { AddToCartRequest, Cart } from "@/services/api";
-import { cartApi, inventoryApi } from "@/services/api";
+import { TimeoutError, cartApi, inventoryApi } from "@/services/api";
 import { reloadIfStale, writeCart } from "@/hooks/useCart";
 
 export const OUT_OF_STOCK_MESSAGE = "This item is out of stock";
+export const AVAILABILITY_TIMEOUT_MESSAGE =
+  "We couldn't check stock right now. Please try again.";
 
 /**
  * Adds an item to the guest cart (US-0004-06).
@@ -17,9 +19,7 @@ export function useAddToCart() {
 
   return useMutation<Cart, Error, AddToCartRequest>({
     mutationFn: async (request) => {
-      const { availability } = await inventoryApi.getAvailability(
-        request.variantId,
-      );
+      const { availability } = await checkAvailability(request.variantId);
       if (availability === "OUT_OF_STOCK") {
         throw new Error(OUT_OF_STOCK_MESSAGE);
       }
@@ -29,4 +29,16 @@ export function useAddToCart() {
     // A 409 CART_CONFLICT (PIN-278): a concurrent change won, so the cached cart is stale.
     onError: (error) => reloadIfStale(queryClient, error),
   });
+}
+
+/** The stock check, with a timed-out check (PIN-349) reworded for the customer. */
+async function checkAvailability(variantId: string) {
+  try {
+    return await inventoryApi.getAvailability(variantId);
+  } catch (error) {
+    if (error instanceof TimeoutError) {
+      throw new Error(AVAILABILITY_TIMEOUT_MESSAGE);
+    }
+    throw error;
+  }
 }
