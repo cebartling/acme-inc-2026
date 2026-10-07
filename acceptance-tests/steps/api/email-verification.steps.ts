@@ -224,6 +224,18 @@ Then(
   }
 );
 
+Then(
+  'I should be redirected to the resend verification page with {string}',
+  async function (this: CustomWorld, expectedParam: string) {
+    const location = this.getTestData<string>('redirectLocation');
+    expect(location).toBeDefined();
+    const url = new URL(location!);
+    const [name, value] = expectedParam.split('=');
+    expect(url.pathname).toMatch(/\/verify\/resend$/);
+    expect(url.searchParams.get(name)).toBe(value);
+  }
+);
+
 Then("the user's email should be marked as verified", async function (this: CustomWorld) {
   // In a full implementation, we'd query the database to verify
   // For now, we check that the redirect was successful

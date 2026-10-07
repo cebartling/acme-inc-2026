@@ -24,6 +24,7 @@ import { Route as SigninRouteImport } from "./routes/signin";
 import { Route as ApiHealthRouteImport } from "./routes/api.health";
 import { Route as ProductsSlugRouteImport } from "./routes/products.$slug";
 import { Route as ProfileCompleteRouteImport } from "./routes/profile/complete";
+import { Route as VerifyResendRouteImport } from "./routes/verify.resend";
 import { Route as DemoApiNamesRouteImport } from "./routes/demo/api.names";
 import { Route as DemoStartApiRequestRouteImport } from "./routes/demo/start.api-request";
 import { Route as DemoStartServerFuncsRouteImport } from "./routes/demo/start.server-funcs";
@@ -107,6 +108,11 @@ const ProfileCompleteRoute = ProfileCompleteRouteImport.update({
   path: "/profile/complete",
   getParentRoute: () => rootRouteImport,
 } as any);
+const VerifyResendRoute = VerifyResendRouteImport.update({
+  id: "/verify/resend",
+  path: "/verify/resend",
+  getParentRoute: () => rootRouteImport,
+} as any);
 const DemoApiNamesRoute = DemoApiNamesRouteImport.update({
   id: "/demo/api/names",
   path: "/demo/api/names",
@@ -159,6 +165,7 @@ export interface FileRoutesByFullPath {
   "/api/health": typeof ApiHealthRoute;
   "/products/$slug": typeof ProductsSlugRoute;
   "/profile/complete": typeof ProfileCompleteRoute;
+  "/verify/resend": typeof VerifyResendRoute;
   "/demo/api/names": typeof DemoApiNamesRoute;
   "/demo/start/api-request": typeof DemoStartApiRequestRoute;
   "/demo/start/server-funcs": typeof DemoStartServerFuncsRoute;
@@ -183,6 +190,7 @@ export interface FileRoutesByTo {
   "/api/health": typeof ApiHealthRoute;
   "/products/$slug": typeof ProductsSlugRoute;
   "/profile/complete": typeof ProfileCompleteRoute;
+  "/verify/resend": typeof VerifyResendRoute;
   "/demo/api/names": typeof DemoApiNamesRoute;
   "/demo/start/api-request": typeof DemoStartApiRequestRoute;
   "/demo/start/server-funcs": typeof DemoStartServerFuncsRoute;
@@ -208,6 +216,7 @@ export interface FileRoutesById {
   "/api/health": typeof ApiHealthRoute;
   "/products/$slug": typeof ProductsSlugRoute;
   "/profile/complete": typeof ProfileCompleteRoute;
+  "/verify/resend": typeof VerifyResendRoute;
   "/demo/api/names": typeof DemoApiNamesRoute;
   "/demo/start/api-request": typeof DemoStartApiRequestRoute;
   "/demo/start/server-funcs": typeof DemoStartServerFuncsRoute;
@@ -234,6 +243,7 @@ export interface FileRouteTypes {
     | "/api/health"
     | "/products/$slug"
     | "/profile/complete"
+    | "/verify/resend"
     | "/demo/api/names"
     | "/demo/start/api-request"
     | "/demo/start/server-funcs"
@@ -258,6 +268,7 @@ export interface FileRouteTypes {
     | "/api/health"
     | "/products/$slug"
     | "/profile/complete"
+    | "/verify/resend"
     | "/demo/api/names"
     | "/demo/start/api-request"
     | "/demo/start/server-funcs"
@@ -282,6 +293,7 @@ export interface FileRouteTypes {
     | "/api/health"
     | "/products/$slug"
     | "/profile/complete"
+    | "/verify/resend"
     | "/demo/api/names"
     | "/demo/start/api-request"
     | "/demo/start/server-funcs"
@@ -307,6 +319,7 @@ export interface RootRouteChildren {
   ApiHealthRoute: typeof ApiHealthRoute;
   ProductsSlugRoute: typeof ProductsSlugRoute;
   ProfileCompleteRoute: typeof ProfileCompleteRoute;
+  VerifyResendRoute: typeof VerifyResendRoute;
   DemoApiNamesRoute: typeof DemoApiNamesRoute;
   DemoStartApiRequestRoute: typeof DemoStartApiRequestRoute;
   DemoStartServerFuncsRoute: typeof DemoStartServerFuncsRoute;
@@ -423,6 +436,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof ProfileCompleteRouteImport;
       parentRoute: typeof rootRouteImport;
     };
+    "/verify/resend": {
+      id: "/verify/resend";
+      path: "/verify/resend";
+      fullPath: "/verify/resend";
+      preLoaderRoute: typeof VerifyResendRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     "/demo/api/names": {
       id: "/demo/api/names";
       path: "/demo/api/names";
@@ -491,6 +511,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiHealthRoute: ApiHealthRoute,
   ProductsSlugRoute: ProductsSlugRoute,
   ProfileCompleteRoute: ProfileCompleteRoute,
+  VerifyResendRoute: VerifyResendRoute,
   DemoApiNamesRoute: DemoApiNamesRoute,
   DemoStartApiRequestRoute: DemoStartApiRequestRoute,
   DemoStartServerFuncsRoute: DemoStartServerFuncsRoute,

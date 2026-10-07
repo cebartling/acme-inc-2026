@@ -32,8 +32,7 @@ sequenceDiagram
     participant ES as Event Store
     participant EB as Event Bus (Kafka)
 
-    CU->>WA: Click verification link
-    WA->>IM: GET /api/v1/users/verify?token=abc123xyz
+    CU->>IM: Click verification link: GET /api/v1/users/verify?token=abc123xyz
 
     IM->>IM: Validate token exists
     IM->>IM: Check token not expired
@@ -47,11 +46,13 @@ sequenceDiagram
         IM->>ES: Append UserActivated event
         IM->>EB: Publish EmailVerified event
         IM->>EB: Publish UserActivated event
-        IM-->>WA: 302 Redirect to login with success
+        IM-->>CU: 302 Redirect to /signin with success
+        CU->>WA: Load /signin
         WA-->>CU: Display success message
-    else Token invalid or expired
-        IM-->>WA: 302 Redirect to resend verification
-        WA-->>CU: Display error and resend option
+    else Token invalid, expired or missing
+        IM-->>CU: 302 Redirect to /verify/resend
+        CU->>WA: Load /verify/resend
+        WA-->>CU: Display error and resend form
     end
 ```
 
@@ -67,7 +68,7 @@ GET /api/v1/users/verify?token=abc123xyz789def456
 
 ```http
 HTTP/1.1 302 Found
-Location: https://www.acme.com/login?verified=true
+Location: https://www.acme.com/signin?verified=true
 ```
 
 ### Response (Expired Token - Redirect)
@@ -77,7 +78,7 @@ HTTP/1.1 302 Found
 Location: https://www.acme.com/verify/resend?error=expired
 ```
 
-### Response (Invalid Token - Redirect)
+### Response (Invalid or Missing Token - Redirect)
 
 ```http
 HTTP/1.1 302 Found
@@ -88,7 +89,14 @@ Location: https://www.acme.com/verify/resend?error=invalid
 
 ```http
 HTTP/1.1 302 Found
-Location: https://www.acme.com/login?already_verified=true
+Location: https://www.acme.com/signin?already_verified=true
+```
+
+### Response (Server Error - Redirect)
+
+```http
+HTTP/1.1 302 Found
+Location: https://www.acme.com/signin?verify_error=error
 ```
 
 ### Resend Verification Request
@@ -159,7 +167,7 @@ Content-Type: application/json
 **When** I click the verification link
 **Then** my email is marked as verified
 **And** my account status changes to ACTIVE
-**And** I am redirected to the login page with a success message
+**And** I am redirected to the sign-in page with a success message
 
 ### AC-0002-05-02: Expired Token Handling
 
@@ -173,8 +181,8 @@ Content-Type: application/json
 
 **Given** I have already verified my email
 **When** I click the same verification link again
-**Then** I am redirected to the login page
-**And** I see the message "Your email is already verified. Please log in."
+**Then** I am redirected to the sign-in page
+**And** I see the message "Your email is already verified. Sign in to continue."
 
 ### AC-0002-05-04: Invalid Token (Security)
 
