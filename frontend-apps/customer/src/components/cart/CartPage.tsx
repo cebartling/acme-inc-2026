@@ -10,13 +10,23 @@ import { ClearCartButton } from "./ClearCartButton";
 
 /** The guest's cart (US-0004-07): lines, totals, or the empty state. */
 export function CartPage() {
-  const { data: cart, isLoading, isError } = useCart();
+  const { data: cart, isPending, isPaused, isError } = useCart();
   const { outOfStock, pending } = useStockChecks(
     cart?.items.map((item) => item.variantId) ?? [],
   );
 
-  if (isLoading) {
-    return (
+  // No cart loaded yet. Paused means offline: say so rather than show a skeleton for as
+  // long as the browser stays offline (PIN-353). It loads once back online.
+  if (isPending) {
+    return isPaused ? (
+      <p
+        role="status"
+        data-testid="cartOffline"
+        className="text-center text-slate-300"
+      >
+        You’re offline. Your cart will load when you’re back online.
+      </p>
+    ) : (
       <div className="animate-pulse space-y-4" aria-busy="true">
         <div className="h-8 w-1/3 rounded bg-slate-700" />
         <div className="h-24 rounded bg-slate-700" />
@@ -36,7 +46,7 @@ export function CartPage() {
   return (
     <>
       <h1 className="mb-6 text-3xl font-bold text-white">Your cart</h1>
-      {!cart || cart.items.length === 0 ? (
+      {cart === null || cart.items.length === 0 ? (
         <CartEmptyState />
       ) : (
         <div className="grid gap-6 md:grid-cols-[1fr_18rem]">
