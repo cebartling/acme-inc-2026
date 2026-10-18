@@ -1,0 +1,2 @@
+-- Baseline for the order service (PIN-364). No tables yet: orders arrive with PIN-366,
+-- whose migration is V2. This gives Flyway a first version to record.
