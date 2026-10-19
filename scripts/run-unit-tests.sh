@@ -15,6 +15,7 @@
 #   --notification    Run notification service tests
 #   --product         Run product service tests
 #   --cart            Run shopping cart service tests
+#   --order           Run order service tests
 #   --admin           Run admin frontend tests
 #   --customer-app    Run customer frontend tests
 #   --parallel        Run test suites in parallel (faster but mixed output)
@@ -46,6 +47,7 @@ CUSTOMER_DIR="${PROJECT_ROOT}/backend-services/customer"
 NOTIFICATION_DIR="${PROJECT_ROOT}/backend-services/notification"
 PRODUCT_DIR="${PROJECT_ROOT}/backend-services/product"
 CART_DIR="${PROJECT_ROOT}/backend-services/shopping-cart"
+ORDER_DIR="${PROJECT_ROOT}/backend-services/order"
 
 # Frontend app directories
 ADMIN_APP_DIR="${PROJECT_ROOT}/frontend-apps/admin"
@@ -66,6 +68,7 @@ RUN_CUSTOMER=false
 RUN_NOTIFICATION=false
 RUN_PRODUCT=false
 RUN_CART=false
+RUN_ORDER=false
 RUN_ADMIN_APP=false
 RUN_CUSTOMER_APP=false
 PARALLEL=false
@@ -206,7 +209,7 @@ ${YELLOW}Usage:${NC} ./scripts/run-unit-tests.sh [options]
 
 ${YELLOW}Test Selection:${NC}
   --all             Run all tests (default if no filter specified)
-  --backend         Run all backend service tests (identity, customer, notification, product, cart)
+  --backend         Run all backend service tests (identity, customer, notification, product, cart, order)
   --frontend        Run all frontend app tests (admin, customer-app)
 
 ${YELLOW}Individual Services:${NC}
@@ -215,6 +218,7 @@ ${YELLOW}Individual Services:${NC}
   --notification    Run notification service tests only
   --product         Run product service tests only
   --cart            Run shopping cart service tests only
+  --order           Run order service tests only
   --admin           Run admin frontend tests only
   --customer-app    Run customer frontend tests only
 
@@ -540,6 +544,11 @@ run_tests_parallel() {
         pids+=($!)
     fi
 
+    if [[ "$RUN_ORDER" == "true" ]]; then
+        (run_gradle_tests "order-service" "$ORDER_DIR" 2>&1) &
+        pids+=($!)
+    fi
+
     # Start frontend tests
     if [[ "$RUN_ADMIN_APP" == "true" ]]; then
         (run_npm_tests "admin-app" "$ADMIN_APP_DIR" 2>&1) &
@@ -579,6 +588,10 @@ run_tests_sequential() {
 
     if [[ "$RUN_CART" == "true" ]]; then
         run_gradle_tests "shopping-cart-service" "$CART_DIR" || overall_exit=1
+    fi
+
+    if [[ "$RUN_ORDER" == "true" ]]; then
+        run_gradle_tests "order-service" "$ORDER_DIR" || overall_exit=1
     fi
 
     # Run frontend tests
@@ -723,6 +736,7 @@ main() {
                 RUN_NOTIFICATION=true
                 RUN_PRODUCT=true
                 RUN_CART=true
+                RUN_ORDER=true
                 RUN_ADMIN_APP=true
                 RUN_CUSTOMER_APP=true
                 any_filter_set=true
@@ -734,6 +748,7 @@ main() {
                 RUN_NOTIFICATION=true
                 RUN_PRODUCT=true
                 RUN_CART=true
+                RUN_ORDER=true
                 any_filter_set=true
                 shift
                 ;;
@@ -765,6 +780,11 @@ main() {
                 ;;
             --cart)
                 RUN_CART=true
+                any_filter_set=true
+                shift
+                ;;
+            --order)
+                RUN_ORDER=true
                 any_filter_set=true
                 shift
                 ;;
@@ -813,6 +833,7 @@ main() {
         RUN_NOTIFICATION=true
         RUN_PRODUCT=true
         RUN_CART=true
+        RUN_ORDER=true
         RUN_ADMIN_APP=true
         RUN_CUSTOMER_APP=true
     fi
@@ -827,6 +848,7 @@ main() {
     [[ "$RUN_NOTIFICATION" == "true" ]] && test_list+="notification-service "
     [[ "$RUN_PRODUCT" == "true" ]] && test_list+="product-service "
     [[ "$RUN_CART" == "true" ]] && test_list+="shopping-cart-service "
+    [[ "$RUN_ORDER" == "true" ]] && test_list+="order-service "
     [[ "$RUN_ADMIN_APP" == "true" ]] && test_list+="admin-app "
     [[ "$RUN_CUSTOMER_APP" == "true" ]] && test_list+="customer-app "
 
