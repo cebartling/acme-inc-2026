@@ -522,11 +522,17 @@ is no authentication.
 
 - **Persistence**: plain JPA with Flyway and `ddl-auto: validate`, like the other services.
   The epic's event store and CQRS read models are deferred. `V1__baseline.sql` is empty;
-  the first table arrives with PIN-366. `open-in-view` is off.
+  the first table arrives with PIN-366. `open-in-view` is off. `acme_orders` and its
+  `acme_app` user come from `docker/postgres/init`, which also gives it a
+  `dbz_publication FOR ALL TABLES`: it is the database the Debezium connector captures (once
+  registered), and an UPDATE or DELETE fails on any of its tables without a primary key.
 - **Events** go to the `order.events` Kafka topic through `OrderEventPublisher`, keyed by
   aggregate ID and using the same envelope as the cart (`eventId`, `eventType`,
-  `eventVersion`, `timestamp`, `aggregateId`, `aggregateType`, `correlationId`). It publishes
-  nothing yet; `OrderCreated` comes with PIN-366. The broker creates the topic on first use.
+  `eventVersion`, `timestamp`, `aggregateId`, `aggregateType`, `correlationId`, a nullable
+  `causationId`, and each event's own `payload`). It publishes nothing yet; `OrderCreated`
+  comes with PIN-366. The broker creates the topic on first use.
+  `acme.order.events.publish-timeout-seconds` (default 10) bounds a publish, including the
+  producer's wait for metadata while Kafka is down.
 - **Planned next**: placing an order from a checkout session (PIN-366), which reads the
   cart (PIN-365) and converts it (PIN-331), adding JWT verification the way the cart does;
   then reading orders (PIN-367).

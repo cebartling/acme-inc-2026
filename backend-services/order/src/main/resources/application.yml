@@ -6,17 +6,15 @@ spring:
     name: order-service
   datasource:
     url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:acme_orders}
-    username: ${POSTGRES_USER:acme}
-    password: ${POSTGRES_PASSWORD:acme}
+    # acme_orders and acme_app come from docker/postgres/init (like customer and notification)
+    username: ${POSTGRES_USER:acme_app}
+    password: ${POSTGRES_PASSWORD:acme_app_password}
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
       ddl-auto: validate
     # Like the other services (PIN-296): no JPA session outlives a use case's transaction.
     open-in-view: false
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
   flyway:
     enabled: true
     baseline-on-migrate: true

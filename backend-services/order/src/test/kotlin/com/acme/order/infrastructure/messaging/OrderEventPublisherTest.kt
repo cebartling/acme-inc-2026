@@ -10,12 +10,15 @@ import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.clients.producer.RecordMetadata
 import org.apache.kafka.common.TopicPartition
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.kafka.support.SendResult
 import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.TimeoutException
 
 class OrderEventPublisherTest {
 
@@ -54,5 +57,23 @@ class OrderEventPublisherTest {
         assertEquals(event.aggregateId.toString(), json["aggregateId"].asText())
         assertEquals("Order", json["aggregateType"].asText())
         assertEquals(event.correlationId.toString(), json["correlationId"].asText())
+    }
+
+    @Test
+    fun `a failed send is thrown to the caller`() {
+        val event = TestEvent(aggregateId = UUID.randomUUID(), correlationId = UUID.randomUUID())
+        every { kafkaTemplate.send(ORDER_EVENTS_TOPIC, any(), any()) } returns
+            CompletableFuture.failedFuture(IllegalStateException("broker rejected"))
+
+        val thrown = assertThrows(ExecutionException::class.java) { publisher.publish(event) }
+        assertEquals("broker rejected", thrown.cause?.message)
+    }
+
+    @Test
+    fun `a send that outlasts the publish timeout is thrown to the caller`() {
+        val event = TestEvent(aggregateId = UUID.randomUUID(), correlationId = UUID.randomUUID())
+        every { kafkaTemplate.send(ORDER_EVENTS_TOPIC, any(), any()) } returns CompletableFuture()
+
+        assertThrows(TimeoutException::class.java) { publisher.publish(event) }
     }
 }
