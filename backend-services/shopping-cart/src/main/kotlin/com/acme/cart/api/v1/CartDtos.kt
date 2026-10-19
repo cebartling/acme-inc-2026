@@ -5,6 +5,7 @@ import com.acme.cart.application.CheckoutStarted
 import com.acme.cart.domain.AvailabilityIssue
 import com.acme.cart.domain.Cart
 import com.acme.cart.domain.CartStatus
+import com.acme.cart.domain.CheckoutSession
 import com.acme.cart.domain.MergeResult
 import com.acme.cart.domain.ProductSnapshot
 import jakarta.validation.Valid
@@ -129,6 +130,33 @@ data class CheckoutResponse(
                 currency = AddItemToCartUseCase.CURRENCY
             )
         )
+    }
+}
+
+/**
+ * A live checkout session's cart (PIN-365), what the order service builds an order from.
+ * [userId] is the signed-in owner, null for a guest; a guest's session ID is never included.
+ */
+data class CheckoutCartResponse(
+    val checkoutSessionId: UUID,
+    val expiresAt: Instant,
+    val cartId: UUID,
+    val userId: UUID?,
+    val items: List<CartItemResponse>,
+    val summary: CartSummaryResponse
+) {
+    companion object {
+        fun from(cart: Cart, session: CheckoutSession, snapshotOf: (String) -> ProductSnapshot): CheckoutCartResponse {
+            val lines = CartResponse.from(cart, snapshotOf)
+            return CheckoutCartResponse(
+                checkoutSessionId = session.id,
+                expiresAt = session.expiresAt,
+                cartId = cart.id,
+                userId = cart.userId,
+                items = lines.items,
+                summary = lines.summary
+            )
+        }
     }
 }
 

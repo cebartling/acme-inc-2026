@@ -1069,4 +1069,113 @@ class CartControllerWebMvcTest(
         }
         verify(exactly = 0) { abandonUseCase.execute(any(), any()) }
     }
+
+    // --- PIN-365: reading a checkout session's cart -------------------------------------
+
+    /** [cart] locked for a session that lapses 30 minutes after [startedAt]. */
+    private fun inCheckout(cart: Cart, startedAt: Instant = Instant.now()) =
+        cart.startCheckout(Duration.ofMinutes(30), now = startedAt).getOrNull()!!
+
+    private fun getCheckoutSession(id: UUID, cookie: Cookie? = Cookie(CartController.SESSION_COOKIE, sessionId)) =
+        mockMvc.get("/api/v1/carts/checkout-sessions/$id") { cookie?.let { cookie(it) } }
+
+    @Test
+    fun `a signed-in owner reads their live checkout session's cart`() {
+        signedIn()
+        val cart = Cart(id = cartId, userId = userId)
+        cart.addItem(variantId, 2, VariantPricing(BigDecimal("69.99")), """{"productId":"${UUID.randomUUID()}","name":"Mouse","sku":"SKU","variantName":"Black","imageUrl":null}""", 10)
+        val session = inCheckout(cart)
+        every { cartRepository.findByUserIdAndStatusIn(userId, CartStatus.CURRENT) } returns cart
+
+        getCheckoutSession(session.id, cookie = accessToken()).andExpect {
+            status { isOk() }
+            jsonPath("$.checkoutSessionId") { value(session.id.toString()) }
+            jsonPath("$.expiresAt") { value(session.expiresAt.toString()) }
+            jsonPath("$.cartId") { value(cartId.toString()) }
+            jsonPath("$.userId") { value(userId.toString()) }
+            jsonPath("$.items[0].variantId") { value(variantId.toString()) }
+            jsonPath("$.items[0].quantity") { value(2) }
+            jsonPath("$.items[0].unitPrice") { value(69.99) }
+            jsonPath("$.items[0].lineTotal") { value(139.98) }
+            jsonPath("$.items[0].productSnapshot.name") { value("Mouse") }
+            jsonPath("$.summary.subtotal") { value(139.98) }
+            jsonPath("$.summary.currency") { value("USD") }
+        }
+    }
+
+    @Test
+    fun `a guest's checkout session cart has no user and never the guest session ID`() {
+        val cart = cartFor(sessionId)
+        val session = inCheckout(cart)
+        every { cartRepository.findBySessionIdAndStatusIn(sessionId, CartStatus.CURRENT) } returns cart
+
+        val body = getCheckoutSession(session.id).andExpect {
+            status { isOk() }
+            jsonPath("$.userId") { value(null) }
+            jsonPath("$.items.length()") { value(1) }
+        }.andReturn().response.contentAsString
+
+        assertFalse(sessionId in body, body)
+    }
+
+    @Test
+    fun `another checkout session ID on the caller's cart is a 404 CHECKOUT_SESSION_NOT_FOUND`() {
+        val cart = cartFor(sessionId)
+        inCheckout(cart)
+        every { cartRepository.findBySessionIdAndStatusIn(sessionId, CartStatus.CURRENT) } returns cart
+        val other = UUID.randomUUID()
+
+        getCheckoutSession(other).andExpect {
+            status { isNotFound() }
+            jsonPath("$.error") { value("Checkout session not found: $other") }
+            jsonPath("$.code") { value("CHECKOUT_SESSION_NOT_FOUND") }
+        }
+    }
+
+    @Test
+    fun `a lapsed session the unlock job has not reached yet is a 404`() {
+        val cart = cartFor(sessionId)
+        val session = inCheckout(cart, startedAt = Instant.now().minus(Duration.ofHours(1)))
+        every { cartRepository.findBySessionIdAndStatusIn(sessionId, CartStatus.CURRENT) } returns cart
+
+        getCheckoutSession(session.id).andExpect {
+            status { isNotFound() }
+            jsonPath("$.code") { value("CHECKOUT_SESSION_NOT_FOUND") }
+        }
+    }
+
+    @Test
+    fun `a session that was left is a 404`() {
+        val cart = cartFor(sessionId)
+        val session = inCheckout(cart)
+        cart.abandonCheckout()
+        every { cartRepository.findBySessionIdAndStatusIn(sessionId, CartStatus.CURRENT) } returns cart
+
+        getCheckoutSession(session.id).andExpect {
+            status { isNotFound() }
+            jsonPath("$.code") { value("CHECKOUT_SESSION_NOT_FOUND") }
+        }
+    }
+
+    @Test
+    fun `reading a checkout session without a session or token is a 404`() {
+        getCheckoutSession(UUID.randomUUID(), cookie = null).andExpect {
+            status { isNotFound() }
+            jsonPath("$.code") { value("CHECKOUT_SESSION_NOT_FOUND") }
+        }
+        verify(exactly = 0) { cartRepository.findBySessionIdAndStatusIn(any(), any()) }
+        verify(exactly = 0) { cartRepository.findByUserIdAndStatusIn(any(), any()) }
+    }
+
+    @Test
+    fun `reading a checkout session saves nothing and leaves its expiry alone`() {
+        val cart = cartFor(sessionId)
+        val session = inCheckout(cart)
+        every { cartRepository.findBySessionIdAndStatusIn(sessionId, CartStatus.CURRENT) } returns cart
+
+        getCheckoutSession(session.id).andExpect { status { isOk() } }
+
+        assertEquals(session.expiresAt, cart.checkoutExpiresAt)
+        verify(exactly = 0) { cartRepository.save(any()) }
+    }
 }

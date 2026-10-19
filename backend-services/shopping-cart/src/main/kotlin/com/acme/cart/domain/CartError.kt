@@ -47,6 +47,14 @@ sealed interface CartError {
     data class AvailabilityUnavailable(val variantId: UUID) : CartError {
         override val message = "Availability is temporarily unavailable for variant $variantId"
     }
+
+    /**
+     * No live checkout session with this ID on the caller's cart (PIN-365): unknown, someone
+     * else's, abandoned, or lapsed. Ending a session clears its ID, so these can't be told apart.
+     */
+    data class CheckoutSessionNotFound(val checkoutSessionId: UUID) : CartError {
+        override val message = "Checkout session not found: $checkoutSessionId"
+    }
 }
 
 /** A cart line that checkout refused (PIN-329), and why. */

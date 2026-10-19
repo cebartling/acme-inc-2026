@@ -270,6 +270,9 @@ class Cart(
     fun isInLiveCheckout(now: Instant): Boolean =
         status == CartStatus.CHECKOUT && checkoutSession().expiresAt > now
 
+    /** The checkout session the cart is locked for, if it has not lapsed as of [now] (PIN-365); else null. */
+    fun liveCheckoutSession(now: Instant): CheckoutSession? = if (isInLiveCheckout(now)) checkoutSession() else null
+
     /**
      * The checkout session the cart is still locked for although it lapsed by [now], because the
      * unlock job has not reached it yet (PIN-330); null if the cart is not in checkout or its
