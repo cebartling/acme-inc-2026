@@ -184,11 +184,10 @@ class CartController(
         @CookieValue(SESSION_COOKIE, required = false) sessionCookie: String?,
         @PathVariable checkoutSessionId: UUID
     ): ResponseEntity<Any> {
-        val now = Instant.now()
         val cart = ownerOf(jwt, sessionCookie)?.let(cartRepository::findActiveCart)
-            ?.takeIf { it.checkoutSessionId == checkoutSessionId && it.isInLiveCheckout(now) }
+        val session = cart?.liveCheckoutSession(Instant.now())?.takeIf { it.id == checkoutSessionId }
             ?: return errorResponse(CartError.CheckoutSessionNotFound(checkoutSessionId))
-        return ResponseEntity.ok(CheckoutCartResponse.from(cart, ::snapshotOf))
+        return ResponseEntity.ok(CheckoutCartResponse.from(cart, session, ::snapshotOf))
     }
 
     /**

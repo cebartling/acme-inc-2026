@@ -424,7 +424,8 @@ sequenceDiagram
   returns the cart a live session is locked for, which is what the order service builds an
   order from: the session ID and `expiresAt`, the cart ID, `userId` (null for a guest), the
   lines and the summary. Like every cart endpoint it answers only for the caller's own cart,
-  so the order service forwards the customer's access token or session cookie. A guest's
+  so the order service forwards the customer's `access_token` or `acme_session_id` cookie
+  (the cart reads no `Authorization` header, so a bearer header is an anonymous 404). A guest's
   session ID is never returned. Anything but a live session on that cart (unknown, someone
   else's, left, or lapsed) is 404 `CHECKOUT_SESSION_NOT_FOUND`: ending a session clears its
   ID, so these can't be told apart. Nothing is saved, so reading never extends the session.

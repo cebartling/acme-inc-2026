@@ -1073,8 +1073,8 @@ class CartControllerWebMvcTest(
     // --- PIN-365: reading a checkout session's cart -------------------------------------
 
     /** [cart] locked for a session that lapses 30 minutes after [startedAt]. */
-    private fun inCheckout(cart: Cart, startedAt: java.time.Instant = java.time.Instant.now()) =
-        cart.startCheckout(java.time.Duration.ofMinutes(30), now = startedAt).getOrNull()!!
+    private fun inCheckout(cart: Cart, startedAt: Instant = Instant.now()) =
+        cart.startCheckout(Duration.ofMinutes(30), now = startedAt).getOrNull()!!
 
     private fun getCheckoutSession(id: UUID, cookie: Cookie? = Cookie(CartController.SESSION_COOKIE, sessionId)) =
         mockMvc.get("/api/v1/carts/checkout-sessions/$id") { cookie?.let { cookie(it) } }
@@ -1135,7 +1135,7 @@ class CartControllerWebMvcTest(
     @Test
     fun `a lapsed session the unlock job has not reached yet is a 404`() {
         val cart = cartFor(sessionId)
-        val session = inCheckout(cart, startedAt = java.time.Instant.now().minus(java.time.Duration.ofHours(1)))
+        val session = inCheckout(cart, startedAt = Instant.now().minus(Duration.ofHours(1)))
         every { cartRepository.findBySessionIdAndStatusIn(sessionId, CartStatus.CURRENT) } returns cart
 
         getCheckoutSession(session.id).andExpect {

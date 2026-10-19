@@ -5,6 +5,7 @@ import com.acme.cart.application.CheckoutStarted
 import com.acme.cart.domain.AvailabilityIssue
 import com.acme.cart.domain.Cart
 import com.acme.cart.domain.CartStatus
+import com.acme.cart.domain.CheckoutSession
 import com.acme.cart.domain.MergeResult
 import com.acme.cart.domain.ProductSnapshot
 import jakarta.validation.Valid
@@ -145,12 +146,11 @@ data class CheckoutCartResponse(
     val summary: CartSummaryResponse
 ) {
     companion object {
-        /** [cart] must be in checkout. */
-        fun from(cart: Cart, snapshotOf: (String) -> ProductSnapshot): CheckoutCartResponse {
+        fun from(cart: Cart, session: CheckoutSession, snapshotOf: (String) -> ProductSnapshot): CheckoutCartResponse {
             val lines = CartResponse.from(cart, snapshotOf)
             return CheckoutCartResponse(
-                checkoutSessionId = checkNotNull(cart.checkoutSessionId) { "cart ${cart.id} is not in checkout" },
-                expiresAt = checkNotNull(cart.checkoutExpiresAt) { "cart ${cart.id} is not in checkout" },
+                checkoutSessionId = session.id,
+                expiresAt = session.expiresAt,
                 cartId = cart.id,
                 userId = cart.userId,
                 items = lines.items,
