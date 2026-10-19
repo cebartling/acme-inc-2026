@@ -43,6 +43,7 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
 import tools.jackson.core.JacksonException
+import java.time.Instant
 import java.util.UUID
 
 @RestController
@@ -171,6 +172,26 @@ class CartController(
     }
 
     /**
+     * The cart a live checkout session is locked for (PIN-365), for the order service to build
+     * an order from. Like every cart endpoint it answers only for the caller's own cart, so the
+     * order service forwards the customer's token or session cookie; the guest session ID is
+     * never returned. Anything but a live session on that cart is 404, and nothing is saved, so
+     * reading never extends the session.
+     */
+    @GetMapping("/checkout-sessions/{checkoutSessionId}")
+    fun getCheckoutSession(
+        @AuthenticationPrincipal jwt: Jwt?,
+        @CookieValue(SESSION_COOKIE, required = false) sessionCookie: String?,
+        @PathVariable checkoutSessionId: UUID
+    ): ResponseEntity<Any> {
+        val now = Instant.now()
+        val cart = ownerOf(jwt, sessionCookie)?.let(cartRepository::findActiveCart)
+            ?.takeIf { it.checkoutSessionId == checkoutSessionId && it.isInLiveCheckout(now) }
+            ?: return errorResponse(CartError.CheckoutSessionNotFound(checkoutSessionId))
+        return ResponseEntity.ok(CheckoutCartResponse.from(cart, ::snapshotOf))
+    }
+
+    /**
      * Leaves checkout on the caller's own cart (PIN-330): the cart is ACTIVE again with its
      * lines. Leaving a cart that is not in checkout returns it unchanged.
      */
@@ -283,7 +304,8 @@ class CartController(
     private fun statusFor(error: CartError): HttpStatus = when (error) {
         is CartError.MaxQuantityExceeded, is CartError.CartEmpty, is CartError.CartUnavailableItems ->
             HttpStatus.UNPROCESSABLE_CONTENT
-        is CartError.VariantNotFound, is CartError.CartItemNotFound, is CartError.CartNotFound -> HttpStatus.NOT_FOUND
+        is CartError.VariantNotFound, is CartError.CartItemNotFound, is CartError.CartNotFound,
+        is CartError.CheckoutSessionNotFound -> HttpStatus.NOT_FOUND
         is CartError.CartLocked -> HttpStatus.CONFLICT
         is CartError.PricingUnavailable, is CartError.AvailabilityUnavailable -> HttpStatus.SERVICE_UNAVAILABLE
     }
@@ -298,6 +320,7 @@ class CartController(
         is CartError.CartEmpty -> "CART_EMPTY"
         is CartError.CartUnavailableItems -> "CART_VALIDATION_FAILED"
         is CartError.AvailabilityUnavailable -> "AVAILABILITY_UNAVAILABLE"
+        is CartError.CheckoutSessionNotFound -> "CHECKOUT_SESSION_NOT_FOUND"
     }
 
     private fun validSession(cookie: String?): String? = guestSessionCookies.validSessionId(cookie)

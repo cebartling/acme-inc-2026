@@ -132,6 +132,34 @@ data class CheckoutResponse(
     }
 }
 
+/**
+ * A live checkout session's cart (PIN-365), what the order service builds an order from.
+ * [userId] is the signed-in owner, null for a guest; a guest's session ID is never included.
+ */
+data class CheckoutCartResponse(
+    val checkoutSessionId: UUID,
+    val expiresAt: Instant,
+    val cartId: UUID,
+    val userId: UUID?,
+    val items: List<CartItemResponse>,
+    val summary: CartSummaryResponse
+) {
+    companion object {
+        /** [cart] must be in checkout. */
+        fun from(cart: Cart, snapshotOf: (String) -> ProductSnapshot): CheckoutCartResponse {
+            val lines = CartResponse.from(cart, snapshotOf)
+            return CheckoutCartResponse(
+                checkoutSessionId = checkNotNull(cart.checkoutSessionId) { "cart ${cart.id} is not in checkout" },
+                expiresAt = checkNotNull(cart.checkoutExpiresAt) { "cart ${cart.id} is not in checkout" },
+                cartId = cart.id,
+                userId = cart.userId,
+                items = lines.items,
+                summary = lines.summary
+            )
+        }
+    }
+}
+
 /** A line that refused checkout (PIN-329): `OUT_OF_STOCK`, or `NOT_AVAILABLE` for a gone variant. */
 data class CheckoutValidationErrorResponse(
     val cartItemId: UUID,

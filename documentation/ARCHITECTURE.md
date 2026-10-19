@@ -420,6 +420,14 @@ sequenceDiagram
   freed for its session. `last_active_at` is kept, so an idle guest cart then expires as
   usual. A lapsed cart can stay locked for up to a minute until the job runs; changes in
   that gap are still 409 `CART_LOCKED`, but starting checkout again works.
+- **Reading a checkout session (PIN-365)**: `GET /api/v1/carts/checkout-sessions/{checkoutSessionId}`
+  returns the cart a live session is locked for, which is what the order service builds an
+  order from: the session ID and `expiresAt`, the cart ID, `userId` (null for a guest), the
+  lines and the summary. Like every cart endpoint it answers only for the caller's own cart,
+  so the order service forwards the customer's access token or session cookie. A guest's
+  session ID is never returned. Anything but a live session on that cart (unknown, someone
+  else's, left, or lapsed) is 404 `CHECKOUT_SESSION_NOT_FOUND`: ending a session clears its
+  ID, so these can't be told apart. Nothing is saved, so reading never extends the session.
 
 ### Product Service
 
