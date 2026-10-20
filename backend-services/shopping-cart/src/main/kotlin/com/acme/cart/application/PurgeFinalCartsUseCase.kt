@@ -15,9 +15,9 @@ import java.time.Instant
 import java.util.UUID
 
 /**
- * Deletes EXPIRED and MERGED carts, with their lines, once they have been final for longer
- * than the retention period (PIN-289; Epic 009 F1, "soft delete with retention"). ACTIVE
- * carts are never touched.
+ * Deletes EXPIRED, MERGED and CONVERTED (PIN-331) carts, with their lines, once they have
+ * been final for longer than the retention period (PIN-289; Epic 009 F1, "soft delete with
+ * retention"). ACTIVE and CHECKOUT carts are never touched.
  *
  * Built like [ExpireIdleGuestCartsUseCase]: each cart is deleted by a conditional DELETE
  * that re-checks it is still final and old enough, and `CartPurged` is only published for

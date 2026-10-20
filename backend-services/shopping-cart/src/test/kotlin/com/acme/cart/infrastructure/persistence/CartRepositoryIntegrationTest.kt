@@ -597,4 +597,85 @@ class CartRepositoryIntegrationTest {
             )
         }
     }
+
+    // --- PIN-331: converting the cart into an order ------------------------------------
+
+    /** A guest cart locked for checkout at [at], then converted into a new order then. */
+    private fun convertedGuestCart(session: String, at: Instant): Cart {
+        val cart = lockedGuestCart(session, at)
+        val converted = cart.convertToOrder(UUID.randomUUID(), cart.checkoutSessionId!!, now = at)
+        assertTrue(converted.isRight(), "setup convert: $converted")
+        return carts.saveAndFlush(cart)
+    }
+
+    @Test
+    fun `a converted cart keeps its order, is no longer current, and frees its session`() {
+        val converted = convertedGuestCart("sess-converted", now)
+        entityManager.clear()
+
+        assertEquals(null, carts.findBySessionIdAndStatusIn("sess-converted", CartStatus.CURRENT))
+        val found = carts.findByIdAndSessionId(converted.id, "sess-converted")
+        assertEquals(CartStatus.CONVERTED, found?.status)
+        assertEquals(converted.orderId, found?.orderId)
+        assertEquals(converted.checkoutSessionId, found?.checkoutSessionId)
+        assertEquals(1, found?.items?.size)
+        assertEquals(null, carts.findByIdAndSessionId(converted.id, "sess-someone-else"))
+        carts.saveAndFlush(Cart(id = UUID.randomUUID(), sessionId = "sess-converted"))
+    }
+
+    @Test
+    fun `a converted cart past retention is purged`() {
+        val converted = convertedGuestCart("sess-purge-converted", pastRetention)
+        entityManager.clear()
+
+        assertEquals(
+            listOf(FinalCart(converted.id, CartStatus.CONVERTED, converted.updatedAt)),
+            carts.findFinalCartsBefore(retentionCutoff, PageRequest.of(0, 10))
+        )
+        assertEquals(1, carts.deleteIfFinalBefore(converted.id, retentionCutoff))
+        assertEquals(0, rowCount("select count(*) from cart_items where cart_id = :id", converted.id))
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    fun `the database rejects a converted cart without its order`() {
+        val rejected = assertThrows<Exception> {
+            concurrently().execute {
+                entityManager.createNativeQuery(
+                    """insert into carts (id, session_id, created_at, updated_at, last_active_at, status,
+                           checkout_session_id, checkout_expires_at)
+                       values (gen_random_uuid(), 'sess-converted-invalid', now(), now(), now(), 'CONVERTED',
+                           gen_random_uuid(), now())"""
+                ).executeUpdate()
+            }
+        }
+        assertTrue(
+            generateSequence<Throwable>(rejected) { it.cause }.any { it.message?.contains("ck_carts_converted_order") == true },
+            "rejected by ck_carts_converted_order"
+        )
+    }
+
+    /** Both inserts in one transaction, so the rejected second rolls back the first too. */
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    fun `the database rejects two carts converted into the same order`() {
+        val orderId = UUID.randomUUID()
+        val rejected = assertThrows<Exception> {
+            concurrently().execute {
+                listOf("sess-order-1", "sess-order-2").forEach { session ->
+                    entityManager.createNativeQuery(
+                        """insert into carts (id, session_id, created_at, updated_at, last_active_at, status,
+                               checkout_session_id, checkout_expires_at, order_id)
+                           values (gen_random_uuid(), '$session', now(), now(), now(), 'CONVERTED',
+                               gen_random_uuid(), now(), '$orderId')"""
+                    ).executeUpdate()
+                }
+            }
+        }
+        assertTrue(
+            generateSequence<Throwable>(rejected) { it.cause }.any { it.message?.contains("uq_carts_order") == true },
+            "rejected by uq_carts_order"
+        )
+        assertEquals(0, rowCount("select count(*) from carts where order_id = :id", orderId))
+    }
 }

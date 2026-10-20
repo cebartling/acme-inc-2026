@@ -6,6 +6,8 @@ import com.acme.cart.application.AddItemToCartCommand
 import com.acme.cart.application.AddItemToCartUseCase
 import com.acme.cart.application.ClearCartCommand
 import com.acme.cart.application.ClearCartUseCase
+import com.acme.cart.application.ConvertCartCommand
+import com.acme.cart.application.ConvertCartUseCase
 import com.acme.cart.application.MergeCartsCommand
 import com.acme.cart.application.MergeCartsUseCase
 import com.acme.cart.application.RemoveCartItemCommand
@@ -56,6 +58,7 @@ class CartController(
     private val mergeCartsUseCase: MergeCartsUseCase,
     private val startCheckoutUseCase: StartCheckoutUseCase,
     private val abandonCheckoutUseCase: AbandonCheckoutUseCase,
+    private val convertCartUseCase: ConvertCartUseCase,
     private val cartRepository: CartRepository,
     private val objectMapper: ObjectMapper,
     private val guestSessionCookies: GuestSessionCookies
@@ -206,6 +209,25 @@ class CartController(
     }
 
     /**
+     * Converts the caller's own cart into the order placed for its checkout session (PIN-331,
+     * journey 0005 step 5). The order service calls this, forwarding the customer's token or
+     * session cookie as for [getCheckoutSession]. Converting again into the same order answers
+     * the same, so the order service can retry.
+     */
+    @PostMapping("/{cartId}/convert")
+    fun convert(
+        @AuthenticationPrincipal jwt: Jwt?,
+        @CookieValue(SESSION_COOKIE, required = false) sessionCookie: String?,
+        @PathVariable cartId: UUID,
+        @Valid @RequestBody request: ConvertCartRequest
+    ): ResponseEntity<Any> {
+        val owner = ownerOf(jwt, sessionCookie) ?: return errorResponse(CartError.CartNotFound(cartId))
+        val command = ConvertCartCommand(owner, cartId, request.orderId!!, request.checkoutSessionId!!)
+        return convertCartUseCase.execute(command)
+            .fold(ifLeft = ::errorResponse, ifRight = { ResponseEntity.ok(CartConversionResponse.from(it)) })
+    }
+
+    /**
      * Merges the caller's guest cart (from the session cookie) into their account cart
      * after sign-in (US-0004-08). Requires a signed-in caller. 204 when there was nothing
      * to merge and the user has no cart either.
@@ -305,7 +327,7 @@ class CartController(
             HttpStatus.UNPROCESSABLE_CONTENT
         is CartError.VariantNotFound, is CartError.CartItemNotFound, is CartError.CartNotFound,
         is CartError.CheckoutSessionNotFound -> HttpStatus.NOT_FOUND
-        is CartError.CartLocked -> HttpStatus.CONFLICT
+        is CartError.CartLocked, is CartError.CartAlreadyConverted -> HttpStatus.CONFLICT
         is CartError.PricingUnavailable, is CartError.AvailabilityUnavailable -> HttpStatus.SERVICE_UNAVAILABLE
     }
 
@@ -320,6 +342,7 @@ class CartController(
         is CartError.CartUnavailableItems -> "CART_VALIDATION_FAILED"
         is CartError.AvailabilityUnavailable -> "AVAILABILITY_UNAVAILABLE"
         is CartError.CheckoutSessionNotFound -> "CHECKOUT_SESSION_NOT_FOUND"
+        is CartError.CartAlreadyConverted -> "CART_ALREADY_CONVERTED"
     }
 
     private fun validSession(cookie: String?): String? = guestSessionCookies.validSessionId(cookie)

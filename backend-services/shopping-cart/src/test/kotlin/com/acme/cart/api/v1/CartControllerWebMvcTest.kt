@@ -18,6 +18,8 @@ import arrow.core.left
 import arrow.core.right
 import com.acme.cart.application.AbandonCheckoutCommand
 import com.acme.cart.application.AbandonCheckoutUseCase
+import com.acme.cart.application.ConvertCartCommand
+import com.acme.cart.application.ConvertCartUseCase
 import com.acme.cart.application.AddItemToCartCommand
 import com.acme.cart.application.AddItemToCartUseCase
 import com.acme.cart.application.ClearCartCommand
@@ -78,6 +80,7 @@ class CartControllerWebMvcTest(
     @Autowired private val mergeUseCase: MergeCartsUseCase,
     @Autowired private val checkoutUseCase: StartCheckoutUseCase,
     @Autowired private val abandonUseCase: AbandonCheckoutUseCase,
+    @Autowired private val convertUseCase: ConvertCartUseCase,
     @Autowired private val jwtDecoder: JwtDecoder
 ) {
 
@@ -105,6 +108,9 @@ class CartControllerWebMvcTest(
         fun abandonCheckoutUseCase(): AbandonCheckoutUseCase = mockk()
 
         @Bean
+        fun convertCartUseCase(): ConvertCartUseCase = mockk()
+
+        @Bean
         fun cartRepository(): CartRepository = mockk()
 
         @Bean
@@ -127,7 +133,7 @@ class CartControllerWebMvcTest(
 
     @BeforeEach
     fun setUp() {
-        clearMocks(useCase, updateUseCase, removeUseCase, clearUseCase, cartRepository, jwtDecoder, mergeUseCase, checkoutUseCase, abandonUseCase)
+        clearMocks(useCase, updateUseCase, removeUseCase, clearUseCase, cartRepository, jwtDecoder, mergeUseCase, checkoutUseCase, abandonUseCase, convertUseCase)
         command.clear()
         every { cartRepository.touchGuestCart(any(), any(), any()) } returns 0
         every { useCase.execute(capture(command), any()) } answers {
@@ -1177,5 +1183,77 @@ class CartControllerWebMvcTest(
 
         assertEquals(session.expiresAt, cart.checkoutExpiresAt)
         verify(exactly = 0) { cartRepository.save(any()) }
+    }
+
+    // --- PIN-331: converting the cart into an order -------------------------------------
+
+    private val orderId = UUID.randomUUID()
+    private val checkoutSessionId = UUID.randomUUID()
+
+    private fun convert(content: String = """{"orderId":"$orderId","checkoutSessionId":"$checkoutSessionId"}""") =
+        mockMvc.post("/api/v1/carts/$cartId/convert") {
+            cookie(Cookie(CartController.SESSION_COOKIE, sessionId))
+            contentType = MediaType.APPLICATION_JSON
+            this.content = content
+        }
+
+    @Test
+    fun `converting the cart answers the conversion`() {
+        val cart = cartFor(sessionId)
+        val session = cart.startCheckout(java.time.Duration.ofMinutes(30)).getOrNull()!!
+        val conversion = cart.convertToOrder(orderId, session.id, now = Instant.parse("2026-10-19T15:08:04Z")).getOrNull()!!
+        val captured = slot<ConvertCartCommand>()
+        every { convertUseCase.execute(capture(captured), any()) } returns ConvertCartUseCase.Converted(cart, conversion).right()
+
+        convert().andExpect {
+            status { isOk() }
+            jsonPath("$.cartId") { value(cartId.toString()) }
+            jsonPath("$.status") { value("CONVERTED") }
+            jsonPath("$.orderId") { value(orderId.toString()) }
+            jsonPath("$.convertedAt") { value("2026-10-19T15:08:04Z") }
+        }
+
+        assertEquals(ConvertCartCommand(CartOwner.Guest(sessionId), cartId, orderId, checkoutSessionId), captured.captured)
+    }
+
+    @Test
+    fun `converting without an order ID is a 400 and never reaches the use case`() {
+        convert("""{"checkoutSessionId":"$checkoutSessionId"}""").andExpect {
+            status { isBadRequest() }
+            jsonPath("$.code") { value("INVALID_REQUEST") }
+        }
+        verify(exactly = 0) { convertUseCase.execute(any(), any()) }
+    }
+
+    @Test
+    fun `converting a cart not in checkout for that session is a 404 CHECKOUT_SESSION_NOT_FOUND`() {
+        every { convertUseCase.execute(any(), any()) } returns CartError.CheckoutSessionNotFound(checkoutSessionId).left()
+
+        convert().andExpect {
+            status { isNotFound() }
+            jsonPath("$.code") { value("CHECKOUT_SESSION_NOT_FOUND") }
+        }
+    }
+
+    @Test
+    fun `converting a cart that became another order is a 409 CART_ALREADY_CONVERTED`() {
+        every { convertUseCase.execute(any(), any()) } returns CartError.CartAlreadyConverted(cartId).left()
+
+        convert().andExpect {
+            status { isConflict() }
+            jsonPath("$.code") { value("CART_ALREADY_CONVERTED") }
+        }
+    }
+
+    @Test
+    fun `converting without a session or token is a 404`() {
+        mockMvc.post("/api/v1/carts/$cartId/convert") {
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"orderId":"$orderId","checkoutSessionId":"$checkoutSessionId"}"""
+        }.andExpect {
+            status { isNotFound() }
+            jsonPath("$.code") { value("CART_NOT_FOUND") }
+        }
+        verify(exactly = 0) { convertUseCase.execute(any(), any()) }
     }
 }

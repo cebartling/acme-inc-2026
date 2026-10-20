@@ -59,6 +59,10 @@ class Cart(
     @Column(name = "checkout_expires_at")
     var checkoutExpiresAt: Instant? = null,
 
+    /** The order a CONVERTED cart became (PIN-331); null otherwise. */
+    @Column(name = "order_id")
+    var orderId: UUID? = null,
+
     @OneToMany(
         mappedBy = "cart",
         fetch = FetchType.LAZY,
@@ -296,6 +300,40 @@ class Cart(
         return session
     }
 
+    /**
+     * Converts the cart into the order placed for its checkout session (PIN-331): it becomes
+     * CONVERTED, which is final, keeping its lines and checkout session ID. A session that
+     * lapsed but is still locked converts too, since the order already exists. Converting again
+     * into the same order for the same session changes nothing and reports a repeat.
+     *
+     * @return the conversion; or [CartError.CartAlreadyConverted] if the cart became another
+     *   order or converted for another session, or [CartError.CheckoutSessionNotFound] if it is
+     *   not in checkout for [checkoutSessionId]. The cart is unchanged on error.
+     */
+    fun convertToOrder(orderId: UUID, checkoutSessionId: UUID, now: Instant = Instant.now()): Either<CartError, CartConversion> {
+        if (status == CartStatus.CONVERTED) {
+            if (this.orderId != orderId || this.checkoutSessionId != checkoutSessionId) {
+                return CartError.CartAlreadyConverted(id).left()
+            }
+            return conversion(repeated = true).right()
+        }
+        if (status != CartStatus.CHECKOUT || this.checkoutSessionId != checkoutSessionId) {
+            return CartError.CheckoutSessionNotFound(checkoutSessionId).left()
+        }
+        status = CartStatus.CONVERTED
+        this.orderId = orderId
+        touch(now)
+        return conversion(repeated = false).right()
+    }
+
+    /** Nothing changes a CONVERTED cart, so the time it was last updated is when it converted. */
+    private fun conversion(repeated: Boolean) = CartConversion(
+        orderId = checkNotNull(orderId) { "CONVERTED cart $id has no order" },
+        checkoutSessionId = checkNotNull(checkoutSessionId) { "CONVERTED cart $id has no checkout session" },
+        convertedAt = updatedAt,
+        repeated = repeated
+    )
+
     private fun checkoutSession() = CheckoutSession(
         id = checkNotNull(checkoutSessionId) { "CHECKOUT cart $id has no checkout session" },
         expiresAt = checkNotNull(checkoutExpiresAt) { "CHECKOUT cart $id has no checkout expiry" }
@@ -314,6 +352,17 @@ data class QuantityChange(val item: CartItem, val previousQuantity: Int)
 
 /** The checkout session a cart is locked for (PIN-329). */
 data class CheckoutSession(val id: UUID, val expiresAt: Instant)
+
+/**
+ * The order a cart converted into (PIN-331). [repeated] is true when the cart had already
+ * converted into this order, so nothing changed.
+ */
+data class CartConversion(
+    val orderId: UUID,
+    val checkoutSessionId: UUID,
+    val convertedAt: Instant,
+    val repeated: Boolean
+)
 
 /**
  * What a merge did: how many guest lines moved, which quantities were capped, and which lines
