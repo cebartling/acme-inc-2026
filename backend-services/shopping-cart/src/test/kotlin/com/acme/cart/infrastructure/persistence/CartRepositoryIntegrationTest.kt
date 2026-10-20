@@ -654,4 +654,28 @@ class CartRepositoryIntegrationTest {
             "rejected by ck_carts_converted_order"
         )
     }
+
+    /** Both inserts in one transaction, so the rejected second rolls back the first too. */
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    fun `the database rejects two carts converted into the same order`() {
+        val orderId = UUID.randomUUID()
+        val rejected = assertThrows<Exception> {
+            concurrently().execute {
+                listOf("sess-order-1", "sess-order-2").forEach { session ->
+                    entityManager.createNativeQuery(
+                        """insert into carts (id, session_id, created_at, updated_at, last_active_at, status,
+                               checkout_session_id, checkout_expires_at, order_id)
+                           values (gen_random_uuid(), '$session', now(), now(), now(), 'CONVERTED',
+                               gen_random_uuid(), now(), '$orderId')"""
+                    ).executeUpdate()
+                }
+            }
+        }
+        assertTrue(
+            generateSequence<Throwable>(rejected) { it.cause }.any { it.message?.contains("uq_carts_order") == true },
+            "rejected by uq_carts_order"
+        )
+        assertEquals(0, rowCount("select count(*) from carts where order_id = :id", orderId))
+    }
 }
