@@ -603,7 +603,8 @@ class CartRepositoryIntegrationTest {
     /** A guest cart locked for checkout at [at], then converted into a new order then. */
     private fun convertedGuestCart(session: String, at: Instant): Cart {
         val cart = lockedGuestCart(session, at)
-        cart.convertToOrder(UUID.randomUUID(), cart.checkoutSessionId!!, now = at)
+        val converted = cart.convertToOrder(UUID.randomUUID(), cart.checkoutSessionId!!, now = at)
+        assertTrue(converted.isRight(), "setup convert: $converted")
         return carts.saveAndFlush(cart)
     }
 

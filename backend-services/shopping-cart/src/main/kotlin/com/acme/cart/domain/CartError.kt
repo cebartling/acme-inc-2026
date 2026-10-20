@@ -56,7 +56,7 @@ sealed interface CartError {
         override val message = "Checkout session not found: $checkoutSessionId"
     }
 
-    /** The cart has already converted into a different order (PIN-331). */
+    /** The cart has already converted into a different order, or for a different checkout session (PIN-331). */
     data class CartAlreadyConverted(val cartId: UUID) : CartError {
         override val message = "Cart $cartId has already been converted to an order"
     }

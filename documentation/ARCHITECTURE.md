@@ -441,7 +441,7 @@ sequenceDiagram
   bump makes the convert retry, find the cart `ACTIVE`, and refuse. The cart is looked up by
   ID and owner in any status (`findOwnedCartInAnyStatus`), so converting again into the same
   order for the same session finds it and answers the same, saving and publishing nothing,
-  and the order service can retry. A different order is 409 `CART_ALREADY_CONVERTED`. A cart
+  and the order service can retry. A different order or session is 409 `CART_ALREADY_CONVERTED`. A cart
   not in checkout for that session is 404 `CHECKOUT_SESSION_NOT_FOUND`.
 
 ### Product Service

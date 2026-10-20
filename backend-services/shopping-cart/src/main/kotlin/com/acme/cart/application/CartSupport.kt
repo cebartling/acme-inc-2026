@@ -15,8 +15,8 @@ import java.util.UUID
 
 /**
  * The owner's current cart, ACTIVE or locked for checkout (PIN-329), if any. A locked cart is
- * still found, so a change to it is refused rather than starting a second cart. A MERGED or
- * EXPIRED guest cart reads as no cart (AC-0004-08-05).
+ * still found, so a change to it is refused rather than starting a second cart. A MERGED,
+ * EXPIRED or CONVERTED cart reads as no cart (AC-0004-08-05, PIN-331).
  */
 internal fun CartRepository.findActiveCart(owner: CartOwner): Cart? = when (owner) {
     is CartOwner.Guest -> findBySessionIdAndStatusIn(owner.sessionId, CartStatus.CURRENT)

@@ -60,6 +60,7 @@ class ConvertCartUseCase(
                     cartId = cart.id,
                     orderId = conversion.orderId,
                     checkoutSessionId = conversion.checkoutSessionId,
+                    convertedAt = conversion.convertedAt,
                     lineCount = cart.items.size,
                     itemCount = cart.itemCount,
                     sessionId = cart.sessionId,

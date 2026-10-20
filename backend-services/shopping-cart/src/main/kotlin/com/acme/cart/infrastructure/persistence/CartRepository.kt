@@ -152,8 +152,8 @@ interface CartRepository : JpaRepository<Cart, UUID> {
     /**
      * Deletes one cart if it is still EXPIRED, MERGED or CONVERTED and final since before
      * [cutoff]. The conditions are re-checked in the DELETE itself, so a cart that is no longer
-     * final is kept, and two runs never delete twice. Its lines go with it through the `cart_items` foreign key's ON DELETE CASCADE. Returns 1 if this
-     * call deleted it.
+     * final is kept, and two runs never delete twice. Its lines go with it through the
+     * `cart_items` foreign key's ON DELETE CASCADE. Returns 1 if this call deleted it.
      */
     @Transactional
     @Modifying(flushAutomatically = true, clearAutomatically = true)

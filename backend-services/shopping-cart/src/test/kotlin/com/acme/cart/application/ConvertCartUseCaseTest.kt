@@ -49,8 +49,12 @@ class ConvertCartUseCaseTest {
         every { eventPublisher.publish(capture(published)) } returns Unit
     }
 
-    private fun convert(checkoutSessionId: UUID, cartId: UUID = cart.id, order: UUID = orderId) =
-        useCase.execute(ConvertCartCommand(CartOwner.Guest("sess-1"), cartId, order, checkoutSessionId))
+    private fun convert(
+        checkoutSessionId: UUID,
+        cartId: UUID = cart.id,
+        order: UUID = orderId,
+        owner: CartOwner = CartOwner.Guest("sess-1")
+    ) = useCase.execute(ConvertCartCommand(owner, cartId, order, checkoutSessionId))
 
     @Test
     fun `converts a cart in checkout and publishes CartConvertedToOrder`() {
@@ -67,6 +71,7 @@ class ConvertCartUseCaseTest {
         assertEquals(cart.id, payload.cartId)
         assertEquals(orderId, payload.orderId)
         assertEquals(session.id, payload.checkoutSessionId)
+        assertEquals(convertedAt, payload.convertedAt)
         assertEquals(1, payload.lineCount)
         assertEquals(2, payload.itemCount)
         assertEquals("sess-1", payload.sessionId)
@@ -96,10 +101,34 @@ class ConvertCartUseCaseTest {
     }
 
     @Test
-    fun `someone else's cart is not found`() {
+    fun `a missing cart is not found`() {
         val other = UUID.randomUUID()
 
         assertEquals(CartError.CartNotFound(other), convert(UUID.randomUUID(), cartId = other).leftOrNull())
         assertEquals(emptyList(), published)
+    }
+
+    @Test
+    fun `someone else's cart is not found`() {
+        val session = cart.startCheckout(Duration.ofMinutes(30)).getOrNull()!!
+
+        assertEquals(CartError.CartNotFound(cart.id), convert(session.id, owner = CartOwner.Guest("sess-2")).leftOrNull())
+        assertEquals(CartStatus.CHECKOUT, cart.status)
+        assertEquals(emptyList(), published)
+    }
+
+    @Test
+    fun `a signed-in customer's cart is found by its user`() {
+        val userId = UUID.randomUUID()
+        val userCart = Cart(id = UUID.randomUUID(), userId = userId).also {
+            it.addItem(UUID.randomUUID(), 1, VariantPricing(BigDecimal("69.99")), "{}", 10)
+        }
+        val session = userCart.startCheckout(Duration.ofMinutes(30)).getOrNull()!!
+        every { cartRepository.findByIdAndUserId(userCart.id, userId) } returns userCart
+
+        val converted = convert(session.id, cartId = userCart.id, owner = CartOwner.Customer(userId)).getOrNull()!!
+
+        assertEquals(CartStatus.CONVERTED, converted.cart.status)
+        assertEquals(userId, assertIs<CartConvertedToOrder>(published.single()).payload.userId)
     }
 }

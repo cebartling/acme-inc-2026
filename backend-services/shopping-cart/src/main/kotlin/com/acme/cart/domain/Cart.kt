@@ -307,8 +307,8 @@ class Cart(
      * into the same order for the same session changes nothing and reports a repeat.
      *
      * @return the conversion; or [CartError.CartAlreadyConverted] if the cart became another
-     *   order, or [CartError.CheckoutSessionNotFound] if it is not in checkout for
-     *   [checkoutSessionId]. The cart is unchanged on error.
+     *   order or converted for another session, or [CartError.CheckoutSessionNotFound] if it is
+     *   not in checkout for [checkoutSessionId]. The cart is unchanged on error.
      */
     fun convertToOrder(orderId: UUID, checkoutSessionId: UUID, now: Instant = Instant.now()): Either<CartError, CartConversion> {
         if (status == CartStatus.CONVERTED) {
