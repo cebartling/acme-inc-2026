@@ -433,8 +433,9 @@ sequenceDiagram
   `{orderId, checkoutSessionId}` is how the order service turns the cart into the order it
   placed, forwarding the customer's cookie as above. The cart becomes `CONVERTED`, which is
   final: it keeps its lines and checkout session ID, records `carts.order_id` (V9; a
-  `CONVERTED` cart must have both, `ck_carts_converted_order`; no two carts share an order, `uq_carts_order`), and is no longer the owner's
-  current cart, so their next add starts a new one. The answer is `{cartId, status, orderId,
+  `CONVERTED` cart must have both, `ck_carts_converted_order`; no two carts share an order,
+  `uq_carts_order`), and is no longer the owner's current cart, so their next add starts a
+  new one. The answer is `{cartId, status, orderId,
   convertedAt}`, where `convertedAt` is `updated_at`, and `CartConvertedToOrder` is published
   after commit. A session that lapsed but that the unlock job hasn't reached yet still
   converts, since the order already exists. If the job unlocks the cart first, its version
