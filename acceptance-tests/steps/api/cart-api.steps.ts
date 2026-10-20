@@ -504,3 +504,44 @@ When('I leave checkout on my cart', async function (this: CustomWorld) {
 Then('my cart should no longer be locked', async function (this: CustomWorld) {
   expect(this.getLastResponse<CartResponse>()!.data.status).toBe('ACTIVE');
 });
+
+// --- PIN-331: convert the cart into an order -------------------------------------------
+
+interface CartConversionResponse {
+  cartId: string;
+  status: string;
+  orderId: string;
+  convertedAt: string;
+}
+
+// Stands in for the order service (PIN-366), which forwards the customer's session cookie.
+async function convertCart(world: CustomWorld, orderId: string) {
+  const response = await world.cartApiClient.post<CartConversionResponse>(
+    `/api/v1/carts/${world.getTestData<string>('cartId')}/convert`,
+    { orderId, checkoutSessionId: world.getTestData<string>('checkoutSessionId') },
+    { headers: sessionHeaders(world.getTestData<string>('cartSessionId')) }
+  );
+  world.setLastResponse(response);
+  return response;
+}
+
+When('I convert my cart into a new order', async function (this: CustomWorld) {
+  const orderId = randomUUID();
+  this.setTestData('orderId', orderId);
+  const response = await convertCart(this, orderId);
+  if (response.status === 200) this.setTestData('convertedAt', response.data.convertedAt);
+});
+
+When('I convert my cart into the same order again', async function (this: CustomWorld) {
+  const orderId = this.getTestData<string>('orderId');
+  expect(orderId, 'the cart was converted first').toBeDefined();
+  await convertCart(this, orderId!);
+});
+
+Then('my cart should be converted into that order', async function (this: CustomWorld) {
+  const conversion = this.getLastResponse<CartConversionResponse>()!.data;
+  expect(conversion.cartId).toBe(this.getTestData<string>('cartId'));
+  expect(conversion.status).toBe('CONVERTED');
+  expect(conversion.orderId).toBe(this.getTestData<string>('orderId'));
+  expect(conversion.convertedAt).toBe(this.getTestData<string>('convertedAt'));
+});

@@ -18,6 +18,7 @@ import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.support.TransactionTemplate
 import java.math.BigDecimal
 import java.time.Duration
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -59,6 +60,8 @@ class ConvertCartUseCaseTest {
 
         assertEquals(CartStatus.CONVERTED, converted.cart.status)
         assertEquals(orderId, converted.conversion.orderId)
+        val convertedAt = converted.conversion.convertedAt
+        assertEquals(convertedAt.truncatedTo(ChronoUnit.MICROS), convertedAt, "no finer than the database keeps")
         verify { cartRepository.save(cart) }
         val payload = assertIs<CartConvertedToOrder>(published.single()).payload
         assertEquals(cart.id, payload.cartId)

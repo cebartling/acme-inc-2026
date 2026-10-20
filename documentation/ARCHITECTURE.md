@@ -227,13 +227,13 @@ sequenceDiagram
   outside a transaction fetches the cart's lines with an entity graph, and
   `CartResponsesOutsideSessionTest` pins that the responses need no session.
 - **Retention** (PIN-289): every 6 hours, `CartPurgeScheduledTasks` runs
-  `PurgeFinalCartsUseCase`, which deletes EXPIRED and MERGED carts whose `updated_at` (set
-  when they expired or merged) is older than `acme.cart.retention` (default `90d`). Their
+  `PurgeFinalCartsUseCase`, which deletes EXPIRED, MERGED and CONVERTED (PIN-331) carts whose
+  `updated_at` (set when they expired, merged or converted) is older than `acme.cart.retention` (default `90d`). Their
   lines go too, through the `cart_items` foreign key's `ON DELETE CASCADE`. It is built like
   the expiry job: a projection scan (partial index `ix_carts_final`, V4) and a conditional
   DELETE per cart that re-checks it is still final and old enough, so a cart that is no
   longer final is kept. `CartPurged` is published only for carts it deleted (counted as
-  `cart.purged`). ACTIVE carts are never deleted. `acme.cart.purge.enabled=false` turns the
+  `cart.purged`). ACTIVE and CHECKOUT carts are never deleted. `acme.cart.purge.enabled=false` turns the
   job off. Debezium only captures `acme_orders`, so these deletes emit no change events.
   The scheduler has three threads (`spring.task.scheduling.pool.size`), one per job (expiry,
   purge, checkout unlock), so a slow purge run never holds up the others.
@@ -429,6 +429,20 @@ sequenceDiagram
   session ID is never returned. Anything but a live session on that cart (unknown, someone
   else's, left, or lapsed) is 404 `CHECKOUT_SESSION_NOT_FOUND`: ending a session clears its
   ID, so these can't be told apart. Nothing is saved, so reading never extends the session.
+- **Converting the cart (PIN-331, journey 0005 step 5)**: `POST /api/v1/carts/{cartId}/convert`
+  `{orderId, checkoutSessionId}` is how the order service turns the cart into the order it
+  placed, forwarding the customer's cookie as above. The cart becomes `CONVERTED`, which is
+  final: it keeps its lines and checkout session ID, records `carts.order_id` (V9; a
+  `CONVERTED` cart must have both, `ck_carts_converted_order`), and is no longer the owner's
+  current cart, so their next add starts a new one. The answer is `{cartId, status, orderId,
+  convertedAt}`, where `convertedAt` is `updated_at`, and `CartConvertedToOrder` is published
+  after commit. A session that lapsed but that the unlock job hasn't reached yet still
+  converts, since the order already exists. If the job unlocks the cart first, its version
+  bump makes the convert retry, find the cart `ACTIVE`, and refuse. The cart is looked up by
+  ID and owner in any status (`findOwnedCartInAnyStatus`), so converting again into the same
+  order for the same session finds it and answers the same, saving and publishing nothing,
+  and the order service can retry. A different order is 409 `CART_ALREADY_CONVERTED`. A cart
+  not in checkout for that session is 404 `CHECKOUT_SESSION_NOT_FOUND`.
 
 ### Product Service
 

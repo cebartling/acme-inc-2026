@@ -14,6 +14,7 @@ import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.support.TransactionTemplate
 import java.time.Instant
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 data class ConvertCartCommand(val owner: CartOwner, val cartId: UUID, val orderId: UUID, val checkoutSessionId: UUID)
@@ -37,7 +38,8 @@ class ConvertCartUseCase(
         retryOnConflict("Convert cart") { convertOnce(command, correlationId) }
 
     private fun convertOnce(command: ConvertCartCommand, correlationId: UUID): Either<CartError, Converted> {
-        val now = Instant.now()
+        // Postgres keeps microseconds, so the first answer's convertedAt matches a repeat's, which is read back.
+        val now = Instant.now().truncatedTo(ChronoUnit.MICROS)
         val result = transactionTemplate.execute {
             val cart = cartRepository.findOwnedCartInAnyStatus(command.owner, command.cartId)
                 ?: return@execute CartError.CartNotFound(command.cartId).left()

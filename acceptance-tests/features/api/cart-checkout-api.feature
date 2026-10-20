@@ -7,6 +7,8 @@ Feature: Start Checkout API
   # PIN-329 (journey 0005, step 1). Gadget Pro Black is seeded in stock and Silver out of stock.
   # PIN-330: resuming and leaving checkout. The 30-minute timeout is covered by the service's
   # own tests, not here.
+  # PIN-331: converting the cart into an order (journey 0005, step 5). The steps call the cart
+  # as the order service will, with the customer's session cookie.
 
   # AC-1.2, AC-1.5
   Scenario: Starting checkout locks the cart against changes
@@ -56,3 +58,20 @@ Feature: Start Checkout API
     And checkout should report "Gadget Pro / Silver" as "OUT_OF_STOCK"
     When I add 1 more of the same variant to my cart
     Then the API should respond with status 201
+
+  Scenario: Converting the cart into an order ends checkout
+    Given I have added 2 "Gadget Pro / Black" to a new cart
+    And I have started checkout on my cart
+    When I convert my cart into a new order
+    Then the API should respond with status 200
+    And my cart should be converted into that order
+    When I get my current cart
+    Then the API should respond with status 204
+
+  Scenario: Converting again into the same order answers the same
+    Given I have added 1 "Gadget Pro / Black" to a new cart
+    And I have started checkout on my cart
+    And I convert my cart into a new order
+    When I convert my cart into the same order again
+    Then the API should respond with status 200
+    And my cart should be converted into that order
