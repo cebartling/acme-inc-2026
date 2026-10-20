@@ -2,6 +2,7 @@ package com.acme.cart.api.v1
 
 import com.acme.cart.application.AddItemToCartUseCase
 import com.acme.cart.application.CheckoutStarted
+import com.acme.cart.application.ConvertCartUseCase
 import com.acme.cart.domain.AvailabilityIssue
 import com.acme.cart.domain.Cart
 import com.acme.cart.domain.CartStatus
@@ -157,6 +158,32 @@ data class CheckoutCartResponse(
                 summary = lines.summary
             )
         }
+    }
+}
+
+/** The order the order service placed for a checkout session (PIN-331, journey 0005 step 5). */
+data class ConvertCartRequest(
+    @field:NotNull
+    val orderId: UUID?,
+
+    @field:NotNull
+    val checkoutSessionId: UUID?
+)
+
+/** A cart converted into an order (PIN-331), as the journey's "Convert Cart to Order" contract has it. */
+data class CartConversionResponse(
+    val cartId: UUID,
+    val status: CartStatus,
+    val orderId: UUID,
+    val convertedAt: Instant
+) {
+    companion object {
+        fun from(converted: ConvertCartUseCase.Converted) = CartConversionResponse(
+            cartId = converted.cart.id,
+            status = converted.cart.status,
+            orderId = converted.conversion.orderId,
+            convertedAt = converted.conversion.convertedAt
+        )
     }
 }
 

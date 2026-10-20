@@ -331,4 +331,78 @@ class CartTest {
         }
         assertEquals(CartStatus.ACTIVE, guest.status)
     }
+
+    @Test
+    fun `converting a cart in checkout makes it CONVERTED into the order`() {
+        val cart = newCart()
+        val item = cart.add(2).getOrNull()!!
+        val session = cart.startCheckout(sessionLength).getOrNull()!!
+        val orderId = UUID.randomUUID()
+        val placed = session.expiresAt.minusSeconds(60)
+
+        val conversion = cart.convertToOrder(orderId, session.id, now = placed).getOrNull()!!
+
+        assertEquals(CartConversion(orderId, session.id, placed, repeated = false), conversion)
+        assertEquals(CartStatus.CONVERTED, cart.status)
+        assertEquals(orderId, cart.orderId)
+        assertEquals(session.id, cart.checkoutSessionId)
+        assertEquals(listOf(item), cart.items)
+        assertEquals(placed, cart.updatedAt)
+    }
+
+    @Test
+    fun `a session that lapsed but is still locked converts`() {
+        val cart = newCart()
+        cart.add(1)
+        val session = cart.startCheckout(sessionLength).getOrNull()!!
+
+        val conversion = cart.convertToOrder(UUID.randomUUID(), session.id, now = session.expiresAt.plusSeconds(30))
+
+        assertTrue(conversion.isRight())
+        assertEquals(CartStatus.CONVERTED, cart.status)
+    }
+
+    @Test
+    fun `converting again into the same order is a repeat that changes nothing`() {
+        val cart = newCart()
+        cart.add(1)
+        val session = cart.startCheckout(sessionLength).getOrNull()!!
+        val orderId = UUID.randomUUID()
+        val first = cart.convertToOrder(orderId, session.id).getOrNull()!!
+
+        val again = cart.convertToOrder(orderId, session.id, now = first.convertedAt.plusSeconds(60)).getOrNull()!!
+
+        assertEquals(first.copy(repeated = true), again)
+        assertEquals(first.convertedAt, cart.updatedAt)
+    }
+
+    @Test
+    fun `a converted cart refuses a different order or session`() {
+        val cart = newCart()
+        cart.add(1)
+        val session = cart.startCheckout(sessionLength).getOrNull()!!
+        val orderId = UUID.randomUUID()
+        cart.convertToOrder(orderId, session.id)
+        val converted = CartError.CartAlreadyConverted(cart.id)
+
+        assertEquals(converted, cart.convertToOrder(UUID.randomUUID(), session.id).leftOrNull())
+        assertEquals(converted, cart.convertToOrder(orderId, UUID.randomUUID()).leftOrNull())
+        assertEquals(orderId, cart.orderId)
+    }
+
+    @Test
+    fun `only a cart in checkout for that session converts`() {
+        val active = newCart()
+        active.add(1)
+        val other = UUID.randomUUID()
+        assertEquals(CartError.CheckoutSessionNotFound(other), active.convertToOrder(UUID.randomUUID(), other).leftOrNull())
+        assertEquals(CartStatus.ACTIVE, active.status)
+
+        val locked = newCart()
+        locked.add(1)
+        locked.startCheckout(sessionLength)
+        assertEquals(CartError.CheckoutSessionNotFound(other), locked.convertToOrder(UUID.randomUUID(), other).leftOrNull())
+        assertEquals(CartStatus.CHECKOUT, locked.status)
+        assertEquals(null, locked.orderId)
+    }
 }

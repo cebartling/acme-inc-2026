@@ -44,6 +44,14 @@ interface CartRepository : JpaRepository<Cart, UUID> {
     @EntityGraph(attributePaths = ["items"])
     fun findByUserIdAndStatusIn(userId: UUID, statuses: Collection<CartStatus>): Cart?
 
+    /** The session's cart with this ID in any status, including a final one (PIN-331). */
+    @EntityGraph(attributePaths = ["items"])
+    fun findByIdAndSessionId(id: UUID, sessionId: String): Cart?
+
+    /** The user's cart with this ID in any status; see [findByIdAndSessionId]. */
+    @EntityGraph(attributePaths = ["items"])
+    fun findByIdAndUserId(id: UUID, userId: UUID): Cart?
+
     // --- PIN-287: idle guest carts expire ---------------------------------------------
 
     /**
@@ -130,21 +138,21 @@ interface CartRepository : JpaRepository<Cart, UUID> {
 
     // --- PIN-289: final carts are deleted after the retention period ---------------------
 
-    /** EXPIRED and MERGED carts that became final before [cutoff], oldest first. Nothing is loaded. */
+    /** EXPIRED, MERGED and CONVERTED carts that became final before [cutoff], oldest first. Nothing is loaded. */
     @Query(
         """SELECT new com.acme.cart.infrastructure.persistence.FinalCart(c.id, c.status, c.updatedAt)
            FROM Cart c
-           WHERE c.status IN (com.acme.cart.domain.CartStatus.EXPIRED, com.acme.cart.domain.CartStatus.MERGED)
+           WHERE c.status IN (com.acme.cart.domain.CartStatus.EXPIRED, com.acme.cart.domain.CartStatus.MERGED,
+                            com.acme.cart.domain.CartStatus.CONVERTED)
              AND c.updatedAt < :cutoff
            ORDER BY c.updatedAt ASC"""
     )
     fun findFinalCartsBefore(cutoff: Instant, page: Pageable): List<FinalCart>
 
     /**
-     * Deletes one cart if it is still EXPIRED or MERGED and final since before [cutoff]. The
-     * conditions are re-checked in the DELETE itself, so a cart that is no longer final is
-     * kept, and two runs never delete twice. Its lines
-     * go with it through the `cart_items` foreign key's ON DELETE CASCADE. Returns 1 if this
+     * Deletes one cart if it is still EXPIRED, MERGED or CONVERTED and final since before
+     * [cutoff]. The conditions are re-checked in the DELETE itself, so a cart that is no longer
+     * final is kept, and two runs never delete twice. Its lines go with it through the `cart_items` foreign key's ON DELETE CASCADE. Returns 1 if this
      * call deleted it.
      */
     @Transactional
@@ -152,7 +160,8 @@ interface CartRepository : JpaRepository<Cart, UUID> {
     @Query(
         """DELETE FROM Cart c
            WHERE c.id = :id
-             AND c.status IN (com.acme.cart.domain.CartStatus.EXPIRED, com.acme.cart.domain.CartStatus.MERGED)
+             AND c.status IN (com.acme.cart.domain.CartStatus.EXPIRED, com.acme.cart.domain.CartStatus.MERGED,
+                            com.acme.cart.domain.CartStatus.CONVERTED)
              AND c.updatedAt < :cutoff"""
     )
     fun deleteIfFinalBefore(id: UUID, cutoff: Instant): Int

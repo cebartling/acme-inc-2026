@@ -31,6 +31,15 @@ internal fun CartRepository.findOwnedCart(owner: CartOwner, cartId: UUID): Cart?
     findActiveCart(owner)?.takeIf { it.id == cartId }
 
 /**
+ * The owner's cart with this ID in any status (PIN-331), so a cart that has already converted
+ * is still found. Anyone else's cart resolves to null, the same as a missing one.
+ */
+internal fun CartRepository.findOwnedCartInAnyStatus(owner: CartOwner, cartId: UUID): Cart? = when (owner) {
+    is CartOwner.Guest -> findByIdAndSessionId(cartId, owner.sessionId)
+    is CartOwner.Customer -> findByIdAndUserId(cartId, owner.userId)
+}
+
+/**
  * Publishes after commit, best-effort (no outbox): a Kafka failure is logged and the
  * customer's cart change still succeeds.
  */
