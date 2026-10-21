@@ -519,8 +519,8 @@ class CartRepositoryIntegrationTest {
         assertEquals(1, found.lineCount)
         assertEquals(2L, found.itemCount)
 
-        assertEquals(1, carts.unlockIfLapsed(lapsed.id, now))
-        assertEquals(0, carts.unlockIfLapsed(lapsed.id, now), "an unlocked cart is not unlocked again")
+        assertEquals(1, carts.unlockIfLapsed(lapsed.id, now, now))
+        assertEquals(0, carts.unlockIfLapsed(lapsed.id, now, now), "an unlocked cart is not unlocked again")
         entityManager.clear()
         val unlocked = carts.findById(lapsed.id).get()
         assertEquals(CartStatus.ACTIVE, unlocked.status)
@@ -537,15 +537,29 @@ class CartRepositoryIntegrationTest {
         entityManager.clear()
 
         assertEquals(emptyList(), carts.findLapsedCheckouts(now, PageRequest.of(0, 10)).filter { it.id == live.id })
-        assertEquals(0, carts.unlockIfLapsed(live.id, now))
+        assertEquals(0, carts.unlockIfLapsed(live.id, now, now))
         assertEquals(CartStatus.CHECKOUT, statusOf(live))
+    }
+
+    @Test
+    fun `a checkout lapsed within the grace period is neither found nor unlocked until it has passed`() {
+        val justLapsed = lockedGuestCart("sess-checkout-grace", now.minus(Duration.ofMinutes(31)))
+        val graceCutoff = now.minus(Duration.ofMinutes(2))
+        entityManager.clear()
+
+        assertEquals(emptyList(), carts.findLapsedCheckouts(graceCutoff, PageRequest.of(0, 10)).filter { it.id == justLapsed.id })
+        assertEquals(0, carts.unlockIfLapsed(justLapsed.id, graceCutoff, now))
+        assertEquals(CartStatus.CHECKOUT, statusOf(justLapsed))
+
+        assertEquals(1, carts.unlockIfLapsed(justLapsed.id, now, now))
+        assertEquals(CartStatus.ACTIVE, statusOf(justLapsed))
     }
 
     @Test
     fun `a lapsed idle guest checkout unlocks, then expires like any idle guest cart`() {
         val stale = lockedGuestCart("sess-checkout-then-expire", longAgo)
 
-        assertEquals(1, carts.unlockIfLapsed(stale.id, now))
+        assertEquals(1, carts.unlockIfLapsed(stale.id, now, now))
         assertEquals(longAgo, lastActiveOf(stale))
         assertEquals(1, carts.expireIfIdle(stale.id, cutoff, now))
         assertEquals(CartStatus.EXPIRED, statusOf(stale))
@@ -561,7 +575,7 @@ class CartRepositoryIntegrationTest {
     fun `a guest cart left in checkout by signing in is unlocked and usable again by its session`() {
         val guest = lockedGuestCart("sess-version-signin", now.minus(Duration.ofHours(1)))
 
-        assertEquals(1, carts.unlockIfLapsed(guest.id, now))
+        assertEquals(1, carts.unlockIfLapsed(guest.id, now, now))
 
         inTransaction().execute {
             val mine = carts.findBySessionIdAndStatusIn("sess-version-signin", CartStatus.CURRENT)!!

@@ -412,14 +412,17 @@ sequenceDiagram
   Whichever path ends a lapsed session reports it, so each is reported exactly once
   (`CheckoutSessionExpiry`). Both ending events carry `lineCount` and `itemCount` (units).
 - **Lapsed sessions unlock (PIN-330, journey 0005 E6)**: a job every minute
-  (`acme.cart.checkout-unlock.*`) scans `CHECKOUT` carts past `checkout_expires_at` (partial
-  index `ix_carts_checkout_expiry`, V7) and unlocks each with a conditional UPDATE that
+  (`acme.cart.checkout-unlock.*`) scans `CHECKOUT` carts whose `checkout_expires_at` is more
+  than a grace period ago (`grace`, default two minutes, PIN-383; partial index
+  `ix_carts_checkout_expiry`, V7) and unlocks each with a conditional UPDATE that
   re-checks the lapse and bumps the version. The cart is `ACTIVE` again with its lines, and
   `CheckoutSessionExpired` is published (counted as `cart.checkout.expired`). Guest and user
   carts alike, so a guest cart left in checkout when its owner signed in (merge skips it) is
   freed for its session. `last_active_at` is kept, so an idle guest cart then expires as
-  usual. A lapsed cart can stay locked for up to a minute until the job runs; changes in
-  that gap are still 409 `CART_LOCKED`, but starting checkout again works.
+  usual. The grace period lets an order placed as the session lapsed still convert the cart;
+  the session is not live again meanwhile (reading it is 404). A lapsed cart stays locked for
+  the grace period plus up to a minute until the job runs; changes in that gap are still 409
+  `CART_LOCKED`, but starting checkout again works.
 - **Reading a checkout session (PIN-365)**: `GET /api/v1/carts/checkout-sessions/{checkoutSessionId}`
   returns the cart a live session is locked for, which is what the order service builds an
   order from: the session ID and `expiresAt`, the cart ID, `userId` (null for a guest), the
@@ -438,8 +441,9 @@ sequenceDiagram
   new one. The answer is `{cartId, status, orderId,
   convertedAt}`, where `convertedAt` is `updated_at`, and `CartConvertedToOrder` is published
   after commit. A session that lapsed but that the unlock job hasn't reached yet still
-  converts, since the order already exists. If the job unlocks the cart first, its version
-  bump makes the convert retry, find the cart `ACTIVE`, and refuse. The cart is looked up by
+  converts, since the order already exists; the job's grace period keeps it locked long
+  enough for an order in flight. If the cart is unlocked first anyway (a restart or an
+  abandon raced the order), the convert retries, finds the cart `ACTIVE`, and refuses. The cart is looked up by
   ID and owner in any status (`findOwnedCartInAnyStatus`), so converting again into the same
   order for the same session finds it and answers the same, saving and publishing nothing,
   and the order service can retry. A different order or session is 409 `CART_ALREADY_CONVERTED`. A cart
