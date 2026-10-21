@@ -261,6 +261,18 @@ Currently implemented in:
 | Service | Use Cases |
 |---------|-----------|
 | Customer Service | `CreateCustomerUseCase`, `ActivateCustomerUseCase` |
+| Order Service | All order lifecycle events, starting with `OrderCreated` (PIN-366) |
+
+The order service has its own copy (PIN-368), since the services share no code. It
+differs from the customer service's in four ways:
+
+- The relay fetches a limited batch, in database sequence order (an identity column)
+  rather than by `created_at`.
+- A failed send ends that poll, and the relay never gives up on a message. No later event
+  is sent ahead of it, and a Kafka outage loses nothing. The cost is that one message that
+  keeps failing holds up every event behind it; repeated failures are logged as errors.
+- The writer requires the caller's transaction (`Propagation.MANDATORY`).
+- Every message goes to `order.events`.
 
 Future candidates:
 
@@ -268,7 +280,6 @@ Future candidates:
 |---------|-----------|
 | Identity Service | `RegisterUserUseCase`, `VerifyEmailUseCase` |
 | Notification Service | `SendVerificationEmailUseCase` |
-| Order Service | All order lifecycle events |
 
 ## References
 
