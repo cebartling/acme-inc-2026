@@ -18,7 +18,7 @@ import java.util.concurrent.TimeUnit
  * - All replicas acknowledgment for durability
  * - Ordering guarantees via max.in.flight.requests.per.connection=1
  * - send() blocking (waiting for metadata, e.g. while Kafka is down) capped at the publish
- *   timeout, so OrderEventPublisher's timeout holds instead of the producer's 60s default
+ *   timeout, so OutboxRelay's timeout holds instead of the producer's 60s default
  */
 @Configuration
 class KafkaProducerConfig(

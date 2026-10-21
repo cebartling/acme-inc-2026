@@ -40,7 +40,7 @@ class OrderServiceApplicationTest {
     private lateinit var flyway: Flyway
 
     @Test
-    fun `the context starts and Flyway applies the baseline`() {
-        assertEquals("1", flyway.info().current()?.version?.version)
+    fun `the context starts and Flyway applies every migration`() {
+        assertEquals("2",flyway.info().current()?.version?.version)
     }
 }

@@ -55,6 +55,7 @@ dependencies {
         exclude(group = "org.junit.vintage")
     }
     testImplementation("org.springframework.boot:spring-boot-test-autoconfigure")
+    testImplementation("org.springframework.boot:spring-boot-data-jpa-test")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
     testImplementation("io.mockk:mockk:1.14.11")
     testImplementation("org.testcontainers:testcontainers-junit-jupiter:2.0.5")

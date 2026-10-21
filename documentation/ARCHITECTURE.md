@@ -553,18 +553,29 @@ is no authentication.
 `/actuator/health`, `info` and `metrics`, no tables, and no authentication.
 
 - **Persistence**: plain JPA with Flyway and `ddl-auto: validate`, like the other services.
-  The epic's event store and CQRS read models are deferred. `V1__baseline.sql` is empty;
-  the first table arrives with PIN-366. `open-in-view` is off. `acme_orders` and its
+  The epic's event store and CQRS read models are deferred. `V1__baseline.sql` is empty,
+  `V2` adds the `outbox` table (PIN-368), and the orders table arrives with PIN-366 as `V3`.
+  `open-in-view` is off. `acme_orders` and its
   `acme_app` user come from `docker/postgres/init`, which also gives it a
   `dbz_publication FOR ALL TABLES`: it is the database the Debezium connector captures (once
   registered), and an UPDATE or DELETE fails on any of its tables without a primary key.
-- **Events** go to the `order.events` Kafka topic through `OrderEventPublisher`, keyed by
-  aggregate ID and using the same envelope as the cart (`eventId`, `eventType`,
-  `eventVersion`, `timestamp`, `aggregateId`, `aggregateType`, `correlationId`, a nullable
-  `causationId`, and each event's own `payload`). It publishes nothing yet; `OrderCreated`
-  comes with PIN-366. The broker creates the topic on first use.
-  `acme.order.events.publish-timeout-seconds` (default 10) bounds a publish, including the
-  producer's wait for metadata while Kafka is down.
+- **Events** go through a transactional outbox (ADR-0022, PIN-368), unlike the cart's
+  best-effort publish, so an order is never committed without its event.
+  - **Writing:** `OutboxWriter.write(event)` saves the event to `outbox` inside the caller's
+    transaction, and throws if there isn't one. The event uses the same envelope as the cart
+    (`eventId`, `eventType`, `eventVersion`, `timestamp`, `aggregateId`, `aggregateType`,
+    `correlationId`, a nullable `causationId`, and each event's own `payload`).
+  - **Sending:** `OutboxRelay` polls every `acme.order.outbox.poll-delay-ms` (1000). It sends
+    up to `batch-size` (100) unsent messages, oldest first, to `order.events`, keyed by
+    aggregate ID, and marks each one sent.
+  - **Failures:** a failed send records the attempt and `last_error`, then ends the poll, so a
+    later event for the same order is not sent ahead of it. After `max-attempts` (5) the
+    message is logged as an error and left in the table for a person to look at.
+  - **Delivery** is at least once, so consumers deduplicate by `eventId` (ADR-0018).
+  - Nothing writes events yet; `OrderCreated` comes with PIN-366. The broker creates the
+    topic on first use. `acme.order.events.publish-timeout-seconds` (default 10) bounds a
+    send, including the producer's wait for metadata while Kafka is down.
+  - Sent rows are not purged yet, and only one instance may run the relay.
 - **Planned next**: placing an order from a checkout session (PIN-366), which reads the
   cart (PIN-365) and converts it (PIN-331), adding JWT verification the way the cart does;
   then reading orders (PIN-367).

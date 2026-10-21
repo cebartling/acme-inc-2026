@@ -2,6 +2,7 @@ package com.acme.order
 
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.runApplication
+import org.springframework.scheduling.annotation.EnableScheduling
 
 /**
  * Main application class for the Order Service.
@@ -13,6 +14,7 @@ import org.springframework.boot.runApplication
  * @see <a href="../../documentation/epics/005-order-management.md">Epic 005: Order Management</a>
  */
 @SpringBootApplication
+@EnableScheduling // OutboxRelay's poll (PIN-368)
 class OrderServiceApplication
 
 /**
