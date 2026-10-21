@@ -11,6 +11,7 @@ import org.apache.kafka.common.TopicPartition
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.springframework.data.domain.PageRequest
@@ -80,7 +81,7 @@ class OutboxRelayTest {
 
         assertNull(failing.publishedAt)
         assertEquals(1, failing.retryCount)
-        assertTrue(failing.lastError!!.contains("broker rejected"))
+        assertEquals("IllegalStateException: broker rejected", failing.lastError)
         verify { outboxRepository.save(failing) }
         verify(exactly = 0) { kafkaTemplate.send(ORDER_EVENTS_TOPIC, later.messageKey, any()) }
     }
@@ -96,5 +97,44 @@ class OutboxRelayTest {
         assertNull(slow.publishedAt)
         assertEquals(3, slow.retryCount)
         assertTrue(slow.lastError!!.startsWith("TimeoutException"))
+    }
+
+    @Test
+    fun `an interrupted send isn't counted as an attempt and leaves the thread interrupted`() {
+        val interrupted = message()
+        every { outboxRepository.findSendable(any(), any()) } returns listOf(interrupted, message())
+        every { kafkaTemplate.send(ORDER_EVENTS_TOPIC, any(), any()) } returns CompletableFuture()
+
+        Thread.currentThread().interrupt()
+        relay.relayMessages()
+
+        assertTrue(Thread.interrupted())
+        assertEquals(0, interrupted.retryCount)
+        verify(exactly = 1) { kafkaTemplate.send(ORDER_EVENTS_TOPIC, any(), any()) }
+        verify(exactly = 0) { outboxRepository.save(any<OutboxMessage>()) }
+    }
+
+    @Test
+    fun `a failed save after a successful send is thrown, not counted as a failed send`() {
+        val sentButUnmarked = message()
+        every { outboxRepository.findSendable(any(), any()) } returns listOf(sentButUnmarked)
+        every { kafkaTemplate.send(ORDER_EVENTS_TOPIC, any(), any()) } returns sent(sentButUnmarked)
+        every { outboxRepository.save(any<OutboxMessage>()) } throws IllegalStateException("database down")
+
+        assertThrows(IllegalStateException::class.java) { relay.relayMessages() }
+
+        assertEquals(0, sentButUnmarked.retryCount)
+        assertNull(sentButUnmarked.lastError)
+        verify(exactly = 1) { outboxRepository.save(any<OutboxMessage>()) }
+    }
+
+    @Test
+    fun `an attempt limit or batch size below one fails at startup`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            OutboxRelay(outboxRepository, kafkaTemplate, publishTimeoutSeconds = 1, maxAttempts = 0, batchSize = 10)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            OutboxRelay(outboxRepository, kafkaTemplate, publishTimeoutSeconds = 1, maxAttempts = 3, batchSize = 0)
+        }
     }
 }

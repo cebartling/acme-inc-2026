@@ -266,7 +266,8 @@ Currently implemented in:
 The order service has its own copy (PIN-368), since the services share no code. It
 differs from the customer service's in three ways. The relay fetches a limited batch, and
 leaves out messages that have used up their attempts. A failed send ends that poll, so a
-later event for the same order is never sent ahead of it. And the writer requires the
+later event for the same order isn't sent ahead of it while it has attempts left (once it
+has used them up, later events are sent without it). And the writer requires the
 caller's transaction (`Propagation.MANDATORY`). Every message goes to `order.events`.
 
 Future candidates:
