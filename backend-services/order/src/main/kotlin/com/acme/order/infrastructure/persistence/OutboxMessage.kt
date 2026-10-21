@@ -21,6 +21,10 @@ class OutboxMessage(
     @Id
     val id: UUID = UUID.randomUUID(),
 
+    /** Assigned by the database at insert (an identity column); null until reloaded. */
+    @Column(name = "sequence_number", insertable = false, updatable = false)
+    val sequenceNumber: Long? = null,
+
     @Column(name = "aggregate_id", nullable = false)
     val aggregateId: UUID,
 

@@ -92,21 +92,19 @@ class OutboxRepositoryIntegrationTest {
     )
 
     @Test
-    fun `findSendable returns unsent messages with attempts left, oldest first, one page at a time`() {
+    fun `findUnsent returns unsent messages in the order they were written, however often they failed`() {
+        // created_at runs backwards, as with clock skew: the database sequence decides
         val base = Instant.parse("2026-10-21T12:00:00Z")
-        val oldest = message(base)
-        val middle = message(base.plusSeconds(1), retryCount = 2)
-        val newest = message(base.plusSeconds(2))
-        val sent = message(base.minusSeconds(10), publishedAt = base)
-        val usedUp = message(base.minusSeconds(5), retryCount = 3)
-        outbox.saveAll(listOf(newest, sent, middle, usedUp, oldest))
+        val first = message(base.plusSeconds(3), retryCount = 50)
+        val sent = message(base.plusSeconds(2), publishedAt = base)
+        val second = message(base.plusSeconds(1))
+        val third = message(base)
+        listOf(first, sent, second, third).forEach { outbox.saveAndFlush(it) }
 
-        val firstPage = outbox.findSendable(3, PageRequest.of(0, 2))
-
-        assertEquals(listOf(oldest.id, middle.id), firstPage.map { it.id })
+        assertEquals(listOf(first.id, second.id), outbox.findUnsent(PageRequest.of(0, 2)).map { it.id })
         assertEquals(
-            listOf(oldest.id, middle.id, newest.id),
-            outbox.findSendable(3, PageRequest.of(0, 10)).map { it.id }
+            listOf(first.id, second.id, third.id),
+            outbox.findUnsent(PageRequest.of(0, 10)).map { it.id }
         )
     }
 

@@ -3,6 +3,9 @@
 -- sends it to Kafka afterwards. The orders table that PIN-366 adds is V3.
 CREATE TABLE outbox (
     id UUID PRIMARY KEY,
+    -- The relay's send order: assigned by the database at insert, so unlike created_at it
+    -- doesn't depend on a JVM clock
+    sequence_number BIGINT GENERATED ALWAYS AS IDENTITY,
     aggregate_id UUID NOT NULL,
     aggregate_type VARCHAR(100) NOT NULL,
     event_type VARCHAR(100) NOT NULL,
@@ -19,6 +22,6 @@ CREATE TABLE outbox (
     CONSTRAINT uq_outbox_event_id UNIQUE (event_id)
 );
 
--- The relay's poll: unsent messages, oldest first
-CREATE INDEX idx_outbox_unpublished_created_at ON outbox (created_at)
+-- The relay's poll: unsent messages in sequence order
+CREATE INDEX idx_outbox_unpublished_sequence ON outbox (sequence_number)
     WHERE published_at IS NULL;

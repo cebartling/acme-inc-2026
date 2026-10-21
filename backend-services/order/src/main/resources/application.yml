@@ -37,9 +37,9 @@ acme:
   order:
     events:
       publish-timeout-seconds: 10
-    # OutboxRelay (PIN-368): how often it polls, how many tries a message gets, and how
-    # many messages one poll sends
+    # OutboxRelay (PIN-368): how often it polls, after how many failed sends of one message
+    # it logs errors (it never gives up), and how many messages one poll sends
     outbox:
       poll-delay-ms: 1000
-      max-attempts: 5
+      alert-after-attempts: 5
       batch-size: 100

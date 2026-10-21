@@ -28,7 +28,7 @@ class OutboxRelayTest {
         outboxRepository,
         kafkaTemplate,
         publishTimeoutSeconds = 1,
-        maxAttempts = 3,
+        alertAfterAttempts = 3,
         batchSize = 10
     )
 
@@ -57,7 +57,7 @@ class OutboxRelayTest {
     fun `sends each message with its topic, key and payload and marks it sent`() {
         val first = message()
         val second = message()
-        every { outboxRepository.findSendable(3, PageRequest.of(0, 10)) } returns listOf(first, second)
+        every { outboxRepository.findUnsent(PageRequest.of(0, 10)) } returns listOf(first, second)
         every { kafkaTemplate.send(ORDER_EVENTS_TOPIC, first.messageKey, first.payload) } returns sent(first)
         every { kafkaTemplate.send(ORDER_EVENTS_TOPIC, second.messageKey, second.payload) } returns sent(second)
 
@@ -73,7 +73,7 @@ class OutboxRelayTest {
     fun `a failed send records the attempt and stops the poll`() {
         val failing = message()
         val later = message()
-        every { outboxRepository.findSendable(any(), any()) } returns listOf(failing, later)
+        every { outboxRepository.findUnsent(any()) } returns listOf(failing, later)
         every { kafkaTemplate.send(ORDER_EVENTS_TOPIC, failing.messageKey, any()) } returns
             CompletableFuture.failedFuture(IllegalStateException("broker rejected"))
 
@@ -89,7 +89,7 @@ class OutboxRelayTest {
     @Test
     fun `a send that outlasts the publish timeout counts as a failed attempt`() {
         val slow = message(retryCount = 2)
-        every { outboxRepository.findSendable(any(), any()) } returns listOf(slow)
+        every { outboxRepository.findUnsent(any()) } returns listOf(slow)
         every { kafkaTemplate.send(ORDER_EVENTS_TOPIC, any(), any()) } returns CompletableFuture()
 
         relay.relayMessages()
@@ -102,7 +102,7 @@ class OutboxRelayTest {
     @Test
     fun `an interrupted send isn't counted as an attempt and leaves the thread interrupted`() {
         val interrupted = message()
-        every { outboxRepository.findSendable(any(), any()) } returns listOf(interrupted, message())
+        every { outboxRepository.findUnsent(any()) } returns listOf(interrupted, message())
         every { kafkaTemplate.send(ORDER_EVENTS_TOPIC, any(), any()) } returns CompletableFuture()
 
         Thread.currentThread().interrupt()
@@ -117,7 +117,7 @@ class OutboxRelayTest {
     @Test
     fun `a failed save after a successful send is thrown, not counted as a failed send`() {
         val sentButUnmarked = message()
-        every { outboxRepository.findSendable(any(), any()) } returns listOf(sentButUnmarked)
+        every { outboxRepository.findUnsent(any()) } returns listOf(sentButUnmarked)
         every { kafkaTemplate.send(ORDER_EVENTS_TOPIC, any(), any()) } returns sent(sentButUnmarked)
         every { outboxRepository.save(any<OutboxMessage>()) } throws IllegalStateException("database down")
 
@@ -131,10 +131,10 @@ class OutboxRelayTest {
     @Test
     fun `an attempt limit or batch size below one fails at startup`() {
         assertThrows(IllegalArgumentException::class.java) {
-            OutboxRelay(outboxRepository, kafkaTemplate, publishTimeoutSeconds = 1, maxAttempts = 0, batchSize = 10)
+            OutboxRelay(outboxRepository, kafkaTemplate, publishTimeoutSeconds = 1, alertAfterAttempts = 0, batchSize = 10)
         }
         assertThrows(IllegalArgumentException::class.java) {
-            OutboxRelay(outboxRepository, kafkaTemplate, publishTimeoutSeconds = 1, maxAttempts = 3, batchSize = 0)
+            OutboxRelay(outboxRepository, kafkaTemplate, publishTimeoutSeconds = 1, alertAfterAttempts = 3, batchSize = 0)
         }
     }
 }

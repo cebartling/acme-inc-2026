@@ -566,13 +566,15 @@ is no authentication.
     (`eventId`, `eventType`, `eventVersion`, `timestamp`, `aggregateId`, `aggregateType`,
     `correlationId`, a nullable `causationId`, and each event's own `payload`).
   - **Sending:** `OutboxRelay` polls every `acme.order.outbox.poll-delay-ms` (1000). It sends
-    up to `batch-size` (100) unsent messages, oldest first, to `order.events`, keyed by
-    aggregate ID, and marks each one sent.
-  - **Failures:** a failed send records the attempt and `last_error`, then ends the poll, so a
-    later event for the same order is not sent ahead of it. After `max-attempts` (5) the
-    message is logged as an error and left in the table for a person to look at, and later
-    events, including that order's, are sent without it. An interrupt (shutdown) is not an
-    attempt, and a failed save after a send is thrown, so the message is sent again.
+    up to `batch-size` (100) unsent messages to `order.events` in the order they were written
+    (the `sequence_number` identity column, not the JVM clock), keyed by aggregate ID, and
+    marks each one sent.
+  - **Failures:** a failed send records the attempt and `last_error`, then ends the poll. The
+    relay never gives up on a message, so no later event is sent ahead of it and a Kafka
+    outage loses nothing. The cost: one message that keeps failing holds up every event
+    behind it, and from `alert-after-attempts` (5) on each failure is logged as an error. An
+    interrupt (shutdown) is not an attempt, and a failed save after a send is thrown, so the
+    message is sent again.
   - **Delivery** is at least once, so consumers deduplicate by `eventId` (ADR-0018).
   - Nothing writes events yet; `OrderCreated` comes with PIN-366. The broker creates the
     topic on first use. `acme.order.events.publish-timeout-seconds` (default 10) bounds a
