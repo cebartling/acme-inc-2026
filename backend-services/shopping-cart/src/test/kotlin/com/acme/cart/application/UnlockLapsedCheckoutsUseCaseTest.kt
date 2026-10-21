@@ -16,6 +16,7 @@ import java.time.Duration
 import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 
 class UnlockLapsedCheckoutsUseCaseTest {
@@ -35,7 +36,7 @@ class UnlockLapsedCheckoutsUseCaseTest {
     private fun lapsed(lineCount: Int = 2, itemCount: Long = 3) = LapsedCheckout(
         id = UUID.randomUUID(),
         checkoutSessionId = UUID.randomUUID(),
-        expiredAt = now.minusSeconds(90),
+        expiredAt = cutoff.minusSeconds(90),
         sessionId = "sess-${UUID.randomUUID()}",
         userId = null,
         lineCount = lineCount,
@@ -105,6 +106,14 @@ class UnlockLapsedCheckoutsUseCaseTest {
 
         assertEquals(0, useCase.execute(now))
         verify(exactly = 1) { cartRepository.findLapsedCheckouts(cutoff, any<Pageable>()) }
+    }
+
+    @Test
+    fun `a negative grace is rejected at startup, but no grace is allowed`() {
+        assertFailsWith<IllegalArgumentException> {
+            UnlockLapsedCheckoutsUseCase(cartRepository, CheckoutSessionExpiry(eventPublisher, meterRegistry), Duration.ofMinutes(-2))
+        }
+        UnlockLapsedCheckoutsUseCase(cartRepository, CheckoutSessionExpiry(eventPublisher, meterRegistry), Duration.ZERO)
     }
 
     @Test

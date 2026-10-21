@@ -502,6 +502,9 @@ class CartRepositoryIntegrationTest {
 
     // --- PIN-330: lapsed checkout sessions unlock -----------------------------------------
 
+    /** The unlock job's default grace (PIN-383): a lapsed session stays locked this long. */
+    private val grace = Duration.ofMinutes(2)
+
     private fun lastActiveOf(cart: Cart): Instant {
         entityManager.clear()
         return carts.findById(cart.id).get().lastActiveAt
@@ -543,16 +546,60 @@ class CartRepositoryIntegrationTest {
 
     @Test
     fun `a checkout lapsed within the grace period is neither found nor unlocked until it has passed`() {
-        val justLapsed = lockedGuestCart("sess-checkout-grace", now.minus(Duration.ofMinutes(31)))
-        val graceCutoff = now.minus(Duration.ofMinutes(2))
+        val locked = lockedGuestCart("sess-checkout-grace", now)
+        val lapsedAt = locked.checkoutExpiresAt!!
         entityManager.clear()
 
-        assertEquals(emptyList(), carts.findLapsedCheckouts(graceCutoff, PageRequest.of(0, 10)).filter { it.id == justLapsed.id })
-        assertEquals(0, carts.unlockIfLapsed(justLapsed.id, graceCutoff, now))
-        assertEquals(CartStatus.CHECKOUT, statusOf(justLapsed))
+        val withinGrace = lapsedAt.plus(Duration.ofMinutes(1))
+        assertEquals(emptyList(), carts.findLapsedCheckouts(withinGrace.minus(grace), PageRequest.of(0, 10)).filter { it.id == locked.id })
+        assertEquals(0, carts.unlockIfLapsed(locked.id, withinGrace.minus(grace), withinGrace))
+        assertEquals(CartStatus.CHECKOUT, statusOf(locked))
 
-        assertEquals(1, carts.unlockIfLapsed(justLapsed.id, now, now))
-        assertEquals(CartStatus.ACTIVE, statusOf(justLapsed))
+        val pastGrace = lapsedAt.plus(grace).plusSeconds(1)
+        assertTrue(carts.findLapsedCheckouts(pastGrace.minus(grace), PageRequest.of(0, 10)).any { it.id == locked.id })
+        assertEquals(1, carts.unlockIfLapsed(locked.id, pastGrace.minus(grace), pastGrace))
+        entityManager.clear()
+        val unlocked = carts.findById(locked.id).get()
+        assertEquals(CartStatus.ACTIVE, unlocked.status)
+        assertEquals(pastGrace, unlocked.updatedAt, "stamped with the run's time, not its cutoff")
+    }
+
+    /**
+     * PIN-383: the order service reads a live session, places the order, then converts. An unlock
+     * run between the convert's read and its save, while the session has lapsed by less than the
+     * grace, leaves the cart locked, so the convert still commits. Past the grace the run wins, and
+     * its version bump stops the stale convert.
+     */
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    fun `a convert that loaded the cart before an unlock run within the grace still converts it`() {
+        val locked = lockedGuestCart("sess-version-convert-in-grace", now)
+        val run = locked.checkoutExpiresAt!!.plus(Duration.ofMinutes(1))
+
+        inTransaction().execute {
+            val mine = carts.findByIdAndSessionId(locked.id, "sess-version-convert-in-grace")!!
+            assertEquals(0, concurrently().execute { carts.unlockIfLapsed(locked.id, run.minus(grace), run) })
+            assertTrue(mine.convertToOrder(UUID.randomUUID(), locked.checkoutSessionId!!, run).isRight())
+            carts.save(mine)
+        }
+        assertEquals(CartStatus.CONVERTED, statusOf(locked))
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    fun `a convert that loaded the cart before an unlock run past the grace cannot convert it`() {
+        val locked = lockedGuestCart("sess-version-convert-past-grace", now)
+        val run = locked.checkoutExpiresAt!!.plus(grace).plusSeconds(1)
+
+        assertThrows<ObjectOptimisticLockingFailureException> {
+            inTransaction().execute {
+                val mine = carts.findByIdAndSessionId(locked.id, "sess-version-convert-past-grace")!!
+                assertEquals(1, concurrently().execute { carts.unlockIfLapsed(locked.id, run.minus(grace), run) })
+                mine.convertToOrder(UUID.randomUUID(), locked.checkoutSessionId!!, run)
+                carts.save(mine)
+            }
+        }
+        assertEquals(CartStatus.ACTIVE, statusOf(locked))
     }
 
     @Test

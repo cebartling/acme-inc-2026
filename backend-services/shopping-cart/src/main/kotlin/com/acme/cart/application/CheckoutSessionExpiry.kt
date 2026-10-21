@@ -13,8 +13,9 @@ import java.util.UUID
 /**
  * Reports a checkout session that lapsed (PIN-330): publishes `CheckoutSessionExpired` and
  * counts it. Usually the unlock job finds the lapse, but a customer who restarts or leaves
- * checkout before the job runs ends the lapsed session first, so those paths report it too:
- * every lapsed session is reported exactly once, by whichever ends it.
+ * checkout before the job unlocks the cart ends the lapsed session first, so those paths report
+ * it too: every lapsed session is reported exactly once, by whichever ends it. One that converts
+ * into an order (PIN-331) is not an expiry and is not reported.
  */
 @Component
 class CheckoutSessionExpiry(

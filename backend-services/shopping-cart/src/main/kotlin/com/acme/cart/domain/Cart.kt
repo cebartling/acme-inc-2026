@@ -279,8 +279,9 @@ class Cart(
 
     /**
      * The checkout session the cart is still locked for although it lapsed by [now], because the
-     * unlock job has not reached it yet (PIN-330); null if the cart is not in checkout or its
-     * session is live.
+     * unlock job has not unlocked it yet: it waits out a grace period first, so an order placed as
+     * the session lapsed can still convert (PIN-330, PIN-383); null if the cart is not in checkout
+     * or its session is live.
      */
     fun lapsedCheckoutSession(now: Instant): CheckoutSession? =
         if (status == CartStatus.CHECKOUT && !isInLiveCheckout(now)) checkoutSession() else null

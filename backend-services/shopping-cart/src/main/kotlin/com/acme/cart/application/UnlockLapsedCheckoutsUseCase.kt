@@ -30,6 +30,12 @@ class UnlockLapsedCheckoutsUseCase(
     private val checkoutSessionExpiry: CheckoutSessionExpiry,
     @Value("\${acme.cart.checkout-unlock.grace}") private val grace: Duration
 ) {
+    init {
+        // A negative grace would put the cutoff after now and unlock sessions that are still live.
+        // No grace is allowed: the job then unlocks a session as soon as it lapses, as before PIN-383.
+        require(!grace.isNegative) { "acme.cart.checkout-unlock.grace must not be negative, was $grace" }
+    }
+
     /** Unlocks every cart whose checkout session lapsed [grace] before [now] and returns how many. */
     fun execute(now: Instant = Instant.now()): Int {
         val correlationId = UUID.randomUUID()
