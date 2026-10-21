@@ -20,6 +20,7 @@ An Architecture Decision Record documents a significant architectural decision, 
 | [ADR-0003](0003-event-sourcing.md) | Event Sourcing | Accepted |
 | [ADR-0004](0004-change-data-capture.md) | Change Data Capture (CDC) | Accepted |
 | [ADR-0018](0018-idempotent-event-processing.md) | Idempotent Event Processing Pattern | Accepted |
+| [ADR-0041](0041-per-service-persistence-model.md) | Per-Service Persistence Model | Accepted |
 
 ### Technology Stack
 

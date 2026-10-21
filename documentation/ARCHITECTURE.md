@@ -28,6 +28,12 @@
 
 ### CQRS
 
+In practice ([ADR-0041](adrs/0041-per-service-persistence-model.md)), each service's source
+of truth is its JPA state in PostgreSQL. Only customer has a separate read model (MongoDB,
+written in-process by `CustomerReadModelProjector`). The `event_store` tables in customer
+and identity are an audit history: nothing rebuilds state from them. The lists below and
+in the next section describe the pattern as a target.
+
 - Separate read and write models for different optimization strategies
 - Commands modify state through the write model
 - Queries retrieve data through optimized read models
