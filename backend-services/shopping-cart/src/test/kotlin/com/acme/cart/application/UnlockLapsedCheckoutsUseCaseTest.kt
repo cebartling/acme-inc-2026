@@ -12,9 +12,11 @@ import io.mockk.verify
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.data.domain.Pageable
+import java.time.Duration
 import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 
 class UnlockLapsedCheckoutsUseCaseTest {
@@ -24,14 +26,17 @@ class UnlockLapsedCheckoutsUseCaseTest {
     private val meterRegistry = SimpleMeterRegistry()
     private val published = mutableListOf<DomainEvent>()
 
-    private val useCase = UnlockLapsedCheckoutsUseCase(cartRepository, CheckoutSessionExpiry(eventPublisher, meterRegistry))
+    private val grace = Duration.ofMinutes(2)
+    private val useCase = UnlockLapsedCheckoutsUseCase(cartRepository, CheckoutSessionExpiry(eventPublisher, meterRegistry), grace)
 
     private val now = Instant.parse("2026-10-03T12:00:00Z")
+    /** Sessions are only unlocked once lapsed for the grace period, so this is what is asked for. */
+    private val cutoff = now.minus(grace)
 
     private fun lapsed(lineCount: Int = 2, itemCount: Long = 3) = LapsedCheckout(
         id = UUID.randomUUID(),
         checkoutSessionId = UUID.randomUUID(),
-        expiredAt = now.minusSeconds(90),
+        expiredAt = cutoff.minusSeconds(90),
         sessionId = "sess-${UUID.randomUUID()}",
         userId = null,
         lineCount = lineCount,
@@ -43,12 +48,12 @@ class UnlockLapsedCheckoutsUseCaseTest {
     @BeforeEach
     fun setUp() {
         every { eventPublisher.publish(capture(published)) } returns Unit
-        every { cartRepository.unlockIfLapsed(any(), now) } returns 1
+        every { cartRepository.unlockIfLapsed(any(), cutoff, now) } returns 1
     }
 
     @Test
     fun `nothing lapsed unlocks nothing`() {
-        every { cartRepository.findLapsedCheckouts(now, any()) } returns emptyList()
+        every { cartRepository.findLapsedCheckouts(cutoff, any()) } returns emptyList()
 
         assertEquals(0, useCase.execute(now))
         assertEquals(emptyList(), published)
@@ -58,7 +63,7 @@ class UnlockLapsedCheckoutsUseCaseTest {
     @Test
     fun `each lapsed cart is unlocked and announced with a CheckoutSessionExpired event`() {
         val cart = lapsed(lineCount = 3, itemCount = 5)
-        every { cartRepository.findLapsedCheckouts(now, any()) } returnsMany listOf(listOf(cart), emptyList())
+        every { cartRepository.findLapsedCheckouts(cutoff, any()) } returnsMany listOf(listOf(cart), emptyList())
 
         assertEquals(1, useCase.execute(now))
 
@@ -76,8 +81,8 @@ class UnlockLapsedCheckoutsUseCaseTest {
     fun `a session resumed after the scan is not announced`() {
         val stillLapsed = lapsed()
         val resumed = lapsed()
-        every { cartRepository.findLapsedCheckouts(now, any()) } returnsMany listOf(listOf(stillLapsed, resumed), emptyList())
-        every { cartRepository.unlockIfLapsed(resumed.id, now) } returns 0
+        every { cartRepository.findLapsedCheckouts(cutoff, any()) } returnsMany listOf(listOf(stillLapsed, resumed), emptyList())
+        every { cartRepository.unlockIfLapsed(resumed.id, cutoff, now) } returns 0
 
         assertEquals(1, useCase.execute(now))
         assertEquals(listOf(stillLapsed.id), published.map { (it as CheckoutSessionExpired).payload.cartId })
@@ -87,25 +92,33 @@ class UnlockLapsedCheckoutsUseCaseTest {
     fun `batches are drained until none are left`() {
         val first = List(UnlockLapsedCheckoutsUseCase.BATCH_SIZE) { lapsed() }
         val second = listOf(lapsed())
-        every { cartRepository.findLapsedCheckouts(now, any()) } returnsMany listOf(first, second)
+        every { cartRepository.findLapsedCheckouts(cutoff, any()) } returnsMany listOf(first, second)
 
         assertEquals(UnlockLapsedCheckoutsUseCase.BATCH_SIZE + 1, useCase.execute(now))
-        verify(exactly = 2) { cartRepository.findLapsedCheckouts(now, any<Pageable>()) }
+        verify(exactly = 2) { cartRepository.findLapsedCheckouts(cutoff, any<Pageable>()) }
     }
 
     @Test
     fun `a batch that unlocks nothing stops the run instead of looping`() {
         val stuck = List(UnlockLapsedCheckoutsUseCase.BATCH_SIZE) { lapsed() }
-        every { cartRepository.findLapsedCheckouts(now, any()) } returns stuck
-        every { cartRepository.unlockIfLapsed(any(), now) } returns 0
+        every { cartRepository.findLapsedCheckouts(cutoff, any()) } returns stuck
+        every { cartRepository.unlockIfLapsed(any(), cutoff, now) } returns 0
 
         assertEquals(0, useCase.execute(now))
-        verify(exactly = 1) { cartRepository.findLapsedCheckouts(now, any<Pageable>()) }
+        verify(exactly = 1) { cartRepository.findLapsedCheckouts(cutoff, any<Pageable>()) }
+    }
+
+    @Test
+    fun `a negative grace is rejected at startup, but no grace is allowed`() {
+        assertFailsWith<IllegalArgumentException> {
+            UnlockLapsedCheckoutsUseCase(cartRepository, CheckoutSessionExpiry(eventPublisher, meterRegistry), Duration.ofMinutes(-2))
+        }
+        UnlockLapsedCheckoutsUseCase(cartRepository, CheckoutSessionExpiry(eventPublisher, meterRegistry), Duration.ZERO)
     }
 
     @Test
     fun `a Kafka failure does not stop the unlock`() {
-        every { cartRepository.findLapsedCheckouts(now, any()) } returnsMany listOf(listOf(lapsed(), lapsed()), emptyList())
+        every { cartRepository.findLapsedCheckouts(cutoff, any()) } returnsMany listOf(listOf(lapsed(), lapsed()), emptyList())
         every { eventPublisher.publish(any()) } throws IllegalStateException("broker down")
 
         assertEquals(2, useCase.execute(now))

@@ -84,10 +84,13 @@ acme:
       interval: ${ACME_CART_PURGE_INTERVAL:PT6H}
     checkout-unlock:
       # The job that unlocks carts whose 30-minute checkout session lapsed (PIN-330); ISO-8601
-      # durations. A lapsed cart stays locked for up to one interval.
+      # durations. It waits out the grace period first, so an order placed as the session
+      # lapsed can still convert the cart (PIN-383): a lapsed cart stays locked for the grace
+      # period plus up to one interval.
       enabled: ${ACME_CART_CHECKOUT_UNLOCK_ENABLED:true}
       initial-delay: ${ACME_CART_CHECKOUT_UNLOCK_INITIAL_DELAY:PT1M}
       interval: ${ACME_CART_CHECKOUT_UNLOCK_INTERVAL:PT1M}
+      grace: ${ACME_CART_CHECKOUT_UNLOCK_GRACE:PT2M}
   product:
     base-url: ${PRODUCT_SERVICE_URL:http://localhost:10303}
 

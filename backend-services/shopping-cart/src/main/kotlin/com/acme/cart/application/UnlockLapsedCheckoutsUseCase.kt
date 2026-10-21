@@ -3,8 +3,10 @@ package com.acme.cart.application
 import com.acme.cart.domain.events.CheckoutSessionExpiredPayload
 import com.acme.cart.infrastructure.persistence.CartRepository
 import com.acme.cart.infrastructure.persistence.LapsedCheckout
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
+import java.time.Duration
 import java.time.Instant
 import java.util.UUID
 
@@ -16,24 +18,37 @@ import java.util.UUID
  * Each cart is unlocked by a conditional UPDATE that re-checks the session is still lapsed, so
  * a session resumed between the scan and the update survives, and `CheckoutSessionExpired` is
  * only published for carts this run unlocked (see [CheckoutSessionExpiry]).
+ *
+ * A session is only unlocked once it has been lapsed for [grace] (PIN-383): the order service
+ * reads a live session, places the order, then converts the cart, and a session that lapses
+ * in between must still be locked when convert arrives, or the order is left with an ACTIVE
+ * cart. The session is not live again meanwhile; only the cart stays locked.
  */
 @Service
 class UnlockLapsedCheckoutsUseCase(
     private val cartRepository: CartRepository,
-    private val checkoutSessionExpiry: CheckoutSessionExpiry
+    private val checkoutSessionExpiry: CheckoutSessionExpiry,
+    @Value("\${acme.cart.checkout-unlock.grace}") private val grace: Duration
 ) {
-    /** Unlocks every cart whose checkout session lapsed before [now] and returns how many. */
+    init {
+        // A negative grace would put the cutoff after now and unlock sessions that are still live.
+        // No grace is allowed: the job then unlocks a session as soon as it lapses, as before PIN-383.
+        require(!grace.isNegative) { "acme.cart.checkout-unlock.grace must not be negative, was $grace" }
+    }
+
+    /** Unlocks every cart whose checkout session lapsed [grace] before [now] and returns how many. */
     fun execute(now: Instant = Instant.now()): Int {
         val correlationId = UUID.randomUUID()
+        val cutoff = now.minus(grace)
         return drainInBatches(
             BATCH_SIZE,
-            nextBatch = { cartRepository.findLapsedCheckouts(now, PageRequest.of(0, BATCH_SIZE)) },
-            act = { unlock(it, now, correlationId) }
+            nextBatch = { cartRepository.findLapsedCheckouts(cutoff, PageRequest.of(0, BATCH_SIZE)) },
+            act = { unlock(it, cutoff, now, correlationId) }
         )
     }
 
-    private fun unlock(cart: LapsedCheckout, now: Instant, correlationId: UUID): Boolean {
-        if (cartRepository.unlockIfLapsed(cart.id, now) == 0) return false
+    private fun unlock(cart: LapsedCheckout, cutoff: Instant, now: Instant, correlationId: UUID): Boolean {
+        if (cartRepository.unlockIfLapsed(cart.id, cutoff, now) == 0) return false
         checkoutSessionExpiry.report(
             CheckoutSessionExpiredPayload(
                 cartId = cart.id,
