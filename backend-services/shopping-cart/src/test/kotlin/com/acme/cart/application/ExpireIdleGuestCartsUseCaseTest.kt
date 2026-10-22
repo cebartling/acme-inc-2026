@@ -2,13 +2,14 @@ package com.acme.cart.application
 
 import com.acme.cart.domain.events.CartExpired
 import com.acme.cart.domain.events.DomainEvent
-import com.acme.cart.infrastructure.messaging.CartEventPublisher
+import com.acme.cart.infrastructure.messaging.OutboxWriter
 import com.acme.cart.infrastructure.persistence.CartRepository
 import com.acme.cart.infrastructure.persistence.IdleGuestCart
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import io.mockk.verifyOrder
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.data.domain.Pageable
@@ -18,17 +19,21 @@ import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
+import org.springframework.transaction.PlatformTransactionManager
+import org.springframework.transaction.support.TransactionTemplate
 
 class ExpireIdleGuestCartsUseCaseTest {
 
     private val cartRepository = mockk<CartRepository>()
-    private val eventPublisher = mockk<CartEventPublisher>()
+    private val outboxWriter = mockk<OutboxWriter>()
+    private val transactionManager = mockk<PlatformTransactionManager>(relaxed = true)
     private val meterRegistry = SimpleMeterRegistry()
     private val published = mutableListOf<DomainEvent>()
 
     private val useCase = ExpireIdleGuestCartsUseCase(
         cartRepository = cartRepository,
-        eventPublisher = eventPublisher,
+        outboxWriter = outboxWriter,
+        transactionTemplate = TransactionTemplate(transactionManager),
         guestTtl = Duration.ofDays(30),
         meterRegistry = meterRegistry
     )
@@ -44,7 +49,7 @@ class ExpireIdleGuestCartsUseCaseTest {
 
     @BeforeEach
     fun setUp() {
-        every { eventPublisher.publish(capture(published)) } returns Unit
+        every { outboxWriter.write(capture(published)) } returns Unit
         every { cartRepository.expireIfIdle(any(), cutoff, now) } returns 1
     }
 
@@ -107,17 +112,20 @@ class ExpireIdleGuestCartsUseCaseTest {
     fun `a guest TTL that is not positive is rejected at startup`() {
         listOf(Duration.ZERO, Duration.ofDays(-30)).forEach { ttl ->
             assertFailsWith<IllegalArgumentException> {
-                ExpireIdleGuestCartsUseCase(cartRepository, eventPublisher, ttl, meterRegistry)
+                ExpireIdleGuestCartsUseCase(cartRepository, outboxWriter, TransactionTemplate(transactionManager), ttl, meterRegistry)
             }
         }
     }
 
     @Test
-    fun `a Kafka failure does not stop the expiry`() {
-        every { cartRepository.findIdleGuestCarts(cutoff, any()) } returnsMany listOf(listOf(idle(), idle()), emptyList())
-        every { eventPublisher.publish(any()) } throws IllegalStateException("broker down")
+    fun `writes each cart's event to the outbox before its transaction commits`() {
+        every { cartRepository.findIdleGuestCarts(cutoff, any()) } returnsMany listOf(listOf(idle()), emptyList())
 
-        assertEquals(2, useCase.execute(now))
-        assertEquals(2.0, expiredCount())
+        assertEquals(1, useCase.execute(now))
+        verifyOrder {
+            cartRepository.expireIfIdle(any(), cutoff, now)
+            outboxWriter.write(any())
+            transactionManager.commit(any())
+        }
     }
 }

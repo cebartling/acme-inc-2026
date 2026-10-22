@@ -2,14 +2,14 @@ package com.acme.cart.application
 
 import com.acme.cart.domain.events.CartPurged
 import com.acme.cart.domain.events.CartPurgedPayload
-import com.acme.cart.infrastructure.messaging.CartEventPublisher
+import com.acme.cart.infrastructure.messaging.OutboxWriter
 import com.acme.cart.infrastructure.persistence.CartRepository
 import com.acme.cart.infrastructure.persistence.FinalCart
 import io.micrometer.core.instrument.MeterRegistry
-import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
+import org.springframework.transaction.support.TransactionTemplate
 import java.time.Duration
 import java.time.Instant
 import java.util.UUID
@@ -20,13 +20,14 @@ import java.util.UUID
  * retention"). ACTIVE and CHECKOUT carts are never touched.
  *
  * Built like [ExpireIdleGuestCartsUseCase]: each cart is deleted by a conditional DELETE
- * that re-checks it is still final and old enough, and `CartPurged` is only published for
- * carts this run actually deleted. Publishing is best-effort, as for every cart event.
+ * that re-checks it is still final and old enough, and `CartPurged` is only written to the
+ * outbox for carts this run actually deleted, in the same transaction (PIN-384).
  */
 @Service
 class PurgeFinalCartsUseCase(
     private val cartRepository: CartRepository,
-    private val eventPublisher: CartEventPublisher,
+    private val outboxWriter: OutboxWriter,
+    private val transactionTemplate: TransactionTemplate,
     @Value("\${acme.cart.retention}") private val retention: Duration,
     meterRegistry: MeterRegistry
 ) {
@@ -36,7 +37,6 @@ class PurgeFinalCartsUseCase(
         require(retention > Duration.ZERO) { "acme.cart.retention must be positive, was $retention" }
     }
 
-    private val logger = LoggerFactory.getLogger(PurgeFinalCartsUseCase::class.java)
     private val purgedCarts = meterRegistry.counter(PURGED_METRIC)
 
     /** Deletes every final cart past retention as of [now] and returns how many. */
@@ -51,11 +51,16 @@ class PurgeFinalCartsUseCase(
     }
 
     private fun purge(cart: FinalCart, cutoff: Instant, correlationId: UUID): Boolean {
+        val purged = transactionTemplate.execute { purgeInTransaction(cart, cutoff, correlationId) } == true
+        if (purged) purgedCarts.increment()
+        return purged
+    }
+
+    /** The conditional DELETE and its event commit together (PIN-384). */
+    private fun purgeInTransaction(cart: FinalCart, cutoff: Instant, correlationId: UUID): Boolean {
         if (cartRepository.deleteIfFinalBefore(cart.id, cutoff) == 0) return false
-        purgedCarts.increment()
-        eventPublisher.publishLoggingFailure(
-            CartPurged.create(CartPurgedPayload(cart.id, cart.status, cart.finalizedAt), correlationId),
-            logger
+        outboxWriter.write(
+            CartPurged.create(CartPurgedPayload(cart.id, cart.status, cart.finalizedAt), correlationId)
         )
         return true
     }

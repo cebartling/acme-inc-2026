@@ -172,7 +172,7 @@ sequenceDiagram
     PS-->>CS: price + tier pricing
     CS->>CS: get or create cart, merge line, save
     CS-->>FE: 201 cart (+ Set-Cookie: a new session, or the guest's re-issued)
-    CS->>K: after commit: CartCreated (new cart), ItemAddedToCart
+    CS->>K: OutboxRelay, after commit: CartCreated (new cart), ItemAddedToCart
 ```
 
 - **Session cookie**: the cart service, not the browser, mints the session ID and returns
@@ -226,7 +226,7 @@ sequenceDiagram
   the same line then answers 404 `CART_ITEM_NOT_FOUND`, which the cart page reloads on
   quietly. A second conflict in a row is a 409 `CART_CONFLICT` (logged as a warning): the
   cart page, and an add to cart, reload the cart, and the message is shown. Events are
-  published after the transaction, so a failed attempt publishes nothing. The once-a-day
+  written to the outbox inside the transaction, so a failed attempt's events roll back with it. The once-a-day
   activity touch deliberately leaves the version alone, so a page view in one tab never
   conflicts with a change in another.
 - **No open session outside a transaction** ([ADR-0059](adrs/0059-open-in-view-setting.md), PIN-296): `spring.jpa.open-in-view` is off, as
@@ -243,8 +243,9 @@ sequenceDiagram
   longer final is kept. `CartPurged` is published only for carts it deleted (counted as
   `cart.purged`). ACTIVE and CHECKOUT carts are never deleted. `acme.cart.purge.enabled=false` turns the
   job off. Debezium only captures `acme_orders`, so these deletes emit no change events.
-  The scheduler has three threads (`spring.task.scheduling.pool.size`), one per job (expiry,
-  purge, checkout unlock), so a slow purge run never holds up the others.
+  The scheduler has four threads (`spring.task.scheduling.pool.size`), one per job (expiry,
+  purge, checkout unlock, outbox relay), so a slow run, e.g. the relay blocked on Kafka,
+  never holds up the others.
 - **Error bodies** ([ADR-0050](adrs/0050-api-error-body-format.md)): `{"error": message, "code": ...}`. `CART_ITEM_NOT_FOUND` and
   `VARIANT_NOT_FOUND` are both 404s; the code lets the client reload quietly for a gone
   line but still explain a delisted variant whose line is still in the cart. A request body
@@ -288,9 +289,12 @@ sequenceDiagram
   (PIN-352). A check times out after 5s, and one paused
   while the browser is offline doesn't hold them back either (PIN-349). The cart service itself knows
   nothing about stock, so its `summary`, and the header `CartBadge`, still count them.
-- **Events are best-effort** ([ADR-0042](adrs/0042-best-effort-event-publishing.md)): published directly to Kafka after the transaction commits,
-  as the product service does. A Kafka failure is logged and does not fail the add; there
-  is no outbox, so an event can be lost while the cart change is kept.
+- **Events go through a transactional outbox** ([ADR-0060](adrs/0060-cart-events-through-outbox.md), PIN-384), as the order service's do.
+  Every cart use case and job writes its events with `OutboxWriter` in the transaction that
+  makes the change (V10 `outbox`), and `OutboxRelay` sends them to `cart.events` after commit,
+  configured by `acme.cart.outbox.*`. So a Kafka failure or outage never fails or slows a cart
+  request, and no event is lost while its change is kept. Sending, failures, at-least-once
+  delivery and the single-relay limit work as in the order service (below).
 
 **Reading and changing the cart** (US-0004-07):
 
@@ -332,7 +336,7 @@ sequenceDiagram
         CS->>PS: GET /api/v1/prices/{variantId} for each guest variant
         CS->>CS: sum lines per variant, cap at max, reprice, guest → MERGED (one transaction)
         CS-->>FE: merged user cart + mergeResult
-        CS->>K: after commit: CartCreated (if the user had no cart), CartMerged
+        CS->>K: OutboxRelay, after commit: CartCreated (if the user had no cart), CartMerged
     end
 ```
 
@@ -384,7 +388,7 @@ sequenceDiagram
     else all available
         CS->>CS: re-read, ACTIVE → CHECKOUT, new checkout session (one transaction)
         CS-->>FE: 200 {checkoutSessionId, cartId, status: INITIATED, expiresAt, cart}
-        CS->>K: after commit: CheckoutInitiated
+        CS->>K: OutboxRelay, after commit: CheckoutInitiated
     end
 ```
 
@@ -449,8 +453,8 @@ sequenceDiagram
   `CONVERTED` cart must have both, `ck_carts_converted_order`; no two carts share an order,
   `uq_carts_order`), and is no longer the owner's current cart, so their next add starts a
   new one. The answer is `{cartId, status, orderId,
-  convertedAt}`, where `convertedAt` is `updated_at`, and `CartConvertedToOrder` is published
-  after commit. A session that lapsed but that the unlock job hasn't unlocked yet still
+  convertedAt}`, where `convertedAt` is `updated_at`, and `CartConvertedToOrder` is written to
+  the outbox in the same transaction, so it is sent even if Kafka is down at the time (PIN-384). A session that lapsed but that the unlock job hasn't unlocked yet still
   converts, since the order already exists; the job's grace period keeps the cart locked for
   an order that converts within it. A cart that moved on first is refused, leaving the order
   without a converted cart: unlocked by the job (an order slower than the grace) or by leaving
@@ -615,8 +619,8 @@ read their orders back (PIN-367).
   `acme_app` user come from `docker/postgres/init`, which also gives it a
   `dbz_publication FOR ALL TABLES`: it is the database the Debezium connector captures (once
   registered), and an UPDATE or DELETE fails on any of its tables without a primary key.
-- **Events** go through a transactional outbox (ADR-0022, PIN-368), unlike the cart's
-  best-effort publish, so an order is never committed without its event.
+- **Events** go through a transactional outbox (ADR-0022, PIN-368), as the cart's do
+  (PIN-384), so an order is never committed without its event.
   - **Writing:** `OutboxWriter.write(event)` saves the event to `outbox` inside the caller's
     transaction, and throws if there isn't one. The event uses the same envelope as the cart
     (`eventId`, `eventType`, `eventVersion`, `timestamp`, `aggregateId`, `aggregateType`,

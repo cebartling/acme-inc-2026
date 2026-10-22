@@ -11,11 +11,12 @@ import com.acme.cart.domain.VariantPricing
 import com.acme.cart.domain.events.CartCreated
 import com.acme.cart.domain.events.DomainEvent
 import com.acme.cart.domain.events.ItemAddedToCart
-import com.acme.cart.infrastructure.messaging.CartEventPublisher
+import com.acme.cart.infrastructure.messaging.OutboxWriter
 import com.acme.cart.infrastructure.persistence.CartRepository
 import com.acme.cart.infrastructure.product.ProductPricingClient
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
+import io.mockk.verifyOrder
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.orm.ObjectOptimisticLockingFailureException
 import java.sql.SQLException
@@ -42,15 +43,16 @@ class AddItemToCartUseCaseTest {
 
     private val cartRepository = mockk<CartRepository>()
     private val pricingClient = mockk<ProductPricingClient>()
-    private val eventPublisher = mockk<CartEventPublisher>()
+    private val outboxWriter = mockk<OutboxWriter>()
+    private val transactionManager = mockk<PlatformTransactionManager>(relaxed = true)
     private val published = mutableListOf<DomainEvent>()
     private val meterRegistry = SimpleMeterRegistry()
 
     private val useCase = AddItemToCartUseCase(
         cartRepository = cartRepository,
         pricingClient = pricingClient,
-        eventPublisher = eventPublisher,
-        transactionTemplate = TransactionTemplate(mockk<PlatformTransactionManager>(relaxed = true)),
+        outboxWriter = outboxWriter,
+        transactionTemplate = TransactionTemplate(transactionManager),
         objectMapper = jacksonObjectMapper(),
         maxOrderQuantity = 5,
         meterRegistry = meterRegistry
@@ -75,7 +77,7 @@ class AddItemToCartUseCaseTest {
     fun setUp() {
         every { pricingClient.getPricing(variantId) } returns VariantPricing(BigDecimal("69.99")).right()
         every { cartRepository.save(any()) } answers { firstArg() }
-        every { eventPublisher.publish(capture(published)) } returns Unit
+        every { outboxWriter.write(capture(published)) } returns Unit
     }
 
     @Test
@@ -145,13 +147,16 @@ class AddItemToCartUseCaseTest {
     }
 
     @Test
-    fun `a Kafka failure does not fail the add`() {
+    fun `writes its events to the outbox before the transaction commits`() {
         every { cartRepository.findBySessionIdAndStatusIn("sess-1", CartStatus.CURRENT) } returns null
-        every { eventPublisher.publish(any()) } throws IllegalStateException("broker down")
 
-        val result = useCase.execute(command())
+        useCase.execute(command())
 
-        assertEquals(2, result.getOrNull()!!.itemCount)
+        verifyOrder {
+            outboxWriter.write(any())
+            outboxWriter.write(any())
+            transactionManager.commit(any())
+        }
     }
 
     @Test

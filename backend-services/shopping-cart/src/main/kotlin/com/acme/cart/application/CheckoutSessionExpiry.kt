@@ -4,30 +4,30 @@ import com.acme.cart.domain.Cart
 import com.acme.cart.domain.CheckoutSession
 import com.acme.cart.domain.events.CheckoutSessionExpired
 import com.acme.cart.domain.events.CheckoutSessionExpiredPayload
-import com.acme.cart.infrastructure.messaging.CartEventPublisher
+import com.acme.cart.infrastructure.messaging.OutboxWriter
 import io.micrometer.core.instrument.MeterRegistry
-import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import java.util.UUID
 
 /**
- * Reports a checkout session that lapsed (PIN-330): publishes `CheckoutSessionExpired` and
- * counts it. Usually the unlock job finds the lapse, but a customer who restarts or leaves
+ * Reports a checkout session that lapsed (PIN-330): writes `CheckoutSessionExpired` to the
+ * outbox and counts it. It runs inside the transaction that ends the session (PIN-384), so the
+ * event commits with it; the count is taken when the event is written, so a write that a lost
+ * race rolls back and retries counts twice. Usually the unlock job finds the lapse, but a customer who restarts or leaves
  * checkout before the job unlocks the cart ends the lapsed session first, so those paths report
  * it too: every lapsed session is reported exactly once, by whichever ends it. One that converts
  * into an order (PIN-331) is not an expiry and is not reported.
  */
 @Component
 class CheckoutSessionExpiry(
-    private val eventPublisher: CartEventPublisher,
+    private val outboxWriter: OutboxWriter,
     meterRegistry: MeterRegistry
 ) {
-    private val logger = LoggerFactory.getLogger(CheckoutSessionExpiry::class.java)
     private val expiredSessions = meterRegistry.counter(EXPIRED_METRIC)
 
     fun report(payload: CheckoutSessionExpiredPayload, correlationId: UUID) {
         expiredSessions.increment()
-        eventPublisher.publishLoggingFailure(CheckoutSessionExpired.create(payload, correlationId), logger)
+        outboxWriter.write(CheckoutSessionExpired.create(payload, correlationId))
     }
 
     /** Reports [lapsed], the session [cart] was locked for until the change that ended it. */

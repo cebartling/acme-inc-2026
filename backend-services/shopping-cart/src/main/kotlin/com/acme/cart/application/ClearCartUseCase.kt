@@ -8,9 +8,8 @@ import com.acme.cart.domain.CartItem
 import com.acme.cart.domain.CartOwner
 import com.acme.cart.domain.events.CartCleared
 import com.acme.cart.domain.events.CartClearedPayload
-import com.acme.cart.infrastructure.messaging.CartEventPublisher
+import com.acme.cart.infrastructure.messaging.OutboxWriter
 import com.acme.cart.infrastructure.persistence.CartRepository
-import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.support.TransactionTemplate
 import java.util.UUID
@@ -19,16 +18,14 @@ data class ClearCartCommand(val owner: CartOwner, val cartId: UUID)
 
 /**
  * Removes every line from the caller's own cart (PIN-294). The cart stays. Clearing an empty
- * cart is not a change: nothing is saved or published.
+ * cart is not a change: nothing is saved or written to the outbox.
  */
 @Service
 class ClearCartUseCase(
     private val cartRepository: CartRepository,
-    private val eventPublisher: CartEventPublisher,
+    private val outboxWriter: OutboxWriter,
     private val transactionTemplate: TransactionTemplate
 ) {
-    private val logger = LoggerFactory.getLogger(ClearCartUseCase::class.java)
-
     fun execute(command: ClearCartCommand, correlationId: UUID = UUID.randomUUID()): Either<CartError, Cart> =
         retryOnConflict("Clear cart") { clearOnce(command, correlationId) }
 
@@ -37,19 +34,15 @@ class ClearCartUseCase(
             val cart = cartRepository.findOwnedCart(command.owner, command.cartId)
                 ?: return@execute CartError.CartNotFound(command.cartId).left()
             cart.clear().map { removed ->
-                val saved = if (removed.isEmpty()) cart else cartRepository.save(cart)
-                saved to removed
+                if (removed.isEmpty()) cart
+                else cartRepository.save(cart).also { writeEvent(it, removed, correlationId) }
             }
         }
         return checkNotNull(result) { "transaction for cart ${command.cartId} returned no result" }
-            .map { (cart, removed) ->
-                if (removed.isNotEmpty()) publish(cart, removed, correlationId)
-                cart
-            }
     }
 
-    private fun publish(cart: Cart, removed: List<CartItem>, correlationId: UUID) {
-        eventPublisher.publishLoggingFailure(
+    private fun writeEvent(cart: Cart, removed: List<CartItem>, correlationId: UUID) {
+        outboxWriter.write(
             CartCleared.create(
                 CartClearedPayload(
                     cartId = cart.id,
@@ -59,8 +52,7 @@ class ClearCartUseCase(
                     userId = cart.userId
                 ),
                 correlationId
-            ),
-            logger
+            )
         )
     }
 }

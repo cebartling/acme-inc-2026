@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Configuration
 import org.springframework.kafka.core.DefaultKafkaProducerFactory
 import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.kafka.core.ProducerFactory
+import java.util.concurrent.TimeUnit
 
 /**
  * Kafka producer configuration for the Shopping Cart Service.
@@ -16,11 +17,15 @@ import org.springframework.kafka.core.ProducerFactory
  * - Idempotence enabled to prevent duplicate messages
  * - All replicas acknowledgment for durability
  * - Ordering guarantees via max.in.flight.requests.per.connection=1
+ * - send() blocking (waiting for metadata, e.g. while Kafka is down) capped at the publish
+ *   timeout, so OutboxRelay's timeout holds instead of the producer's 60s default (PIN-369)
  */
 @Configuration
 class KafkaProducerConfig(
     @Value("\${spring.kafka.bootstrap-servers}")
-    private val bootstrapServers: String
+    private val bootstrapServers: String,
+    @Value("\${acme.cart.events.publish-timeout-seconds:10}")
+    private val publishTimeoutSeconds: Long
 ) {
 
     /**
@@ -35,7 +40,8 @@ class KafkaProducerConfig(
             ProducerConfig.ACKS_CONFIG to "all",
             ProducerConfig.RETRIES_CONFIG to 3,
             ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION to 1,
-            ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG to true
+            ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG to true,
+            ProducerConfig.MAX_BLOCK_MS_CONFIG to TimeUnit.SECONDS.toMillis(publishTimeoutSeconds)
         )
         return DefaultKafkaProducerFactory(configProps)
     }

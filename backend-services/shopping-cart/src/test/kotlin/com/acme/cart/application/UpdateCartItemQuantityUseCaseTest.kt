@@ -10,7 +10,7 @@ import com.acme.cart.domain.PriceTier
 import com.acme.cart.domain.VariantPricing
 import com.acme.cart.domain.events.CartItemQuantityUpdated
 import com.acme.cart.domain.events.DomainEvent
-import com.acme.cart.infrastructure.messaging.CartEventPublisher
+import com.acme.cart.infrastructure.messaging.OutboxWriter
 import com.acme.cart.infrastructure.persistence.CartRepository
 import com.acme.cart.infrastructure.product.ProductPricingClient
 import org.springframework.orm.ObjectOptimisticLockingFailureException
@@ -32,13 +32,13 @@ class UpdateCartItemQuantityUseCaseTest {
 
     private val cartRepository = mockk<CartRepository>()
     private val pricingClient = mockk<ProductPricingClient>()
-    private val eventPublisher = mockk<CartEventPublisher>()
+    private val outboxWriter = mockk<OutboxWriter>()
     private val published = mutableListOf<DomainEvent>()
 
     private val useCase = UpdateCartItemQuantityUseCase(
         cartRepository = cartRepository,
         pricingClient = pricingClient,
-        eventPublisher = eventPublisher,
+        outboxWriter = outboxWriter,
         transactionTemplate = TransactionTemplate(mockk<PlatformTransactionManager>(relaxed = true)),
         maxOrderQuantity = 10
     )
@@ -56,7 +56,7 @@ class UpdateCartItemQuantityUseCaseTest {
         every { cartRepository.findBySessionIdAndStatusIn("sess-1", CartStatus.CURRENT) } returns cart
         every { cartRepository.save(any()) } answers { firstArg() }
         every { pricingClient.getPricing(variantId) } returns pricing.right()
-        every { eventPublisher.publish(capture(published)) } returns Unit
+        every { outboxWriter.write(capture(published)) } returns Unit
     }
 
     @Test

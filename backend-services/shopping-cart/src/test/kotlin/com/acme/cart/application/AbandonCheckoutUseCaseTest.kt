@@ -8,7 +8,7 @@ import com.acme.cart.domain.VariantPricing
 import com.acme.cart.domain.events.CheckoutAbandoned
 import com.acme.cart.domain.events.CheckoutSessionExpired
 import com.acme.cart.domain.events.DomainEvent
-import com.acme.cart.infrastructure.messaging.CartEventPublisher
+import com.acme.cart.infrastructure.messaging.OutboxWriter
 import com.acme.cart.infrastructure.persistence.CartRepository
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import io.mockk.every
@@ -29,15 +29,15 @@ import kotlin.test.assertSame
 class AbandonCheckoutUseCaseTest {
 
     private val cartRepository = mockk<CartRepository>()
-    private val eventPublisher = mockk<CartEventPublisher>()
+    private val outboxWriter = mockk<OutboxWriter>()
     private val published = mutableListOf<DomainEvent>()
     private val meterRegistry = SimpleMeterRegistry()
 
     private val useCase = AbandonCheckoutUseCase(
         cartRepository = cartRepository,
-        eventPublisher = eventPublisher,
+        outboxWriter = outboxWriter,
         transactionTemplate = TransactionTemplate(mockk<PlatformTransactionManager>(relaxed = true)),
-        checkoutSessionExpiry = CheckoutSessionExpiry(eventPublisher, meterRegistry)
+        checkoutSessionExpiry = CheckoutSessionExpiry(outboxWriter, meterRegistry)
     )
 
     private val cart = Cart(id = UUID.randomUUID(), sessionId = "sess-1").also {
@@ -48,7 +48,7 @@ class AbandonCheckoutUseCaseTest {
     fun setUp() {
         every { cartRepository.findBySessionIdAndStatusIn("sess-1", CartStatus.CURRENT) } returns cart
         every { cartRepository.save(any()) } answers { firstArg() }
-        every { eventPublisher.publish(capture(published)) } returns Unit
+        every { outboxWriter.write(capture(published)) } returns Unit
     }
 
     private fun abandon(cartId: UUID = cart.id) =

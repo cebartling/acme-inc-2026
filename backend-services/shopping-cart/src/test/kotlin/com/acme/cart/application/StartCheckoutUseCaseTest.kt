@@ -13,7 +13,7 @@ import com.acme.cart.domain.events.CheckoutInitiated
 import com.acme.cart.domain.events.CheckoutSessionExpired
 import com.acme.cart.domain.events.DomainEvent
 import com.acme.cart.domain.events.Money
-import com.acme.cart.infrastructure.messaging.CartEventPublisher
+import com.acme.cart.infrastructure.messaging.OutboxWriter
 import com.acme.cart.infrastructure.persistence.CartRepository
 import com.acme.cart.infrastructure.product.ProductAvailabilityClient
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
@@ -37,16 +37,16 @@ class StartCheckoutUseCaseTest {
 
     private val cartRepository = mockk<CartRepository>()
     private val availabilityClient = mockk<ProductAvailabilityClient>()
-    private val eventPublisher = mockk<CartEventPublisher>()
+    private val outboxWriter = mockk<OutboxWriter>()
     private val published = mutableListOf<DomainEvent>()
 
     private val useCase = StartCheckoutUseCase(
         cartRepository = cartRepository,
         availabilityClient = availabilityClient,
-        eventPublisher = eventPublisher,
+        outboxWriter = outboxWriter,
         transactionTemplate = TransactionTemplate(mockk<PlatformTransactionManager>(relaxed = true)),
         objectMapper = jacksonObjectMapper(),
-        checkoutSessionExpiry = CheckoutSessionExpiry(eventPublisher, SimpleMeterRegistry())
+        checkoutSessionExpiry = CheckoutSessionExpiry(outboxWriter, SimpleMeterRegistry())
     )
 
     private val owner = CartOwner.Guest("sess-1")
@@ -65,7 +65,7 @@ class StartCheckoutUseCaseTest {
         every { cartRepository.findBySessionIdAndStatusIn("sess-1", CartStatus.CURRENT) } returns cart
         every { cartRepository.save(any()) } answers { firstArg() }
         every { availabilityClient.issueWith(any()) } returns null.right()
-        every { eventPublisher.publish(capture(published)) } returns Unit
+        every { outboxWriter.write(capture(published)) } returns Unit
     }
 
     private fun start() = useCase.execute(StartCheckoutCommand(owner, cart.id))

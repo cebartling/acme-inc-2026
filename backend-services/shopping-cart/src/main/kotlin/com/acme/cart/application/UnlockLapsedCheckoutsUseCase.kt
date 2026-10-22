@@ -6,6 +6,7 @@ import com.acme.cart.infrastructure.persistence.LapsedCheckout
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
+import org.springframework.transaction.support.TransactionTemplate
 import java.time.Duration
 import java.time.Instant
 import java.util.UUID
@@ -28,6 +29,7 @@ import java.util.UUID
 class UnlockLapsedCheckoutsUseCase(
     private val cartRepository: CartRepository,
     private val checkoutSessionExpiry: CheckoutSessionExpiry,
+    private val transactionTemplate: TransactionTemplate,
     @Value("\${acme.cart.checkout-unlock.grace}") private val grace: Duration
 ) {
     init {
@@ -47,7 +49,11 @@ class UnlockLapsedCheckoutsUseCase(
         )
     }
 
-    private fun unlock(cart: LapsedCheckout, cutoff: Instant, now: Instant, correlationId: UUID): Boolean {
+    /** The conditional UPDATE and its event commit together (PIN-384). */
+    private fun unlock(cart: LapsedCheckout, cutoff: Instant, now: Instant, correlationId: UUID): Boolean =
+        transactionTemplate.execute { unlockInTransaction(cart, cutoff, now, correlationId) } == true
+
+    private fun unlockInTransaction(cart: LapsedCheckout, cutoff: Instant, now: Instant, correlationId: UUID): Boolean {
         if (cartRepository.unlockIfLapsed(cart.id, cutoff, now) == 0) return false
         checkoutSessionExpiry.report(
             CheckoutSessionExpiredPayload(

@@ -7,11 +7,12 @@ import com.acme.cart.domain.CartStatus
 import com.acme.cart.domain.VariantPricing
 import com.acme.cart.domain.events.CartConvertedToOrder
 import com.acme.cart.domain.events.DomainEvent
-import com.acme.cart.infrastructure.messaging.CartEventPublisher
+import com.acme.cart.infrastructure.messaging.OutboxWriter
 import com.acme.cart.infrastructure.persistence.CartRepository
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import io.mockk.verifyOrder
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.transaction.PlatformTransactionManager
@@ -27,13 +28,14 @@ import kotlin.test.assertTrue
 class ConvertCartUseCaseTest {
 
     private val cartRepository = mockk<CartRepository>()
-    private val eventPublisher = mockk<CartEventPublisher>()
+    private val outboxWriter = mockk<OutboxWriter>()
+    private val transactionManager = mockk<PlatformTransactionManager>(relaxed = true)
     private val published = mutableListOf<DomainEvent>()
 
     private val useCase = ConvertCartUseCase(
         cartRepository = cartRepository,
-        eventPublisher = eventPublisher,
-        transactionTemplate = TransactionTemplate(mockk<PlatformTransactionManager>(relaxed = true))
+        outboxWriter = outboxWriter,
+        transactionTemplate = TransactionTemplate(transactionManager)
     )
 
     private val cart = Cart(id = UUID.randomUUID(), sessionId = "sess-1").also {
@@ -46,7 +48,7 @@ class ConvertCartUseCaseTest {
         every { cartRepository.findByIdAndSessionId(any(), any()) } returns null
         every { cartRepository.findByIdAndSessionId(cart.id, "sess-1") } returns cart
         every { cartRepository.save(any()) } answers { firstArg() }
-        every { eventPublisher.publish(capture(published)) } returns Unit
+        every { outboxWriter.write(capture(published)) } returns Unit
     }
 
     private fun convert(
@@ -55,6 +57,18 @@ class ConvertCartUseCaseTest {
         order: UUID = orderId,
         owner: CartOwner = CartOwner.Guest("sess-1")
     ) = useCase.execute(ConvertCartCommand(owner, cartId, order, checkoutSessionId))
+
+    @Test
+    fun `writes CartConvertedToOrder to the outbox before the transaction commits (PIN-384)`() {
+        val session = cart.startCheckout(Duration.ofMinutes(30)).getOrNull()!!
+
+        convert(session.id)
+
+        verifyOrder {
+            outboxWriter.write(any<CartConvertedToOrder>())
+            transactionManager.commit(any())
+        }
+    }
 
     @Test
     fun `converts a cart in checkout and publishes CartConvertedToOrder`() {

@@ -2,6 +2,7 @@ package com.acme.cart
 
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.runApplication
+import org.springframework.scheduling.annotation.EnableScheduling
 
 /**
  * Main application class for the Shopping Cart Service.
@@ -13,6 +14,7 @@ import org.springframework.boot.runApplication
  * @see <a href="../../documentation/user-stories/0004-customer-shopping-experience">User Story US-0004</a>
  */
 @SpringBootApplication
+@EnableScheduling // OutboxRelay's poll (PIN-384)
 class ShoppingCartServiceApplication
 
 /**

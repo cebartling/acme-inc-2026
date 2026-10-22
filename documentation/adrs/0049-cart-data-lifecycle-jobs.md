@@ -2,7 +2,10 @@
 
 ## Status
 
-Accepted
+Accepted. Since [ADR-0060](0060-cart-events-through-outbox.md) (PIN-384), each job writes its
+event to the outbox in the same transaction as the cart's conditional write, instead of
+publishing it best-effort afterwards (decision 3 and the `CartPurged` consequence), and the
+scheduler has a fourth thread for the outbox relay (decision 7).
 
 ## Context
 
