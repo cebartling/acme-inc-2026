@@ -10,6 +10,7 @@ import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase
 import org.springframework.context.annotation.Import
 import org.springframework.dao.DataIntegrityViolationException
+import org.springframework.data.domain.PageRequest
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.springframework.transaction.PlatformTransactionManager
@@ -139,6 +140,55 @@ class OrderRepositoryIntegrationTest {
         assertEquals(0, second)
         assertEquals(0, cancelled)
         assertEquals(OrderStatus.SUBMITTED, orders.findById(saved.id).get().status)
+    }
+
+    private fun submitted(userId: UUID, createdAt: Instant, vararg quantities: Int, status: OrderStatus = OrderStatus.SUBMITTED) =
+        orders.save(
+            Order(
+                id = ids.generate(),
+                orderNumber = orderNumbers.nextOrderNumber(LocalDate.of(2026, 10, 22)).value,
+                userId = userId,
+                checkoutSessionId = UUID.randomUUID(),
+                cartId = UUID.randomUUID(),
+                idempotencyKey = UUID.randomUUID().toString(),
+                status = status,
+                subtotal = BigDecimal("10.00"),
+                currency = "USD",
+                createdAt = createdAt
+            ).apply {
+                quantities.forEach { addItem(ids.generate(), UUID.randomUUID(), it, BigDecimal("1.00"), BigDecimal(it), "{}") }
+            }
+        )
+
+    @Test
+    fun `findSummaries lists the user's orders in a status, newest first, with unit counts and paging`() {
+        val userId = UUID.randomUUID()
+        val base = Instant.parse("2026-10-22T12:00:00Z")
+        val oldest = submitted(userId, base, 1)
+        val middle = submitted(userId, base.plusSeconds(60), 2, 3)
+        val newest = submitted(userId, base.plusSeconds(120), 4)
+        submitted(userId, base.plusSeconds(180), 1, status = OrderStatus.PENDING)
+        submitted(userId, base.plusSeconds(240), 1, status = OrderStatus.CANCELLED)
+        submitted(UUID.randomUUID(), base.plusSeconds(300), 1)
+
+        val first = orders.findSummaries(userId, OrderStatus.SUBMITTED, PageRequest.of(0, 2))
+        val second = orders.findSummaries(userId, OrderStatus.SUBMITTED, PageRequest.of(1, 2))
+
+        assertEquals(listOf(newest.id, middle.id), first.content.map { it.id })
+        assertEquals(listOf(4L, 5L), first.content.map { it.itemCount })
+        assertEquals(3, first.totalElements)
+        assertEquals(2, first.totalPages)
+        assertEquals(listOf(oldest.id), second.content.map { it.id })
+    }
+
+    @Test
+    fun `findByIdAndUserIdAndStatus finds only the owner's order in that status`() {
+        val userId = UUID.randomUUID()
+        val saved = submitted(userId, Instant.parse("2026-10-22T12:00:00Z"), 2)
+
+        assertEquals(saved.id, orders.findByIdAndUserIdAndStatus(saved.id, userId, OrderStatus.SUBMITTED)?.id)
+        assertEquals(null, orders.findByIdAndUserIdAndStatus(saved.id, UUID.randomUUID(), OrderStatus.SUBMITTED))
+        assertEquals(null, orders.findByIdAndUserIdAndStatus(saved.id, userId, OrderStatus.PENDING))
     }
 
     @Test

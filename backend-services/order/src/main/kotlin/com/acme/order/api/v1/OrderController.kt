@@ -1,10 +1,15 @@
 package com.acme.order.api.v1
 
+import com.acme.order.application.GetOrderResult
+import com.acme.order.application.GetOrderUseCase
+import com.acme.order.application.ListOrdersUseCase
 import com.acme.order.application.PlaceOrderCommand
 import com.acme.order.application.PlaceOrderResult
 import com.acme.order.application.PlaceOrderUseCase
 import com.acme.order.domain.Order
 import jakarta.validation.Valid
+import jakarta.validation.constraints.Max
+import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotNull
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
@@ -14,11 +19,16 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.annotation.ExceptionHandler
+import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.method.annotation.HandlerMethodValidationException
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
 import java.math.BigDecimal
 import java.time.Instant
 import java.util.UUID
@@ -52,13 +62,17 @@ data class PlaceOrderResponse(
 }
 
 /**
- * Places orders (PIN-366). Signed-in customers only: the order service verifies identity's
+ * Places orders (PIN-366) and reads them back (PIN-367). Signed-in customers only: the order service verifies identity's
  * `access_token` cookie and forwards it to the cart (ADR-0044). Errors are `{error, code}`
  * (ADR-0050).
  */
 @RestController
 @RequestMapping("/api/v1/orders")
-class OrderController(private val placeOrder: PlaceOrderUseCase) {
+class OrderController(
+    private val placeOrder: PlaceOrderUseCase,
+    private val getOrder: GetOrderUseCase,
+    private val listOrders: ListOrdersUseCase
+) {
 
     private val logger = LoggerFactory.getLogger(OrderController::class.java)
 
@@ -99,6 +113,42 @@ class OrderController(private val placeOrder: PlaceOrderUseCase) {
         }
     }
 
+    /**
+     * One of the caller's SUBMITTED orders (PIN-367). Missing, someone else's, PENDING and
+     * CANCELLED all answer the same `404 ORDER_NOT_FOUND`.
+     */
+    @GetMapping("/{orderId}")
+    fun get(@AuthenticationPrincipal jwt: Jwt, @PathVariable orderId: UUID): ResponseEntity<Any> =
+        when (val result = getOrder.execute(orderId, UUID.fromString(jwt.subject))) {
+            is GetOrderResult.Found -> ResponseEntity.ok(OrderDetailsResponse.from(result.order))
+            GetOrderResult.NotFound -> error(HttpStatus.NOT_FOUND, "Order not found", ORDER_NOT_FOUND)
+        }
+
+    /**
+     * The caller's SUBMITTED orders, newest first (PIN-367). `page` is 1-based and capped, so
+     * the offset can't overflow (the product search's PIN-308 bug).
+     */
+    @GetMapping
+    fun list(
+        @AuthenticationPrincipal jwt: Jwt,
+        @RequestParam(defaultValue = "1") @Min(1) @Max(MAX_PAGE.toLong()) page: Int,
+        @RequestParam(defaultValue = "24") @Min(1) @Max(MAX_PAGE_SIZE.toLong()) pageSize: Int
+    ): ResponseEntity<Any> =
+        ResponseEntity.ok(OrderListResponse.from(listOrders.execute(UUID.fromString(jwt.subject), page, pageSize)))
+
+    /** A path ID that is no UUID, or a paging parameter that is no number. Names the parameter. */
+    @ExceptionHandler(MethodArgumentTypeMismatchException::class)
+    fun invalidParameter(mismatch: MethodArgumentTypeMismatchException): ResponseEntity<Any> =
+        invalidRequestResponse(mismatch.name, mismatch)
+
+    /** A paging parameter out of range, e.g. `page=0` or `pageSize=101`. */
+    @ExceptionHandler(HandlerMethodValidationException::class)
+    fun invalidParameterValue(invalid: HandlerMethodValidationException): ResponseEntity<Any> =
+        invalidRequestResponse(
+            invalid.parameterValidationResults.mapNotNull { it.methodParameter.parameterName }.minOrNull(),
+            invalid
+        )
+
     /** A body that fails `@Valid`, e.g. no `checkoutSessionId`. */
     @ExceptionHandler(MethodArgumentNotValidException::class)
     fun invalidRequest(invalid: MethodArgumentNotValidException): ResponseEntity<Any> =
@@ -124,5 +174,8 @@ class OrderController(private val placeOrder: PlaceOrderUseCase) {
         const val IDEMPOTENCY_KEY_REQUIRED = "IDEMPOTENCY_KEY_REQUIRED"
         const val INVALID_REQUEST = "INVALID_REQUEST"
         const val CART_UNAVAILABLE = "CART_UNAVAILABLE"
+        const val ORDER_NOT_FOUND = "ORDER_NOT_FOUND"
+        const val MAX_PAGE = 10_000
+        const val MAX_PAGE_SIZE = 100
     }
 }
