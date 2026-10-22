@@ -557,8 +557,8 @@ is no authentication.
 ### Order Service
 
 `backend-services/order` (port 10305, database `acme_orders`) owns customer orders
-(Epic 005, PIN-58). A customer can place an order from a checkout session (PIN-366);
-reading orders comes with PIN-367.
+(Epic 005, PIN-58). A customer can place an order from a checkout session (PIN-366) and
+read their orders back (PIN-367).
 
 - **Placing an order** (PIN-366, journey 0005 step 5, without payment, shipping or tax):
   `POST /api/v1/orders {checkoutSessionId}` with an `Idempotency-Key` header.
@@ -589,10 +589,28 @@ reading orders comes with PIN-367.
   - **Not handled yet:** nothing sweeps an order whose retry never comes, so it stays
     `PENDING`. There is no CORS configuration for browser calls either: no frontend places
     orders yet.
+- **Reading orders** (PIN-367, journey 0005 step 6 and the start of epic F5), signed-in
+  customers only, like placing them:
+  - `GET /api/v1/orders/{orderId}` (`GetOrderUseCase`) answers the order's number, status,
+    created time, lines and `pricing.subtotal`. Each line's product name, variant name, SKU,
+    image and product ID come from the cart's snapshot stored with it.
+  - `GET /api/v1/orders?page=&pageSize=` (`ListOrdersUseCase`) answers the caller's orders,
+    newest first, with each one's unit count. It uses one JPQL projection
+    (`OrderRepository.findSummaries`), so no lines are loaded. Paging is 1-based like the
+    product search's: `page` 1–10,000 (capped so the offset can't overflow, the PIN-308
+    bug), `pageSize` 1–100 (default 24), and `page`, `pageSize`, `totalResults` and
+    `totalPages` in the answer.
+  - **Only `SUBMITTED` orders are visible.** `PENDING` and `CANCELLED` orders are placement
+    attempts the customer was told didn't succeed. The status and the caller's `userId` are
+    in the query, so a missing order, someone else's, and a `PENDING` or `CANCELLED` one all
+    answer the same `404 ORDER_NOT_FOUND`.
+  - **Bad input:** a malformed `orderId` or out-of-range paging is `400 INVALID_REQUEST`,
+    naming the parameter.
 - **Persistence** ([ADR-0041](adrs/0041-per-service-persistence-model.md)): plain JPA with Flyway and `ddl-auto: validate`, like the other services.
   The epic's event store and CQRS read models are deferred. `V1__baseline.sql` is empty,
   `V2` adds the `outbox` table (PIN-368), and `V3` the `orders`, `order_items` and
-  `order_number_sequences` tables (PIN-366).
+  `order_number_sequences` tables (PIN-366), and `V4` an index on
+  `orders (user_id, status, created_at DESC, id DESC)` for the order history (PIN-367).
   `open-in-view` is off. `acme_orders` and its
   `acme_app` user come from `docker/postgres/init`, which also gives it a
   `dbz_publication FOR ALL TABLES`: it is the database the Debezium connector captures (once
@@ -618,7 +636,6 @@ reading orders comes with PIN-367.
     first use. `acme.order.events.publish-timeout-seconds` (default 10) bounds a
     send, including the producer's wait for metadata while Kafka is down.
   - Sent rows are not purged yet, and only one instance may run the relay.
-- **Planned next**: reading orders (PIN-367).
 
 ## Observability
 

@@ -83,7 +83,7 @@ class SecurityConfig {
      */
     private fun tokenErrorEntryPoint() = AuthenticationEntryPoint { request, response, exception: AuthenticationException ->
         val (message, code) = when {
-            accessTokenCookieResolver().resolve(request) == null -> "Sign in to place an order" to "SIGN_IN_REQUIRED"
+            accessTokenCookieResolver().resolve(request) == null -> "Sign in to continue" to "SIGN_IN_REQUIRED"
             exception.isExpiry() -> "TOKEN_EXPIRED" to "TOKEN_EXPIRED"
             else -> "INVALID_TOKEN" to "INVALID_TOKEN"
         }
