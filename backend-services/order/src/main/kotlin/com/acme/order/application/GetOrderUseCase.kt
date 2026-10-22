@@ -6,8 +6,7 @@ import com.acme.order.infrastructure.persistence.OrderRepository
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.springframework.stereotype.Service
-import org.springframework.transaction.PlatformTransactionManager
-import org.springframework.transaction.support.TransactionTemplate
+import org.springframework.transaction.annotation.Transactional
 import java.math.BigDecimal
 import java.time.Instant
 import java.util.UUID
@@ -52,17 +51,14 @@ sealed interface GetOrderResult {
 @Service
 class GetOrderUseCase(
     private val orders: OrderRepository,
-    private val objectMapper: ObjectMapper,
-    transactionManager: PlatformTransactionManager
+    private val objectMapper: ObjectMapper
 ) {
-    private val readOnly = TransactionTemplate(transactionManager).apply { isReadOnly = true }
 
+    @Transactional(readOnly = true)
     fun execute(orderId: UUID, userId: UUID): GetOrderResult =
-        readOnly.execute {
-            orders.findByIdAndUserIdAndStatus(orderId, userId, OrderStatus.SUBMITTED)
-                ?.let { GetOrderResult.Found(details(it)) }
-                ?: GetOrderResult.NotFound
-        }!!
+        orders.findByIdAndUserIdAndStatus(orderId, userId, OrderStatus.SUBMITTED)
+            ?.let { GetOrderResult.Found(details(it)) }
+            ?: GetOrderResult.NotFound
 
     private fun details(order: Order) = OrderDetails(
         id = order.id,

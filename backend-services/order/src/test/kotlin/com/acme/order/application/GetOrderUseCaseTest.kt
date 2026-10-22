@@ -9,7 +9,6 @@ import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
-import org.springframework.transaction.PlatformTransactionManager
 import java.math.BigDecimal
 import java.time.Instant
 import java.util.UUID
@@ -17,9 +16,7 @@ import java.util.UUID
 class GetOrderUseCaseTest {
 
     private val orders = mockk<OrderRepository>()
-    private val useCase = GetOrderUseCase(
-        orders, JacksonConfig().objectMapper(), mockk<PlatformTransactionManager>(relaxed = true)
-    )
+    private val useCase = GetOrderUseCase(orders, JacksonConfig().objectMapper())
     private val userId = UUID.randomUUID()
     private val variantId = UUID.randomUUID()
 

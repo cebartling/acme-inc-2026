@@ -142,7 +142,7 @@ class OrderRepositoryIntegrationTest {
         assertEquals(OrderStatus.SUBMITTED, orders.findById(saved.id).get().status)
     }
 
-    private fun submitted(userId: UUID, createdAt: Instant, vararg quantities: Int, status: OrderStatus = OrderStatus.SUBMITTED) =
+    private fun saveOrder(userId: UUID, createdAt: Instant, vararg quantities: Int, status: OrderStatus = OrderStatus.SUBMITTED) =
         orders.save(
             Order(
                 id = ids.generate(),
@@ -164,12 +164,12 @@ class OrderRepositoryIntegrationTest {
     fun `findSummaries lists the user's orders in a status, newest first, with unit counts and paging`() {
         val userId = UUID.randomUUID()
         val base = Instant.parse("2026-10-22T12:00:00Z")
-        val oldest = submitted(userId, base, 1)
-        val middle = submitted(userId, base.plusSeconds(60), 2, 3)
-        val newest = submitted(userId, base.plusSeconds(120), 4)
-        submitted(userId, base.plusSeconds(180), 1, status = OrderStatus.PENDING)
-        submitted(userId, base.plusSeconds(240), 1, status = OrderStatus.CANCELLED)
-        submitted(UUID.randomUUID(), base.plusSeconds(300), 1)
+        val oldest = saveOrder(userId, base, 1)
+        val middle = saveOrder(userId, base.plusSeconds(60), 2, 3)
+        val newest = saveOrder(userId, base.plusSeconds(120), 4)
+        saveOrder(userId, base.plusSeconds(180), 1, status = OrderStatus.PENDING)
+        saveOrder(userId, base.plusSeconds(240), 1, status = OrderStatus.CANCELLED)
+        saveOrder(UUID.randomUUID(), base.plusSeconds(300), 1)
 
         val first = orders.findSummaries(userId, OrderStatus.SUBMITTED, PageRequest.of(0, 2))
         val second = orders.findSummaries(userId, OrderStatus.SUBMITTED, PageRequest.of(1, 2))
@@ -184,7 +184,7 @@ class OrderRepositoryIntegrationTest {
     @Test
     fun `findByIdAndUserIdAndStatus finds only the owner's order in that status`() {
         val userId = UUID.randomUUID()
-        val saved = submitted(userId, Instant.parse("2026-10-22T12:00:00Z"), 2)
+        val saved = saveOrder(userId, Instant.parse("2026-10-22T12:00:00Z"), 2)
 
         assertEquals(saved.id, orders.findByIdAndUserIdAndStatus(saved.id, userId, OrderStatus.SUBMITTED)?.id)
         assertEquals(null, orders.findByIdAndUserIdAndStatus(saved.id, UUID.randomUUID(), OrderStatus.SUBMITTED))
