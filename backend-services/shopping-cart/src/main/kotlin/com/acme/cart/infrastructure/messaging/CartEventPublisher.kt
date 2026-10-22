@@ -8,8 +8,6 @@ import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.stereotype.Component
 import java.util.concurrent.TimeUnit
 
-private const val CART_EVENTS_TOPIC = "cart.events"
-
 @Component
 class CartEventPublisher(
     private val kafkaTemplate: KafkaTemplate<String, String>,
