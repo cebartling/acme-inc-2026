@@ -25,16 +25,16 @@ keyed by year-month), and the services make those UUIDs in three different ways:
 Two entities also have a number for people to read. A customer number is
 `ACME-YYYYMM-NNNNNN` (`CustomerNumber`), counted per month by the `next_customer_number`
 function over the `customer_number_sequences` table
-(`V3__create_customer_number_sequences_table.sql`). An order number is planned as
-`ACME-YYYYMMDD-NNNNNN`.
+(`V3__create_customer_number_sequences_table.sql`). The order number is
+`ACME-YYYYMMDD-NNNNNN` (`OrderNumber`), counted per day by `next_order_number` over the
+order service's `order_number_sequences` table (`V3__create_orders.sql`, PIN-366).
 
 ## Decision
 
 1. **The IDs of users, customers and addresses are UUID v7,** made in application code by
    the service's ID generator before the row is saved.
-2. **The order ID will be a UUID v7 too,** and its order number `ACME-YYYYMMDD-NNNNNN`, as
-   journey 0005's AC-5.4 and PIN-366 require. Neither is built yet: the order service has
-   no orders table.
+2. **The order ID is a UUID v7 too,** made by the order service's `OrderIdGenerator`, and
+   its order number `ACME-YYYYMMDD-NNNNNN`, as journey 0005's AC-5.4 requires (PIN-366).
 3. **A number a customer reads is separate from the key.** It is a formatted,
    date-prefixed sequence, and the UUID stays the primary key and the ID in events.
 4. **Other IDs stay as built.** Cart, product, event and token IDs are random v4. No
@@ -61,6 +61,6 @@ function over the `customer_number_sequences` table
 
 ### Mitigations
 
-- The order service follows AC-5.4 when PIN-366 lands, with its own generator as customer
-  and identity have ([ADR-0054](0054-independent-service-builds.md)).
+- The order service follows AC-5.4 with its own generator, as customer and identity have
+  ([ADR-0054](0054-independent-service-builds.md)).
 - A new aggregate's story says which kind of ID it uses.

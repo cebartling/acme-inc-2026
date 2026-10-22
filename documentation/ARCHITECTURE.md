@@ -556,13 +556,43 @@ is no authentication.
 
 ### Order Service
 
-`backend-services/order` (port 10305, database `acme_orders`) will own customer orders
-(Epic 005, PIN-58). So far it is only a skeleton (PIN-364): no endpoints apart from
-`/actuator/health`, `info` and `metrics`, no tables, and no authentication.
+`backend-services/order` (port 10305, database `acme_orders`) owns customer orders
+(Epic 005, PIN-58). A customer can place an order from a checkout session (PIN-366);
+reading orders comes with PIN-367.
 
+- **Placing an order** (PIN-366, journey 0005 step 5, without payment, shipping or tax):
+  `POST /api/v1/orders {checkoutSessionId}` with an `Idempotency-Key` header.
+  - **Signed-in customers only.** The service verifies identity's `access_token` cookie as
+    the cart does (ADR-0043), and forwards it to the cart (ADR-0044) through `CartClient`
+    (`CART_SERVICE_URL`, 2s timeouts).
+  - **Flow** (`PlaceOrderUseCase`):
+    1. Read the checkout session's cart.
+    2. Save the order `PENDING`, with the cart's lines, a UUID v7 ID and an
+       `ACME-YYYYMMDD-NNNNNN` number from a per-day sequence.
+    3. Convert the cart.
+    4. In one transaction, mark the order `SUBMITTED` and write `OrderCreated` (`total` is the
+       subtotal) to the outbox. The cart calls happen outside any transaction.
+  - **Idempotency** (AC-5.8): `(customer_id, idempotency_key)` is unique. A repeated key
+    answers the earlier order again: a `SUBMITTED` one with the same `201`, a `CANCELLED`
+    one with the same refusal, and a `PENDING` one by resuming at the convert. The same key
+    with a different checkout session is `422 IDEMPOTENCY_KEY_REUSED`.
+  - **When the cart refuses for good** (`CHECKOUT_SESSION_NOT_FOUND`, `CART_NOT_FOUND`: 404;
+    `CART_ALREADY_CONVERTED`: 409), the order becomes `CANCELLED` with that code, and nothing
+    is announced. A session that isn't live refuses the order before anything is saved.
+  - **When the cart doesn't answer** (a timeout, a 5xx, `CART_CONFLICT`): `503
+    CART_UNAVAILABLE`. The order stays `PENDING`, and retrying with the same key resumes it.
+    Convert is idempotent per order and session, so a repeated or racing convert is
+    harmless, and the conditional `PENDING → SUBMITTED` update means only one request
+    writes `OrderCreated`.
+  - **Other errors**, all `{error, code}` (ADR-0050): `401 SIGN_IN_REQUIRED`, `TOKEN_EXPIRED`
+    or `INVALID_TOKEN`; `400 IDEMPOTENCY_KEY_REQUIRED` or `INVALID_REQUEST`.
+  - **Not handled yet:** nothing sweeps an order whose retry never comes, so it stays
+    `PENDING`. There is no CORS configuration for browser calls either: no frontend places
+    orders yet.
 - **Persistence** ([ADR-0041](adrs/0041-per-service-persistence-model.md)): plain JPA with Flyway and `ddl-auto: validate`, like the other services.
   The epic's event store and CQRS read models are deferred. `V1__baseline.sql` is empty,
-  `V2` adds the `outbox` table (PIN-368), and the orders table arrives with PIN-366 as `V3`.
+  `V2` adds the `outbox` table (PIN-368), and `V3` the `orders`, `order_items` and
+  `order_number_sequences` tables (PIN-366).
   `open-in-view` is off. `acme_orders` and its
   `acme_app` user come from `docker/postgres/init`, which also gives it a
   `dbz_publication FOR ALL TABLES`: it is the database the Debezium connector captures (once
@@ -584,13 +614,11 @@ is no authentication.
     interrupt (shutdown) is not an attempt, and a failed save after a send is thrown, so the
     message is sent again.
   - **Delivery** is at least once, so consumers deduplicate by `eventId` (ADR-0018).
-  - Nothing writes events yet; `OrderCreated` comes with PIN-366. The broker creates the
-    topic on first use. `acme.order.events.publish-timeout-seconds` (default 10) bounds a
+  - `OrderCreated` is the only event so far (PIN-366). The broker creates the topic on
+    first use. `acme.order.events.publish-timeout-seconds` (default 10) bounds a
     send, including the producer's wait for metadata while Kafka is down.
   - Sent rows are not purged yet, and only one instance may run the relay.
-- **Planned next**: placing an order from a checkout session (PIN-366), which reads the
-  cart (PIN-365) and converts it (PIN-331), adding JWT verification the way the cart does;
-  then reading orders (PIN-367).
+- **Planned next**: reading orders (PIN-367).
 
 ## Observability
 
