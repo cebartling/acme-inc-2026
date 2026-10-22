@@ -12,9 +12,10 @@ import com.acme.cart.domain.events.CartCreated
 import com.acme.cart.domain.events.CartMerged
 import com.acme.cart.domain.events.DomainEvent
 import com.acme.cart.domain.newCartFor
-import com.acme.cart.infrastructure.messaging.CartEventPublisher
+import com.acme.cart.infrastructure.messaging.OutboxWriter
 import com.acme.cart.infrastructure.persistence.CartRepository
 import com.acme.cart.infrastructure.product.ProductPricingClient
+import io.mockk.verifyOrder
 import org.springframework.orm.ObjectOptimisticLockingFailureException
 import kotlin.test.assertFailsWith
 import io.mockk.every
@@ -35,14 +36,15 @@ class MergeCartsUseCaseTest {
 
     private val cartRepository = mockk<CartRepository>()
     private val pricingClient = mockk<ProductPricingClient>()
-    private val eventPublisher = mockk<CartEventPublisher>()
+    private val outboxWriter = mockk<OutboxWriter>()
+    private val transactionManager = mockk<PlatformTransactionManager>(relaxed = true)
     private val published = mutableListOf<DomainEvent>()
 
     private val useCase = MergeCartsUseCase(
         cartRepository = cartRepository,
         pricingClient = pricingClient,
-        eventPublisher = eventPublisher,
-        transactionTemplate = TransactionTemplate(mockk<PlatformTransactionManager>(relaxed = true)),
+        outboxWriter = outboxWriter,
+        transactionTemplate = TransactionTemplate(transactionManager),
         maxOrderQuantity = 10
     )
 
@@ -63,7 +65,7 @@ class MergeCartsUseCaseTest {
     fun setUp() {
         every { cartRepository.save(any()) } answers { firstArg() }
         every { pricingClient.getPricing(variantId) } returns pricing.right()
-        every { eventPublisher.publish(capture(published)) } returns Unit
+        every { outboxWriter.write(capture(published)) } returns Unit
     }
 
     @Test
@@ -212,11 +214,16 @@ class MergeCartsUseCaseTest {
     }
 
     @Test
-    fun `a Kafka failure does not fail the merge`() {
+    fun `writes its events to the outbox before the transaction commits`() {
         givenCarts(guest = guestWith(1), user = null)
-        every { eventPublisher.publish(any()) } throws IllegalStateException("broker down")
 
         assertNotNull(useCase.execute(MergeCartsCommand(userId, "sess-1")).getOrNull()?.result)
+
+        verifyOrder {
+            outboxWriter.write(any())
+            outboxWriter.write(any())
+            transactionManager.commit(any())
+        }
     }
 
     // --- PIN-278: a version conflict is retried once ------------------------------------------

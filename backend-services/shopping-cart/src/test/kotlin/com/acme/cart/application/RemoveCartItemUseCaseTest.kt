@@ -7,7 +7,7 @@ import com.acme.cart.domain.CartError
 import com.acme.cart.domain.VariantPricing
 import com.acme.cart.domain.events.CartItemRemoved
 import com.acme.cart.domain.events.DomainEvent
-import com.acme.cart.infrastructure.messaging.CartEventPublisher
+import com.acme.cart.infrastructure.messaging.OutboxWriter
 import com.acme.cart.infrastructure.persistence.CartRepository
 import org.springframework.orm.ObjectOptimisticLockingFailureException
 import kotlin.test.assertFailsWith
@@ -27,12 +27,12 @@ import kotlin.test.assertIs
 class RemoveCartItemUseCaseTest {
 
     private val cartRepository = mockk<CartRepository>()
-    private val eventPublisher = mockk<CartEventPublisher>()
+    private val outboxWriter = mockk<OutboxWriter>()
     private val published = mutableListOf<DomainEvent>()
 
     private val useCase = RemoveCartItemUseCase(
         cartRepository = cartRepository,
-        eventPublisher = eventPublisher,
+        outboxWriter = outboxWriter,
         transactionTemplate = TransactionTemplate(mockk<PlatformTransactionManager>(relaxed = true))
     )
 
@@ -43,7 +43,7 @@ class RemoveCartItemUseCaseTest {
     fun setUp() {
         every { cartRepository.findBySessionIdAndStatusIn("sess-1", CartStatus.CURRENT) } returns cart
         every { cartRepository.save(any()) } answers { firstArg() }
-        every { eventPublisher.publish(capture(published)) } returns Unit
+        every { outboxWriter.write(capture(published)) } returns Unit
     }
 
     @Test

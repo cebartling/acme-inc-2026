@@ -8,9 +8,8 @@ import com.acme.cart.domain.CartItem
 import com.acme.cart.domain.CartOwner
 import com.acme.cart.domain.events.CartItemRemoved
 import com.acme.cart.domain.events.CartItemRemovedPayload
-import com.acme.cart.infrastructure.messaging.CartEventPublisher
+import com.acme.cart.infrastructure.messaging.OutboxWriter
 import com.acme.cart.infrastructure.persistence.CartRepository
-import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.support.TransactionTemplate
 import java.util.UUID
@@ -21,11 +20,9 @@ data class RemoveCartItemCommand(val owner: CartOwner, val cartId: UUID, val ite
 @Service
 class RemoveCartItemUseCase(
     private val cartRepository: CartRepository,
-    private val eventPublisher: CartEventPublisher,
+    private val outboxWriter: OutboxWriter,
     private val transactionTemplate: TransactionTemplate
 ) {
-    private val logger = LoggerFactory.getLogger(RemoveCartItemUseCase::class.java)
-
     fun execute(command: RemoveCartItemCommand, correlationId: UUID = UUID.randomUUID()): Either<CartError, Cart> =
         retryOnConflict("Remove cart item") { removeOnce(command, correlationId) }
 
@@ -33,17 +30,15 @@ class RemoveCartItemUseCase(
         val result = transactionTemplate.execute {
             val cart = cartRepository.findOwnedCart(command.owner, command.cartId)
                 ?: return@execute CartError.CartItemNotFound(command.itemId).left()
-            cart.removeItem(command.itemId).map { removed -> cartRepository.save(cart) to removed }
+            cart.removeItem(command.itemId).map { removed ->
+                cartRepository.save(cart).also { writeEvent(it, removed, correlationId) }
+            }
         }
         return checkNotNull(result) { "transaction for cart ${command.cartId} returned no result" }
-            .map { (cart, removed) ->
-                publish(cart, removed, correlationId)
-                cart
-            }
     }
 
-    private fun publish(cart: Cart, removed: CartItem, correlationId: UUID) {
-        eventPublisher.publishLoggingFailure(
+    private fun writeEvent(cart: Cart, removed: CartItem, correlationId: UUID) {
+        outboxWriter.write(
             CartItemRemoved.create(
                 CartItemRemovedPayload(
                     cartId = cart.id,
@@ -54,8 +49,7 @@ class RemoveCartItemUseCase(
                     userId = cart.userId
                 ),
                 correlationId
-            ),
-            logger
+            )
         )
     }
 }

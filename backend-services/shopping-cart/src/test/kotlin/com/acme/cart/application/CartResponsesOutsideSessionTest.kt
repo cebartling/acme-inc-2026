@@ -6,7 +6,7 @@ import com.acme.cart.domain.Cart
 import com.acme.cart.domain.CartOwner
 import com.acme.cart.domain.ProductSnapshot
 import com.acme.cart.domain.VariantPricing
-import com.acme.cart.infrastructure.messaging.CartEventPublisher
+import com.acme.cart.infrastructure.messaging.OutboxWriter
 import com.acme.cart.infrastructure.persistence.CartRepository
 import com.acme.cart.infrastructure.product.ProductPricingClient
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
@@ -76,7 +76,7 @@ class CartResponsesOutsideSessionTest {
 
     private val objectMapper = jacksonObjectMapper()
     private val pricingClient = mockk<ProductPricingClient>()
-    private val eventPublisher = mockk<CartEventPublisher>(relaxed = true)
+    private val outboxWriter = mockk<OutboxWriter>(relaxed = true)
     private val pricing = VariantPricing(BigDecimal("69.99"))
     private val variantId = UUID.randomUUID()
     private val otherVariantId = UUID.randomUUID()
@@ -84,13 +84,13 @@ class CartResponsesOutsideSessionTest {
     private val transactions by lazy { TransactionTemplate(transactionManager) }
 
     private val add by lazy {
-        AddItemToCartUseCase(carts, pricingClient, eventPublisher, transactions, objectMapper, 10, SimpleMeterRegistry())
+        AddItemToCartUseCase(carts, pricingClient, outboxWriter, transactions, objectMapper, 10, SimpleMeterRegistry())
     }
-    private val update by lazy { UpdateCartItemQuantityUseCase(carts, pricingClient, eventPublisher, transactions, 10) }
-    private val remove by lazy { RemoveCartItemUseCase(carts, eventPublisher, transactions) }
-    private val clear by lazy { ClearCartUseCase(carts, eventPublisher, transactions) }
-    private val merge by lazy { MergeCartsUseCase(carts, pricingClient, eventPublisher, transactions, 10) }
-    private val abandon by lazy { AbandonCheckoutUseCase(carts, eventPublisher, transactions, CheckoutSessionExpiry(eventPublisher, SimpleMeterRegistry())) }
+    private val update by lazy { UpdateCartItemQuantityUseCase(carts, pricingClient, outboxWriter, transactions, 10) }
+    private val remove by lazy { RemoveCartItemUseCase(carts, outboxWriter, transactions) }
+    private val clear by lazy { ClearCartUseCase(carts, outboxWriter, transactions) }
+    private val merge by lazy { MergeCartsUseCase(carts, pricingClient, outboxWriter, transactions, 10) }
+    private val abandon by lazy { AbandonCheckoutUseCase(carts, outboxWriter, transactions, CheckoutSessionExpiry(outboxWriter, SimpleMeterRegistry())) }
 
     private fun session() = "sess-${UUID.randomUUID()}"
 

@@ -9,10 +9,9 @@ import com.acme.cart.domain.CartOwner
 import com.acme.cart.domain.QuantityChange
 import com.acme.cart.domain.events.CartItemQuantityUpdated
 import com.acme.cart.domain.events.CartItemQuantityUpdatedPayload
-import com.acme.cart.infrastructure.messaging.CartEventPublisher
+import com.acme.cart.infrastructure.messaging.OutboxWriter
 import com.acme.cart.infrastructure.persistence.CartRepository
 import com.acme.cart.infrastructure.product.ProductPricingClient
-import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import org.springframework.transaction.support.TransactionTemplate
@@ -35,12 +34,10 @@ data class UpdateCartItemQuantityCommand(
 class UpdateCartItemQuantityUseCase(
     private val cartRepository: CartRepository,
     private val pricingClient: ProductPricingClient,
-    private val eventPublisher: CartEventPublisher,
+    private val outboxWriter: OutboxWriter,
     private val transactionTemplate: TransactionTemplate,
     @Value("\${acme.cart.max-order-quantity}") private val maxOrderQuantity: Int
 ) {
-    private val logger = LoggerFactory.getLogger(UpdateCartItemQuantityUseCase::class.java)
-
     fun execute(command: UpdateCartItemQuantityCommand, correlationId: UUID = UUID.randomUUID()): Either<CartError, Cart> {
         val variantId = cartRepository.findOwnedCart(command.owner, command.cartId)
             ?.items?.find { it.id == command.itemId }?.variantId
@@ -54,21 +51,20 @@ class UpdateCartItemQuantityUseCase(
                     val cart = cartRepository.findOwnedCart(command.owner, command.cartId)
                         ?: return@execute CartError.CartItemNotFound(command.itemId).left()
                     cart.updateItemQuantity(command.itemId, command.quantity, pricing, maxOrderQuantity)
-                        .map { change -> cartRepository.save(cart) to change }
+                        .map { change ->
+                            val saved = cartRepository.save(cart)
+                            // A same-quantity request (e.g. the client's clamp retry at the max) is not a change.
+                            if (change.previousQuantity != change.item.quantity) writeEvent(saved, change, correlationId)
+                            saved
+                        }
                 }
                 checkNotNull(result) { "transaction for cart ${command.cartId} returned no result" }
             }
-        }.map { (cart, change) ->
-            // A same-quantity request (e.g. the client's clamp retry at the max) is not a change.
-            if (change.previousQuantity != change.item.quantity) {
-                publish(cart, change, correlationId)
-            }
-            cart
         }
     }
 
-    private fun publish(cart: Cart, change: QuantityChange, correlationId: UUID) {
-        eventPublisher.publishLoggingFailure(
+    private fun writeEvent(cart: Cart, change: QuantityChange, correlationId: UUID) {
+        outboxWriter.write(
             CartItemQuantityUpdated.create(
                 CartItemQuantityUpdatedPayload(
                     cartId = cart.id,
@@ -81,8 +77,7 @@ class UpdateCartItemQuantityUseCase(
                     userId = cart.userId
                 ),
                 correlationId
-            ),
-            logger
+            )
         )
     }
 }

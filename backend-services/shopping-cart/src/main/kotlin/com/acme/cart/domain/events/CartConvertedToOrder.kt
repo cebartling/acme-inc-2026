@@ -10,7 +10,7 @@ data class CartConvertedToOrderPayload(
     val orderId: UUID,
     /** The checkout session the order was placed for. */
     val checkoutSessionId: UUID,
-    /** When the cart converted, as the convert answered; the event's timestamp is when it was published. */
+    /** When the cart converted, as the convert answered; the event's timestamp is when it was written to the outbox. */
     val convertedAt: Instant,
     /** Lines in the cart. */
     val lineCount: Int,

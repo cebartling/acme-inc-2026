@@ -9,11 +9,10 @@ import com.acme.cart.domain.CartItem
 import com.acme.cart.domain.ProductSnapshot
 import com.acme.cart.domain.newCartFor
 import com.acme.cart.domain.events.CartCreated
-import com.acme.cart.domain.events.DomainEvent
 import com.acme.cart.domain.events.ItemAddedToCart
 import com.acme.cart.domain.events.ItemAddedToCartPayload
 import com.acme.cart.domain.events.Money
-import com.acme.cart.infrastructure.messaging.CartEventPublisher
+import com.acme.cart.infrastructure.messaging.OutboxWriter
 import com.acme.cart.infrastructure.persistence.CartRepository
 import com.acme.cart.infrastructure.product.ProductPricingClient
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -36,16 +35,15 @@ data class AddItemToCartCommand(
 /**
  * Adds a variant to the session's cart, creating the cart on first add (US-0004-06).
  *
- * The price comes from the product service, never from the request. Events are
- * published after the transaction commits, so a consumer never sees an event for a
- * cart change that rolled back. Publishing is best-effort (no outbox): a Kafka failure
- * is logged and the customer's add still succeeds.
+ * The price comes from the product service, never from the request. Events are written to
+ * the outbox in the same transaction as the cart change (PIN-384), so a consumer never sees an
+ * event for a change that rolled back, and a Kafka outage never fails the add.
  */
 @Service
 class AddItemToCartUseCase(
     private val cartRepository: CartRepository,
     private val pricingClient: ProductPricingClient,
-    private val eventPublisher: CartEventPublisher,
+    private val outboxWriter: OutboxWriter,
     private val transactionTemplate: TransactionTemplate,
     private val objectMapper: ObjectMapper,
     @Value("\${acme.cart.max-order-quantity}") private val maxOrderQuantity: Int,
@@ -70,25 +68,24 @@ class AddItemToCartUseCase(
                         maxQuantity = maxOrderQuantity
                     ).map { item ->
                         val saved = cartRepository.save(cart)
-                        Added(saved, item, isNewCart = existing == null)
+                        Added(saved, item, isNewCart = existing == null).also { writeEvents(it, command, correlationId) }
                     }
                 }
                 checkNotNull(result) { "transaction for ${command.owner} returned no result" }
             }
         }.map { added ->
-            publishEvents(added, command, correlationId)
             if (added.isNewCart) recordReturningSessionNewCart(command.owner, command.startedNewSession, added.cart)
             added.cart
         }
 
     private data class Added(val cart: Cart, val item: CartItem, val isNewCart: Boolean)
 
-    private fun publishEvents(added: Added, command: AddItemToCartCommand, correlationId: UUID) {
+    private fun writeEvents(added: Added, command: AddItemToCartCommand, correlationId: UUID) {
         val cart = added.cart
         if (added.isNewCart) {
-            publish(CartCreated.create(cart.id, cart.sessionId, cart.userId, correlationId))
+            outboxWriter.write(CartCreated.create(cart.id, cart.sessionId, cart.userId, correlationId))
         }
-        publish(
+        outboxWriter.write(
             ItemAddedToCart.create(
                 ItemAddedToCartPayload(
                     cartId = cart.id,
@@ -118,8 +115,6 @@ class AddItemToCartUseCase(
         logger.info("Returning guest session had no active cart; started cart {}", cart.id)
         returningSessionNewCarts.increment()
     }
-
-    private fun publish(event: DomainEvent) = eventPublisher.publishLoggingFailure(event, logger)
 
     companion object {
         /** Product prices carry no currency; the catalog is USD-only today. */

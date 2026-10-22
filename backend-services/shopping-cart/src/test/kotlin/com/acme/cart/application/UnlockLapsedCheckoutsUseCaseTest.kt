@@ -2,13 +2,14 @@ package com.acme.cart.application
 
 import com.acme.cart.domain.events.CheckoutSessionExpired
 import com.acme.cart.domain.events.DomainEvent
-import com.acme.cart.infrastructure.messaging.CartEventPublisher
+import com.acme.cart.infrastructure.messaging.OutboxWriter
 import com.acme.cart.infrastructure.persistence.CartRepository
 import com.acme.cart.infrastructure.persistence.LapsedCheckout
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import io.mockk.verifyOrder
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.data.domain.Pageable
@@ -18,16 +19,19 @@ import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
+import org.springframework.transaction.PlatformTransactionManager
+import org.springframework.transaction.support.TransactionTemplate
 
 class UnlockLapsedCheckoutsUseCaseTest {
 
     private val cartRepository = mockk<CartRepository>()
-    private val eventPublisher = mockk<CartEventPublisher>()
+    private val outboxWriter = mockk<OutboxWriter>()
+    private val transactionManager = mockk<PlatformTransactionManager>(relaxed = true)
     private val meterRegistry = SimpleMeterRegistry()
     private val published = mutableListOf<DomainEvent>()
 
     private val grace = Duration.ofMinutes(2)
-    private val useCase = UnlockLapsedCheckoutsUseCase(cartRepository, CheckoutSessionExpiry(eventPublisher, meterRegistry), grace)
+    private val useCase = UnlockLapsedCheckoutsUseCase(cartRepository, CheckoutSessionExpiry(outboxWriter, meterRegistry), TransactionTemplate(transactionManager), grace)
 
     private val now = Instant.parse("2026-10-03T12:00:00Z")
     /** Sessions are only unlocked once lapsed for the grace period, so this is what is asked for. */
@@ -47,7 +51,7 @@ class UnlockLapsedCheckoutsUseCaseTest {
 
     @BeforeEach
     fun setUp() {
-        every { eventPublisher.publish(capture(published)) } returns Unit
+        every { outboxWriter.write(capture(published)) } returns Unit
         every { cartRepository.unlockIfLapsed(any(), cutoff, now) } returns 1
     }
 
@@ -111,17 +115,20 @@ class UnlockLapsedCheckoutsUseCaseTest {
     @Test
     fun `a negative grace is rejected at startup, but no grace is allowed`() {
         assertFailsWith<IllegalArgumentException> {
-            UnlockLapsedCheckoutsUseCase(cartRepository, CheckoutSessionExpiry(eventPublisher, meterRegistry), Duration.ofMinutes(-2))
+            UnlockLapsedCheckoutsUseCase(cartRepository, CheckoutSessionExpiry(outboxWriter, meterRegistry), TransactionTemplate(transactionManager), Duration.ofMinutes(-2))
         }
-        UnlockLapsedCheckoutsUseCase(cartRepository, CheckoutSessionExpiry(eventPublisher, meterRegistry), Duration.ZERO)
+        UnlockLapsedCheckoutsUseCase(cartRepository, CheckoutSessionExpiry(outboxWriter, meterRegistry), TransactionTemplate(transactionManager), Duration.ZERO)
     }
 
     @Test
-    fun `a Kafka failure does not stop the unlock`() {
-        every { cartRepository.findLapsedCheckouts(cutoff, any()) } returnsMany listOf(listOf(lapsed(), lapsed()), emptyList())
-        every { eventPublisher.publish(any()) } throws IllegalStateException("broker down")
+    fun `writes each cart's event to the outbox before its transaction commits`() {
+        every { cartRepository.findLapsedCheckouts(cutoff, any()) } returnsMany listOf(listOf(lapsed()), emptyList())
 
-        assertEquals(2, useCase.execute(now))
-        assertEquals(2.0, expiredCount())
+        assertEquals(1, useCase.execute(now))
+        verifyOrder {
+            cartRepository.unlockIfLapsed(any(), cutoff, now)
+            outboxWriter.write(any())
+            transactionManager.commit(any())
+        }
     }
 }

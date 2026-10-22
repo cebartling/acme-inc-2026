@@ -3,10 +3,7 @@ package com.acme.cart.application
 import com.acme.cart.domain.Cart
 import com.acme.cart.domain.CartOwner
 import com.acme.cart.domain.CartStatus
-import com.acme.cart.domain.events.DomainEvent
-import com.acme.cart.infrastructure.messaging.CartEventPublisher
 import com.acme.cart.infrastructure.persistence.CartRepository
-import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.orm.ObjectOptimisticLockingFailureException
@@ -39,18 +36,6 @@ internal fun CartRepository.findOwnedCartInAnyStatus(owner: CartOwner, cartId: U
     is CartOwner.Customer -> findByIdAndUserId(cartId, owner.userId)
 }
 
-/**
- * Publishes after commit, best-effort (no outbox): a Kafka failure is logged and the
- * customer's cart change still succeeds.
- */
-internal fun CartEventPublisher.publishLoggingFailure(event: DomainEvent, logger: Logger) {
-    try {
-        publish(event)
-    } catch (ex: Exception) {
-        logger.warn("Failed to publish {} event {} for cart {}", event.eventType, event.eventId, event.aggregateId, ex)
-    }
-}
-
 private val conflictLogger = LoggerFactory.getLogger("com.acme.cart.application.CartConflicts")
 
 /**
@@ -58,8 +43,8 @@ private val conflictLogger = LoggerFactory.getLogger("com.acme.cart.application.
  * race (PIN-278: `Cart` is versioned). [block] must re-read everything it needs, so the retry
  * works on the committed cart: e.g. an update whose line was just removed then fails as
  * [com.acme.cart.domain.CartError.CartItemNotFound]. A second conflict in a row propagates,
- * and the controller answers 409. Events are published after the transaction, so a failed
- * attempt publishes nothing. The session ID is never logged.
+ * and the controller answers 409. Events are written to the outbox inside the transaction
+ * (PIN-384), so a failed attempt's events roll back with it. The session ID is never logged.
  */
 internal fun <T> retryOnConflict(operation: String, block: () -> T): T =
     try {

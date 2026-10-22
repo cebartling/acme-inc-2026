@@ -14,7 +14,7 @@ import com.acme.cart.domain.newCartFor
 import com.acme.cart.domain.events.CartCreated
 import com.acme.cart.domain.events.CartMerged
 import com.acme.cart.domain.events.CartMergedPayload
-import com.acme.cart.infrastructure.messaging.CartEventPublisher
+import com.acme.cart.infrastructure.messaging.OutboxWriter
 import com.acme.cart.infrastructure.persistence.CartRepository
 import com.acme.cart.infrastructure.product.ProductPricingClient
 import org.slf4j.LoggerFactory
@@ -35,16 +35,16 @@ data class MergeOutcome(val cart: Cart?, val result: MergeResult?)
  * Merges a guest's cart into their account cart on sign-in (US-0004-08).
  *
  * A missing, empty or already MERGED guest cart is a no-op (AC-08, and re-merging is
- * idempotent): the user's cart comes back unchanged and nothing is published. Otherwise
+ * idempotent): the user's cart comes back unchanged and nothing is written. Otherwise
  * the guest variants are priced first, outside the transaction, then both carts are
  * re-read (the guest cart row-locked), merged and saved together, and `CartMerged` (plus
- * `CartCreated` when the user had no cart) is published after commit.
+ * `CartCreated` when the user had no cart) is written to the outbox in the same transaction.
  */
 @Service
 class MergeCartsUseCase(
     private val cartRepository: CartRepository,
     private val pricingClient: ProductPricingClient,
-    private val eventPublisher: CartEventPublisher,
+    private val outboxWriter: OutboxWriter,
     private val transactionTemplate: TransactionTemplate,
     @Value("\${acme.cart.max-order-quantity}") private val maxOrderQuantity: Int
 ) {
@@ -78,13 +78,11 @@ class MergeCartsUseCase(
                 logger.info("Leaving guest variants no longer found out of user {}'s merge: {}", command.userId, unavailable)
             }
 
-            val outcome = checkNotNull(
-                transactionTemplate.execute { mergeInTransaction(command, customer, pricing, unavailable) }
+            checkNotNull(
+                transactionTemplate.execute { mergeInTransaction(command, customer, pricing, unavailable, correlationId) }
             ) {
                 "merge transaction for user ${command.userId} returned no result"
             }.bind()
-            if (outcome.merged != null) publish(outcome.merged, correlationId)
-            outcome.outcome
         }
     }
 
@@ -97,15 +95,16 @@ class MergeCartsUseCase(
         command: MergeCartsCommand,
         customer: CartOwner.Customer,
         pricing: Map<UUID, VariantPricing>,
-        unavailable: Set<UUID>
-    ): Either<CartError, TransactionOutcome> {
+        unavailable: Set<UUID>,
+        correlationId: UUID
+    ): Either<CartError, MergeOutcome> {
         // Re-read and lock the guest cart first: a concurrent merge that took it already
         // has committed by the time the lock is granted, so this one sees no ACTIVE cart.
         val guest = command.guestSessionId
             ?.let { cartRepository.findForUpdateBySessionIdAndStatus(it, CartStatus.ACTIVE) }
             ?.takeIf { it.items.isNotEmpty() }
         val userCart = cartRepository.findActiveCart(customer)
-        if (guest == null) return TransactionOutcome(MergeOutcome(userCart, result = null), merged = null).right()
+        if (guest == null) return MergeOutcome(userCart, result = null).right()
         // The account cart is in checkout (PIN-329): it takes no lines until checkout ends.
         if (userCart?.status == CartStatus.CHECKOUT) return CartError.CartLocked(userCart.id).left()
 
@@ -117,23 +116,20 @@ class MergeCartsUseCase(
         val result = target.absorb(guest, pricing, maxOrderQuantity, unavailable)
         cartRepository.save(guest)
         val saved = cartRepository.save(target)
-        val merged = Merged(saved, guest, result, isNewCart = userCart == null)
-        return TransactionOutcome(MergeOutcome(saved, result), merged).right()
+        writeEvents(Merged(saved, guest, result, isNewCart = userCart == null), correlationId)
+        return MergeOutcome(saved, result).right()
     }
-
-    private data class TransactionOutcome(val outcome: MergeOutcome, val merged: Merged?)
 
     private data class Merged(val target: Cart, val source: Cart, val result: MergeResult, val isNewCart: Boolean)
 
-    private fun publish(merged: Merged, correlationId: UUID) {
+    private fun writeEvents(merged: Merged, correlationId: UUID) {
         val target = merged.target
         if (merged.isNewCart) {
-            eventPublisher.publishLoggingFailure(
-                CartCreated.create(target.id, target.sessionId, target.userId, correlationId),
-                logger
-            )
+            outboxWriter.write(
+                CartCreated.create(target.id, target.sessionId, target.userId, correlationId)
+        )
         }
-        eventPublisher.publishLoggingFailure(
+        outboxWriter.write(
             CartMerged.create(
                 CartMergedPayload(
                     targetCartId = merged.target.id,
@@ -143,8 +139,7 @@ class MergeCartsUseCase(
                     quantitiesAdjusted = merged.result.quantitiesAdjusted.size
                 ),
                 correlationId
-            ),
-            logger
+            )
         )
     }
 }

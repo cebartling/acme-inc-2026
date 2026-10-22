@@ -2,14 +2,14 @@ package com.acme.cart.application
 
 import com.acme.cart.domain.events.CartExpired
 import com.acme.cart.domain.events.CartExpiredPayload
-import com.acme.cart.infrastructure.messaging.CartEventPublisher
+import com.acme.cart.infrastructure.messaging.OutboxWriter
 import com.acme.cart.infrastructure.persistence.CartRepository
 import com.acme.cart.infrastructure.persistence.IdleGuestCart
 import io.micrometer.core.instrument.MeterRegistry
-import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
+import org.springframework.transaction.support.TransactionTemplate
 import java.time.Duration
 import java.time.Instant
 import java.util.UUID
@@ -21,12 +21,13 @@ import java.util.UUID
  *
  * Each cart is expired by a conditional UPDATE that re-checks it is still idle, so a cart
  * used between the scan and the update survives, and `CartExpired` is only published for
- * carts this run actually expired. Publishing is best-effort, as for every cart event.
+ * carts this run actually expired, in the same transaction (PIN-384).
  */
 @Service
 class ExpireIdleGuestCartsUseCase(
     private val cartRepository: CartRepository,
-    private val eventPublisher: CartEventPublisher,
+    private val outboxWriter: OutboxWriter,
+    private val transactionTemplate: TransactionTemplate,
     @Value("\${acme.cart.guest-ttl}") private val guestTtl: Duration,
     meterRegistry: MeterRegistry
 ) {
@@ -35,7 +36,6 @@ class ExpireIdleGuestCartsUseCase(
         require(guestTtl > Duration.ZERO) { "acme.cart.guest-ttl must be positive, was $guestTtl" }
     }
 
-    private val logger = LoggerFactory.getLogger(ExpireIdleGuestCartsUseCase::class.java)
     private val expiredCarts = meterRegistry.counter(EXPIRED_METRIC)
 
     /** Expires every idle guest cart as of [now] and returns how many. */
@@ -52,14 +52,19 @@ class ExpireIdleGuestCartsUseCase(
     }
 
     private fun expire(cart: IdleGuestCart, cutoff: Instant, now: Instant, correlationId: UUID): Boolean {
+        val expired = transactionTemplate.execute { expireInTransaction(cart, cutoff, now, correlationId) } == true
+        if (expired) expiredCarts.increment()
+        return expired
+    }
+
+    /** The conditional UPDATE and its event commit together (PIN-384). */
+    private fun expireInTransaction(cart: IdleGuestCart, cutoff: Instant, now: Instant, correlationId: UUID): Boolean {
         if (cartRepository.expireIfIdle(cart.id, cutoff, now) == 0) return false
-        expiredCarts.increment()
-        eventPublisher.publishLoggingFailure(
+        outboxWriter.write(
             CartExpired.create(
                 CartExpiredPayload(cart.id, cart.sessionId, cart.lastActiveAt, cart.lineCount),
                 correlationId
-            ),
-            logger
+            )
         )
         return true
     }
