@@ -25,7 +25,6 @@ An Architecture Decision Record documents a significant architectural decision, 
 | [ADR-0024](0024-synchronous-customer-lookup-for-notifications.md) | Synchronous Customer Lookup for Welcome Notifications | Accepted |
 | [ADR-0041](0041-per-service-persistence-model.md) | Per-Service Persistence Model | Accepted |
 | [ADR-0042](0042-best-effort-event-publishing.md) | Best-Effort Event Publishing in Cart and Product | Superseded for the cart by [ADR-0060](0060-cart-events-through-outbox.md) |
-| [ADR-0060](0060-cart-events-through-outbox.md) | Cart Events Through the Transactional Outbox | Accepted |
 | [ADR-0044](0044-forward-customer-credentials-between-services.md) | Service-to-Service Calls Carry the Customer's Credentials | Accepted |
 | [ADR-0045](0045-cart-product-calls-fail-closed.md) | Cart Calls the Product Service Synchronously and Fails Closed | Accepted |
 | [ADR-0050](0050-api-error-body-format.md) | API Error Response Body Format | Accepted |
@@ -38,6 +37,7 @@ An Architecture Decision Record documents a significant architectural decision, 
 | [ADR-0047](0047-cart-checkout-lock-and-session.md) | Cart Checkout Lock and Checkout Session Lifecycle | Accepted |
 | [ADR-0048](0048-cart-optimistic-locking.md) | Optimistic Locking with One Retry for Cart Changes | Accepted |
 | [ADR-0049](0049-cart-data-lifecycle-jobs.md) | Cart Data Lifecycle Through Scheduled Jobs | Accepted |
+| [ADR-0060](0060-cart-events-through-outbox.md) | Cart Events Through the Transactional Outbox | Accepted |
 
 ### Product Catalog and Inventory
 

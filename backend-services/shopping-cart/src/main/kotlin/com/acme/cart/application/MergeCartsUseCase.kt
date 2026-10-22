@@ -125,9 +125,7 @@ class MergeCartsUseCase(
     private fun writeEvents(merged: Merged, correlationId: UUID) {
         val target = merged.target
         if (merged.isNewCart) {
-            outboxWriter.write(
-                CartCreated.create(target.id, target.sessionId, target.userId, correlationId)
-        )
+            outboxWriter.write(CartCreated.create(target.id, target.sessionId, target.userId, correlationId))
         }
         outboxWriter.write(
             CartMerged.create(

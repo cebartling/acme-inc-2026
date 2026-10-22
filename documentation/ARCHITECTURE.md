@@ -243,8 +243,9 @@ sequenceDiagram
   longer final is kept. `CartPurged` is published only for carts it deleted (counted as
   `cart.purged`). ACTIVE and CHECKOUT carts are never deleted. `acme.cart.purge.enabled=false` turns the
   job off. Debezium only captures `acme_orders`, so these deletes emit no change events.
-  The scheduler has three threads (`spring.task.scheduling.pool.size`), one per job (expiry,
-  purge, checkout unlock), so a slow purge run never holds up the others.
+  The scheduler has four threads (`spring.task.scheduling.pool.size`), one per job (expiry,
+  purge, checkout unlock, outbox relay), so a slow run, e.g. the relay blocked on Kafka,
+  never holds up the others.
 - **Error bodies** ([ADR-0050](adrs/0050-api-error-body-format.md)): `{"error": message, "code": ...}`. `CART_ITEM_NOT_FOUND` and
   `VARIANT_NOT_FOUND` are both 404s; the code lets the client reload quietly for a gone
   line but still explain a delisted variant whose line is still in the cart. A request body

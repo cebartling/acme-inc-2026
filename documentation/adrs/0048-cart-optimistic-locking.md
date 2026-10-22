@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted
+Accepted. Decision 6 (events after commit) is superseded by
+[ADR-0060](0060-cart-events-through-outbox.md) (PIN-384): events are written to the outbox
+inside the transaction, so a failed attempt's events roll back with it.
 
 ## Context
 

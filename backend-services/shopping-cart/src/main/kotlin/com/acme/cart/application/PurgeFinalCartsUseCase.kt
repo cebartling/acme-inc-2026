@@ -20,8 +20,8 @@ import java.util.UUID
  * retention"). ACTIVE and CHECKOUT carts are never touched.
  *
  * Built like [ExpireIdleGuestCartsUseCase]: each cart is deleted by a conditional DELETE
- * that re-checks it is still final and old enough, and `CartPurged` is only published for
- * carts this run actually deleted, in the same transaction (PIN-384).
+ * that re-checks it is still final and old enough, and `CartPurged` is only written to the
+ * outbox for carts this run actually deleted, in the same transaction (PIN-384).
  */
 @Service
 class PurgeFinalCartsUseCase(

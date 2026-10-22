@@ -20,8 +20,8 @@ import java.util.UUID
  * (Epic 009: soft delete with retention); user and MERGED carts are never touched.
  *
  * Each cart is expired by a conditional UPDATE that re-checks it is still idle, so a cart
- * used between the scan and the update survives, and `CartExpired` is only published for
- * carts this run actually expired, in the same transaction (PIN-384).
+ * used between the scan and the update survives, and `CartExpired` is only written to the
+ * outbox for carts this run actually expired, in the same transaction (PIN-384).
  */
 @Service
 class ExpireIdleGuestCartsUseCase(
