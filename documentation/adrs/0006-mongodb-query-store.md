@@ -4,6 +4,8 @@
 
 Accepted
 
+Narrowed in scope by [ADR-0041](0041-per-service-persistence-model.md): this describes the target for a service that needs it, not what every service does today.
+
 ## Context
 
 The query side of our CQRS architecture requires a database optimized for:

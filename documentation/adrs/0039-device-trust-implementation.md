@@ -347,10 +347,10 @@ DELETE /api/v1/auth/devices           - Revoke all devices
 
 ## Related Decisions
 
-- [ADR-0030: MFA TOTP Implementation](0030-mfa-totp-implementation.md) - Device trust integrates with MFA flow
-- [ADR-0033: MFA SMS Implementation](0033-mfa-sms-implementation.md) - Device trust applies to both TOTP and SMS
-- [ADR-0026: Session Management](0026-session-management.md) - Similar Redis-based token pattern
-- [ADR-0025: Event Sourcing](0025-event-sourcing.md) - Device trust events follow event sourcing pattern
+- [ADR-0033: MFA TOTP Implementation](0033-mfa-totp-implementation.md) - Device trust integrates with MFA flow
+- [ADR-0038: SMS MFA Implementation](0038-sms-mfa-implementation.md) - Device trust applies to both TOTP and SMS
+- [ADR-0036: Session Management with Redis](0036-session-management-redis.md) - Similar Redis-based token pattern
+- [ADR-0003: Event Sourcing](0003-event-sourcing.md) - Device trust events follow event sourcing pattern
 
 ## References
 

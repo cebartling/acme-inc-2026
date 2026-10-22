@@ -4,6 +4,8 @@
 
 Accepted
 
+**Current state (2026-10-21, PIN-386):** Key management works differently from what this ADR first said, and the Key Management bullets below have been corrected. `SigningKeyProvider` keeps its RSA keys only in memory, so every identity restart generates a new key and invalidates every token issued before it. A scheduled job runs daily at 02:00 and rotates the key once `identity.jwt.key-rotation-period-days` (30) have passed since the last rotation or since startup. It is not a fixed monthly schedule. Kids look like `key-YYYY-MM-xxxxxxxx`, with a random 8-hex suffix so two rotations in one month never collide. The last 3 rotated-out keys are kept for verification, and all retained keys are published at `/.well-known/jwks.json`. Vault integration is still not built (ADR-0009). [ADR-0043](0043-cross-service-jwt-verification.md) covers how other services verify these tokens: JWKS, cookie-borne tokens and key rotation as built.
+
 ## Context
 
 After successful authentication (including MFA), the Identity Service needs to issue security tokens that allow customers to access protected resources across the ACME platform. These tokens must be:
@@ -32,7 +34,7 @@ We will implement JWT (JSON Web Token) authentication using the following approa
   "header": {
     "alg": "RS256",
     "typ": "JWT",
-    "kid": "key-2026-01"
+    "kid": "key-2026-01-a1b2c3d4"
   },
   "payload": {
     "sub": "user-uuid",
@@ -53,7 +55,7 @@ We will implement JWT (JSON Web Token) authentication using the following approa
   "header": {
     "alg": "RS256",
     "typ": "JWT",
-    "kid": "key-2026-01"
+    "kid": "key-2026-01-a1b2c3d4"
   },
   "payload": {
     "sub": "user-uuid",
@@ -79,8 +81,8 @@ We will implement JWT (JSON Web Token) authentication using the following approa
 ### 3. Key Management
 
 - **Current Implementation**: In-memory RSA key pair generation
-- **Key Rotation**: Monthly rotation schedule (30 days)
-- **Key ID (kid)**: Format `key-YYYY-MM` for tracking
+- **Key Rotation**: Daily check at 02:00 rotates once `key-rotation-period-days` (default 30) have passed; the 3 most recent previous keys stay valid for verification; keys are regenerated on restart
+- **Key ID (kid)**: Format `key-YYYY-MM-xxxxxxxx` (random 8-hex suffix) for tracking
 - **Future Enhancement**: HashiCorp Vault integration for secure key storage
 
 ### 4. Token Delivery
@@ -100,7 +102,7 @@ Set-Cookie: refresh_token=<jwt>; HttpOnly; Secure; SameSite=Strict; Path=/api/v1
 
 ### 5. Library Choice
 
-**Selected**: Nimbus JOSE + JWT (com.nimbusds:nimbus-jose-jwt:9.47)
+**Selected**: Nimbus JOSE + JWT (com.nimbusds:nimbus-jose-jwt:10.10)
 
 **Rationale:**
 - Industry-standard Java library for JWT/JOSE

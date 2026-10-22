@@ -4,6 +4,8 @@
 
 Accepted
 
+Narrowed in scope by [ADR-0041](0041-per-service-persistence-model.md): this describes the target for a service that needs it, not what every service does today.
+
 ## Context
 
 Traditional state-based persistence stores only the current state of entities. This approach:

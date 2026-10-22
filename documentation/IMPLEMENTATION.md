@@ -11,9 +11,9 @@
     - Use a Debezium-sourced image that has logical replication enabled and replication slots configured 
     - `quay.io/debezium/postgres:latest`
 - MongoDB 8.2+ for read-only, query store
-- Hashicorp Vault for secrets management
+- Hashicorp Vault for secrets management (the container runs, but no service reads from it yet; see ADR-0009)
 - Confluent Kafka for events and messaging
-- Confluent Schema Registry for Avro schemas for Kafka messaging
+- Confluent Schema Registry (the container runs, but events are JSON strings and no service uses Avro; see ADR-0007)
 - Debezium Kafka Connect connector for change data capture on PostgreSQL tables
     - `quay.io/debezium/connect:3.6.3.Final`
 - Grafana for observability dashboards
@@ -50,7 +50,7 @@ Grafana Tempo (since v2.8.0) and Loki use Google's distroless base container ima
 
 - Kotlin 2.4
 - Java 25
-    - Project Loom: virtual threads usage
+    - Project Loom: virtual threads usage (not yet enabled: no service sets `spring.threads.virtual.enabled`)
 - Spring Boot 4
     - Spring MVC
     - Blocking I/O
@@ -61,7 +61,7 @@ Grafana Tempo (since v2.8.0) and Loki use Google's distroless base container ima
     - Set both java and gradle in the .sdkmanrc file   
 - PostgreSQL for read-write, command store
 - MongoDB for read-only, query store
-- Caffeine for in-memory caching
+- Caffeine for in-memory caching (today only identity's `RateLimiter` uses it, directly; no service uses Spring's cache abstraction)
 - OpenTelemtery for distributed tracing, metrics and structured logging
 - Spring Actuator health check endpoints
 - REST endpoints
@@ -80,6 +80,8 @@ Grafana Tempo (since v2.8.0) and Loki use Google's distroless base container ima
 ### Caffeine in-memory caching
 
 Caffeine is a high-performance, near-optimal caching library for Java/Kotlin applications.
+
+> **Current state (PIN-386):** only identity depends on Caffeine (`com.github.ben-manes.caffeine:caffeine`). Its `RateLimiter` builds a `Caffeine.newBuilder()` cache of rate-limit buckets. No service uses `spring-boot-starter-cache`, `@EnableCaching` or `@Cacheable`, so the guidance below describes how to add caching rather than what exists.
 
 **Integration with Spring Boot:**
 
@@ -284,7 +286,11 @@ Backend services use ports starting at 10300 to avoid conflicts:
 |---------|------|
 | Identity Service | 10300 |
 | Customer Service | 10301 |
-| (future services) | 10302+ |
+| Notification Service | 10302 |
+| Product Service | 10303 |
+| Shopping Cart Service | 10304 |
+| Order Service | 10305 |
+| (future services) | 10306+ |
 
 ### Service projects
 

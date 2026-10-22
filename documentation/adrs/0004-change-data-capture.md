@@ -4,6 +4,8 @@
 
 Accepted
 
+**Current state (2026-10-21, PIN-386):** Debezium Connect runs in `docker-compose.yml`, but no service publishes its events through CDC. The only connector config, `docker/debezium/connectors/postgres-connector.json` (`acme-postgres-connector`), captures `acme_orders`, and nothing registers it automatically; you have to POST it to the Connect REST API by hand. Customer and order instead write events to a transactional outbox table that a scheduled `OutboxRelay` polls about once a second and sends to Kafka, which is the polling pattern described below. Product, shopping-cart, identity and notification publish straight to Kafka ([ADR-0042](0042-best-effort-event-publishing.md)). Customer's MongoDB read model is projected in-process by `CustomerReadModelProjector`, not fed by CDC ([ADR-0041](0041-per-service-persistence-model.md)). Schema Registry (see Mitigations) is not used.
+
 ## Context
 
 In an event-sourced microservices architecture, services need to reliably publish events whenever state changes. Common approaches have significant drawbacks:

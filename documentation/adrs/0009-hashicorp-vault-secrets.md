@@ -4,6 +4,8 @@
 
 Accepted
 
+**Current state (2026-10-21, PIN-386):** Vault is not integrated. `docker-compose.yml` runs a `vault` container (`hashicorp/vault:2.1.1`, dev mode, root token from `VAULT_DEV_ROOT_TOKEN`, policies mounted from `docker/vault/policies`), and `scripts/docker-manage.sh` health-checks it. No service declares a Vault or Spring Cloud Vault dependency or has any Vault config. Services read credentials from environment variables, with defaults in `application.yml` (for example `${POSTGRES_PASSWORD:acme_app_password}`). Identity's JWT signing keys are generated in memory, not stored in Vault (see ADR-0035).
+
 ## Context
 
 A microservices architecture has numerous secrets to manage:

@@ -28,6 +28,12 @@
 
 ### CQRS
 
+In practice ([ADR-0041](adrs/0041-per-service-persistence-model.md)), each service's source
+of truth is its JPA state in PostgreSQL. Only customer has a separate read model (MongoDB,
+written in-process by `CustomerReadModelProjector`). The `event_store` tables in customer
+and identity are an audit history: nothing rebuilds state from them. The lists below and
+in the next section describe the pattern as a target.
+
 - Separate read and write models for different optimization strategies
 - Commands modify state through the write model
 - Queries retrieve data through optimized read models
@@ -51,6 +57,8 @@
 - Enable incremental data synchronization and replication
 
 ### Client-Side Resilience (Circuit Breaker)
+
+Decision record: [ADR-0051](adrs/0051-client-side-search-circuit-breaker.md).
 
 A failing service should degrade a feature, not the page. The customer app guards calls it
 can offer a fallback for with a client-side circuit breaker, so a dependency outage costs
@@ -129,13 +137,13 @@ customer re-submitting the same term would never trigger a probe.
 `backend-services/shopping-cart` (port 10304, database `acme_carts`) owns shopping carts
 (Epic 009, US-0004-06 onward).
 
-- **Cart identity**: a cart belongs to exactly one owner — a guest session
+- **Cart identity** ([ADR-0046](adrs/0046-guest-cart-identity-and-merge.md)): a cart belongs to exactly one owner — a guest session
   (`carts.session_id`) or a signed-in user (`carts.user_id`, the access token's `sub`).
   Only the owner's *current* cart is resolved: `ACTIVE`, or `CHECKOUT` while locked for
   checkout (`CartStatus.CURRENT`, PIN-329). Partial unique indexes allow one current cart
   per session and per user, so a session whose cart was `MERGED` can start a new guest cart,
   but a cart in checkout can't have a second cart slipped in beside it.
-- **Signed-in callers (US-0004-08)**: the service verifies identity's `access_token`
+- **Signed-in callers (US-0004-08, [ADR-0043](adrs/0043-cross-service-jwt-verification.md))**: the service verifies identity's `access_token`
   cookie against `GET /.well-known/jwks.json` (Spring OAuth2 resource server; signature,
   `exp`, `iss`, `aud`, plus `token_use=access` and a UUID `sub`). Every endpoint stays open to guests: with a valid token the caller
   acts on their user cart, which follows them to any device; without one, on the session's.
@@ -188,7 +196,7 @@ sequenceDiagram
   on its next add, logged at INFO by cart ID and counted as `cart.session.new_cart`
   (`cart_session_new_cart_total`). The session ID is never logged: it is the only key to a
   guest cart.
-- **Idle guest carts expire** (PIN-287): `carts.last_active_at` records when the owner last
+- **Idle guest carts expire** ([ADR-0049](adrs/0049-cart-data-lifecycle-jobs.md), PIN-287): `carts.last_active_at` records when the owner last
   used a cart. Every change sets it, and every guest cart request, including views and
   failed or invalid writes, runs `touchGuestCart` from the interceptor. The query only writes
   when the stored time is more than a day old, so the header badge's read on every page costs
@@ -206,7 +214,7 @@ sequenceDiagram
   is always gone before the cart expires, a returning guest just gets a first-visit cart.
   The expiry UPDATE bumps the cart's version, so an add that loaded the cart just before
   the job expired it cannot save it back as ACTIVE; its retry starts a new cart (PIN-278).
-- **Concurrent changes** (PIN-278): `carts.version` (V5) is an optimistic lock, mapped with
+- **Concurrent changes** ([ADR-0048](adrs/0048-cart-optimistic-locking.md), PIN-278): `carts.version` (V5) is an optimistic lock, mapped with
   `@Version` on `Cart`. Only the aggregate root is versioned: every change goes through
   `Cart.touch()`, so the row, and its version, moves even when only a line changed. Add,
   update, remove and merge are wrapped in `retryOnConflict`, which reruns the change once
@@ -221,7 +229,7 @@ sequenceDiagram
   published after the transaction, so a failed attempt publishes nothing. The once-a-day
   activity touch deliberately leaves the version alone, so a page view in one tab never
   conflicts with a change in another.
-- **No open session outside a transaction** (PIN-296): `spring.jpa.open-in-view` is off, as
+- **No open session outside a transaction** ([ADR-0059](adrs/0059-open-in-view-setting.md), PIN-296): `spring.jpa.open-in-view` is off, as
   in the customer, identity and notification services, so a read inside a use case's
   transaction is fresh rather than the copy the request loaded earlier. Every lookup used
   outside a transaction fetches the cart's lines with an entity graph, and
@@ -237,7 +245,7 @@ sequenceDiagram
   job off. Debezium only captures `acme_orders`, so these deletes emit no change events.
   The scheduler has three threads (`spring.task.scheduling.pool.size`), one per job (expiry,
   purge, checkout unlock), so a slow purge run never holds up the others.
-- **Error bodies**: `{"error": message, "code": ...}`. `CART_ITEM_NOT_FOUND` and
+- **Error bodies** ([ADR-0050](adrs/0050-api-error-body-format.md)): `{"error": message, "code": ...}`. `CART_ITEM_NOT_FOUND` and
   `VARIANT_NOT_FOUND` are both 404s; the code lets the client reload quietly for a gone
   line but still explain a delisted variant whose line is still in the cart. A request body
   that fails `@Valid` (`"quantity": 0`) or can't be read (`"quantity": 2.9`, malformed JSON)
@@ -246,7 +254,7 @@ sequenceDiagram
   item ID in the path that is no UUID is the same 400, naming `cartId` or `itemId` (PIN-305).
   The product service answers an invalid search body or parameter the same way; see its
   **Error bodies** bullet.
-- **Server-side pricing**: the unit price comes from the product service at the line's new
+- **Server-side pricing** ([ADR-0045](adrs/0045-cart-product-calls-fail-closed.md), [ADR-0056](adrs/0056-money-representation.md)): the unit price comes from the product service at the line's new
   total quantity, so crossing a tier threshold reprices the whole line. The request carries
   no price. If the product service is unreachable the add fails with 503 rather than
   guessing a price.
@@ -256,7 +264,7 @@ sequenceDiagram
   only knows in/out of stock, not quantities (see PIN-273). A quantity must be a JSON
   integer of at least 1: `0`, `2.9` and even `2.0` are a 400, on add and on update (PIN-279,
   `spring.jackson.deserialization.accept-float-as-int: false`).
-- **Frontend**: one TanStack Query entry, `["cart"]` (`hooks/useCart.ts`), is the only
+- **Frontend** ([ADR-0052](adrs/0052-frontend-stack-and-state-management.md)): one TanStack Query entry, `["cart"]` (`hooks/useCart.ts`), is the only
   cart state. The header `CartBadge` loads it with `GET /carts/current` on every page, so
   the count survives reloads and new tabs; `useAddToCart`, `useUpdateCartItem` and
   `useRemoveCartItem` write each response back with `setQueryData` (after cancelling any
@@ -280,7 +288,7 @@ sequenceDiagram
   (PIN-352). A check times out after 5s, and one paused
   while the browser is offline doesn't hold them back either (PIN-349). The cart service itself knows
   nothing about stock, so its `summary`, and the header `CartBadge`, still count them.
-- **Events are best-effort**: published directly to Kafka after the transaction commits,
+- **Events are best-effort** ([ADR-0042](adrs/0042-best-effort-event-publishing.md)): published directly to Kafka after the transaction commits,
   as the product service does. A Kafka failure is logged and does not fail the add; there
   is no outbox, so an event can be lost while the cart change is kept.
 
@@ -393,7 +401,7 @@ sequenceDiagram
   outside the transaction, as add-to-cart's pricing does. The transaction's re-read is fresh,
   so it must still be at the version that was checked: a change that lands in between is a
   conflict, and the `retryOnConflict` retry checks the changed cart again.
-- **The checkout session** (`carts.checkout_session_id`, `checkout_expires_at`, V6; a
+- **The checkout session** ([ADR-0047](adrs/0047-cart-checkout-lock-and-session.md)) (`carts.checkout_session_id`, `checkout_expires_at`, V6; a
   `CHECKOUT` cart must have both, `ck_carts_checkout_session`, V8) lapses after 30 minutes
   without activity and is the cart reference the order service will take.
   Converting the cart when the order is placed is PIN-331.
@@ -425,7 +433,7 @@ sequenceDiagram
   is 404). A lapsed cart stays locked for the grace period plus up to a minute until the job
   runs; changes in that gap are still 409 `CART_LOCKED`, but leaving checkout works, and so
   does starting it again if every line can still be ordered.
-- **Reading a checkout session (PIN-365)**: `GET /api/v1/carts/checkout-sessions/{checkoutSessionId}`
+- **Reading a checkout session (PIN-365, [ADR-0044](adrs/0044-forward-customer-credentials-between-services.md))**: `GET /api/v1/carts/checkout-sessions/{checkoutSessionId}`
   returns the cart a live session is locked for, which is what the order service builds an
   order from: the session ID and `expiresAt`, the cart ID, `userId` (null for a guest), the
   lines and the summary. Like every cart endpoint it answers only for the caller's own cart,
@@ -478,7 +486,7 @@ is no authentication.
   is passed to SQL as one comma-joined string. `sort` is `relevance` (default), `price_asc`,
   `price_desc` or `newest`, case-insensitive; an unknown value falls back to `relevance`
   rather than failing.
-- **Search** is PostgreSQL full text: `products.search_vector` is a generated `tsvector` over
+- **Search** is PostgreSQL full text ([ADR-0053](adrs/0053-search-on-postgresql-full-text.md)): `products.search_vector` is a generated `tsvector` over
   name (weight A), description (B) and category (C), matched with `plainto_tsquery('english', …)`
   and ranked by `ts_rank`. Only `PUBLISHED` products are searched (`status` is `PUBLISHED` or
   `ARCHIVED`). A search with no results gets a `spellingSuggestion`: the closest published
@@ -498,7 +506,7 @@ is no authentication.
   ascending `minQuantity`; the product service does not pick a tier, the caller does. The
   cart's `ProductPricingClient` uses this endpoint to price every add, quantity change and
   sign-in merge (see the cart's **Server-side pricing** bullet).
-- **Inventory** is a per-variant `in_stock` flag: the service knows in or out of stock, not
+- **Inventory** ([ADR-0058](adrs/0058-inventory-as-in-stock-flag.md)) is a per-variant `in_stock` flag: the service knows in or out of stock, not
   quantities (PIN-273). A product's own `availability` on the detail endpoint, which only
   returns published products, follows the summaries' rule: `IN_STOCK` when it has no
   variants or any variant is in stock, else `OUT_OF_STOCK` (PIN-318); per-variant stock is
@@ -525,7 +533,7 @@ is no authentication.
   while it has no metadata for the topic, e.g. when the broker is down at startup. So a slow
   broker slows the request, once per event, and a search slower than the customer app's 2s
   deadline counts toward opening its circuit breaker; a failure is logged and never fails it.
-- **Open session in view**: `spring.jpa.open-in-view` is on (Spring Boot's default; the cart
+- **Open session in view** ([ADR-0059](adrs/0059-open-in-view-setting.md)): `spring.jpa.open-in-view` is on (Spring Boot's default; the cart
   turned it off in PIN-296). The product detail, price and availability controllers read lazy
   associations (variants, images, tier pricing, a variant's product) after the repository
   call returns, so turning it off means loading those inside a transaction first.
@@ -552,7 +560,7 @@ is no authentication.
 (Epic 005, PIN-58). So far it is only a skeleton (PIN-364): no endpoints apart from
 `/actuator/health`, `info` and `metrics`, no tables, and no authentication.
 
-- **Persistence**: plain JPA with Flyway and `ddl-auto: validate`, like the other services.
+- **Persistence** ([ADR-0041](adrs/0041-per-service-persistence-model.md)): plain JPA with Flyway and `ddl-auto: validate`, like the other services.
   The epic's event store and CQRS read models are deferred. `V1__baseline.sql` is empty,
   `V2` adds the `outbox` table (PIN-368), and the orders table arrives with PIN-366 as `V3`.
   `open-in-view` is off. `acme_orders` and its
@@ -738,7 +746,7 @@ Device trust allows users to bypass MFA for 30 days on trusted devices, improvin
 - Tokens include: issuer, subject (userId), expiration, issued-at claims
 - Refresh token rotation on use (single-use tokens)
 - Token revocation through Redis blacklist for compromised tokens
-- **Public keys for other services**: identity serves `GET /.well-known/jwks.json`
+- **Public keys for other services** ([ADR-0043](adrs/0043-cross-service-jwt-verification.md)): identity serves `GET /.well-known/jwks.json`
   (`api/JwksController.kt`) — the public halves of the current and retained previous
   signing keys, keyed by `kid`. Other services verify access tokens locally against it
   instead of calling identity per request. Because keys are regenerated on restart, a
