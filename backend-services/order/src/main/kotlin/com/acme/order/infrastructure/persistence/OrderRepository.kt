@@ -13,7 +13,7 @@ private const val STATUS = "com.acme.order.domain.OrderStatus"
 interface OrderRepository : JpaRepository<Order, UUID> {
 
     /** The order an earlier request with this `Idempotency-Key` placed, if any (AC-5.8). */
-    fun findByCustomerIdAndIdempotencyKey(customerId: UUID, idempotencyKey: String): Order?
+    fun findByUserIdAndIdempotencyKey(userId: UUID, idempotencyKey: String): Order?
 
     /**
      * Moves a PENDING order to SUBMITTED. Returns 1 if this call did it, 0 if the order had

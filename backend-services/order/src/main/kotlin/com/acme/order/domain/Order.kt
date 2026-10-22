@@ -27,7 +27,7 @@ enum class OrderStatus { PENDING, SUBMITTED, CANCELLED }
 /**
  * A customer's order, copied from their checkout session's cart (journey 0005 step 5).
  *
- * `(customerId, idempotencyKey)` is unique, so a repeated `POST /api/v1/orders` with the
+ * `(userId, idempotencyKey)` is unique, so a repeated `POST /api/v1/orders` with the
  * same `Idempotency-Key` finds this order instead of creating another (AC-5.8). Status
  * changes go through `OrderRepository.markSubmitted` / `markCancelled`, conditional updates,
  * so two racing requests can't both submit the order.
@@ -42,8 +42,8 @@ class Order(
     @Column(name = "order_number", nullable = false, length = 20)
     val orderNumber: String,
 
-    @Column(name = "customer_id", nullable = false)
-    val customerId: UUID,
+    @Column(name = "user_id", nullable = false)
+    val userId: UUID,
 
     @Column(name = "checkout_session_id", nullable = false)
     val checkoutSessionId: UUID,

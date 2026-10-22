@@ -45,15 +45,15 @@ class PlaceOrderUseCaseTest {
         orders, orderNumbers, OrderIdGenerator(), cartClient, outboxWriter, transactionTemplate, JacksonConfig().objectMapper()
     )
 
-    private val customerId = UUID.randomUUID()
+    private val userId = UUID.randomUUID()
     private val sessionId = UUID.randomUUID()
     private val cartId = UUID.randomUUID()
-    private val command = PlaceOrderCommand(customerId, "the-token", sessionId, "key-1")
+    private val command = PlaceOrderCommand(userId, "the-token", sessionId, "key-1")
 
     private val session = CheckoutSession(
         checkoutSessionId = sessionId,
         cartId = cartId,
-        userId = customerId,
+        userId = userId,
         items = listOf(
             CheckoutItem(UUID.randomUUID(), 2, BigDecimal("69.99"), BigDecimal("139.98"), mapOf("name" to "Mouse")),
             CheckoutItem(UUID.randomUUID(), 1, BigDecimal("20.00"), BigDecimal("20.00"), mapOf("name" to "Pad"))
@@ -67,7 +67,7 @@ class PlaceOrderUseCaseTest {
 
     init {
         every { orderNumbers.nextOrderNumber(any()) } returns OrderNumber.create(LocalDate.of(2026, 10, 22), 7)
-        every { orders.findByCustomerIdAndIdempotencyKey(customerId, "key-1") } answers {
+        every { orders.findByUserIdAndIdempotencyKey(userId, "key-1") } answers {
             stored.values.firstOrNull { it.idempotencyKey == "key-1" }
         }
         every { orders.saveAndFlush(any<Order>()) } answers { firstArg<Order>().also { stored[it.id] = it } }
@@ -86,12 +86,12 @@ class PlaceOrderUseCaseTest {
     }
 
     private fun copy(order: Order, status: OrderStatus, cancelCode: String? = order.cancelCode) = Order(
-        order.id, order.orderNumber, order.customerId, order.checkoutSessionId, order.cartId, order.idempotencyKey,
+        order.id, order.orderNumber, order.userId, order.checkoutSessionId, order.cartId, order.idempotencyKey,
         status, order.subtotal, order.currency, cancelCode, order.createdAt
     ).also { copied -> order.items.forEach { copied.addItem(it.id, it.variantId, it.quantity, it.unitPrice, it.lineTotal, it.productSnapshot) } }
 
     private fun storedOrder(status: OrderStatus, checkoutSessionId: UUID = sessionId, cancelCode: String? = null) = Order(
-        UUID.randomUUID(), "ACME-20261022-000001", customerId, checkoutSessionId, cartId, "key-1",
+        UUID.randomUUID(), "ACME-20261022-000001", userId, checkoutSessionId, cartId, "key-1",
         status, BigDecimal("159.98"), "USD", cancelCode, Instant.parse("2026-10-22T12:00:00Z")
     ).also { stored[it.id] = it }
 
@@ -124,7 +124,7 @@ class PlaceOrderUseCaseTest {
         val payload = event.captured.payload
         assertEquals(order.id, payload.orderId)
         assertEquals("ACME-20261022-000007", payload.orderNumber)
-        assertEquals(customerId, payload.customerId)
+        assertEquals(userId, payload.userId)
         assertEquals("SUBMITTED", payload.status)
         assertEquals(BigDecimal("159.98"), payload.total.amount)
         assertEquals(3, payload.itemCount)
@@ -232,14 +232,14 @@ class PlaceOrderUseCaseTest {
     fun `losing a race to save with the same key resumes the order that won`() {
         sessionReads(CartResult.Ok(session))
         val winner = Order(
-            UUID.randomUUID(), "ACME-20261022-000001", customerId, sessionId, cartId, "key-1",
+            UUID.randomUUID(), "ACME-20261022-000001", userId, sessionId, cartId, "key-1",
             OrderStatus.PENDING, BigDecimal("159.98"), "USD", null, Instant.now()
         )
         // The first lookup finds nothing; by the time the insert runs, the winner has saved
-        every { orders.findByCustomerIdAndIdempotencyKey(customerId, "key-1") } returnsMany listOf(null, winner)
+        every { orders.findByUserIdAndIdempotencyKey(userId, "key-1") } returnsMany listOf(null, winner)
         every { orders.saveAndFlush(any<Order>()) } answers {
             stored[winner.id] = winner
-            throw DataIntegrityViolationException("uq_orders_customer_idempotency_key")
+            throw DataIntegrityViolationException("uq_orders_user_idempotency_key")
         }
         every { cartClient.convert(cartId, winner.id, sessionId, "the-token") } returns converted()
 

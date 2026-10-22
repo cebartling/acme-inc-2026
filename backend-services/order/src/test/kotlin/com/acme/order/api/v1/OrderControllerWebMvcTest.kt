@@ -57,7 +57,7 @@ class OrderControllerWebMvcTest(
     private val order = Order(
         id = UUID.randomUUID(),
         orderNumber = "ACME-20261022-000001",
-        customerId = userId,
+        userId = userId,
         checkoutSessionId = sessionId,
         cartId = UUID.randomUUID(),
         idempotencyKey = "key-1",
@@ -112,6 +112,17 @@ class OrderControllerWebMvcTest(
             jsonPath("$.code") { value("SIGN_IN_REQUIRED") }
         }
         verify(exactly = 0) { useCase.execute(any()) }
+    }
+
+    @Test
+    fun `no access token is a 401 even when the body is invalid too`() {
+        mockMvc.post("/api/v1/orders") {
+            contentType = MediaType.APPLICATION_JSON
+            content = "{}"
+        }.andExpect {
+            status { isUnauthorized() }
+            jsonPath("$.code") { value("SIGN_IN_REQUIRED") }
+        }
     }
 
     @Test

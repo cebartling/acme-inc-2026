@@ -68,11 +68,11 @@ class OrderController(private val placeOrder: PlaceOrderUseCase) {
      */
     @PostMapping
     fun place(
-        @AuthenticationPrincipal jwt: Jwt?,
+        // SecurityConfig answers 401 before this runs when there's no verified token
+        @AuthenticationPrincipal jwt: Jwt,
         @RequestHeader(IDEMPOTENCY_KEY_HEADER, required = false) idempotencyKey: String?,
         @Valid @RequestBody request: PlaceOrderRequest
     ): ResponseEntity<Any> {
-        if (jwt == null) return error(HttpStatus.UNAUTHORIZED, "Sign in to place an order", SIGN_IN_REQUIRED)
         val key = idempotencyKey?.trim()
         if (key.isNullOrEmpty() || key.length > MAX_IDEMPOTENCY_KEY_LENGTH) {
             return error(
@@ -83,7 +83,7 @@ class OrderController(private val placeOrder: PlaceOrderUseCase) {
         }
 
         val command = PlaceOrderCommand(
-            customerId = UUID.fromString(jwt.subject),
+            userId = UUID.fromString(jwt.subject),
             accessToken = jwt.tokenValue,
             checkoutSessionId = request.checkoutSessionId!!,
             idempotencyKey = key
@@ -121,7 +121,6 @@ class OrderController(private val placeOrder: PlaceOrderUseCase) {
     companion object {
         const val IDEMPOTENCY_KEY_HEADER = "Idempotency-Key"
         const val MAX_IDEMPOTENCY_KEY_LENGTH = 255
-        const val SIGN_IN_REQUIRED = "SIGN_IN_REQUIRED"
         const val IDEMPOTENCY_KEY_REQUIRED = "IDEMPOTENCY_KEY_REQUIRED"
         const val INVALID_REQUEST = "INVALID_REQUEST"
         const val CART_UNAVAILABLE = "CART_UNAVAILABLE"

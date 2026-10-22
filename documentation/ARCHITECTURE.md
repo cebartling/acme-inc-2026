@@ -572,7 +572,7 @@ reading orders comes with PIN-367.
     3. Convert the cart.
     4. In one transaction, mark the order `SUBMITTED` and write `OrderCreated` (`total` is the
        subtotal) to the outbox. The cart calls happen outside any transaction.
-  - **Idempotency** (AC-5.8): `(customer_id, idempotency_key)` is unique. A repeated key
+  - **Idempotency** (AC-5.8): `(user_id, idempotency_key)` is unique. A repeated key
     answers the earlier order again: a `SUBMITTED` one with the same `201`, a `CANCELLED`
     one with the same refusal, and a `PENDING` one by resuming at the convert. The same key
     with a different checkout session is `422 IDEMPOTENCY_KEY_REUSED`.

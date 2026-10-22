@@ -5,7 +5,7 @@ CREATE TABLE orders (
     id UUID PRIMARY KEY,
     -- ACME-YYYYMMDD-NNNNNN (journey AC-5.4)
     order_number VARCHAR(20) NOT NULL,
-    customer_id UUID NOT NULL,
+    user_id UUID NOT NULL,
     checkout_session_id UUID NOT NULL,
     cart_id UUID NOT NULL,
     -- The caller's Idempotency-Key header (AC-5.8)
@@ -19,7 +19,7 @@ CREATE TABLE orders (
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
 
     CONSTRAINT uq_orders_order_number UNIQUE (order_number),
-    CONSTRAINT uq_orders_customer_idempotency_key UNIQUE (customer_id, idempotency_key),
+    CONSTRAINT uq_orders_user_idempotency_key UNIQUE (user_id, idempotency_key),
     CONSTRAINT ck_orders_status CHECK (status IN ('PENDING', 'SUBMITTED', 'CANCELLED'))
 );
 

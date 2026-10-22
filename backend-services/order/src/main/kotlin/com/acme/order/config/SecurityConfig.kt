@@ -22,8 +22,8 @@ import java.util.UUID
 /**
  * Verifies identity's `access_token` cookie, as the cart does (ADR-0043): Spring Boot's
  * resource server, configured under `spring.security.oauth2.resourceserver.jwt`, plus
- * [accessTokenValidator]. Requests without a token pass through, so the controller can
- * answer them with its own `SIGN_IN_REQUIRED`, and actuator stays open.
+ * [accessTokenValidator]. `/api/v1/orders` needs a verified token, checked before the body
+ * is read, so a caller who isn't signed in always gets 401; actuator stays open.
  *
  * CSRF protection is off for the same reasons as the cart's: a JSON API, state-changing
  * requests need a JSON content type, and the `access_token` cookie is SameSite=Strict.
@@ -38,7 +38,11 @@ class SecurityConfig {
             .csrf { it.disable() }
             .cors(Customizer.withDefaults())
             .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
-            .authorizeHttpRequests { it.anyRequest().permitAll() }
+            .authorizeHttpRequests {
+                it.requestMatchers("/api/v1/orders/**").authenticated()
+                it.anyRequest().permitAll()
+            }
+            .exceptionHandling { it.authenticationEntryPoint(tokenErrorEntryPoint()) }
             .oauth2ResourceServer { resourceServer ->
                 resourceServer
                     .bearerTokenResolver(accessTokenCookieResolver())
@@ -73,14 +77,19 @@ class SecurityConfig {
     }
 
     /**
-     * A token that fails verification is a 401. An expired one reports `TOKEN_EXPIRED`,
+     * Every 401, written before the request body is read. No token is `SIGN_IN_REQUIRED`. A
+     * token that fails verification is `INVALID_TOKEN`, or `TOKEN_EXPIRED` when it has expired,
      * which the customer app's API client answers by refreshing and retrying.
      */
-    private fun tokenErrorEntryPoint() = AuthenticationEntryPoint { _, response, exception: AuthenticationException ->
-        val code = if (exception.isExpiry()) "TOKEN_EXPIRED" else "INVALID_TOKEN"
+    private fun tokenErrorEntryPoint() = AuthenticationEntryPoint { request, response, exception: AuthenticationException ->
+        val (message, code) = when {
+            accessTokenCookieResolver().resolve(request) == null -> "Sign in to place an order" to "SIGN_IN_REQUIRED"
+            exception.isExpiry() -> "TOKEN_EXPIRED" to "TOKEN_EXPIRED"
+            else -> "INVALID_TOKEN" to "INVALID_TOKEN"
+        }
         response.status = HttpStatus.UNAUTHORIZED.value()
         response.contentType = MediaType.APPLICATION_JSON_VALUE
-        response.writer.write("""{"error":"$code","code":"$code"}""")
+        response.writer.write("""{"error":"$message","code":"$code"}""")
     }
 
     private fun Throwable.isExpiry(): Boolean =

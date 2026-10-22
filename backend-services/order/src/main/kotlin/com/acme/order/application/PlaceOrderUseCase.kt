@@ -24,7 +24,7 @@ import java.time.ZoneOffset
 import java.util.UUID
 
 data class PlaceOrderCommand(
-    val customerId: UUID,
+    val userId: UUID,
     /** The customer's access token, forwarded to the cart as its `access_token` cookie. */
     val accessToken: String,
     val checkoutSessionId: UUID,
@@ -71,7 +71,7 @@ class PlaceOrderUseCase(
     private val logger = LoggerFactory.getLogger(PlaceOrderUseCase::class.java)
 
     fun execute(command: PlaceOrderCommand): PlaceOrderResult {
-        orders.findByCustomerIdAndIdempotencyKey(command.customerId, command.idempotencyKey)
+        orders.findByUserIdAndIdempotencyKey(command.userId, command.idempotencyKey)
             ?.let { return resume(it, command) }
 
         val session = when (val read = cartClient.getCheckoutSession(command.checkoutSessionId, command.accessToken)) {
@@ -81,7 +81,7 @@ class PlaceOrderUseCase(
             CartResult.Unavailable -> return PlaceOrderResult.CartUnavailable
         }
         // The cart only answers for the caller's own cart; this guards against a mismatch anyway
-        if (session.userId != command.customerId) {
+        if (session.userId != command.userId) {
             return refused(CHECKOUT_SESSION_NOT_FOUND, "Checkout session not found")
         }
 
@@ -89,7 +89,7 @@ class PlaceOrderUseCase(
             transactionTemplate.execute { orders.saveAndFlush(newOrder(session, command)) }!!
         } catch (ex: DataIntegrityViolationException) {
             // A concurrent request with the same key saved its order first
-            val earlier = orders.findByCustomerIdAndIdempotencyKey(command.customerId, command.idempotencyKey)
+            val earlier = orders.findByUserIdAndIdempotencyKey(command.userId, command.idempotencyKey)
                 ?: throw ex
             return resume(earlier, command)
         }
@@ -134,7 +134,7 @@ class PlaceOrderUseCase(
                         OrderCreatedPayload(
                             orderId = current.id,
                             orderNumber = current.orderNumber,
-                            customerId = current.customerId,
+                            userId = current.userId,
                             status = OrderStatus.SUBMITTED.name,
                             total = Money(current.subtotal, current.currency),
                             itemCount = current.items.sumOf { it.quantity }
@@ -170,7 +170,7 @@ class PlaceOrderUseCase(
         return Order(
             id = ids.generate(),
             orderNumber = orderNumbers.nextOrderNumber(LocalDate.ofInstant(now, ZoneOffset.UTC)).value,
-            customerId = command.customerId,
+            userId = command.userId,
             checkoutSessionId = session.checkoutSessionId,
             cartId = session.cartId,
             idempotencyKey = command.idempotencyKey,

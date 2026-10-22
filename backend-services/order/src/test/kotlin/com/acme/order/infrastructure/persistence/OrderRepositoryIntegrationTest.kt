@@ -70,10 +70,10 @@ class OrderRepositoryIntegrationTest {
         orders.deleteAll()
     }
 
-    private fun order(customerId: UUID = UUID.randomUUID(), idempotencyKey: String = "key-1") = Order(
+    private fun order(userId: UUID = UUID.randomUUID(), idempotencyKey: String = "key-1") = Order(
         id = ids.generate(),
         orderNumber = orderNumbers.nextOrderNumber(LocalDate.of(2026, 10, 22)).value,
-        customerId = customerId,
+        userId = userId,
         checkoutSessionId = UUID.randomUUID(),
         cartId = UUID.randomUUID(),
         idempotencyKey = idempotencyKey,
@@ -104,7 +104,7 @@ class OrderRepositoryIntegrationTest {
         val saved = order()
         orders.save(saved)
 
-        val found = orders.findByCustomerIdAndIdempotencyKey(saved.customerId, "key-1")!!
+        val found = orders.findByUserIdAndIdempotencyKey(saved.userId, "key-1")!!
 
         assertEquals(saved.id, found.id)
         inTransaction {
@@ -116,10 +116,10 @@ class OrderRepositoryIntegrationTest {
 
     @Test
     fun `the same idempotency key is refused for one customer but allowed for another`() {
-        val customerId = UUID.randomUUID()
-        orders.saveAndFlush(order(customerId))
+        val userId = UUID.randomUUID()
+        orders.saveAndFlush(order(userId))
 
-        assertThrows<DataIntegrityViolationException> { orders.saveAndFlush(order(customerId)) }
+        assertThrows<DataIntegrityViolationException> { orders.saveAndFlush(order(userId)) }
         orders.saveAndFlush(order(UUID.randomUUID()))
     }
 

@@ -10,7 +10,11 @@ data class Money(val amount: BigDecimal, val currency: String)
 data class OrderCreatedPayload(
     val orderId: UUID,
     val orderNumber: String,
-    val customerId: UUID,
+    /**
+     * Identity's user ID (the access token's `sub`). The journey calls it `customerId`, but the
+     * customer service's own `Customer.id` is a different UUID; it finds a customer by `userId`.
+     */
+    val userId: UUID,
     val status: String,
     /** The subtotal: there is no shipping, tax or discount yet. */
     val total: Money,
