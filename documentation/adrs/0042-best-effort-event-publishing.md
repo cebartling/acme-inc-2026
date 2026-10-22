@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted
+Accepted for the product service. Superseded for the cart by
+[ADR-0060](0060-cart-events-through-outbox.md) (PIN-384): cart events now go through a
+transactional outbox. The cart parts below describe how the cart published before that.
 
 Records an exception to [ADR-0022](0022-transactional-outbox-pattern.md), which the customer
 and order services follow.
