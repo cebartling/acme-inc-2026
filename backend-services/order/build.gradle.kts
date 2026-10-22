@@ -25,6 +25,8 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
+    // Verifies identity's access_token cookie, as the cart does (PIN-366)
+    implementation("org.springframework.boot:spring-boot-starter-oauth2-resource-server")
 
     // Kotlin
     // Jackson 3 Kotlin module: Spring MVC (Boot 4) binds request/response bodies with Jackson 3
@@ -33,6 +35,9 @@ dependencies {
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
     implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
+
+    // UUID v7 order IDs (journey 0005 AC-5.4), as the customer service generates them
+    implementation("com.fasterxml.uuid:java-uuid-generator:5.2.0")
 
     // Database & Migrations
     runtimeOnly("org.postgresql:postgresql")
