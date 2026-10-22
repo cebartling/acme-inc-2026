@@ -447,6 +447,12 @@ services:
 
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
 
+      # Orders read and convert the checkout session's cart (PIN-366)
+      CART_SERVICE_URL: http://shopping-cart-service:10304
+
+      # Verifies the access_token cookie against identity's public signing keys
+      ACME_IDENTITY_JWKS_URI: http://identity-service:10300/.well-known/jwks.json
+
       OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4317
       OTEL_SERVICE_NAME: order-service
     networks:

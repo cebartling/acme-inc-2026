@@ -15,6 +15,7 @@ export class CustomWorld extends World<CustomWorldParameters> {
   customerApiClient!: ApiClient;
   notificationApiClient!: ApiClient;
   cartApiClient!: ApiClient;
+  orderApiClient!: ApiClient;
 
   private testData: Map<string, unknown> = new Map();
   private _testSessionId: string | null = null;
@@ -105,6 +106,7 @@ export class CustomWorld extends World<CustomWorldParameters> {
     this.customerApiClient = new ApiClient(config.customerApiUrl);
     this.notificationApiClient = new ApiClient(config.notificationApiUrl);
     this.cartApiClient = new ApiClient(config.cartApiUrl);
+    this.orderApiClient = new ApiClient(config.orderApiUrl);
   }
 
   async createContext(): Promise<void> {

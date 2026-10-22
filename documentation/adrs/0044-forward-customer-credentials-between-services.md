@@ -30,7 +30,9 @@ The services have no service identity. Product and order have no Spring Security
 and the cart's calls to product (`ProductPricingClient`, `ProductAvailabilityClient`) send
 no credentials. There is no mTLS or client-credentials token anywhere in the repo.
 
-The order service has no endpoints or cart client yet; placing an order is PIN-366.
+Placing an order (PIN-366) is the first caller: the order service's `CartClient` reads the
+checkout session and converts the cart, sending the customer's `access_token` cookie. Orders
+are for signed-in customers only, so it never forwards a guest's `acme_session_id`.
 
 ## Decision
 

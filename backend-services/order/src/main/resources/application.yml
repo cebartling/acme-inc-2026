@@ -26,6 +26,17 @@ spring:
       accept-float-as-int: false
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+  security:
+    oauth2:
+      resourceserver:
+        # Verifies identity's access_token cookie, as the cart does (ADR-0043): signature
+        # against identity's public keys, plus exp, iss and aud. Keys are re-fetched when a
+        # token carries an unknown kid (identity regenerates its keys on restart).
+        jwt:
+          jwk-set-uri: ${ACME_IDENTITY_JWKS_URI:http://localhost:10300/.well-known/jwks.json}
+          # Must match identity's identity.jwt.issuer / audience (same env var names).
+          issuer-uri: ${JWT_ISSUER:https://auth.acme.com}
+          audiences: ${JWT_AUDIENCE:https://api.acme.com}
 
 management:
   endpoints:
@@ -34,6 +45,9 @@ management:
         include: health,info,metrics
 
 acme:
+  # The cart service, read and converted on the customer's behalf (PIN-366)
+  cart:
+    base-url: ${CART_SERVICE_URL:http://localhost:10304}
   order:
     events:
       publish-timeout-seconds: 10
