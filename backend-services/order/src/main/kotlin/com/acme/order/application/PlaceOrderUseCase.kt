@@ -126,8 +126,9 @@ class PlaceOrderUseCase(
     private fun submit(order: Order): PlaceOrderResult {
         val submitted = transactionTemplate.execute {
             val now = Instant.now()
-            if (orders.markSubmitted(order.id, now) == 1) {
-                val current = orders.findById(order.id).get()
+            val submittedNow = orders.markSubmitted(order.id, now) == 1
+            val current = orders.findById(order.id).get()
+            if (submittedNow) {
                 outboxWriter.write(
                     OrderCreated.create(
                         OrderCreatedPayload(
@@ -144,7 +145,7 @@ class PlaceOrderUseCase(
                 )
                 logger.info("Order {} ({}) SUBMITTED", current.id, current.orderNumber)
             }
-            orders.findById(order.id).get()
+            current
         }!!
         // A racing request may have cancelled it first; answer what the order actually is
         return if (submitted.status == OrderStatus.SUBMITTED) {
@@ -160,8 +161,8 @@ class PlaceOrderUseCase(
             orders.markCancelled(order.id, code, Instant.now())
             orders.findById(order.id).get()
         }!!
-        // If a racing request submitted it first, answer that instead
-        return if (current.status == OrderStatus.CANCELLED) refused(code, "The order was not placed") else resume(current, command)
+        // A racing request may have submitted or cancelled it first; answer what the order actually is
+        return resume(current, command)
     }
 
     private fun newOrder(session: CheckoutSession, command: PlaceOrderCommand): Order {

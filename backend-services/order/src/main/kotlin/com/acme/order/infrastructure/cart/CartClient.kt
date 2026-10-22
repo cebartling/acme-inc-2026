@@ -97,7 +97,8 @@ class CartClient(private val cartRestClient: RestClient) {
     private fun clientError(description: String, ex: HttpClientErrorException): CartResult<Nothing> {
         val body = try {
             ex.getResponseBodyAs(CartErrorBody::class.java)
-        } catch (_: RestClientException) {
+        } catch (parseFailure: RestClientException) {
+            logger.warn("Cart answered {} with {} and an unreadable error body", description, ex.statusCode, parseFailure)
             null
         }
         return when {
