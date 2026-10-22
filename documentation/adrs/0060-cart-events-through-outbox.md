@@ -63,7 +63,8 @@ the order service, so the relay's timeout holds while Kafka is down.
 - The cart runs one more table and polling job. A message that keeps failing holds up every
   cart event behind it, and is logged as an error from `alert-after-attempts` on.
 - An event can be sent twice.
-- Sent rows are not purged yet, and only one instance may run the relay (PIN-390), as in the
-  order service.
+- Sent rows are not purged yet (PIN-395), so the cart's `sessionId` and `userId` outlive
+  ADR-0049's 90-day retention in `outbox`. Only one instance may run the relay (PIN-390). Both
+  are true of the order service too.
 - `CheckoutSessionExpiry` counts an expiry when its event is written, so a write that a lost
   race rolls back and retries is counted twice.
