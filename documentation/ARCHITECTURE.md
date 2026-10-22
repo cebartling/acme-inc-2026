@@ -609,7 +609,8 @@ read their orders back (PIN-367).
 - **Persistence** ([ADR-0041](adrs/0041-per-service-persistence-model.md)): plain JPA with Flyway and `ddl-auto: validate`, like the other services.
   The epic's event store and CQRS read models are deferred. `V1__baseline.sql` is empty,
   `V2` adds the `outbox` table (PIN-368), and `V3` the `orders`, `order_items` and
-  `order_number_sequences` tables (PIN-366).
+  `order_number_sequences` tables (PIN-366), and `V4` an index on
+  `orders (user_id, status, created_at DESC, id DESC)` for the order history (PIN-367).
   `open-in-view` is off. `acme_orders` and its
   `acme_app` user come from `docker/postgres/init`, which also gives it a
   `dbz_publication FOR ALL TABLES`: it is the database the Debezium connector captures (once
