@@ -30,3 +30,20 @@ Feature: Place Order API
   Scenario: Placing an order requires signing in
     When I place an order without signing in
     Then the API should respond with status 401
+
+  # PIN-367 (journey 0005, step 6)
+  Scenario: A placed order can be read back and appears in my order history
+    Given I place an order for my checkout session
+    When I get my order
+    Then the API should respond with status 200
+    And the order should have 2 of "Gadget Pro"
+    When I list my orders
+    Then the API should respond with status 200
+    And my order should be first in the list, with 2 items
+
+  Scenario: Another customer can't read my order
+    Given I place an order for my checkout session
+    And an active customer with email "order-other-customer@example.com" exists
+    And I am signed in through the API as that customer
+    When I get my order
+    Then the API should respond with status 404

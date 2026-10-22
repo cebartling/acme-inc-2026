@@ -91,3 +91,58 @@ Then('my account cart should be converted into the order', async function (this:
   });
   expect(current.status).toBe(204);
 });
+
+// --- PIN-367: read orders --------------------------------------------------------------
+
+interface OrderDetailsResponse {
+  orderId: string;
+  orderNumber: string;
+  status: string;
+  lineItems: { productName: string | null; quantity: number }[];
+  pricing: { subtotal: { amount: number; currency: string } };
+}
+
+interface OrderListResponse {
+  orders: { orderId: string; itemCount: number }[];
+  totalResults: number;
+}
+
+When('I get my order', async function (this: CustomWorld) {
+  const orderId = this.getTestData<string>('orderId');
+  expect(orderId, 'place the order first').toBeDefined();
+  const response = await this.orderApiClient.get<OrderDetailsResponse>(
+    `/api/v1/orders/${orderId}`,
+    {
+      headers: accessTokenCookie(this),
+    }
+  );
+  this.setLastResponse(response);
+});
+
+When('I list my orders', async function (this: CustomWorld) {
+  const response = await this.orderApiClient.get<OrderListResponse>('/api/v1/orders', {
+    headers: accessTokenCookie(this),
+  });
+  this.setLastResponse(response);
+});
+
+Then(
+  'the order should have {int} of {string}',
+  async function (this: CustomWorld, quantity: number, productName: string) {
+    const order = this.getLastResponse<OrderDetailsResponse>()!.data;
+    expect(order.orderId).toBe(this.getTestData<string>('orderId'));
+    expect(order.status).toBe('SUBMITTED');
+    expect(order.lineItems).toContainEqual(expect.objectContaining({ productName, quantity }));
+    expect(order.pricing.subtotal.currency).toBe('USD');
+  }
+);
+
+Then(
+  'my order should be first in the list, with {int} item(s)',
+  async function (this: CustomWorld, itemCount: number) {
+    const list = this.getLastResponse<OrderListResponse>()!.data;
+    expect(list.orders[0]).toEqual(
+      expect.objectContaining({ orderId: this.getTestData<string>('orderId'), itemCount })
+    );
+  }
+);
