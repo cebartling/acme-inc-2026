@@ -4,6 +4,8 @@
 
 Accepted
 
+**Current state (2026-10-21, PIN-386):** Kafka is in use, but two parts of the decision below were never built. Messages are not Avro: every producer sends JSON strings through a `KafkaTemplate<String, String>` with `StringSerializer` for key and value, and the unused Confluent Avro dependencies were removed from identity in commit `c16103c` (an unreferenced `identity/src/main/resources/avro/user-registered.avsc` remains). The `schema-registry` container still runs in `docker-compose.yml`, and Prometheus scrapes it, but no service talks to it. Topics do not follow `{service}.{aggregate}.events` either. Identity publishes to `identity.user.events`, `identity.authentication.events`, `identity.session.events`, `identity.device.events`, `identity.mfa.events` and `identity.account.events`. The other services each publish to one topic per service: `customer.events`, `notification.events`, `product.events`, `cart.events` and `order.events`. How publishing handles failures is in [ADR-0042](0042-best-effort-event-publishing.md).
+
 ## Context
 
 The event-driven architecture requires a messaging infrastructure that:

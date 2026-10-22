@@ -4,6 +4,8 @@
 
 Accepted
 
+**Current state (2026-10-21, PIN-386):** Prometheus runs, but it collects no metrics from the application services. No service declares `micrometer-registry-prometheus`; order's built jar, for example, has `micrometer-core` but no Prometheus registry. So `/actuator/prometheus` does not exist on any service, even though identity, customer and notification list `prometheus` in `management.endpoints.web.exposure.include`. Product, shopping-cart and order expose only `health,info,metrics`. `docker/prometheus/config/prometheus.yml` scrapes only infrastructure (prometheus, grafana, loki, tempo, kafka, schema-registry and debezium-connect) and has no job for any backend service.
+
 ## Context
 
 A microservices architecture requires comprehensive metrics collection to:

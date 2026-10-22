@@ -4,6 +4,8 @@
 
 Accepted
 
+**Current state (2026-10-21, PIN-386):** Tempo runs, with OTLP receivers on 4317 (gRPC) and 4318 (HTTP), but no backend service sends it traces. Linear PIN-370 ("Backend services send no traces to Tempo") tracks this. Every service declares `micrometer-tracing-bridge-otel` and `opentelemetry-exporter-otlp`, and `docker-compose.apps.yml` sets `OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo:4317` for every service except order. No `application.yml` sets any `management.tracing` or `management.otlp` property, though. Order's built jar has no Spring Boot tracing auto-configuration module, only `spring-boot-micrometer-metrics` and `spring-boot-micrometer-observation`. There is no OpenTelemetry Collector either; the diagram below shows the intended design.
+
 ## Context
 
 In a microservices architecture, a single user request may traverse multiple services. Understanding request flow requires distributed tracing that:

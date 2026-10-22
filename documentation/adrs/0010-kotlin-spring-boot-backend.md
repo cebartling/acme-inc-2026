@@ -4,6 +4,8 @@
 
 Accepted
 
+**Current state (2026-10-21, PIN-386):** All six services (identity, customer, notification, product, shopping-cart, order) are built with Spring Boot 4.1.1, Kotlin 2.4.20 and a Java 25 toolchain, and the versions below have been corrected to match. Several stack items were never adopted. Every service uses Spring MVC (`spring-boot-starter-web`), not WebFlux, plus Spring Data JPA, and only customer adds MongoDB (blocking, not reactive). No service depends on Spring Cloud or on `spring-cloud-starter-vault-config` (see ADR-0009), so treat the dependency block below as the original plan.
+
 ## Context
 
 Backend services need a technology stack that:
@@ -23,11 +25,11 @@ Candidates considered:
 
 ## Decision
 
-We will use **Kotlin** with **Spring Boot 3** for all backend microservices.
+We will use **Kotlin** with **Spring Boot 4** for all backend microservices.
 
 Stack components:
-- **Kotlin 2.x**: Concise, null-safe, coroutine support
-- **Spring Boot 3.x**: Auto-configuration, actuator, dependency management
+- **Kotlin 2.4**: Concise, null-safe, coroutine support
+- **Spring Boot 4.1**: Auto-configuration, actuator, dependency management
 - **Spring WebFlux** or **Spring MVC**: Reactive or traditional web layer
 - **Spring Data**: Repository abstractions for PostgreSQL (JPA) and MongoDB
 - **Spring Cloud**: Distributed tracing, config client
@@ -74,7 +76,7 @@ dependencies {
 - **Null Safety**: Kotlin's type system prevents null pointer exceptions at compile time
 - **Conciseness**: Less boilerplate than Java, data classes, extension functions
 - **Coroutines**: Native support for asynchronous, non-blocking code
-- **Spring Integration**: First-class Kotlin support in Spring Boot 3
+- **Spring Integration**: First-class Kotlin support in Spring Boot 4
 - **Java Interop**: Full access to Java ecosystem and libraries
 - **Tooling**: Excellent IDE support (IntelliJ IDEA)
 
