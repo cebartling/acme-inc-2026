@@ -1,6 +1,7 @@
 package com.acme.order.infrastructure.cart
 
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
@@ -53,12 +54,21 @@ private data class CartErrorBody(val error: String? = null, val code: String? = 
 
 /**
  * Calls the cart on the customer's behalf (ADR-0044): the cart only reads identity's
- * `access_token` cookie, so the customer's token is forwarded as that cookie.
+ * `access_token` cookie, so the customer's token is forwarded as that cookie. Every call also
+ * carries the order service's shared secret in [SERVICE_TOKEN_HEADER], since only the order
+ * service may read a checkout session or convert a cart (PIN-382, ADR-0061).
  */
 @Component
-class CartClient(private val cartRestClient: RestClient) {
+class CartClient(
+    private val cartRestClient: RestClient,
+    @Value("\${acme.cart.service-token}") private val serviceToken: String
+) {
 
     private val logger = LoggerFactory.getLogger(CartClient::class.java)
+
+    init {
+        require(serviceToken.isNotBlank()) { "acme.cart.service-token (ACME_ORDER_SERVICE_TOKEN) must be set" }
+    }
 
     /** `GET /api/v1/carts/checkout-sessions/{id}`: the session's cart, if it's live and the caller's. */
     fun getCheckoutSession(checkoutSessionId: UUID, accessToken: String): CartResult<CheckoutSession> =
@@ -66,6 +76,7 @@ class CartClient(private val cartRestClient: RestClient) {
             cartRestClient.get()
                 .uri("/api/v1/carts/checkout-sessions/{id}", checkoutSessionId)
                 .header(HttpHeaders.COOKIE, cookie(accessToken))
+                .header(SERVICE_TOKEN_HEADER, serviceToken)
                 .retrieve()
                 .body(CheckoutSession::class.java)
         }
@@ -76,6 +87,7 @@ class CartClient(private val cartRestClient: RestClient) {
             cartRestClient.post()
                 .uri("/api/v1/carts/{cartId}/convert", cartId)
                 .header(HttpHeaders.COOKIE, cookie(accessToken))
+                .header(SERVICE_TOKEN_HEADER, serviceToken)
                 .body(ConvertRequest(orderId, checkoutSessionId))
                 .retrieve()
                 .body(CartConversion::class.java)
@@ -116,6 +128,7 @@ class CartClient(private val cartRestClient: RestClient) {
 
     companion object {
         const val ACCESS_TOKEN_COOKIE = "access_token"
+        const val SERVICE_TOKEN_HEADER = "X-Service-Token"
 
         /** The cart's answers that mean the order can't go ahead; anything else is retried. */
         val FINAL_CODES = setOf("CHECKOUT_SESSION_NOT_FOUND", "CART_NOT_FOUND", "CART_ALREADY_CONVERTED")

@@ -1,6 +1,7 @@
 package com.acme.order.infrastructure.cart
 
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpMethod
@@ -23,7 +24,7 @@ class CartClientTest {
 
     private val builder = RestClient.builder().baseUrl("http://cart")
     private val server = MockRestServiceServer.bindTo(builder).build()
-    private val client = CartClient(builder.build())
+    private val client = CartClient(builder.build(), "order-secret")
     private val sessionId = UUID.randomUUID()
     private val cartId = UUID.randomUUID()
     private val orderId = UUID.randomUUID()
@@ -40,6 +41,7 @@ class CartClientTest {
         server.expect(requestTo(sessionUrl))
             .andExpect(method(HttpMethod.GET))
             .andExpect(header(HttpHeaders.COOKIE, "access_token=the-token"))
+            .andExpect(header(CartClient.SERVICE_TOKEN_HEADER, "order-secret"))
             .andRespond(
                 withSuccess(
                     """
@@ -96,6 +98,7 @@ class CartClientTest {
         server.expect(requestTo(convertUrl))
             .andExpect(method(HttpMethod.POST))
             .andExpect(header(HttpHeaders.COOKIE, "access_token=the-token"))
+            .andExpect(header(CartClient.SERVICE_TOKEN_HEADER, "order-secret"))
             .andExpect(content().json("""{"orderId":"$orderId","checkoutSessionId":"$sessionId"}"""))
             .andRespond(
                 withSuccess(
@@ -137,5 +140,12 @@ class CartClientTest {
         )
 
         assertEquals(CartResult.Unavailable, client.convert(cartId, orderId, sessionId, "the-token"))
+    }
+
+    @Test
+    fun `a blank service token is rejected at startup`() {
+        listOf("", "  ").forEach { token ->
+            assertThrows<IllegalArgumentException> { CartClient(builder.build(), token) }
+        }
     }
 }

@@ -48,6 +48,9 @@ acme:
   # The cart service, read and converted on the customer's behalf (PIN-366)
   cart:
     base-url: ${CART_SERVICE_URL:http://localhost:10304}
+    # The shared secret the cart requires to read a checkout session or convert a cart
+    # (PIN-382). No default: the service won't start without it.
+    service-token: ${ACME_ORDER_SERVICE_TOKEN:}
   order:
     events:
       publish-timeout-seconds: 10
