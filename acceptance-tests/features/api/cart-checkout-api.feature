@@ -68,6 +68,16 @@ Feature: Start Checkout API
     When I get my current cart
     Then the API should respond with status 204
 
+  Scenario: Converting without the order service's credentials is refused
+    Given I have added 1 "Gadget Pro / Black" to a new cart
+    And I have started checkout on my cart
+    When I convert my cart into a new order without the order service's credentials
+    Then the API should respond with status 403
+    And the response should contain error code "SERVICE_CREDENTIALS_REQUIRED"
+    When I get my current cart
+    Then the API should respond with status 200
+    And my cart should be locked for checkout
+
   Scenario: Converting again into the same order answers the same
     Given I have added 1 "Gadget Pro / Black" to a new cart
     And I have started checkout on my cart

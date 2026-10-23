@@ -68,8 +68,10 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
-@WebMvcTest(CartController::class)
-@Import(SecurityConfig::class, GuestSessionCookies::class)
+private const val ORDER_SERVICE_TOKEN = "test-order-service-token"
+
+@WebMvcTest(CartController::class, properties = ["acme.cart.order-service-token=$ORDER_SERVICE_TOKEN"])
+@Import(SecurityConfig::class, GuestSessionCookies::class, ServiceCredentials::class)
 class CartControllerWebMvcTest(
     @Autowired private val mockMvc: MockMvc,
     @Autowired private val useCase: AddItemToCartUseCase,
@@ -1082,8 +1084,14 @@ class CartControllerWebMvcTest(
     private fun inCheckout(cart: Cart, startedAt: Instant = Instant.now()) =
         cart.startCheckout(Duration.ofMinutes(30), now = startedAt).getOrNull()!!
 
-    private fun getCheckoutSession(id: UUID, cookie: Cookie? = Cookie(CartController.SESSION_COOKIE, sessionId)) =
-        mockMvc.get("/api/v1/carts/checkout-sessions/$id") { cookie?.let { cookie(it) } }
+    private fun getCheckoutSession(
+        id: UUID,
+        cookie: Cookie? = Cookie(CartController.SESSION_COOKIE, sessionId),
+        serviceToken: String? = ORDER_SERVICE_TOKEN
+    ) = mockMvc.get("/api/v1/carts/checkout-sessions/$id") {
+        cookie?.let { cookie(it) }
+        serviceToken?.let { header(ServiceCredentials.HEADER, it) }
+    }
 
     @Test
     fun `a signed-in owner reads their live checkout session's cart`() {
@@ -1190,9 +1198,13 @@ class CartControllerWebMvcTest(
     private val orderId = UUID.randomUUID()
     private val checkoutSessionId = UUID.randomUUID()
 
-    private fun convert(content: String = """{"orderId":"$orderId","checkoutSessionId":"$checkoutSessionId"}""") =
+    private fun convert(
+        content: String = """{"orderId":"$orderId","checkoutSessionId":"$checkoutSessionId"}""",
+        serviceToken: String? = ORDER_SERVICE_TOKEN
+    ) =
         mockMvc.post("/api/v1/carts/$cartId/convert") {
             cookie(Cookie(CartController.SESSION_COOKIE, sessionId))
+            serviceToken?.let { header(ServiceCredentials.HEADER, it) }
             contentType = MediaType.APPLICATION_JSON
             this.content = content
         }
@@ -1248,6 +1260,7 @@ class CartControllerWebMvcTest(
     @Test
     fun `converting without a session or token is a 404`() {
         mockMvc.post("/api/v1/carts/$cartId/convert") {
+            header(ServiceCredentials.HEADER, ORDER_SERVICE_TOKEN)
             contentType = MediaType.APPLICATION_JSON
             content = """{"orderId":"$orderId","checkoutSessionId":"$checkoutSessionId"}"""
         }.andExpect {
@@ -1255,5 +1268,29 @@ class CartControllerWebMvcTest(
             jsonPath("$.code") { value("CART_NOT_FOUND") }
         }
         verify(exactly = 0) { convertUseCase.execute(any(), any()) }
+    }
+
+    // --- PIN-382: only the order service may read a checkout session or convert ----------
+
+    @Test
+    fun `converting without the order service's token is a 403 and never reaches the use case`() {
+        listOf(null, "wrong-token", "").forEach { token ->
+            convert(serviceToken = token).andExpect {
+                status { isForbidden() }
+                jsonPath("$.code") { value("SERVICE_CREDENTIALS_REQUIRED") }
+            }
+        }
+        verify(exactly = 0) { convertUseCase.execute(any(), any()) }
+    }
+
+    @Test
+    fun `reading a checkout session without the order service's token is a 403`() {
+        listOf(null, "wrong-token").forEach { token ->
+            getCheckoutSession(UUID.randomUUID(), serviceToken = token).andExpect {
+                status { isForbidden() }
+                jsonPath("$.code") { value("SERVICE_CREDENTIALS_REQUIRED") }
+            }
+        }
+        verify(exactly = 0) { cartRepository.findBySessionIdAndStatusIn(any(), any()) }
     }
 }

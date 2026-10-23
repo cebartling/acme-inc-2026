@@ -437,11 +437,19 @@ sequenceDiagram
   is 404). A lapsed cart stays locked for the grace period plus up to a minute until the job
   runs; changes in that gap are still 409 `CART_LOCKED`, but leaving checkout works, and so
   does starting it again if every line can still be ordered.
+- **Only the order service may read a checkout session or convert (PIN-382, [ADR-0061](adrs/0061-order-service-token-for-cart-calls.md))**:
+  both endpoints below require the order service's shared secret in `X-Service-Token`
+  (`ACME_ORDER_SERVICE_TOKEN`, checked in constant time by `ServiceCredentials`; the cart
+  won't start without it). Missing or wrong is 403 `SERVICE_CREDENTIALS_REQUIRED`, before the
+  handler reads or changes the cart, so the customer's browser can't convert its own cart into
+  a made-up order. The check is in the handler: `GuestSessionInterceptor` has already touched a
+  guest's cart, and a malformed body or path is a 400 first. The order service logs a refused
+  token as an error, since retrying can't help until the tokens match.
 - **Reading a checkout session (PIN-365, [ADR-0044](adrs/0044-forward-customer-credentials-between-services.md))**: `GET /api/v1/carts/checkout-sessions/{checkoutSessionId}`
   returns the cart a live session is locked for, which is what the order service builds an
   order from: the session ID and `expiresAt`, the cart ID, `userId` (null for a guest), the
   lines and the summary. Like every cart endpoint it answers only for the caller's own cart,
-  so the order service forwards the customer's `access_token` or `acme_session_id` cookie
+  so the order service also forwards the customer's `access_token` or `acme_session_id` cookie
   (the cart reads no `Authorization` header, so a bearer header is an anonymous 404). A guest's
   session ID is never returned. Anything but a live session on that cart (unknown, someone
   else's, left, or lapsed) is 404 `CHECKOUT_SESSION_NOT_FOUND`: ending a session clears its
@@ -568,7 +576,8 @@ read their orders back (PIN-367).
   `POST /api/v1/orders {checkoutSessionId}` with an `Idempotency-Key` header.
   - **Signed-in customers only.** The service verifies identity's `access_token` cookie as
     the cart does (ADR-0043), and forwards it to the cart (ADR-0044) through `CartClient`
-    (`CART_SERVICE_URL`, 2s timeouts).
+    (`CART_SERVICE_URL`, 2s timeouts), with its own shared secret in `X-Service-Token`
+    (`ACME_ORDER_SERVICE_TOKEN`, ADR-0061).
   - **Flow** (`PlaceOrderUseCase`):
     1. Read the checkout session's cart.
     2. Save the order `PENDING`, with the cart's lines, a UUID v7 ID and an

@@ -97,6 +97,9 @@ acme:
       initial-delay: ${ACME_CART_CHECKOUT_UNLOCK_INITIAL_DELAY:PT1M}
       interval: ${ACME_CART_CHECKOUT_UNLOCK_INTERVAL:PT1M}
       grace: ${ACME_CART_CHECKOUT_UNLOCK_GRACE:PT2M}
+    # The order service's shared secret (PIN-382): reading a checkout session and converting a
+    # cart need it in the X-Service-Token header. No default: the service won't start without it.
+    order-service-token: ${ACME_ORDER_SERVICE_TOKEN:}
   product:
     base-url: ${PRODUCT_SERVICE_URL:http://localhost:10303}
 

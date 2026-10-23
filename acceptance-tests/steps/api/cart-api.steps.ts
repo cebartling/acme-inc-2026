@@ -3,6 +3,7 @@ import { Given, When, Then } from '@cucumber/cucumber';
 import { expect } from '@playwright/test';
 import { CustomWorld } from '../../support/world.js';
 import { ApiResponse } from '../../support/api-client.js';
+import { config } from '../../playwright.config.js';
 
 /**
  * Step definitions for the shopping cart API (US-0004-06).
@@ -514,12 +515,15 @@ interface CartConversionResponse {
   convertedAt: string;
 }
 
-// Stands in for the order service (PIN-366), which forwards the customer's session cookie.
-async function convertCart(world: CustomWorld, orderId: string) {
+// Stands in for the order service (PIN-366): its token (PIN-382) plus the customer's session
+// cookie. Without the token it is the customer's own browser calling.
+async function convertCart(world: CustomWorld, orderId: string, asOrderService = true) {
+  const headers = sessionHeaders(world.getTestData<string>('cartSessionId'));
+  if (asOrderService) headers['X-Service-Token'] = config.orderServiceToken;
   const response = await world.cartApiClient.post<CartConversionResponse>(
     `/api/v1/carts/${world.getTestData<string>('cartId')}/convert`,
     { orderId, checkoutSessionId: world.getTestData<string>('checkoutSessionId') },
-    { headers: sessionHeaders(world.getTestData<string>('cartSessionId')) }
+    { headers }
   );
   world.setLastResponse(response);
   return response;
@@ -531,6 +535,13 @@ When('I convert my cart into a new order', async function (this: CustomWorld) {
   const response = await convertCart(this, orderId);
   if (response.status === 200) this.setTestData('convertedAt', response.data.convertedAt);
 });
+
+When(
+  "I convert my cart into a new order without the order service's credentials",
+  async function (this: CustomWorld) {
+    await convertCart(this, randomUUID(), false);
+  }
+);
 
 When('I convert my cart into the same order again', async function (this: CustomWorld) {
   const orderId = this.getTestData<string>('orderId');

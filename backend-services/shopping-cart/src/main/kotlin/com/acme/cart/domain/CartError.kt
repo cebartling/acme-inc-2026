@@ -60,6 +60,11 @@ sealed interface CartError {
     data class CartAlreadyConverted(val cartId: UUID) : CartError {
         override val message = "Cart $cartId has already been converted to an order"
     }
+
+    /** Only the order service may read a checkout session or convert a cart (PIN-382). */
+    data object ServiceCredentialsRequired : CartError {
+        override val message = "Only the order service may make this request"
+    }
 }
 
 /** A cart line that checkout refused (PIN-329), and why. */

@@ -41,6 +41,7 @@ import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
+import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
@@ -61,7 +62,8 @@ class CartController(
     private val convertCartUseCase: ConvertCartUseCase,
     private val cartRepository: CartRepository,
     private val objectMapper: ObjectMapper,
-    private val guestSessionCookies: GuestSessionCookies
+    private val guestSessionCookies: GuestSessionCookies,
+    private val serviceCredentials: ServiceCredentials
 ) {
     private val logger = LoggerFactory.getLogger(CartController::class.java)
 
@@ -176,8 +178,9 @@ class CartController(
 
     /**
      * The cart a live checkout session is locked for (PIN-365), for the order service to build
-     * an order from. Like every cart endpoint it answers only for the caller's own cart, so the
-     * order service forwards the customer's token or session cookie; the guest session ID is
+     * an order from. Only the order service may call it: without its [ServiceCredentials] it is
+     * a 403 (PIN-382). Like every cart endpoint it answers only for the caller's own cart, so the
+     * order service also forwards the customer's token or session cookie; the guest session ID is
      * never returned. Anything but a live session on that cart is 404, and nothing is saved, so
      * reading never extends the session.
      */
@@ -185,8 +188,10 @@ class CartController(
     fun getCheckoutSession(
         @AuthenticationPrincipal jwt: Jwt?,
         @CookieValue(SESSION_COOKIE, required = false) sessionCookie: String?,
+        @RequestHeader(ServiceCredentials.HEADER, required = false) serviceToken: String?,
         @PathVariable checkoutSessionId: UUID
     ): ResponseEntity<Any> {
+        if (!serviceCredentials.isOrderService(serviceToken)) return errorResponse(CartError.ServiceCredentialsRequired)
         val cart = ownerOf(jwt, sessionCookie)?.let(cartRepository::findActiveCart)
         val session = cart?.liveCheckoutSession(Instant.now())?.takeIf { it.id == checkoutSessionId }
             ?: return errorResponse(CartError.CheckoutSessionNotFound(checkoutSessionId))
@@ -210,17 +215,20 @@ class CartController(
 
     /**
      * Converts the caller's own cart into the order placed for its checkout session (PIN-331,
-     * journey 0005 step 5). The order service calls this, forwarding the customer's token or
-     * session cookie as for [getCheckoutSession]. Converting again into the same order answers
-     * the same, so the order service can retry.
+     * journey 0005 step 5). Only the order service may call it, with its [ServiceCredentials]
+     * and the customer's token or session cookie, as for [getCheckoutSession]; otherwise the
+     * customer could convert their own cart into a made-up order (PIN-382). Converting again
+     * into the same order answers the same, so the order service can retry.
      */
     @PostMapping("/{cartId}/convert")
     fun convert(
         @AuthenticationPrincipal jwt: Jwt?,
         @CookieValue(SESSION_COOKIE, required = false) sessionCookie: String?,
+        @RequestHeader(ServiceCredentials.HEADER, required = false) serviceToken: String?,
         @PathVariable cartId: UUID,
         @Valid @RequestBody request: ConvertCartRequest
     ): ResponseEntity<Any> {
+        if (!serviceCredentials.isOrderService(serviceToken)) return errorResponse(CartError.ServiceCredentialsRequired)
         val owner = ownerOf(jwt, sessionCookie) ?: return errorResponse(CartError.CartNotFound(cartId))
         val command = ConvertCartCommand(owner, cartId, request.orderId!!, request.checkoutSessionId!!)
         return convertCartUseCase.execute(command)
@@ -329,6 +337,7 @@ class CartController(
         is CartError.CheckoutSessionNotFound -> HttpStatus.NOT_FOUND
         is CartError.CartLocked, is CartError.CartAlreadyConverted -> HttpStatus.CONFLICT
         is CartError.PricingUnavailable, is CartError.AvailabilityUnavailable -> HttpStatus.SERVICE_UNAVAILABLE
+        is CartError.ServiceCredentialsRequired -> HttpStatus.FORBIDDEN
     }
 
     private fun codeFor(error: CartError): String = when (error) {
@@ -343,6 +352,7 @@ class CartController(
         is CartError.AvailabilityUnavailable -> "AVAILABILITY_UNAVAILABLE"
         is CartError.CheckoutSessionNotFound -> "CHECKOUT_SESSION_NOT_FOUND"
         is CartError.CartAlreadyConverted -> "CART_ALREADY_CONVERTED"
+        is CartError.ServiceCredentialsRequired -> "SERVICE_CREDENTIALS_REQUIRED"
     }
 
     private fun validSession(cookie: String?): String? = guestSessionCookies.validSessionId(cookie)

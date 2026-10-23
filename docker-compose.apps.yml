@@ -384,6 +384,9 @@ services:
       # Authoritative prices come from the product service
       PRODUCT_SERVICE_URL: http://product-service:10303
 
+      # Only the order service, which sends this secret, may read a checkout session or convert a cart (PIN-382)
+      ACME_ORDER_SERVICE_TOKEN: ${ACME_ORDER_SERVICE_TOKEN:-local-dev-order-service-token}
+
       # Verifies the access_token cookie against identity's public signing keys
       ACME_IDENTITY_JWKS_URI: http://identity-service:10300/.well-known/jwks.json
 
@@ -449,6 +452,8 @@ services:
 
       # Orders read and convert the checkout session's cart (PIN-366)
       CART_SERVICE_URL: http://shopping-cart-service:10304
+      # Sent on those calls; must match the cart's (PIN-382)
+      ACME_ORDER_SERVICE_TOKEN: ${ACME_ORDER_SERVICE_TOKEN:-local-dev-order-service-token}
 
       # Verifies the access_token cookie against identity's public signing keys
       ACME_IDENTITY_JWKS_URI: http://identity-service:10300/.well-known/jwks.json
