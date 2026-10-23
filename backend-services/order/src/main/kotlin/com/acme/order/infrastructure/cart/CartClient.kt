@@ -66,8 +66,11 @@ class CartClient(
 
     private val logger = LoggerFactory.getLogger(CartClient::class.java)
 
+    // Padding would never match the cart's copy, and a newline makes the header itself invalid
     init {
-        require(serviceToken.isNotBlank()) { "acme.cart.service-token (ACME_ORDER_SERVICE_TOKEN) must be set" }
+        require(serviceToken.isNotBlank() && serviceToken == serviceToken.trim()) {
+            "acme.cart.service-token (ACME_ORDER_SERVICE_TOKEN) must be set, with no leading or trailing whitespace"
+        }
     }
 
     /** `GET /api/v1/carts/checkout-sessions/{id}`: the session's cart, if it's live and the caller's. */

@@ -15,8 +15,11 @@ class ServiceCredentials(
 ) {
     private val expected = orderServiceToken.toByteArray()
 
+    // Padding can never match: the server trims it off the incoming header value
     init {
-        require(orderServiceToken.isNotBlank()) { "acme.cart.order-service-token (ACME_ORDER_SERVICE_TOKEN) must be set" }
+        require(orderServiceToken.isNotBlank() && orderServiceToken == orderServiceToken.trim()) {
+            "acme.cart.order-service-token (ACME_ORDER_SERVICE_TOKEN) must be set, with no leading or trailing whitespace"
+        }
     }
 
     /** Compared in constant time, so the answer's timing doesn't reveal how much matched. */

@@ -18,8 +18,8 @@ class ServiceCredentialsTest {
     }
 
     @Test
-    fun `a blank token is rejected at startup`() {
-        listOf("", "  ").forEach { token ->
+    fun `a blank or padded token is rejected at startup`() {
+        listOf("", "  ", " order-secret", "order-secret\n").forEach { token ->
             assertFailsWith<IllegalArgumentException> { ServiceCredentials(token) }
         }
     }

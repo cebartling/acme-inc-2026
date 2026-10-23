@@ -6,7 +6,8 @@ Accepted
 
 Amends [ADR-0044](0044-forward-customer-credentials-between-services.md): the order service
 still forwards the customer's credentials, and now also proves who it is. This replaces
-ADR-0044's decision 3, which left service-to-service authentication out of scope.
+ADR-0044's decision 3, which left service-to-service authentication out of scope, and
+qualifies decision 2: these two endpoints now check the caller as well as the owner.
 
 ## Context
 
@@ -28,7 +29,8 @@ identity, and no secret shared between services.
    calls, alongside the customer's `access_token` cookie. Both services read the secret from
    `ACME_ORDER_SERVICE_TOKEN` (`acme.cart.order-service-token` in the cart,
    `acme.cart.service-token` in the order service). It has no default, and either service
-   refuses to start without it.
+   refuses to start without it, or with leading or trailing whitespace, which the cart's
+   server trims off the header and so could never match.
 2. **Only these two endpoints require it.** `convert` and the checkout-session read are for
    the order service only. No frontend calls them. Every other cart endpoint stays open to
    the customer, as before.

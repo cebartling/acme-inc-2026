@@ -143,8 +143,8 @@ class CartClientTest {
     }
 
     @Test
-    fun `a blank service token is rejected at startup`() {
-        listOf("", "  ").forEach { token ->
+    fun `a blank or padded service token is rejected at startup`() {
+        listOf("", "  ", " order-secret", "order-secret\n").forEach { token ->
             assertThrows<IllegalArgumentException> { CartClient(builder.build(), token) }
         }
     }

@@ -3,8 +3,9 @@
 ## Status
 
 Accepted. Amended by [ADR-0061](0061-order-service-token-for-cart-calls.md): the order service
-now also sends a shared secret, which replaces decision 3 and fixes the first negative
-consequence (PIN-382).
+now also sends a shared secret, which replaces decision 3, qualifies decision 2 (the checkout
+session read and `convert` now check the caller as well as the owner), and fixes the first
+negative consequence (PIN-382).
 
 Relates to [ADR-0043](0043-cross-service-jwt-verification.md), which covers how the cart
 verifies the customer's token.
