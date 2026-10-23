@@ -37,7 +37,8 @@ identity, and no secret shared between services.
 3. **Checked first, then ownership.** The cart's `ServiceCredentials` compares the header in
    constant time (`MessageDigest.isEqual`). Missing or wrong is a 403
    `{error, code: "SERVICE_CREDENTIALS_REQUIRED"}` ([ADR-0050](0050-api-error-body-format.md)),
-   before any cart is looked up. With the header, the existing owner checks still apply, so
+   before the handler reads or changes the cart (the guest session interceptor has already
+   run, and request validation comes first). With the header, the existing owner checks still apply, so
    the order service reaches only the customer's own cart.
 4. **The check is in the controller**, not in `SecurityConfig`, which keeps its "every
    endpoint open, token optional" setup (ADR-0043).
@@ -64,7 +65,10 @@ identity, and no secret shared between services.
   the environment can act as the order service. It isn't in Vault (ADR-0009) yet.
 - Local development and the acceptance tests use a known default,
   `local-dev-order-service-token`, from `docker-compose.apps.yml`.
-- A wrong or missing secret in the order service makes every order fail with "cart
-  unavailable" (`CartClient` treats the 403 like any other unexpected answer) until it's
-  fixed.
+- A wrong secret in the order service makes every order fail with "cart unavailable" until
+  it's fixed. `CartClient` logs the 403 as an error naming the setting, so it isn't mistaken
+  for a cart outage.
+- The check runs in the handler, so a refused call still passes through
+  `GuestSessionInterceptor` (a guest cookie touches the cart's `last_active_at` and is
+  re-issued), and a malformed body or path is a 400 before the 403.
 - It doesn't address ADR-0044's other negatives, such as a forwarded access token expiring.

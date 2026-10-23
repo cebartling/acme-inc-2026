@@ -120,6 +120,15 @@ class CartClient(
             // The cart's 401 body is {"error": "TOKEN_EXPIRED" | "INVALID_TOKEN"}, with no code
             ex.statusCode == HttpStatus.UNAUTHORIZED -> CartResult.Unauthorized(body?.error ?: "INVALID_TOKEN")
             body?.code in FINAL_CODES -> CartResult.Refused(body!!.code!!, body.error ?: body.code!!)
+            // A configuration error, not an outage: no retry can succeed until the tokens match
+            body?.code == SERVICE_CREDENTIALS_REQUIRED -> {
+                logger.error(
+                    "Cart refused the order service's token to {}: acme.cart.service-token must match the cart's " +
+                        "acme.cart.order-service-token (ACME_ORDER_SERVICE_TOKEN)",
+                    description
+                )
+                CartResult.Unavailable
+            }
             else -> {
                 logger.warn("Cart answered {} with {} {}", description, ex.statusCode, body?.code, ex)
                 CartResult.Unavailable
@@ -132,6 +141,7 @@ class CartClient(
     companion object {
         const val ACCESS_TOKEN_COOKIE = "access_token"
         const val SERVICE_TOKEN_HEADER = "X-Service-Token"
+        const val SERVICE_CREDENTIALS_REQUIRED = "SERVICE_CREDENTIALS_REQUIRED"
 
         /** The cart's answers that mean the order can't go ahead; anything else is retried. */
         val FINAL_CODES = setOf("CHECKOUT_SESSION_NOT_FOUND", "CART_NOT_FOUND", "CART_ALREADY_CONVERTED")

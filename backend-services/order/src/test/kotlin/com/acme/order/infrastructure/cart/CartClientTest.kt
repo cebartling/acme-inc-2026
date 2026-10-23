@@ -143,6 +143,15 @@ class CartClientTest {
     }
 
     @Test
+    fun `a refused service token is unavailable, not refused`() {
+        server.expect(requestTo(convertUrl)).andRespond(
+            errorBody(HttpStatus.FORBIDDEN, """{"error":"Only the order service may make this request","code":"SERVICE_CREDENTIALS_REQUIRED"}""")
+        )
+
+        assertEquals(CartResult.Unavailable, client.convert(cartId, orderId, sessionId, "the-token"))
+    }
+
+    @Test
     fun `a blank or padded service token is rejected at startup`() {
         listOf("", "  ", " order-secret", "order-secret\n").forEach { token ->
             assertThrows<IllegalArgumentException> { CartClient(builder.build(), token) }

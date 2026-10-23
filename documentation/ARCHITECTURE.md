@@ -440,8 +440,11 @@ sequenceDiagram
 - **Only the order service may read a checkout session or convert (PIN-382, [ADR-0061](adrs/0061-order-service-token-for-cart-calls.md))**:
   both endpoints below require the order service's shared secret in `X-Service-Token`
   (`ACME_ORDER_SERVICE_TOKEN`, checked in constant time by `ServiceCredentials`; the cart
-  won't start without it). Missing or wrong is 403 `SERVICE_CREDENTIALS_REQUIRED`, before any
-  cart is looked up, so the customer's browser can't convert its own cart into a made-up order.
+  won't start without it). Missing or wrong is 403 `SERVICE_CREDENTIALS_REQUIRED`, before the
+  handler reads or changes the cart, so the customer's browser can't convert its own cart into
+  a made-up order. The check is in the handler: `GuestSessionInterceptor` has already touched a
+  guest's cart, and a malformed body or path is a 400 first. The order service logs a refused
+  token as an error, since retrying can't help until the tokens match.
 - **Reading a checkout session (PIN-365, [ADR-0044](adrs/0044-forward-customer-credentials-between-services.md))**: `GET /api/v1/carts/checkout-sessions/{checkoutSessionId}`
   returns the cart a live session is locked for, which is what the order service builds an
   order from: the session ID and `expiresAt`, the cart ID, `userId` (null for a guest), the
