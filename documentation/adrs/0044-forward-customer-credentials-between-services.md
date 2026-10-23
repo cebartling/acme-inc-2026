@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted
+Accepted. Amended by [ADR-0061](0061-order-service-token-for-cart-calls.md): the order service
+now also sends a shared secret, which replaces decision 3 and fixes the first negative
+consequence (PIN-382).
 
 Relates to [ADR-0043](0043-cross-service-jwt-verification.md), which covers how the cart
 verifies the customer's token.
@@ -72,8 +74,8 @@ are for signed-in customers only, so it never forwards a guest's `acme_session_i
 
 ### Mitigations
 
-- PIN-382, in the backlog, is to accept `convert` only from a caller authenticated as the
-  order service, still scoped to the customer's cart, and could cover the checkout session
-  read too.
+- Fixed by PIN-382 ([ADR-0061](0061-order-service-token-for-cart-calls.md)): `convert` and
+  the checkout session read accept only a caller with the order service's shared secret,
+  still scoped to the customer's cart.
 - `convert` is idempotent for the same order and session, so the order service can retry it
   while the customer's credentials are still valid.
