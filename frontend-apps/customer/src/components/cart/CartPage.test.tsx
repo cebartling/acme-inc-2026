@@ -23,6 +23,7 @@ vi.mock("@tanstack/react-router", () => ({
       {children}
     </a>
   ),
+  useNavigate: () => vi.fn(),
 }));
 
 vi.mock("@/services/api", async (importOriginal) => ({
