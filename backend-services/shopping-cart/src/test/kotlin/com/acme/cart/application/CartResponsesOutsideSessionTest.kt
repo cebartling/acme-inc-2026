@@ -89,7 +89,7 @@ class CartResponsesOutsideSessionTest {
     private val update by lazy { UpdateCartItemQuantityUseCase(carts, pricingClient, outboxWriter, transactions, 10) }
     private val remove by lazy { RemoveCartItemUseCase(carts, outboxWriter, transactions) }
     private val clear by lazy { ClearCartUseCase(carts, outboxWriter, transactions) }
-    private val merge by lazy { MergeCartsUseCase(carts, pricingClient, outboxWriter, transactions, 10) }
+    private val merge by lazy { MergeCartsUseCase(carts, pricingClient, outboxWriter, transactions, CheckoutSessionExpiry(outboxWriter, SimpleMeterRegistry()), 10) }
     private val abandon by lazy { AbandonCheckoutUseCase(carts, outboxWriter, transactions, CheckoutSessionExpiry(outboxWriter, SimpleMeterRegistry())) }
 
     private fun session() = "sess-${UUID.randomUUID()}"

@@ -44,7 +44,8 @@ that is safe to repeat and to run twice at once.
    cart is a no-op with no event. Capped variants are listed in
    `mergeResult.quantitiesAdjusted`; a variant the product service answers
    `VARIANT_NOT_FOUND` for is left behind in the `MERGED` guest cart and listed in
-   `itemsUnavailable` (PIN-306). A guest cart in checkout is not merged, and an account cart
+   `itemsUnavailable` (PIN-306). A guest cart in checkout leaves checkout and is merged,
+   since only a signed-in customer's session can become an order (PIN-373). An account cart
    in checkout refuses the merge with 409 `CART_LOCKED`.
 6. **The cookie survives sign-in.** After sign-out the same browser starts a new guest cart,
    which the partial indexes allow beside the `MERGED` one.

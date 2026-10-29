@@ -10,7 +10,10 @@ import com.acme.cart.domain.UnavailableItem
 import com.acme.cart.domain.VariantPricing
 import com.acme.cart.domain.events.CartCreated
 import com.acme.cart.domain.events.CartMerged
+import com.acme.cart.domain.events.CheckoutAbandoned
+import com.acme.cart.domain.events.CheckoutSessionExpired
 import com.acme.cart.domain.events.DomainEvent
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import com.acme.cart.domain.newCartFor
 import com.acme.cart.infrastructure.messaging.OutboxWriter
 import com.acme.cart.infrastructure.persistence.CartRepository
@@ -26,6 +29,7 @@ import org.junit.jupiter.api.Test
 import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.support.TransactionTemplate
 import java.math.BigDecimal
+import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -45,6 +49,7 @@ class MergeCartsUseCaseTest {
         pricingClient = pricingClient,
         outboxWriter = outboxWriter,
         transactionTemplate = TransactionTemplate(transactionManager),
+        checkoutSessionExpiry = CheckoutSessionExpiry(outboxWriter, SimpleMeterRegistry()),
         maxOrderQuantity = 10
     )
 
@@ -260,20 +265,62 @@ class MergeCartsUseCaseTest {
 
     // --- PIN-329: a cart in checkout is locked ---------------------------------------
 
-    @Test
-    fun `a guest cart in checkout is not merged, so its checkout keeps it`() {
-        val guest = guestWith(2).apply { startCheckout(StartCheckoutUseCase.SESSION_LENGTH) }
-        val user = newCartFor(CartOwner.Customer(userId))
+    // PIN-373: the order service reads a session with the customer's token only, so a guest
+    // cart's checkout could never become an order once the guest has signed in.
+    private fun givenGuestInCheckout(guest: Cart, user: Cart?) {
         givenCarts(guest = guest, user = user)
-        // The row-locked re-read only finds an ACTIVE guest cart
         every { cartRepository.findForUpdateBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } returns null
+        every { cartRepository.findForUpdateBySessionIdAndStatus("sess-1", CartStatus.CHECKOUT) } returns guest
+    }
+
+    @Test
+    fun `a guest cart in checkout leaves checkout and is merged (PIN-373)`() {
+        val guest = guestWith(2)
+        val session = guest.startCheckout(StartCheckoutUseCase.SESSION_LENGTH).getOrNull()!!
+        val user = newCartFor(CartOwner.Customer(userId))
+        givenGuestInCheckout(guest, user)
 
         val outcome = useCase.execute(MergeCartsCommand(userId, "sess-1")).getOrNull()!!
 
-        assertEquals(user, outcome.cart)
-        assertNull(outcome.result)
+        assertEquals(2, outcome.cart?.itemCount)
+        assertEquals(CartStatus.ACTIVE, outcome.cart?.status)
+        assertEquals(CartStatus.MERGED, guest.status)
+        assertNull(guest.checkoutSessionId)
+        val (abandoned, merged) = published
+        val payload = assertIs<CheckoutAbandoned>(abandoned).payload
+        assertEquals(guest.id, payload.cartId)
+        assertEquals(session.id, payload.checkoutSessionId)
+        assertEquals("sess-1", payload.sessionId)
+        assertIs<CartMerged>(merged)
+    }
+
+    @Test
+    fun `a guest cart whose checkout already lapsed reports it as expired and is merged (PIN-373)`() {
+        val guest = guestWith(2)
+        val session = guest.startCheckout(StartCheckoutUseCase.SESSION_LENGTH, now = Instant.now().minusSeconds(3600))
+            .getOrNull()!!
+        givenGuestInCheckout(guest, user = newCartFor(CartOwner.Customer(userId)))
+
+        useCase.execute(MergeCartsCommand(userId, "sess-1")).getOrNull()!!
+
+        assertEquals(CartStatus.MERGED, guest.status)
+        val (expired, merged) = published
+        assertEquals(session.id, assertIs<CheckoutSessionExpired>(expired).payload.checkoutSessionId)
+        assertIs<CartMerged>(merged)
+    }
+
+    @Test
+    fun `a guest cart in checkout stays in checkout when the account cart is in checkout too`() {
+        val guest = guestWith(2).apply { startCheckout(StartCheckoutUseCase.SESSION_LENGTH) }
+        val user = newCartFor(CartOwner.Customer(userId)).apply {
+            addItem(UUID.randomUUID(), 1, pricing, "{}", 10)
+            startCheckout(StartCheckoutUseCase.SESSION_LENGTH)
+        }
+        givenGuestInCheckout(guest, user)
+
+        assertEquals(CartError.CartLocked(user.id), useCase.execute(MergeCartsCommand(userId, "sess-1")).leftOrNull())
         assertEquals(CartStatus.CHECKOUT, guest.status)
-        verify(exactly = 0) { pricingClient.getPricing(any()) }
+        verify(exactly = 0) { cartRepository.save(any()) }
         assertEquals(emptyList(), published)
     }
 

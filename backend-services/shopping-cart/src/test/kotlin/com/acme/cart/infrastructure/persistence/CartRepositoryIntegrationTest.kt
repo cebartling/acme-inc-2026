@@ -613,9 +613,9 @@ class CartRepositoryIntegrationTest {
     }
 
     /**
-     * The guest cart stranded by sign-in: merge leaves a guest cart in checkout alone
-     * (MergeCartsUseCaseTest), so while the user shops on their own cart the guest one stays
-     * locked. Once its session lapses it is unlocked, and the guest session can use it again.
+     * The guest cart stranded by sign-in: when the account cart is in checkout too, merge
+     * refuses and leaves the guest cart locked (MergeCartsUseCaseTest, PIN-373). Once its
+     * session lapses it is unlocked, and the guest session can use it again.
      */
     @Test
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
