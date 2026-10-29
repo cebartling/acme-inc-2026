@@ -8,6 +8,7 @@ import com.acme.order.application.OrderLine
 import com.acme.order.application.PlaceOrderCommand
 import com.acme.order.application.PlaceOrderResult
 import com.acme.order.application.PlaceOrderUseCase
+import com.acme.order.config.CorsConfig
 import com.acme.order.config.SecurityConfig
 import com.acme.order.domain.Order
 import com.acme.order.domain.OrderStatus
@@ -37,13 +38,14 @@ import org.springframework.security.oauth2.jwt.JwtDecoder
 import org.springframework.security.oauth2.jwt.JwtValidationException
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
+import org.springframework.test.web.servlet.options
 import org.springframework.test.web.servlet.post
 import java.math.BigDecimal
 import java.time.Instant
 import java.util.UUID
 
 @WebMvcTest(OrderController::class)
-@Import(SecurityConfig::class)
+@Import(SecurityConfig::class, CorsConfig::class)
 class OrderControllerWebMvcTest(
     @Autowired private val mockMvc: MockMvc,
     @Autowired private val useCase: PlaceOrderUseCase,
@@ -319,6 +321,30 @@ class OrderControllerWebMvcTest(
         }.andExpect {
             status { isServiceUnavailable() }
             jsonPath("$.code") { value("CART_UNAVAILABLE") }
+        }
+    }
+
+    @Test
+    fun `an allowed origin's preflight is answered with credentials allowed`() {
+        mockMvc.options("/api/v1/orders") {
+            header("Origin", "http://localhost:7600")
+            header("Access-Control-Request-Method", "POST")
+            header("Access-Control-Request-Headers", "Content-Type, Idempotency-Key")
+        }.andExpect {
+            status { isOk() }
+            header { string("Access-Control-Allow-Origin", "http://localhost:7600") }
+            header { string("Access-Control-Allow-Credentials", "true") }
+        }
+    }
+
+    @Test
+    fun `another origin's preflight is refused`() {
+        mockMvc.options("/api/v1/orders") {
+            header("Origin", "http://evil.example")
+            header("Access-Control-Request-Method", "POST")
+        }.andExpect {
+            status { isForbidden() }
+            header { doesNotExist("Access-Control-Allow-Origin") }
         }
     }
 }
