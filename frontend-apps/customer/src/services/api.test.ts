@@ -7,6 +7,7 @@ import {
   customerApi,
   identityApi,
   inventoryApi,
+  orderApi,
   productApi,
   __resetRefreshStateForTests,
 } from "./api";
@@ -1580,5 +1581,107 @@ describe("inventoryApi", () => {
 
     await vi.advanceTimersByTimeAsync(1);
     await assertion;
+  });
+});
+
+describe("checkout and orders (PIN-426)", () => {
+  const mockFetch = vi.fn();
+  const originalFetch = global.fetch;
+
+  beforeEach(() => {
+    global.fetch = mockFetch;
+    mockFetch.mockReset();
+    __resetRefreshStateForTests();
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  const jsonResponse = (status: number, body: unknown) => ({
+    ok: status < 400,
+    status,
+    headers: new Headers({ "content-type": "application/json" }),
+    json: () => Promise.resolve(body),
+  });
+
+  const placed = {
+    orderId: "order-1",
+    orderNumber: "ACME-20261029-000001",
+    status: "SUBMITTED",
+    createdAt: "2026-10-29T12:00:00Z",
+    summary: { subtotal: { amount: 69.99, currency: "USD" } },
+  };
+
+  it("startCheckout POSTs to the cart's checkout with credentials", async () => {
+    const session = {
+      checkoutSessionId: "session-1",
+      cartId: "cart 1",
+      status: "INITIATED",
+      expiresAt: "2026-10-29T12:30:00Z",
+      cart: { itemCount: 1, subtotal: 69.99, currency: "USD" },
+    };
+    mockFetch.mockResolvedValueOnce(jsonResponse(200, session));
+
+    await expect(cartApi.startCheckout("cart 1")).resolves.toEqual(session);
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringMatching(/\/api\/v1\/carts\/cart%201\/checkout$/),
+      expect.objectContaining({ method: "POST", credentials: "include" }),
+    );
+  });
+
+  it("orderApi.place sends the session and the Idempotency-Key to the order service", async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse(201, placed));
+
+    await expect(orderApi.place("session-1", "key-1")).resolves.toEqual(placed);
+    const [url, init] = mockFetch.mock.calls[0];
+    expect(url).toBe("http://localhost:10305/api/v1/orders");
+    expect(init).toMatchObject({
+      method: "POST",
+      credentials: "include",
+      body: JSON.stringify({ checkoutSessionId: "session-1" }),
+    });
+    expect(init.headers).toMatchObject({ "Idempotency-Key": "key-1" });
+  });
+
+  it("orderApi.place refreshes on TOKEN_EXPIRED and retries with the same key", async () => {
+    mockFetch
+      .mockResolvedValueOnce(
+        jsonResponse(401, { error: "TOKEN_EXPIRED", code: "TOKEN_EXPIRED" }),
+      )
+      .mockResolvedValueOnce(jsonResponse(200, { status: "SUCCESS" }))
+      .mockResolvedValueOnce(jsonResponse(201, placed));
+
+    await expect(orderApi.place("session-1", "key-1")).resolves.toEqual(placed);
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+    expect(mockFetch.mock.calls[1][0]).toContain("/api/v1/auth/refresh");
+    const [retryUrl, retryInit] = mockFetch.mock.calls[2];
+    expect(retryUrl).toBe("http://localhost:10305/api/v1/orders");
+    expect(retryInit.headers).toMatchObject({ "Idempotency-Key": "key-1" });
+  });
+
+  it("orderApi.place rejects with the order service's code", async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(404, {
+        error: "Checkout session not found",
+        code: "CHECKOUT_SESSION_NOT_FOUND",
+      }),
+    );
+
+    const error = await orderApi.place("session-1", "key-1").catch((e) => e);
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error.status).toBe(404);
+    expect(error.data.code).toBe("CHECKOUT_SESSION_NOT_FOUND");
+  });
+
+  it("orderApi.get reads one order with credentials", async () => {
+    const order = { ...placed, lineItems: [], pricing: placed.summary };
+    mockFetch.mockResolvedValueOnce(jsonResponse(200, order));
+
+    await expect(orderApi.get("order-1")).resolves.toEqual(order);
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://localhost:10305/api/v1/orders/order-1",
+      expect.objectContaining({ method: "GET", credentials: "include" }),
+    );
   });
 });
