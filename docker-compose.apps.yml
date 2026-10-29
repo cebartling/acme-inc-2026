@@ -441,6 +441,8 @@ services:
     environment:
       SERVER_PORT: 10305
       SPRING_PROFILES_ACTIVE: docker
+      # Extra comma-separated CORS origins (e.g. a Tailscale serve URL)
+      ACME_CORS_EXTRA_ORIGINS: ${ACME_CORS_EXTRA_ORIGINS:-}
 
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432

@@ -606,8 +606,10 @@ read their orders back (PIN-367).
   - **Other errors**, all `{error, code}` (ADR-0050): `401 SIGN_IN_REQUIRED`, `TOKEN_EXPIRED`
     or `INVALID_TOKEN`; `400 IDEMPOTENCY_KEY_REQUIRED` or `INVALID_REQUEST`.
   - **Not handled yet:** nothing sweeps an order whose retry never comes, so it stays
-    `PENDING`. There is no CORS configuration for browser calls either: no frontend places
-    orders yet.
+    `PENDING`.
+  - **Browser calls:** CORS follows the cart's `CorsConfig` (PIN-425), though no frontend
+    places orders yet; see
+    [CORS and Browser-Facing Backend URLs](#cors-and-browser-facing-backend-urls).
 - **Reading orders** (PIN-367, journey 0005 step 6 and the start of epic F5), signed-in
   customers only, like placing them:
   - `GET /api/v1/orders/{orderId}` (`GetOrderUseCase`) answers the order's number, status,
@@ -852,6 +854,7 @@ sends (PIN-346). The welcome email keeps its once-per-customer check.
 ### CORS and Browser-Facing Backend URLs
 
 - The customer frontend calls the identity, customer, product and shopping cart services directly from the browser
+- The order service allows the same origins, ready for when the customer app calls it; there is no `VITE_ORDER_SERVICE_URL` yet, so the Tailscale export below has no order URL
 - Backend URLs are baked in at build time via `VITE_*_SERVICE_URL` (see `frontend-apps/customer/src/services/api.ts`); unset means `http://localhost:<port>`
 - Each service's `CorsConfig` allows the localhost frontend origins plus any comma-separated origins in `ACME_CORS_EXTRA_ORIGINS` (property `acme.cors.extra-origins`)
 - To expose the frontend on a Tailscale tailnet, serve the frontend and each backend with `tailscale serve`, then rebuild with those URLs:
@@ -863,6 +866,7 @@ tailscale serve --bg --https=8443 10300      # identity
 tailscale serve --bg --https=8444 10301      # customer
 tailscale serve --bg --https=8445 10303      # product
 tailscale serve --bg --https=8446 10304      # shopping cart
+tailscale serve --bg --https=8447 10305      # order
 export VITE_IDENTITY_SERVICE_URL=$T:8443 VITE_CUSTOMER_SERVICE_URL=$T:8444 \
        VITE_PRODUCT_SERVICE_URL=$T:8445 VITE_INVENTORY_SERVICE_URL=$T:8445 \
        VITE_PRICING_SERVICE_URL=$T:8445 VITE_CART_SERVICE_URL=$T:8446 \
