@@ -19,7 +19,11 @@ export function CheckoutPage() {
   const queryClient = useQueryClient();
   const isAuthenticated = useIsAuthenticated();
   const isAuthLoading = useIsAuthLoading();
-  const { data: cart, isPending: isCartPending } = useCart();
+  const {
+    data: cart,
+    isPending: isCartPending,
+    isError: isCartError,
+  } = useCart();
   const hasLines = !!cart && cart.items.length > 0;
 
   // Only signed-in customers can place orders; a guest signs in and starts again from the cart
@@ -38,6 +42,8 @@ export function CheckoutPage() {
     staleTime: Infinity,
     gcTime: 0,
     refetchOnWindowFocus: false,
+    // A refusal (422, 404) won't change on a retry; showing it beats a skeleton through backoff
+    retry: false,
   });
 
   const sessionId = session.data?.checkoutSessionId;
@@ -57,7 +63,12 @@ export function CheckoutPage() {
       queryClient.invalidateQueries({ queryKey: CART_QUERY_KEY });
     },
     onError: (error) => {
-      if (codeOf(error) === "CART_ALREADY_CONVERTED") {
+      // Either can mean another tab's order converted the cart, so the badge reloads
+      const code = codeOf(error);
+      if (
+        code === "CART_ALREADY_CONVERTED" ||
+        code === "CHECKOUT_SESSION_NOT_FOUND"
+      ) {
         queryClient.invalidateQueries({ queryKey: CART_QUERY_KEY });
       }
     },
@@ -85,6 +96,13 @@ export function CheckoutPage() {
     return (
       <Notice testId="orderAlreadyPlaced">
         This order was already placed in another tab.
+      </Notice>
+    );
+  }
+  if (!cart && isCartError) {
+    return (
+      <Notice testId="checkoutUnavailable">
+        We couldn’t load your cart. Please try again.
       </Notice>
     );
   }
@@ -195,8 +213,9 @@ const storageKeyFor = (sessionId: string) => `acme.checkout.${sessionId}.key`;
 /**
  * One `Idempotency-Key` per checkout session (AC-5.8), kept for every retry of it, including
  * after a reload, so a request whose answer was lost can't place a second order. Kept in
- * sessionStorage, which is per tab: another tab has its own key, and the order service answers
- * it 409 `CART_ALREADY_CONVERTED` once this tab's order has converted the cart.
+ * sessionStorage, which is per tab: another tab has its own key. Once this tab's order has
+ * converted the cart, the converted cart has no live session, so the order service answers that
+ * tab 404 `CHECKOUT_SESSION_NOT_FOUND`; 409 `CART_ALREADY_CONVERTED` only when the two race.
  */
 function useIdempotencyKey(sessionId: string | undefined): string | undefined {
   // Also held here, so the key stays the same for this page when storage is unavailable

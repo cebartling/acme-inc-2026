@@ -218,6 +218,32 @@ describe("CheckoutPage (PIN-426)", () => {
     expect(screen.queryByTestId("placeOrder")).not.toBeInTheDocument();
   });
 
+  it("shows a refusal to start checkout without retrying it", async () => {
+    mockedStart.mockRejectedValue(
+      new ApiError("Some items in your cart can't be ordered", 422, {
+        error: "Some items in your cart can't be ordered",
+        code: "CART_VALIDATION_FAILED",
+      }),
+    );
+    // The app's defaults, which retry queries, rather than the tests' retry: false
+    renderPage(new QueryClient());
+
+    expect(await screen.findByTestId("checkoutUnavailable")).toHaveTextContent(
+      "Some items in your cart can't be ordered",
+    );
+    expect(mockedStart).toHaveBeenCalledTimes(1);
+  });
+
+  it("says the cart couldn't load rather than that it is empty", async () => {
+    mockedGetCurrent.mockRejectedValue(new ApiError("HTTP 503", 503));
+    renderPage();
+
+    expect(await screen.findByTestId("checkoutUnavailable")).toHaveTextContent(
+      /couldn’t load your cart/i,
+    );
+    expect(screen.queryByTestId("checkoutEmpty")).not.toBeInTheDocument();
+  });
+
   it("sends a guest to sign-in without starting checkout", async () => {
     useAuthStore.getState().clearUser();
     renderPage();

@@ -2,7 +2,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { cartApi } from "@/services/api";
-import { useAuthStore } from "@/stores/auth.store";
+import { useIsAuthenticated } from "@/stores/auth.store";
 
 /**
  * "Checkout" (PIN-426, journey 0005 step 1). Only signed-in customers can place orders, so a
@@ -12,7 +12,7 @@ import { useAuthStore } from "@/stores/auth.store";
  */
 export function CheckoutButton({ cartId }: { cartId: string }) {
   const navigate = useNavigate();
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const isAuthenticated = useIsAuthenticated();
   const start = useMutation({
     mutationFn: () => cartApi.startCheckout(cartId),
     onSuccess: () => navigate({ to: "/checkout" }),

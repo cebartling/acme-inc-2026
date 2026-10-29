@@ -621,10 +621,13 @@ read their orders back (PIN-367).
   - **Placing:** Place order sends `POST /api/v1/orders` with one `Idempotency-Key` per
     session, a `crypto.randomUUID()` kept in sessionStorage (`acme.checkout.<sessionId>.key`).
     A retry or a reload reuses it, so a lost answer can't place a second order; the button is
-    disabled while a request is pending. sessionStorage is per tab, so another tab's key gets
-    `409 CART_ALREADY_CONVERTED` once this tab's order has converted the cart.
-  - **Refusals:** `404 CHECKOUT_SESSION_NOT_FOUND` (lapsed) and `409 CART_ALREADY_CONVERTED`
-    replace the page with a message and a link back to the cart; `503 CART_UNAVAILABLE` offers
+    disabled while a request is pending. sessionStorage is per tab, so another tab has its own
+    key; once this tab's order has converted the cart, the converted cart has no live session,
+    so that tab gets `404 CHECKOUT_SESSION_NOT_FOUND`, or `409 CART_ALREADY_CONVERTED` only if
+    the two raced.
+  - **Refusals:** `404 CHECKOUT_SESSION_NOT_FOUND` (lapsed, or converted by another tab) and
+    `409 CART_ALREADY_CONVERTED` replace the page with a message and a link back to the cart,
+    and reload the cart query; `503 CART_UNAVAILABLE` offers
     Try again with the same key. `TOKEN_EXPIRED` is refreshed and retried by `api.ts`'s
     interceptor, like any other service's.
   - **Placed:** the page replaces itself with `/orders/$orderId/confirmation`
