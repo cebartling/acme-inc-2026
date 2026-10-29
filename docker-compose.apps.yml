@@ -519,6 +519,7 @@ services:
         VITE_INVENTORY_SERVICE_URL: ${VITE_INVENTORY_SERVICE_URL:-}
         VITE_PRICING_SERVICE_URL: ${VITE_PRICING_SERVICE_URL:-}
         VITE_CART_SERVICE_URL: ${VITE_CART_SERVICE_URL:-}
+        VITE_ORDER_SERVICE_URL: ${VITE_ORDER_SERVICE_URL:-}
     image: acme-customer-frontend:latest
     container_name: acme-customer-frontend
     hostname: customer-frontend
