@@ -34,6 +34,7 @@ export default [
         Headers: 'readonly',
         AbortController: 'readonly',
         AbortSignal: 'readonly',
+        crypto: 'readonly',
         Event: 'readonly',
         CustomEvent: 'readonly',
         EventTarget: 'readonly',

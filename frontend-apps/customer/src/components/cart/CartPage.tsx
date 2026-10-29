@@ -5,6 +5,7 @@ import { availabilityQueryOptions } from "@/hooks/useVariantSelection";
 import { CartEmptyState } from "./CartEmptyState";
 import { CartLineItem } from "./CartLineItem";
 import { CartSummary } from "./CartSummary";
+import { CheckoutButton } from "./CheckoutButton";
 import { ClearCartButton } from "./ClearCartButton";
 
 /** The guest's cart (US-0004-07): lines, totals, or the empty state. */
@@ -66,6 +67,7 @@ export function CartPage() {
               excludesOutOfStock={outOfStock.size > 0}
               checkingAvailability={pending.size > 0}
             />
+            <CheckoutButton cartId={cart.id} />
             <ClearCartButton cartId={cart.id} />
           </div>
         </div>

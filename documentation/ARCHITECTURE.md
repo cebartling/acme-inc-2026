@@ -607,9 +607,36 @@ read their orders back (PIN-367).
     or `INVALID_TOKEN`; `400 IDEMPOTENCY_KEY_REQUIRED` or `INVALID_REQUEST`.
   - **Not handled yet:** nothing sweeps an order whose retry never comes, so it stays
     `PENDING`.
-  - **Browser calls:** CORS follows the cart's `CorsConfig` (PIN-425), though no frontend
-    places orders yet; see
+  - **Browser calls:** CORS follows the cart's `CorsConfig` (PIN-425); see
     [CORS and Browser-Facing Backend URLs](#cors-and-browser-facing-backend-urls).
+- **Checkout in the customer app** (PIN-426, journey 0005 steps 1, 4, 5 and 6): signed-in
+  customers only, so a guest who presses Checkout on `/cart` (`CheckoutButton`) goes to
+  `/signin?redirect=/cart` without locking the cart, and starts checkout on the merged account
+  cart after signing in.
+  - **Starting:** Checkout calls `POST /carts/{cartId}/checkout`, so a refusal (`422`, `503
+    AVAILABILITY_UNAVAILABLE`) is shown on `/cart`. `/checkout` (`CheckoutPage`) calls it again
+    on load, which resumes the live session, so a reload shows the same one. The response
+    carries only the cart's summary, so the lines come from `GET /carts/current`: a cart in
+    checkout is locked, so they are the session's.
+  - **Placing:** Place order sends `POST /api/v1/orders` with one `Idempotency-Key` per
+    session, a `crypto.randomUUID()` kept in sessionStorage (`acme.checkout.<sessionId>.key`).
+    A retry or a reload reuses it, so a lost answer can't place a second order; the button is
+    disabled while a request is pending. sessionStorage is per tab, so another tab has its own
+    key; once this tab's order has converted the cart, the converted cart has no live session,
+    so that tab gets `404 CHECKOUT_SESSION_NOT_FOUND`, or `409 CART_ALREADY_CONVERTED` only if
+    the two raced.
+  - **Refusals:** `404 CHECKOUT_SESSION_NOT_FOUND` (lapsed, or converted by another tab) and
+    `409 CART_ALREADY_CONVERTED` replace the page with a message and a link back to the cart,
+    and reload the cart query; `503 CART_UNAVAILABLE` offers
+    Try again with the same key. `TOKEN_EXPIRED` is refreshed and retried by `api.ts`'s
+    interceptor, like any other service's.
+  - **Placed:** the page replaces itself with `/orders/$orderId/confirmation`
+    (`OrderConfirmation`), which reads the order with `GET /api/v1/orders/{orderId}`, so a
+    reload never places it again (AC-6.5). The cart query is invalidated, and the converted
+    cart is no longer current, so the badge and `/cart` show an empty cart.
+  - **Acceptance tests** lapse a session through the cart's test-profile-only
+    `POST /api/v1/test/checkout-sessions/{checkoutSessionId}/lapse` (`TestHelperController`),
+    which moves its expiry a minute back; the cart runs `docker,test` in compose.
 - **Reading orders** (PIN-367, journey 0005 step 6 and the start of epic F5), signed-in
   customers only, like placing them:
   - `GET /api/v1/orders/{orderId}` (`GetOrderUseCase`) answers the order's number, status,
@@ -853,8 +880,7 @@ sends (PIN-346). The welcome email keeps its once-per-customer check.
 
 ### CORS and Browser-Facing Backend URLs
 
-- The customer frontend calls the identity, customer, product and shopping cart services directly from the browser
-- The order service allows the same origins, ready for when the customer app calls it; there is no `VITE_ORDER_SERVICE_URL` yet, so the Tailscale export below has no order URL
+- The customer frontend calls the identity, customer, product, shopping cart and order services directly from the browser
 - Backend URLs are baked in at build time via `VITE_*_SERVICE_URL` (see `frontend-apps/customer/src/services/api.ts`); unset means `http://localhost:<port>`
 - Each service's `CorsConfig` allows the localhost frontend origins plus any comma-separated origins in `ACME_CORS_EXTRA_ORIGINS` (property `acme.cors.extra-origins`)
 - To expose the frontend on a Tailscale tailnet, serve the frontend and each backend with `tailscale serve`, then rebuild with those URLs:
@@ -870,6 +896,6 @@ tailscale serve --bg --https=8447 10305      # order
 export VITE_IDENTITY_SERVICE_URL=$T:8443 VITE_CUSTOMER_SERVICE_URL=$T:8444 \
        VITE_PRODUCT_SERVICE_URL=$T:8445 VITE_INVENTORY_SERVICE_URL=$T:8445 \
        VITE_PRICING_SERVICE_URL=$T:8445 VITE_CART_SERVICE_URL=$T:8446 \
-       ACME_CORS_EXTRA_ORIGINS=$T
+       VITE_ORDER_SERVICE_URL=$T:8447 ACME_CORS_EXTRA_ORIGINS=$T
 zsh scripts/docker-manage.sh apps-build && zsh scripts/docker-manage.sh apps-up
 ```

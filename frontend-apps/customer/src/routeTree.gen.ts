@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from "./routes/__root";
 import { Route as IndexRouteImport } from "./routes/index";
 import { Route as CartRouteImport } from "./routes/cart";
+import { Route as CheckoutRouteImport } from "./routes/checkout";
 import { Route as DashboardRouteImport } from "./routes/dashboard";
 import { Route as DevicesRouteImport } from "./routes/devices";
 import { Route as ForgotPasswordRouteImport } from "./routes/forgot-password";
@@ -28,6 +29,7 @@ import { Route as VerifyResendRouteImport } from "./routes/verify.resend";
 import { Route as DemoApiNamesRouteImport } from "./routes/demo/api.names";
 import { Route as DemoStartApiRequestRouteImport } from "./routes/demo/start.api-request";
 import { Route as DemoStartServerFuncsRouteImport } from "./routes/demo/start.server-funcs";
+import { Route as OrdersOrderIdConfirmationRouteImport } from "./routes/orders.$orderId.confirmation";
 import { Route as DemoStartSsrIndexRouteImport } from "./routes/demo/start.ssr.index";
 import { Route as DemoStartSsrDataOnlyRouteImport } from "./routes/demo/start.ssr.data-only";
 import { Route as DemoStartSsrFullSsrRouteImport } from "./routes/demo/start.ssr.full-ssr";
@@ -41,6 +43,11 @@ const IndexRoute = IndexRouteImport.update({
 const CartRoute = CartRouteImport.update({
   id: "/cart",
   path: "/cart",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const CheckoutRoute = CheckoutRouteImport.update({
+  id: "/checkout",
+  path: "/checkout",
   getParentRoute: () => rootRouteImport,
 } as any);
 const DashboardRoute = DashboardRouteImport.update({
@@ -128,6 +135,12 @@ const DemoStartServerFuncsRoute = DemoStartServerFuncsRouteImport.update({
   path: "/demo/start/server-funcs",
   getParentRoute: () => rootRouteImport,
 } as any);
+const OrdersOrderIdConfirmationRoute =
+  OrdersOrderIdConfirmationRouteImport.update({
+    id: "/orders/$orderId/confirmation",
+    path: "/orders/$orderId/confirmation",
+    getParentRoute: () => rootRouteImport,
+  } as any);
 const DemoStartSsrIndexRoute = DemoStartSsrIndexRouteImport.update({
   id: "/demo/start/ssr/",
   path: "/demo/start/ssr/",
@@ -152,6 +165,7 @@ const DemoStartSsrSpaModeRoute = DemoStartSsrSpaModeRouteImport.update({
 export interface FileRoutesByFullPath {
   "/": typeof IndexRoute;
   "/cart": typeof CartRoute;
+  "/checkout": typeof CheckoutRoute;
   "/dashboard": typeof DashboardRoute;
   "/devices": typeof DevicesRoute;
   "/forgot-password": typeof ForgotPasswordRoute;
@@ -169,6 +183,7 @@ export interface FileRoutesByFullPath {
   "/demo/api/names": typeof DemoApiNamesRoute;
   "/demo/start/api-request": typeof DemoStartApiRequestRoute;
   "/demo/start/server-funcs": typeof DemoStartServerFuncsRoute;
+  "/orders/$orderId/confirmation": typeof OrdersOrderIdConfirmationRoute;
   "/demo/start/ssr/data-only": typeof DemoStartSsrDataOnlyRoute;
   "/demo/start/ssr/full-ssr": typeof DemoStartSsrFullSsrRoute;
   "/demo/start/ssr/spa-mode": typeof DemoStartSsrSpaModeRoute;
@@ -177,6 +192,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   "/": typeof IndexRoute;
   "/cart": typeof CartRoute;
+  "/checkout": typeof CheckoutRoute;
   "/dashboard": typeof DashboardRoute;
   "/devices": typeof DevicesRoute;
   "/forgot-password": typeof ForgotPasswordRoute;
@@ -194,6 +210,7 @@ export interface FileRoutesByTo {
   "/demo/api/names": typeof DemoApiNamesRoute;
   "/demo/start/api-request": typeof DemoStartApiRequestRoute;
   "/demo/start/server-funcs": typeof DemoStartServerFuncsRoute;
+  "/orders/$orderId/confirmation": typeof OrdersOrderIdConfirmationRoute;
   "/demo/start/ssr/data-only": typeof DemoStartSsrDataOnlyRoute;
   "/demo/start/ssr/full-ssr": typeof DemoStartSsrFullSsrRoute;
   "/demo/start/ssr/spa-mode": typeof DemoStartSsrSpaModeRoute;
@@ -203,6 +220,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport;
   "/": typeof IndexRoute;
   "/cart": typeof CartRoute;
+  "/checkout": typeof CheckoutRoute;
   "/dashboard": typeof DashboardRoute;
   "/devices": typeof DevicesRoute;
   "/forgot-password": typeof ForgotPasswordRoute;
@@ -220,6 +238,7 @@ export interface FileRoutesById {
   "/demo/api/names": typeof DemoApiNamesRoute;
   "/demo/start/api-request": typeof DemoStartApiRequestRoute;
   "/demo/start/server-funcs": typeof DemoStartServerFuncsRoute;
+  "/orders/$orderId/confirmation": typeof OrdersOrderIdConfirmationRoute;
   "/demo/start/ssr/data-only": typeof DemoStartSsrDataOnlyRoute;
   "/demo/start/ssr/full-ssr": typeof DemoStartSsrFullSsrRoute;
   "/demo/start/ssr/spa-mode": typeof DemoStartSsrSpaModeRoute;
@@ -230,6 +249,7 @@ export interface FileRouteTypes {
   fullPaths:
     | "/"
     | "/cart"
+    | "/checkout"
     | "/dashboard"
     | "/devices"
     | "/forgot-password"
@@ -247,6 +267,7 @@ export interface FileRouteTypes {
     | "/demo/api/names"
     | "/demo/start/api-request"
     | "/demo/start/server-funcs"
+    | "/orders/$orderId/confirmation"
     | "/demo/start/ssr/data-only"
     | "/demo/start/ssr/full-ssr"
     | "/demo/start/ssr/spa-mode"
@@ -255,6 +276,7 @@ export interface FileRouteTypes {
   to:
     | "/"
     | "/cart"
+    | "/checkout"
     | "/dashboard"
     | "/devices"
     | "/forgot-password"
@@ -272,6 +294,7 @@ export interface FileRouteTypes {
     | "/demo/api/names"
     | "/demo/start/api-request"
     | "/demo/start/server-funcs"
+    | "/orders/$orderId/confirmation"
     | "/demo/start/ssr/data-only"
     | "/demo/start/ssr/full-ssr"
     | "/demo/start/ssr/spa-mode"
@@ -280,6 +303,7 @@ export interface FileRouteTypes {
     | "__root__"
     | "/"
     | "/cart"
+    | "/checkout"
     | "/dashboard"
     | "/devices"
     | "/forgot-password"
@@ -297,6 +321,7 @@ export interface FileRouteTypes {
     | "/demo/api/names"
     | "/demo/start/api-request"
     | "/demo/start/server-funcs"
+    | "/orders/$orderId/confirmation"
     | "/demo/start/ssr/data-only"
     | "/demo/start/ssr/full-ssr"
     | "/demo/start/ssr/spa-mode"
@@ -306,6 +331,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute;
   CartRoute: typeof CartRoute;
+  CheckoutRoute: typeof CheckoutRoute;
   DashboardRoute: typeof DashboardRoute;
   DevicesRoute: typeof DevicesRoute;
   ForgotPasswordRoute: typeof ForgotPasswordRoute;
@@ -323,6 +349,7 @@ export interface RootRouteChildren {
   DemoApiNamesRoute: typeof DemoApiNamesRoute;
   DemoStartApiRequestRoute: typeof DemoStartApiRequestRoute;
   DemoStartServerFuncsRoute: typeof DemoStartServerFuncsRoute;
+  OrdersOrderIdConfirmationRoute: typeof OrdersOrderIdConfirmationRoute;
   DemoStartSsrDataOnlyRoute: typeof DemoStartSsrDataOnlyRoute;
   DemoStartSsrFullSsrRoute: typeof DemoStartSsrFullSsrRoute;
   DemoStartSsrSpaModeRoute: typeof DemoStartSsrSpaModeRoute;
@@ -343,6 +370,13 @@ declare module "@tanstack/react-router" {
       path: "/cart";
       fullPath: "/cart";
       preLoaderRoute: typeof CartRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/checkout": {
+      id: "/checkout";
+      path: "/checkout";
+      fullPath: "/checkout";
+      preLoaderRoute: typeof CheckoutRouteImport;
       parentRoute: typeof rootRouteImport;
     };
     "/dashboard": {
@@ -464,6 +498,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof DemoStartServerFuncsRouteImport;
       parentRoute: typeof rootRouteImport;
     };
+    "/orders/$orderId/confirmation": {
+      id: "/orders/$orderId/confirmation";
+      path: "/orders/$orderId/confirmation";
+      fullPath: "/orders/$orderId/confirmation";
+      preLoaderRoute: typeof OrdersOrderIdConfirmationRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     "/demo/start/ssr/": {
       id: "/demo/start/ssr/";
       path: "/demo/start/ssr";
@@ -498,6 +539,7 @@ declare module "@tanstack/react-router" {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CartRoute: CartRoute,
+  CheckoutRoute: CheckoutRoute,
   DashboardRoute: DashboardRoute,
   DevicesRoute: DevicesRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
@@ -515,6 +557,7 @@ const rootRouteChildren: RootRouteChildren = {
   DemoApiNamesRoute: DemoApiNamesRoute,
   DemoStartApiRequestRoute: DemoStartApiRequestRoute,
   DemoStartServerFuncsRoute: DemoStartServerFuncsRoute,
+  OrdersOrderIdConfirmationRoute: OrdersOrderIdConfirmationRoute,
   DemoStartSsrDataOnlyRoute: DemoStartSsrDataOnlyRoute,
   DemoStartSsrFullSsrRoute: DemoStartSsrFullSsrRoute,
   DemoStartSsrSpaModeRoute: DemoStartSsrSpaModeRoute,

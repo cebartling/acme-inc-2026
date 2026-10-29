@@ -369,7 +369,8 @@ services:
       - "${SHOPPING_CART_SERVICE_PORT:-10304}:10304"
     environment:
       SERVER_PORT: 10304
-      SPRING_PROFILES_ACTIVE: docker
+      # Include 'test' profile to enable TestHelperController for acceptance tests
+      SPRING_PROFILES_ACTIVE: docker,test
       # Extra comma-separated CORS origins (e.g. a Tailscale serve URL)
       ACME_CORS_EXTRA_ORIGINS: ${ACME_CORS_EXTRA_ORIGINS:-}
 
@@ -518,6 +519,7 @@ services:
         VITE_INVENTORY_SERVICE_URL: ${VITE_INVENTORY_SERVICE_URL:-}
         VITE_PRICING_SERVICE_URL: ${VITE_PRICING_SERVICE_URL:-}
         VITE_CART_SERVICE_URL: ${VITE_CART_SERVICE_URL:-}
+        VITE_ORDER_SERVICE_URL: ${VITE_ORDER_SERVICE_URL:-}
     image: acme-customer-frontend:latest
     container_name: acme-customer-frontend
     hostname: customer-frontend

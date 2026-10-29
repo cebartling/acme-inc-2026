@@ -137,6 +137,20 @@ interface CartRepository : JpaRepository<Cart, UUID> {
     )
     fun unlockIfLapsed(id: UUID, cutoff: Instant, now: Instant): Int
 
+    /**
+     * Test profile only ([com.acme.cart.api.v1.TestHelperController], PIN-426): moves a live
+     * session's expiry back to [expiresAt], so acceptance tests needn't wait 30 minutes for it
+     * to lapse. Bumps the version, as [unlockIfLapsed] does. Returns 1 if the session was found.
+     */
+    @Transactional
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(
+        """UPDATE Cart c SET c.checkoutExpiresAt = :expiresAt, c.version = c.version + 1
+           WHERE c.checkoutSessionId = :checkoutSessionId
+             AND c.status = com.acme.cart.domain.CartStatus.CHECKOUT"""
+    )
+    fun lapseCheckoutSession(checkoutSessionId: UUID, expiresAt: Instant): Int
+
     // --- PIN-289: final carts are deleted after the retention period ---------------------
 
     /** EXPIRED, MERGED and CONVERTED carts that became final before [cutoff], oldest first. Nothing is loaded. */

@@ -19,6 +19,8 @@ const PRICING_SERVICE_URL =
   import.meta.env.VITE_PRICING_SERVICE_URL || "http://localhost:10303";
 const CART_SERVICE_URL =
   import.meta.env.VITE_CART_SERVICE_URL || "http://localhost:10304";
+const ORDER_SERVICE_URL =
+  import.meta.env.VITE_ORDER_SERVICE_URL || "http://localhost:10305";
 
 /**
  * Custom error class for API errors with status code and response data.
@@ -1263,6 +1265,92 @@ export const cartApi = {
     return apiRequest<Cart>(
       `${CART_SERVICE_URL}/api/v1/carts/${encodeURIComponent(cartId)}/items`,
       { method: "DELETE", credentials: "include" },
+    );
+  },
+
+  /**
+   * Locks the cart for checkout (PIN-329). Starting again while the session is live resumes
+   * it, with the same session ID; a lapsed session is replaced by a new one (PIN-330).
+   */
+  async startCheckout(cartId: string): Promise<CheckoutSession> {
+    return apiRequest<CheckoutSession>(
+      `${CART_SERVICE_URL}/api/v1/carts/${encodeURIComponent(cartId)}/checkout`,
+      { method: "POST", credentials: "include" },
+    );
+  },
+};
+
+/** A started or resumed checkout session; `cart` is the summary only, without the lines. */
+export interface CheckoutSession {
+  checkoutSessionId: string;
+  cartId: string;
+  status: string;
+  expiresAt: string;
+  cart: Cart["summary"];
+}
+
+export interface Money {
+  amount: number;
+  currency: string;
+}
+
+/** `POST /api/v1/orders` answers 201 with this (PIN-366). */
+export interface PlacedOrder {
+  orderId: string;
+  orderNumber: string;
+  status: string;
+  createdAt: string;
+  summary: { subtotal: Money };
+}
+
+export interface OrderLine {
+  lineItemId: string;
+  variantId: string;
+  productId: string | null;
+  productName: string | null;
+  variantName: string | null;
+  sku: string | null;
+  imageUrl: string | null;
+  quantity: number;
+  unitPrice: Money;
+  lineTotal: Money;
+}
+
+/** One of the customer's orders (PIN-367). */
+export interface OrderDetails {
+  orderId: string;
+  orderNumber: string;
+  status: string;
+  createdAt: string;
+  lineItems: OrderLine[];
+  pricing: { subtotal: Money };
+}
+
+/**
+ * Order service (PIN-366, PIN-367): signed-in customers only, through identity's
+ * `access_token` cookie. Errors carry a `code`, e.g. `CHECKOUT_SESSION_NOT_FOUND`.
+ */
+export const orderApi = {
+  /**
+   * Places an order from a checkout session. A repeated `idempotencyKey` answers the order it
+   * already placed, so a retry with the same key never places a second one.
+   */
+  async place(
+    checkoutSessionId: string,
+    idempotencyKey: string,
+  ): Promise<PlacedOrder> {
+    return apiRequest<PlacedOrder>(`${ORDER_SERVICE_URL}/api/v1/orders`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Idempotency-Key": idempotencyKey },
+      body: JSON.stringify({ checkoutSessionId }),
+    });
+  },
+
+  async get(orderId: string): Promise<OrderDetails> {
+    return apiRequest<OrderDetails>(
+      `${ORDER_SERVICE_URL}/api/v1/orders/${encodeURIComponent(orderId)}`,
+      { method: "GET", credentials: "include" },
     );
   },
 };
