@@ -46,26 +46,24 @@ class AbandonCheckoutUseCase(
             when {
                 abandoned == null -> Unit
                 lapsed -> checkoutSessionExpiry.report(saved, abandoned, correlationId)
-                else -> writeEvent(saved, abandoned, correlationId)
+                else -> outboxWriter.write(checkoutAbandoned(saved, abandoned, correlationId))
             }
             saved.right()
         }
         return checkNotNull(result) { "transaction for cart ${command.cartId} returned no result" }
     }
-
-    private fun writeEvent(cart: Cart, abandoned: CheckoutSession, correlationId: UUID) {
-        outboxWriter.write(
-            CheckoutAbandoned.create(
-                CheckoutAbandonedPayload(
-                    cartId = cart.id,
-                    checkoutSessionId = abandoned.id,
-                    lineCount = cart.items.size,
-                    itemCount = cart.itemCount,
-                    sessionId = cart.sessionId,
-                    userId = cart.userId
-                ),
-                correlationId
-            )
-        )
-    }
 }
+
+/** `CheckoutAbandoned` for [abandoned], the session [cart] just left; merge writes it too (PIN-373). */
+internal fun checkoutAbandoned(cart: Cart, abandoned: CheckoutSession, correlationId: UUID): CheckoutAbandoned =
+    CheckoutAbandoned.create(
+        CheckoutAbandonedPayload(
+            cartId = cart.id,
+            checkoutSessionId = abandoned.id,
+            lineCount = cart.items.size,
+            itemCount = cart.itemCount,
+            sessionId = cart.sessionId,
+            userId = cart.userId
+        ),
+        correlationId
+    )

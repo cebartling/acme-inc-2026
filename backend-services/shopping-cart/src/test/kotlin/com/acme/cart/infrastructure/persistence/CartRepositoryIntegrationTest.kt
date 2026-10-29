@@ -157,7 +157,7 @@ class CartRepositoryIntegrationTest {
         carts.saveAndFlush(user)
         entityManager.clear()
 
-        val reloadedGuest = carts.findForUpdateBySessionIdAndStatus("sess-merge-db", CartStatus.ACTIVE)!!
+        val reloadedGuest = carts.findForUpdateBySessionIdAndStatusIn("sess-merge-db", CartStatus.CURRENT)!!
         val reloadedUser = carts.findByUserIdAndStatus(userId, CartStatus.ACTIVE)!!
         reloadedUser.absorb(reloadedGuest, mapOf(variantId to pricing), maxQuantity = 10)
         carts.save(reloadedGuest)
@@ -169,6 +169,32 @@ class CartRepositoryIntegrationTest {
         assertEquals(CartStatus.MERGED, carts.findById(guest.id).get().status)
         // The session can start over as a guest after sign-out.
         carts.saveAndFlush(Cart(id = UUID.randomUUID(), sessionId = "sess-merge-db"))
+    }
+
+    @Test
+    fun `a merge takes a guest cart out of checkout and saves it MERGED (PIN-373)`() {
+        val variantId = UUID.randomUUID()
+        val userId = UUID.randomUUID()
+        val guest = Cart(id = UUID.randomUUID(), sessionId = "sess-merge-checkout")
+        guest.addItem(variantId, 2, pricing, snapshot, 10)
+        guest.startCheckout(Duration.ofMinutes(30))
+        carts.saveAndFlush(guest)
+        carts.saveAndFlush(Cart(id = UUID.randomUUID(), userId = userId))
+        entityManager.clear()
+
+        val reloadedGuest = carts.findForUpdateBySessionIdAndStatusIn("sess-merge-checkout", CartStatus.CURRENT)!!
+        assertEquals(CartStatus.CHECKOUT, reloadedGuest.status)
+        val reloadedUser = carts.findByUserIdAndStatus(userId, CartStatus.ACTIVE)!!
+        reloadedGuest.abandonCheckout()
+        reloadedUser.absorb(reloadedGuest, mapOf(variantId to pricing), maxQuantity = 10)
+        carts.save(reloadedGuest)
+        carts.saveAndFlush(reloadedUser)
+        entityManager.clear()
+
+        val merged = carts.findById(guest.id).get()
+        assertEquals(CartStatus.MERGED, merged.status)
+        assertEquals(null, merged.checkoutSessionId)
+        assertEquals(2, carts.findByUserIdAndStatus(userId, CartStatus.ACTIVE)!!.items.single().quantity)
     }
 
     // --- PIN-287: idle guest carts expire -----------------------------------------------
@@ -613,9 +639,9 @@ class CartRepositoryIntegrationTest {
     }
 
     /**
-     * The guest cart stranded by sign-in: merge leaves a guest cart in checkout alone
-     * (MergeCartsUseCaseTest), so while the user shops on their own cart the guest one stays
-     * locked. Once its session lapses it is unlocked, and the guest session can use it again.
+     * The guest cart stranded by sign-in: when the account cart is in checkout too, merge
+     * refuses and leaves the guest cart locked (MergeCartsUseCaseTest, PIN-373). Once its
+     * session lapses it is unlocked, and the guest session can use it again.
      */
     @Test
     @Transactional(propagation = Propagation.NOT_SUPPORTED)

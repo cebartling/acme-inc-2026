@@ -21,6 +21,7 @@ import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import org.springframework.transaction.support.TransactionTemplate
+import java.time.Instant
 import java.util.UUID
 
 data class MergeCartsCommand(val userId: UUID, val guestSessionId: String?)
@@ -34,6 +35,9 @@ data class MergeOutcome(val cart: Cart?, val result: MergeResult?)
 /**
  * Merges a guest's cart into their account cart on sign-in (US-0004-08).
  *
+ * A guest cart locked for checkout leaves checkout first (PIN-373). An account cart in
+ * checkout refuses the merge, and then neither cart changes.
+ *
  * A missing, empty or already MERGED guest cart is a no-op (AC-08, and re-merging is
  * idempotent): the user's cart comes back unchanged and nothing is written. Otherwise
  * the guest variants are priced first, outside the transaction, then both carts are
@@ -46,6 +50,7 @@ class MergeCartsUseCase(
     private val pricingClient: ProductPricingClient,
     private val outboxWriter: OutboxWriter,
     private val transactionTemplate: TransactionTemplate,
+    private val checkoutSessionExpiry: CheckoutSessionExpiry,
     @Value("\${acme.cart.max-order-quantity}") private val maxOrderQuantity: Int
 ) {
     private val logger = LoggerFactory.getLogger(MergeCartsUseCase::class.java)
@@ -86,10 +91,9 @@ class MergeCartsUseCase(
         }
     }
 
-    /** A guest cart locked for checkout (PIN-329) is not merged: its checkout keeps it. */
+    /** The guest's ACTIVE cart, or one locked for checkout, which the merge takes out of checkout (PIN-373). */
     private fun guestCart(command: MergeCartsCommand): Cart? =
         command.guestSessionId?.let { cartRepository.findActiveCart(CartOwner.Guest(it)) }
-            ?.takeIf { it.status == CartStatus.ACTIVE }
 
     private fun mergeInTransaction(
         command: MergeCartsCommand,
@@ -99,9 +103,9 @@ class MergeCartsUseCase(
         correlationId: UUID
     ): Either<CartError, MergeOutcome> {
         // Re-read and lock the guest cart first: a concurrent merge that took it already
-        // has committed by the time the lock is granted, so this one sees no ACTIVE cart.
+        // has committed by the time the lock is granted, so this one sees no current cart.
         val guest = command.guestSessionId
-            ?.let { cartRepository.findForUpdateBySessionIdAndStatus(it, CartStatus.ACTIVE) }
+            ?.let { cartRepository.findForUpdateBySessionIdAndStatusIn(it, CartStatus.CURRENT) }
             ?.takeIf { it.items.isNotEmpty() }
         val userCart = cartRepository.findActiveCart(customer)
         if (guest == null) return MergeOutcome(userCart, result = null).right()
@@ -112,12 +116,27 @@ class MergeCartsUseCase(
         guest.items.firstOrNull { it.variantId !in pricing && it.variantId !in unavailable }
             ?.let { return CartError.PricingUnavailable(it.variantId).left() }
 
+        leaveGuestCheckout(guest, correlationId)
         val target = userCart ?: newCartFor(customer)
         val result = target.absorb(guest, pricing, maxOrderQuantity, unavailable)
         cartRepository.save(guest)
         val saved = cartRepository.save(target)
         writeEvents(Merged(saved, guest, result, isNewCart = userCart == null), correlationId)
         return MergeOutcome(saved, result).right()
+    }
+
+    /**
+     * The order service reads a checkout session with the signed-in customer's token only, so a
+     * guest cart's session could never become an order now (PIN-373). The guest cart leaves
+     * checkout as `AbandonCheckoutUseCase` does, and the customer starts checkout again on the
+     * account cart. A guest cart not in checkout is left as it is.
+     */
+    private fun leaveGuestCheckout(guest: Cart, correlationId: UUID) {
+        val now = Instant.now()
+        val lapsed = guest.lapsedCheckoutSession(now) != null
+        val left = guest.abandonCheckout(now) ?: return
+        if (lapsed) checkoutSessionExpiry.report(guest, left, correlationId)
+        else outboxWriter.write(checkoutAbandoned(guest, left, correlationId))
     }
 
     private data class Merged(val target: Cart, val source: Cart, val result: MergeResult, val isNewCart: Boolean)

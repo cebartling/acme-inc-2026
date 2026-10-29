@@ -19,16 +19,17 @@ interface CartRepository : JpaRepository<Cart, UUID> {
     fun findBySessionIdAndStatus(sessionId: String, status: CartStatus): Cart?
 
     /**
-     * Same as [findBySessionIdAndStatus], but the cart row stays locked until commit, so two
+     * Same as [findBySessionIdAndStatusIn], but the cart row stays locked until commit, so two
      * concurrent merges of one guest cart run one after the other and the second finds it MERGED.
      *
      * Deliberately no entity graph: with the items join, Hibernate locks in a follow-up
      * statement, so a waiting caller keeps the stale ACTIVE cart it already loaded. Locking
-     * the plain row query lets Postgres re-check `status` once the lock is granted. The items
-     * load lazily inside the same transaction.
+     * the plain row query lets Postgres re-check `status` once the lock is granted. One query
+     * over every status matters for the same reason: a cart that leaves checkout while the
+     * lock waits is still found (PIN-373). The items load lazily inside the same transaction.
      */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    fun findForUpdateBySessionIdAndStatus(sessionId: String, status: CartStatus): Cart?
+    fun findForUpdateBySessionIdAndStatusIn(sessionId: String, statuses: Collection<CartStatus>): Cart?
 
     @EntityGraph(attributePaths = ["items"])
     fun findByUserIdAndStatus(userId: UUID, status: CartStatus): Cart?
@@ -107,7 +108,7 @@ interface CartRepository : JpaRepository<Cart, UUID> {
     /**
      * CHECKOUT carts whose session lapsed before [cutoff], oldest first, with what a
      * `CheckoutSessionExpired` event needs. Guest and user carts alike, including a guest cart
-     * stranded in checkout by its owner signing in.
+     * left in checkout when its owner's sign-in merge was refused (PIN-373).
      */
     @Query(
         """SELECT new com.acme.cart.infrastructure.persistence.LapsedCheckout(

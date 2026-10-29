@@ -395,8 +395,14 @@ sequenceDiagram
 - **Locked, not hidden**: a `CHECKOUT` cart is still the owner's current cart, so `GET
   /carts/current` returns it with `"status": "CHECKOUT"`. Every change (add, update, remove,
   clear) is refused by `Cart` itself with 409 `CART_LOCKED`, rather than finding no cart and
-  starting a second one. Merge on sign-in leaves a guest cart in checkout alone, and refuses
-  to merge into an account cart in checkout (409 `CART_LOCKED`).
+  starting a second one. Merge on sign-in takes a guest cart out of checkout and merges it,
+  writing `CheckoutAbandoned` (or `CheckoutSessionExpired` for a session that had lapsed). The
+  order service reads a session with the customer's token only, so the guest cart's session
+  could never become an order, and the customer starts checkout again on the account cart
+  (PIN-373). That `CheckoutAbandoned` shares its correlation ID with the merge's `CartMerged`,
+  which tells a sign-in apart from a customer leaving checkout, e.g. for an abandonment rate.
+  Merge refuses to merge into an account cart in checkout (409 `CART_LOCKED`), and
+  then the guest cart stays as it was.
 - **Stock is checked on the server here**, one call per distinct variant against the product
   service's availability endpoint. Its own `VARIANT_NOT_FOUND` 404 (a gone variant or an
   archived product, PIN-306) is `NOT_AVAILABLE`. Any other lookup failure refuses checkout
