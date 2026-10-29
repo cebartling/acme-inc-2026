@@ -128,6 +128,21 @@ class MergeCartsUseCaseTest {
     }
 
     @Test
+    fun `a guest cart a concurrent merge took while this one priced it is a no-op with no event`() {
+        val user = newCartFor(CartOwner.Customer(userId))
+        givenCarts(guest = guestWith(2), user = user)
+        // By the time the lock is granted the other merge has committed it MERGED
+        every { cartRepository.findForUpdateBySessionIdAndStatusIn("sess-1", CartStatus.CURRENT) } returns null
+
+        val outcome = useCase.execute(MergeCartsCommand(userId, "sess-1")).getOrNull()!!
+
+        assertEquals(user, outcome.cart)
+        assertNull(outcome.result)
+        verify(exactly = 0) { cartRepository.save(any()) }
+        assertEquals(emptyList(), published)
+    }
+
+    @Test
     fun `a capped merge reports the adjustment in the result and the event (AC-04)`() {
         val user = newCartFor(CartOwner.Customer(userId)).apply { addItem(variantId, 8, pricing, "{}", 10) }
         givenCarts(guest = guestWith(5), user = user)
