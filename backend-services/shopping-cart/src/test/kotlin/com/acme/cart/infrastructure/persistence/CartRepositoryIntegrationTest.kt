@@ -171,6 +171,32 @@ class CartRepositoryIntegrationTest {
         carts.saveAndFlush(Cart(id = UUID.randomUUID(), sessionId = "sess-merge-db"))
     }
 
+    @Test
+    fun `a merge takes a guest cart out of checkout and saves it MERGED (PIN-373)`() {
+        val variantId = UUID.randomUUID()
+        val userId = UUID.randomUUID()
+        val guest = Cart(id = UUID.randomUUID(), sessionId = "sess-merge-checkout")
+        guest.addItem(variantId, 2, pricing, snapshot, 10)
+        guest.startCheckout(Duration.ofMinutes(30))
+        carts.saveAndFlush(guest)
+        carts.saveAndFlush(Cart(id = UUID.randomUUID(), userId = userId))
+        entityManager.clear()
+
+        val reloadedGuest = carts.findForUpdateBySessionIdAndStatusIn("sess-merge-checkout", CartStatus.CURRENT)!!
+        assertEquals(CartStatus.CHECKOUT, reloadedGuest.status)
+        val reloadedUser = carts.findByUserIdAndStatus(userId, CartStatus.ACTIVE)!!
+        reloadedGuest.abandonCheckout()
+        reloadedUser.absorb(reloadedGuest, mapOf(variantId to pricing), maxQuantity = 10)
+        carts.save(reloadedGuest)
+        carts.saveAndFlush(reloadedUser)
+        entityManager.clear()
+
+        val merged = carts.findById(guest.id).get()
+        assertEquals(CartStatus.MERGED, merged.status)
+        assertEquals(null, merged.checkoutSessionId)
+        assertEquals(2, carts.findByUserIdAndStatus(userId, CartStatus.ACTIVE)!!.items.single().quantity)
+    }
+
     // --- PIN-287: idle guest carts expire -----------------------------------------------
 
     private val now = Instant.parse("2026-09-24T12:00:00Z")
