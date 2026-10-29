@@ -561,6 +561,22 @@ class CartRepositoryIntegrationTest {
     }
 
     @Test
+    fun `lapsing a live checkout session moves its expiry back and bumps the version`() {
+        val live = lockedGuestCart("sess-checkout-test-lapse", now)
+        val version = live.version!!
+        val lapsedAt = now.minusSeconds(60)
+        entityManager.clear()
+
+        assertEquals(1, carts.lapseCheckoutSession(live.checkoutSessionId!!, lapsedAt))
+        assertEquals(0, carts.lapseCheckoutSession(UUID.randomUUID(), lapsedAt), "an unknown session")
+        entityManager.clear()
+        val lapsed = carts.findById(live.id).get()
+        assertEquals(CartStatus.CHECKOUT, lapsed.status)
+        assertEquals(lapsedAt, lapsed.checkoutExpiresAt)
+        assertEquals(version + 1, lapsed.version)
+    }
+
+    @Test
     fun `a live checkout is neither found nor unlocked`() {
         val live = lockedGuestCart("sess-checkout-live", now)
         entityManager.clear()
