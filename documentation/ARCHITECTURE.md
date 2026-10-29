@@ -399,7 +399,9 @@ sequenceDiagram
   writing `CheckoutAbandoned` (or `CheckoutSessionExpired` for a session that had lapsed). The
   order service reads a session with the customer's token only, so the guest cart's session
   could never become an order, and the customer starts checkout again on the account cart
-  (PIN-373). Merge refuses to merge into an account cart in checkout (409 `CART_LOCKED`), and
+  (PIN-373). That `CheckoutAbandoned` shares its correlation ID with the merge's `CartMerged`,
+  which tells a sign-in apart from a customer leaving checkout, e.g. for an abandonment rate.
+  Merge refuses to merge into an account cart in checkout (409 `CART_LOCKED`), and
   then the guest cart stays as it was.
 - **Stock is checked on the server here**, one call per distinct variant against the product
   service's availability endpoint. Its own `VARIANT_NOT_FOUND` 404 (a gone variant or an
