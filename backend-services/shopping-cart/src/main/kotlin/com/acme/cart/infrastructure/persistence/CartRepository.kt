@@ -108,7 +108,7 @@ interface CartRepository : JpaRepository<Cart, UUID> {
     /**
      * CHECKOUT carts whose session lapsed before [cutoff], oldest first, with what a
      * `CheckoutSessionExpired` event needs. Guest and user carts alike, including a guest cart
-     * stranded in checkout by its owner signing in.
+     * left in checkout when its owner's sign-in merge was refused (PIN-373).
      */
     @Query(
         """SELECT new com.acme.cart.infrastructure.persistence.LapsedCheckout(
