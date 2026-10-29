@@ -13,7 +13,6 @@ import com.acme.cart.domain.events.CartMerged
 import com.acme.cart.domain.events.CheckoutAbandoned
 import com.acme.cart.domain.events.CheckoutSessionExpired
 import com.acme.cart.domain.events.DomainEvent
-import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import com.acme.cart.domain.newCartFor
 import com.acme.cart.infrastructure.messaging.OutboxWriter
 import com.acme.cart.infrastructure.persistence.CartRepository
@@ -21,6 +20,7 @@ import com.acme.cart.infrastructure.product.ProductPricingClient
 import io.mockk.verifyOrder
 import org.springframework.orm.ObjectOptimisticLockingFailureException
 import kotlin.test.assertFailsWith
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
