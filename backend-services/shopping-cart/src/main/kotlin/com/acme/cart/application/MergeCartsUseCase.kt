@@ -105,10 +105,7 @@ class MergeCartsUseCase(
         // Re-read and lock the guest cart first: a concurrent merge that took it already
         // has committed by the time the lock is granted, so this one sees no current cart.
         val guest = command.guestSessionId
-            ?.let {
-                cartRepository.findForUpdateBySessionIdAndStatus(it, CartStatus.ACTIVE)
-                    ?: cartRepository.findForUpdateBySessionIdAndStatus(it, CartStatus.CHECKOUT)
-            }
+            ?.let { cartRepository.findForUpdateBySessionIdAndStatusIn(it, CartStatus.CURRENT) }
             ?.takeIf { it.items.isNotEmpty() }
         val userCart = cartRepository.findActiveCart(customer)
         if (guest == null) return MergeOutcome(userCart, result = null).right()

@@ -62,7 +62,7 @@ class MergeCartsUseCaseTest {
 
     private fun givenCarts(guest: Cart?, user: Cart?) {
         every { cartRepository.findBySessionIdAndStatusIn("sess-1", CartStatus.CURRENT) } returns guest
-        every { cartRepository.findForUpdateBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } returns guest
+        every { cartRepository.findForUpdateBySessionIdAndStatusIn("sess-1", CartStatus.CURRENT) } returns guest
         every { cartRepository.findByUserIdAndStatusIn(userId, CartStatus.CURRENT) } returns user
     }
 
@@ -238,7 +238,7 @@ class MergeCartsUseCaseTest {
     /** Each read returns what is committed: the failed attempt's changes were rolled back. */
     private fun givenFreshCarts() {
         every { cartRepository.findBySessionIdAndStatusIn("sess-1", CartStatus.CURRENT) } answers { guestWith(2) }
-        every { cartRepository.findForUpdateBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } answers { guestWith(2) }
+        every { cartRepository.findForUpdateBySessionIdAndStatusIn("sess-1", CartStatus.CURRENT) } answers { guestWith(2) }
         every { cartRepository.findByUserIdAndStatusIn(userId, CartStatus.CURRENT) } returns null
     }
 
@@ -267,18 +267,12 @@ class MergeCartsUseCaseTest {
 
     // PIN-373: the order service reads a session with the customer's token only, so a guest
     // cart's checkout could never become an order once the guest has signed in.
-    private fun givenGuestInCheckout(guest: Cart, user: Cart?) {
-        givenCarts(guest = guest, user = user)
-        every { cartRepository.findForUpdateBySessionIdAndStatus("sess-1", CartStatus.ACTIVE) } returns null
-        every { cartRepository.findForUpdateBySessionIdAndStatus("sess-1", CartStatus.CHECKOUT) } returns guest
-    }
-
     @Test
     fun `a guest cart in checkout leaves checkout and is merged (PIN-373)`() {
         val guest = guestWith(2)
         val session = guest.startCheckout(StartCheckoutUseCase.SESSION_LENGTH).getOrNull()!!
         val user = newCartFor(CartOwner.Customer(userId))
-        givenGuestInCheckout(guest, user)
+        givenCarts(guest = guest, user = user)
 
         val outcome = useCase.execute(MergeCartsCommand(userId, "sess-1")).getOrNull()!!
 
@@ -299,7 +293,7 @@ class MergeCartsUseCaseTest {
         val guest = guestWith(2)
         val session = guest.startCheckout(StartCheckoutUseCase.SESSION_LENGTH, now = Instant.now().minusSeconds(3600))
             .getOrNull()!!
-        givenGuestInCheckout(guest, user = newCartFor(CartOwner.Customer(userId)))
+        givenCarts(guest = guest, user = newCartFor(CartOwner.Customer(userId)))
 
         useCase.execute(MergeCartsCommand(userId, "sess-1")).getOrNull()!!
 
@@ -316,7 +310,7 @@ class MergeCartsUseCaseTest {
             addItem(UUID.randomUUID(), 1, pricing, "{}", 10)
             startCheckout(StartCheckoutUseCase.SESSION_LENGTH)
         }
-        givenGuestInCheckout(guest, user)
+        givenCarts(guest = guest, user = user)
 
         assertEquals(CartError.CartLocked(user.id), useCase.execute(MergeCartsCommand(userId, "sess-1")).leftOrNull())
         assertEquals(CartStatus.CHECKOUT, guest.status)
