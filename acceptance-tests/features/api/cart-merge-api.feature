@@ -85,3 +85,16 @@ Feature: Cart Merge on Sign-in API
     Then the API should respond with status 201
     And the cart should have 1 line with quantity 1 at unit price 119.99
     And the response should re-issue the same session cookie
+
+  # PIN-373: the order service reads a checkout session with the customer's token only, so
+  # sign-in takes the guest cart out of checkout and the customer checks out on the account cart
+  Scenario: A guest cart in checkout is merged, and its order can be placed
+    Given I have added 2 "Gadget Pro / Black" to a new cart
+    And I have started checkout on my cart
+    When I merge my guest cart as the signed-in customer
+    Then the API should respond with status 200
+    And the cart should contain 2 of "Gadget Pro / Black"
+    Given I have started checkout on my account cart
+    When I place an order for my checkout session
+    Then the API should respond with status 201
+    And my account cart should be converted into the order
