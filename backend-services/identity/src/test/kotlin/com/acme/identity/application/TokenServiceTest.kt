@@ -254,6 +254,56 @@ class TokenServiceTest {
     }
 
     @Test
+    fun `isExpiredAccessToken should be true for a genuine token past its expiry`() {
+        val tokens = expiredTokens()
+
+        assertTrue(tokenService.isExpiredAccessToken(tokens.accessToken))
+    }
+
+    @Test
+    fun `isExpiredAccessToken should be false for a valid token`() {
+        val tokens = tokenService.createTokens(createTestUser(), testSessionId, testTokenFamily)
+
+        assertFalse(tokenService.isExpiredAccessToken(tokens.accessToken))
+    }
+
+    @Test
+    fun `isExpiredAccessToken should be false for an expired token with a forged signature`() {
+        val forged = TokenService(SigningKeyProvider(jwtConfig), shortLivedConfig())
+            .createTokens(createTestUser(), testSessionId, testTokenFamily)
+        Thread.sleep(1100)
+
+        assertFalse(tokenService.isExpiredAccessToken(forged.accessToken))
+    }
+
+    @Test
+    fun `isExpiredAccessToken should be false for a malformed token`() {
+        assertFalse(tokenService.isExpiredAccessToken("not.a.jwt"))
+    }
+
+    @Test
+    fun `isExpiredAccessToken should be false for a refresh token`() {
+        val tokens = tokenService.createTokens(createTestUser(), testSessionId, testTokenFamily)
+
+        assertFalse(tokenService.isExpiredAccessToken(tokens.refreshToken))
+    }
+
+    private fun shortLivedConfig() = JwtConfig(
+        issuer = jwtConfig.issuer,
+        audience = jwtConfig.audience,
+        accessTokenExpiryMinutes = 0,
+        refreshTokenExpiryDays = 7,
+        keyRotationPeriodDays = 30
+    )
+
+    private fun expiredTokens(): TokenPair {
+        val tokens = TokenService(signingKeyProvider, shortLivedConfig())
+            .createTokens(createTestUser(), testSessionId, testTokenFamily)
+        Thread.sleep(1100)
+        return tokens
+    }
+
+    @Test
     fun `parseRefreshTokenClaims accepts a token signed under the previous key after rotation`() {
         // Real-world value of multi-key verification: a refresh token issued
         // before a key rotation (which happens every 30 days) must still

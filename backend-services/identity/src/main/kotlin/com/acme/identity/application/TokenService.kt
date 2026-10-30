@@ -291,6 +291,29 @@ class TokenService(
      * @return The [JWTClaimsSet] if the token is valid, null otherwise.
      */
     fun parseAccessTokenClaims(token: String): JWTClaimsSet? {
+        val claims = verifiedAccessTokenClaims(token) ?: return null
+
+        val expiration = claims.expirationTime
+        if (expiration == null || expiration.before(Date())) {
+            logger.debug("JWT token expired")
+            return null
+        }
+
+        return claims
+    }
+
+    /**
+     * Tells an expired access token from an invalid one (PIN-443). Only a token that passes
+     * every other check counts, so a forged one can't earn a refresh-and-retry from the client.
+     *
+     * @param token The JWT token string.
+     * @return True if the token is genuine and past its expiry.
+     */
+    fun isExpiredAccessToken(token: String): Boolean =
+        verifiedAccessTokenClaims(token)?.expirationTime?.before(Date()) == true
+
+    /** Signature, issuer and `token_use` checks, leaving expiry to the caller. */
+    private fun verifiedAccessTokenClaims(token: String): JWTClaimsSet? {
         return try {
             val jwt = SignedJWT.parse(token)
             val signingKey = resolveSigningKey(jwt) ?: return null
@@ -302,12 +325,6 @@ class TokenService(
             }
 
             val claims = jwt.jwtClaimsSet
-
-            val expiration = claims.expirationTime
-            if (expiration == null || expiration.before(Date())) {
-                logger.debug("JWT token expired")
-                return null
-            }
 
             if (claims.issuer != config.issuer) {
                 logger.warn("JWT issuer mismatch: expected ${config.issuer}, got ${claims.issuer}")

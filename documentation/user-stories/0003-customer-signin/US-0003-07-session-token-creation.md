@@ -114,7 +114,7 @@ flowchart TB
 ```
 HTTP/1.1 200 OK
 Content-Type: application/json
-Set-Cookie: access_token=<jwt>; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=900
+Set-Cookie: access_token=<jwt>; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=604800
 Set-Cookie: refresh_token=<jwt>; HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth/refresh; Max-Age=604800
 
 {
@@ -215,7 +215,7 @@ Set-Cookie: refresh_token=<jwt>; HttpOnly; Secure; SameSite=Strict; Path=/api/v1
 
 | Cookie         | Value | Attributes                                                      |
 |----------------|-------|----------------------------------------------------------------|
-| `access_token` | JWT   | `HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=900`       |
+| `access_token` | JWT   | `HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=604800`    |
 | `refresh_token`| JWT   | `HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth/refresh; Max-Age=604800` |
 
 ## Acceptance Criteria
@@ -494,7 +494,7 @@ class AuthCookieBuilder(private val config: JwtConfig) {
             .secure(true)
             .sameSite("Strict")
             .path("/")
-            .maxAge(config.accessTokenExpiry)
+            .maxAge(config.refreshTokenExpiry)
             .build()
     }
 

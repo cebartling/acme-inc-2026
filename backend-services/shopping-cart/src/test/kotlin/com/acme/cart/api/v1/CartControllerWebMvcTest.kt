@@ -827,6 +827,21 @@ class CartControllerWebMvcTest(
     }
 
     @Test
+    fun `an expired token with a guest session is still a 401, not a fall-back to the guest cart`() {
+        every { jwtDecoder.decode("stale-token") } throws JwtValidationException(
+            "An error occurred while attempting to decode the Jwt: Jwt expired at 2026-01-01T00:00:00Z",
+            listOf(OAuth2Error("invalid_token", "Jwt expired at 2026-01-01T00:00:00Z", null))
+        )
+
+        mockMvc.get("/api/v1/carts/current") {
+            cookie(accessToken("stale-token"), Cookie(CartController.SESSION_COOKIE, UUID.randomUUID().toString()))
+        }.andExpect {
+            status { isUnauthorized() }
+            jsonPath("$.error") { value("TOKEN_EXPIRED") }
+        }
+    }
+
+    @Test
     fun `a token that fails verification for another reason is a 401 INVALID_TOKEN`() {
         every { jwtDecoder.decode("forged-token") } throws JwtValidationException(
             "An error occurred while attempting to decode the Jwt: Signed JWT rejected",

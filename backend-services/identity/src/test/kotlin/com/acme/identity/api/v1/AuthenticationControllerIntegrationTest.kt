@@ -2,11 +2,14 @@ package com.acme.identity.api.v1
 
 import com.acme.identity.api.v1.dto.SigninRequest
 import com.acme.identity.api.v1.dto.SigninResponse
+import com.acme.identity.application.TokenService
+import com.acme.identity.config.JwtConfig
 import com.acme.identity.domain.User
 import com.acme.identity.domain.UserStatus
 import com.acme.identity.infrastructure.persistence.UserRepository
 import com.acme.identity.infrastructure.security.PasswordHasher
 import com.acme.identity.infrastructure.security.RateLimiter
+import com.acme.identity.infrastructure.security.SigningKeyProvider
 import org.springframework.data.redis.core.StringRedisTemplate
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.BeforeEach
@@ -57,6 +60,12 @@ class AuthenticationControllerIntegrationTest {
 
     @Autowired
     private lateinit var stringRedisTemplate: StringRedisTemplate
+
+    @Autowired
+    private lateinit var signingKeyProvider: SigningKeyProvider
+
+    @Autowired
+    private lateinit var jwtConfig: JwtConfig
 
     companion object {
         @Container
@@ -494,6 +503,45 @@ class AuthenticationControllerIntegrationTest {
         )
             .andExpect(status().isUnauthorized)
             .andExpect(jsonPath("$.error").value("UNAUTHORIZED"))
+    }
+
+    @Test
+    fun `POST logout-all with an expired access_token should return 401 TOKEN_EXPIRED`() {
+        mockMvc.perform(
+            post("/api/v1/auth/logout/all")
+                .cookie(Cookie("access_token", expiredAccessToken()))
+        )
+            .andExpect(status().isUnauthorized)
+            .andExpect(jsonPath("$.error").value("TOKEN_EXPIRED"))
+    }
+
+    @Test
+    fun `POST change-password with an expired access_token should return 401 TOKEN_EXPIRED`() {
+        mockMvc.perform(
+            post("/api/v1/auth/change-password")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"currentPassword":"ValidP@ss123!","newPassword":"NewValidP@ss456!"}""")
+                .cookie(Cookie("access_token", expiredAccessToken()))
+        )
+            .andExpect(status().isUnauthorized)
+            .andExpect(jsonPath("$.error").value("TOKEN_EXPIRED"))
+    }
+
+    /** Signed with the service's real key, by a TokenService whose tokens expire at once. */
+    private fun expiredAccessToken(): String {
+        val config = JwtConfig(
+            issuer = jwtConfig.issuer,
+            audience = jwtConfig.audience,
+            accessTokenExpiryMinutes = 0,
+            refreshTokenExpiryDays = jwtConfig.refreshTokenExpiryDays,
+            keyRotationPeriodDays = jwtConfig.keyRotationPeriodDays
+        )
+        val user = createUserWithNoMfa("expired-${UUID.randomUUID()}@example.com", "ValidP@ss123!")
+        val token = TokenService(signingKeyProvider, config)
+            .createTokens(user, "sess_${UUID.randomUUID()}", "fam_${UUID.randomUUID()}")
+            .accessToken
+        Thread.sleep(1100)
+        return token
     }
 
     @Test

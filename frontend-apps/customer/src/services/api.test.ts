@@ -801,6 +801,38 @@ describe("token-refresh interceptor", () => {
     }
   });
 
+  it("holds a Web Lock across the refresh, so tabs can't refresh at once (PIN-443)", async () => {
+    const refreshCalls = () =>
+      mockFetch.mock.calls.filter(([url]) =>
+        String(url).endsWith("/api/v1/auth/refresh"),
+      ).length;
+    let refreshCallsBeforeLock = -1;
+    const request = vi.fn(
+      async (_name: string, callback: () => Promise<unknown>) => {
+        refreshCallsBeforeLock = refreshCalls();
+        return callback();
+      },
+    );
+    vi.stubGlobal("navigator", { ...navigator, locks: { request } });
+
+    try {
+      mockFetch
+        .mockResolvedValueOnce(tokenExpired())
+        .mockResolvedValueOnce(okJson({ status: "SUCCESS" }))
+        .mockResolvedValueOnce(okJson({ id: "customer-1" }));
+
+      await customerApi.getCurrentCustomer();
+
+      expect(request).toHaveBeenCalledOnce();
+      expect(request.mock.calls[0][0]).toBe("acme.auth.refresh");
+      expect(refreshCallsBeforeLock).toBe(0);
+      expect(refreshCalls()).toBe(1);
+      expect(mockFetch).toHaveBeenCalledTimes(3);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("401 with a non-TOKEN_EXPIRED error code does not trigger refresh", async () => {
     mockFetch.mockResolvedValueOnce(
       errorJson(401, { error: "UNAUTHORIZED", message: "Not authenticated" }),

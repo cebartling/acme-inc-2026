@@ -431,12 +431,7 @@ class AuthenticationController(
         }
 
         val userId = tokenService.parseAccessToken(accessToken)
-            ?: return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
-                ErrorResponse(
-                    error = "UNAUTHORIZED",
-                    message = "Invalid or expired access token"
-                )
-            )
+            ?: return rejectedTokenResponse(accessToken)
 
         val corrId = correlationId?.let { UUID.fromString(it) } ?: UUID.randomUUID()
 
@@ -540,12 +535,7 @@ class AuthenticationController(
         }
 
         val claims = tokenService.parseAccessTokenClaims(accessToken)
-            ?: return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
-                ErrorResponse(
-                    error = "UNAUTHORIZED",
-                    message = "Invalid or expired access token"
-                )
-            )
+            ?: return rejectedTokenResponse(accessToken)
 
         val subject = claims.subject
             ?: return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
@@ -577,6 +567,18 @@ class AuthenticationController(
 
         return buildClearCookieResponse(LogoutAllResponse(sessionsInvalidated = sessions.size))
     }
+
+    /**
+     * Builds the 401 for a token that failed verification. An expired one is
+     * `TOKEN_EXPIRED`, which the customer app answers by refreshing and retrying.
+     */
+    private fun rejectedTokenResponse(accessToken: String): ResponseEntity<Any> =
+        ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
+            ErrorResponse(
+                error = if (tokenService.isExpiredAccessToken(accessToken)) "TOKEN_EXPIRED" else "UNAUTHORIZED",
+                message = "Invalid or expired access token"
+            )
+        )
 
     /**
      * Builds a 200 OK response with all auth cookies cleared.

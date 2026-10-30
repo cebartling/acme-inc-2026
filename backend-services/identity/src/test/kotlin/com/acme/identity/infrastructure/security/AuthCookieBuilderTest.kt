@@ -33,7 +33,7 @@ class AuthCookieBuilderTest {
         assertTrue(cookie.isSecure)
         assertEquals("Strict", cookie.sameSite)
         assertEquals("/", cookie.path)
-        assertEquals(900L, cookie.maxAge.seconds) // 15 minutes
+        assertEquals(604800L, cookie.maxAge.seconds) // 7 days, outliving the JWT (PIN-443)
     }
 
     @Test

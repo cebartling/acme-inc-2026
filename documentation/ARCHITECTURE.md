@@ -629,12 +629,16 @@ read their orders back (PIN-367).
     `409 CART_ALREADY_CONVERTED` replace the page with a message and a link back to the cart,
     and reload the cart query; `503 CART_UNAVAILABLE` offers
     Try again with the same key. `TOKEN_EXPIRED` is refreshed and retried by `api.ts`'s
-    interceptor, like any other service's. For Place order only, so is `401 SIGN_IN_REQUIRED`
-    (PIN-438, `refreshOnSignInRequired`): the `access_token` cookie lasts 15 minutes and a
-    session 30, so after it expires the browser sends no token. The retry keeps the same key.
-    Other callers don't refresh on it, since a refused refresh also clears `device_trust`. If that refresh fails too, the interceptor
-    clears the auth stores without redirecting, and `CheckoutPage` sends the customer to
-    `/signin?redirect=/cart`.
+    interceptor, like any other service's. The `access_token` cookie lasts as long as the
+    refresh token (7 days, PIN-443), so an expired 15-minute JWT still reaches every service,
+    which answers `TOKEN_EXPIRED`; identity's own endpoints do too. The interceptor holds a Web
+    Lock (`acme.auth.refresh`) across the refresh, because two tabs refreshing at once would
+    look like token reuse and sign the customer out of every device.
+    For Place order only, `401 SIGN_IN_REQUIRED` also refreshes (PIN-438,
+    `refreshOnSignInRequired`), as a fallback for a browser with no access cookie. The retry
+    keeps the same key. Other callers don't refresh on it, since a refused refresh also clears
+    `device_trust`. If that refresh fails too, the interceptor clears the auth stores without
+    redirecting, and `CheckoutPage` sends the customer to `/signin?redirect=/cart`.
   - **Placed:** the page replaces itself with `/orders/$orderId/confirmation`
     (`OrderConfirmation`), which reads the order with `GET /api/v1/orders/{orderId}`, so a
     reload never places it again (AC-6.5). The cart query is invalidated, and the converted

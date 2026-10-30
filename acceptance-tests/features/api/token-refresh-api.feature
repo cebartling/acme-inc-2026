@@ -20,7 +20,7 @@ Feature: Token Refresh API (US-0003-12)
     And the response should set a secure cookie named "access_token"
     And the access token cookie should have HttpOnly flag
     And the access token cookie should have Path="/"
-    And the access token cookie should have Max-Age=900
+    And the access token cookie should have Max-Age=604800
     And the response should set a secure cookie named "refresh_token"
     And the refresh token cookie should have HttpOnly flag
     And the refresh token cookie should have Path="/api/v1/auth/refresh"

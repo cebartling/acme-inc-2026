@@ -56,6 +56,11 @@ export class ApiError extends Error {
 // no hard redirect, so the page can send them to sign-in with its own
 // `redirect` (CheckoutPage uses /cart).
 //
+// Refresh tokens rotate on use, and a stale one presented to identity counts
+// as reuse, which signs the customer out of every device. So tabs take turns
+// (PIN-443): `refreshingAlone` holds a Web Lock across the refresh, and the
+// next tab's request carries the cookies the last one set.
+//
 // State lives at module scope because there's no AuthProvider in the
 // customer app. The `__resetRefreshStateForTests` export is a deliberate
 // test seam — vitest calls it in `beforeEach` so module-level state
@@ -63,12 +68,19 @@ export class ApiError extends Error {
 // =============================================================================
 
 const REFRESH_URL = `${IDENTITY_SERVICE_URL}/api/v1/auth/refresh`;
+const REFRESH_LOCK = "acme.auth.refresh";
 
 let isRefreshing = false;
 let refreshWaiters: Array<{
   resolve: () => void;
   reject: (err: unknown) => void;
 }> = [];
+
+/** Runs the refresh while no other tab does; a browser without Web Locks just runs it. */
+function refreshingAlone<T>(refresh: () => Promise<T>): Promise<T> {
+  const locks = globalThis.navigator?.locks;
+  return locks ? locks.request(REFRESH_LOCK, refresh) : refresh();
+}
 
 /**
  * Test-only: reset module-level refresh state between vitest cases. NOT
@@ -311,11 +323,13 @@ async function apiRequest<T>(
 
     isRefreshing = true;
     try {
-      await apiRequest<unknown>(REFRESH_URL, {
-        method: "POST",
-        credentials: "include",
-        __skipRefresh: true,
-      });
+      await refreshingAlone(() =>
+        apiRequest<unknown>(REFRESH_URL, {
+          method: "POST",
+          credentials: "include",
+          __skipRefresh: true,
+        }),
+      );
       flushWaiters();
       return apiRequest<T>(url, { ...options, __isRetry: true });
     } catch (refreshError) {
