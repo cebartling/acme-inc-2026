@@ -19,7 +19,7 @@ Feature: Session and Token Creation API (US-0003-07)
     And the access token cookie should have Secure flag
     And the access token cookie should have SameSite=Strict
     And the access token cookie should have Path="/"
-    And the access token cookie should have Max-Age=900
+    And the access token cookie should have Max-Age=604800
 
   # AC-0003-07-02: Refresh Token Generation
   @smoke

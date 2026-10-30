@@ -16,7 +16,7 @@ import org.springframework.stereotype.Component
  * - **Path restriction**: Refresh token limited to specific endpoint
  *
  * Cookie configuration:
- * - access_token: Path=/, Max-Age=900s (15 minutes)
+ * - access_token: Path=/, Max-Age=604800s (7 days), though its JWT lasts 15 minutes
  * - refresh_token: Path=/api/v1/auth/refresh, Max-Age=604800s (7 days)
  *
  * @property config JWT configuration for expiry times.
@@ -29,7 +29,9 @@ class AuthCookieBuilder(private val config: JwtConfig) {
      *
      * The access token cookie is:
      * - Available on all paths (Path=/)
-     * - Short-lived (15 minutes)
+     * - Kept as long as the refresh token, outliving its 15-minute JWT, so an expired
+     *   token still reaches services and they answer `TOKEN_EXPIRED` rather than seeing
+     *   no token at all (PIN-443). The JWT's own `exp` bounds what the cookie is good for.
      * - HttpOnly, Secure, SameSite=Strict
      *
      * @param token The JWT access token string.
@@ -41,7 +43,7 @@ class AuthCookieBuilder(private val config: JwtConfig) {
             .secure(true)
             .sameSite("Strict")
             .path("/")
-            .maxAge(config.accessTokenExpiry)
+            .maxAge(config.refreshTokenExpiry)
             .build()
     }
 

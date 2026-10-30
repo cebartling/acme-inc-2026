@@ -48,7 +48,7 @@ class DeviceController(
     ): ResponseEntity<Any> {
         // Authenticate user
         val userId = authenticateRequest(accessToken)
-            ?: return unauthorizedResponse("Authentication required")
+            ?: return unauthorizedResponse(accessToken, "Authentication required")
 
         // Get all trusted devices for the user
         val devices = deviceTrustService.listDevices(userId)
@@ -90,7 +90,7 @@ class DeviceController(
     ): ResponseEntity<Any> {
         // Authenticate user
         val userId = authenticateRequest(accessToken)
-            ?: return unauthorizedResponse("Authentication required")
+            ?: return unauthorizedResponse(accessToken, "Authentication required")
 
         logger.info("User {} attempting to revoke device {}", userId, deviceId)
 
@@ -131,7 +131,7 @@ class DeviceController(
     ): ResponseEntity<Any> {
         // Authenticate user
         val userId = authenticateRequest(accessToken)
-            ?: return unauthorizedResponse("Authentication required")
+            ?: return unauthorizedResponse(accessToken, "Authentication required")
 
         logger.info("User {} revoking all trusted devices", userId)
 
@@ -162,15 +162,18 @@ class DeviceController(
     }
 
     /**
-     * Creates a 401 Unauthorized response with error details.
+     * Creates a 401 Unauthorized response with error details. An expired token is
+     * `TOKEN_EXPIRED`, which the customer app answers by refreshing and retrying.
      *
+     * @param accessToken The JWT access token from the cookie.
      * @param message The error message.
      * @return ResponseEntity with 401 status and error body.
      */
-    private fun unauthorizedResponse(message: String): ResponseEntity<Any> {
+    private fun unauthorizedResponse(accessToken: String?, message: String): ResponseEntity<Any> {
+        val expired = !accessToken.isNullOrBlank() && tokenService.isExpiredAccessToken(accessToken)
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
             DeviceRevocationErrorResponse(
-                error = "UNAUTHORIZED",
+                error = if (expired) "TOKEN_EXPIRED" else "UNAUTHORIZED",
                 message = message
             )
         )

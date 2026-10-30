@@ -46,15 +46,26 @@ export class ApiError extends Error {
 // refresh is in flight queues onto `refreshWaiters` and retries after the
 // refresh resolves.
 //
-// The order service answers 401 + code SIGN_IN_REQUIRED when the access
-// cookie has expired and the browser no longer sends it (PIN-438). The
-// refresh cookie is HttpOnly, so the only way to know whether one exists
-// is to try: a caller that sets `refreshOnSignInRequired` (only Place
-// order) also refreshes and retries on that 401. Other callers don't, since
-// a refused refresh also clears identity's device_trust cookie. If the refresh fails, the
-// customer really is signed out: the auth stores are cleared but there is
-// no hard redirect, so the page can send them to sign-in with its own
-// `redirect` (CheckoutPage uses /cart).
+// The cart and order services answer 401 + INVALID_TOKEN for a token they
+// can't verify, which is what a customer's cookie becomes when identity
+// restarts and regenerates its signing keys (PIN-443). It's refreshed the same
+// way: identity then either issues new cookies or clears them, and the
+// customer isn't left with a cookie that fails until it expires in 7 days.
+//
+// The order service answers 401 + code SIGN_IN_REQUIRED when the browser
+// sends no access cookie (PIN-438). The refresh cookie is HttpOnly, so the
+// only way to know whether one exists is to try: a caller that sets
+// `refreshOnSignInRequired` (only Place order) also refreshes and retries on
+// that 401. Other callers don't, since a refused refresh also clears
+// identity's device_trust cookie. If such a caller's refresh fails, on either
+// 401, the customer really is signed out: the auth stores are cleared but
+// there is no hard redirect, so the page can send them to sign-in with its
+// own `redirect` (CheckoutPage uses /cart).
+//
+// Refresh tokens rotate on use, and a stale one presented to identity counts
+// as reuse, which signs the customer out of every device. So tabs take turns
+// (PIN-443): `refreshingAlone` holds a Web Lock across the refresh, and the
+// next tab's request carries the cookies the last one set.
 //
 // State lives at module scope because there's no AuthProvider in the
 // customer app. The `__resetRefreshStateForTests` export is a deliberate
@@ -63,12 +74,19 @@ export class ApiError extends Error {
 // =============================================================================
 
 const REFRESH_URL = `${IDENTITY_SERVICE_URL}/api/v1/auth/refresh`;
+const REFRESH_LOCK = "acme.auth.refresh";
 
 let isRefreshing = false;
 let refreshWaiters: Array<{
   resolve: () => void;
   reject: (err: unknown) => void;
 }> = [];
+
+/** Runs the refresh while no other tab does; a browser without Web Locks just runs it. */
+function refreshingAlone<T>(refresh: () => Promise<T>): Promise<T> {
+  const locks = globalThis.navigator?.locks;
+  return locks ? locks.request(REFRESH_LOCK, refresh) : refresh();
+}
 
 /**
  * Test-only: reset module-level refresh state between vitest cases. NOT
@@ -84,7 +102,10 @@ interface RefreshAwareRequestInit extends RequestInit {
   __isRetry?: boolean;
   /** Internal flag set on the refresh-call itself so it never triggers a nested refresh. */
   __skipRefresh?: boolean;
-  /** Also refresh and retry on 401 + code SIGN_IN_REQUIRED (PIN-438). */
+  /**
+   * Also refresh and retry on 401 + code SIGN_IN_REQUIRED (PIN-438), and leave the redirect
+   * to the page when any refresh for this request fails.
+   */
   refreshOnSignInRequired?: boolean;
   /**
    * Abandon the request after this many milliseconds and throw a TimeoutError.
@@ -280,7 +301,7 @@ async function apiRequest<T>(
     return apiError;
   };
 
-  // Token-refresh interception: only on 401 + TOKEN_EXPIRED (or
+  // Token-refresh interception: only on 401 + TOKEN_EXPIRED, INVALID_TOKEN (or
   // SIGN_IN_REQUIRED, see the comment at the top), only when
   // this isn't itself the refresh call, and only once per original
   // request. The path-suffix check is defense-in-depth backing up
@@ -290,7 +311,9 @@ async function apiRequest<T>(
   // invariant.
   if (
     response.status === 401 &&
-    (errorData?.error === "TOKEN_EXPIRED" || signInRequired) &&
+    (errorData?.error === "TOKEN_EXPIRED" ||
+      errorData?.error === "INVALID_TOKEN" ||
+      signInRequired) &&
     !__skipRefresh &&
     !__isRetry &&
     !url.endsWith("/api/v1/auth/refresh")
@@ -302,8 +325,8 @@ async function apiRequest<T>(
         await waitForRefresh();
       } catch (refreshError) {
         // The refreshing request has cleared the stores, but whether to
-        // redirect follows this request's own code, not that one's
-        if (!signInRequired) await handleRefreshFailure(true);
+        // redirect follows this request's own options, not that one's
+        if (!refreshOnSignInRequired) await handleRefreshFailure(true);
         throw refreshFailure(refreshError);
       }
       return apiRequest<T>(url, { ...options, __isRetry: true });
@@ -311,16 +334,18 @@ async function apiRequest<T>(
 
     isRefreshing = true;
     try {
-      await apiRequest<unknown>(REFRESH_URL, {
-        method: "POST",
-        credentials: "include",
-        __skipRefresh: true,
-      });
+      await refreshingAlone(() =>
+        apiRequest<unknown>(REFRESH_URL, {
+          method: "POST",
+          credentials: "include",
+          __skipRefresh: true,
+        }),
+      );
       flushWaiters();
       return apiRequest<T>(url, { ...options, __isRetry: true });
     } catch (refreshError) {
       flushWaiters(refreshError);
-      await handleRefreshFailure(!signInRequired);
+      await handleRefreshFailure(!refreshOnSignInRequired);
       throw refreshFailure(refreshError);
     } finally {
       isRefreshing = false;
@@ -1382,7 +1407,7 @@ export const orderApi = {
       credentials: "include",
       headers: { "Idempotency-Key": idempotencyKey },
       body: JSON.stringify({ checkoutSessionId }),
-      // The access cookie (15 min) can lapse during a checkout session (30 min)
+      // CheckoutPage sends a customer who can't be refreshed to sign-in, back to the cart
       refreshOnSignInRequired: true,
     });
   },

@@ -231,51 +231,24 @@ class TokenService(
     /**
      * Parses and validates a JWT access token.
      *
-     * Verifies:
-     * - JWT signature using the signing key
-     * - Token expiration
-     * - Token issuer matches configuration
+     * Applies the checks of [parseAccessTokenClaims], then reads the user ID.
      *
      * @param token The JWT token string.
      * @return The user ID from the token subject, or null if invalid.
      */
     fun parseAccessToken(token: String): UUID? {
+        val claims = parseAccessTokenClaims(token) ?: return null
+
+        val subject = claims.subject
+        if (subject == null) {
+            logger.warn("JWT token missing subject claim")
+            return null
+        }
+
         return try {
-            val jwt = SignedJWT.parse(token)
-            val signingKey = resolveSigningKey(jwt) ?: return null
-
-            // Verify signature
-            val verifier = RSASSAVerifier(signingKey.publicKey as RSAPublicKey)
-            if (!jwt.verify(verifier)) {
-                logger.warn("JWT signature verification failed")
-                return null
-            }
-
-            val claims = jwt.jwtClaimsSet
-
-            // Verify expiration
-            val expiration = claims.expirationTime
-            if (expiration == null || expiration.before(Date())) {
-                logger.debug("JWT token expired")
-                return null
-            }
-
-            // Verify issuer
-            if (claims.issuer != config.issuer) {
-                logger.warn("JWT issuer mismatch: expected ${config.issuer}, got ${claims.issuer}")
-                return null
-            }
-
-            // Extract user ID from subject
-            val subject = claims.subject
-            if (subject == null) {
-                logger.warn("JWT token missing subject claim")
-                return null
-            }
-
             UUID.fromString(subject)
-        } catch (e: Exception) {
-            logger.warn("Failed to parse JWT token: ${e.message}")
+        } catch (e: IllegalArgumentException) {
+            logger.warn("JWT subject is not a user ID: ${e.message}")
             null
         }
     }
@@ -283,14 +256,37 @@ class TokenService(
     /**
      * Parses and validates a JWT access token, returning the full claims set.
      *
-     * Performs the same signature, expiration, and issuer checks as
-     * [parseAccessToken], but exposes the entire [JWTClaimsSet] so callers
-     * can read non-subject claims (e.g., `sessionId`) without re-parsing.
+     * Checks the signature, expiry, issuer and `token_use`, and exposes the
+     * entire [JWTClaimsSet] so callers can read non-subject claims (e.g.,
+     * `sessionId`) without re-parsing.
      *
      * @param token The JWT token string.
      * @return The [JWTClaimsSet] if the token is valid, null otherwise.
      */
     fun parseAccessTokenClaims(token: String): JWTClaimsSet? {
+        val claims = verifiedAccessTokenClaims(token) ?: return null
+
+        val expiration = claims.expirationTime
+        if (expiration == null || expiration.before(Date())) {
+            logger.debug("JWT token expired")
+            return null
+        }
+
+        return claims
+    }
+
+    /**
+     * Tells an expired access token from an invalid one (PIN-443). Only a token that passes
+     * every other check counts, so identity answers TOKEN_EXPIRED only for a genuine token.
+     *
+     * @param token The JWT token string.
+     * @return True if the token is genuine and past its expiry.
+     */
+    fun isExpiredAccessToken(token: String): Boolean =
+        verifiedAccessTokenClaims(token)?.expirationTime?.before(Date()) == true
+
+    /** Signature, issuer and `token_use` checks, leaving expiry to the caller. */
+    private fun verifiedAccessTokenClaims(token: String): JWTClaimsSet? {
         return try {
             val jwt = SignedJWT.parse(token)
             val signingKey = resolveSigningKey(jwt) ?: return null
@@ -302,12 +298,6 @@ class TokenService(
             }
 
             val claims = jwt.jwtClaimsSet
-
-            val expiration = claims.expirationTime
-            if (expiration == null || expiration.before(Date())) {
-                logger.debug("JWT token expired")
-                return null
-            }
 
             if (claims.issuer != config.issuer) {
                 logger.warn("JWT issuer mismatch: expected ${config.issuer}, got ${claims.issuer}")

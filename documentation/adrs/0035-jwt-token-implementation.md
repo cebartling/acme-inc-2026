@@ -90,7 +90,7 @@ We will implement JWT (JSON Web Token) authentication using the following approa
 Tokens are delivered via secure HttpOnly cookies:
 
 ```
-Set-Cookie: access_token=<jwt>; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=900
+Set-Cookie: access_token=<jwt>; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=604800
 Set-Cookie: refresh_token=<jwt>; HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth/refresh; Max-Age=604800
 ```
 

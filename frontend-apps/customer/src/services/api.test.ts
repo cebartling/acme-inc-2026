@@ -745,6 +745,21 @@ describe("token-refresh interceptor", () => {
     });
   });
 
+  it("on a 401 INVALID_TOKEN, refreshes and retries, since the cookie can outlive its signing key (PIN-443)", async () => {
+    const profile = { customerId: "customer-123", userId: "user-456" };
+    mockFetch
+      .mockResolvedValueOnce(
+        errorJson(401, { error: "INVALID_TOKEN", code: "INVALID_TOKEN" }),
+      )
+      .mockResolvedValueOnce(okJson({ status: "SUCCESS", expiresIn: 900 }))
+      .mockResolvedValueOnce(okJson(profile));
+
+    await expect(customerApi.getCurrentCustomer()).resolves.toEqual(profile);
+
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+    expect(mockFetch.mock.calls[1][0]).toContain("/api/v1/auth/refresh");
+  });
+
   it("concurrent 401s share a single refresh, then each retries with the new tokens", async () => {
     const prefs = { customerId: "c", preferences: {}, updatedAt: "x" };
     const profile = { customerId: "c", userId: "u" };
@@ -801,7 +816,39 @@ describe("token-refresh interceptor", () => {
     }
   });
 
-  it("401 with a non-TOKEN_EXPIRED error code does not trigger refresh", async () => {
+  it("holds a Web Lock across the refresh, so tabs can't refresh at once (PIN-443)", async () => {
+    const refreshCalls = () =>
+      mockFetch.mock.calls.filter(([url]) =>
+        String(url).endsWith("/api/v1/auth/refresh"),
+      ).length;
+    let refreshCallsBeforeLock = -1;
+    const request = vi.fn(
+      async (_name: string, callback: () => Promise<unknown>) => {
+        refreshCallsBeforeLock = refreshCalls();
+        return callback();
+      },
+    );
+    vi.stubGlobal("navigator", { ...navigator, locks: { request } });
+
+    try {
+      mockFetch
+        .mockResolvedValueOnce(tokenExpired())
+        .mockResolvedValueOnce(okJson({ status: "SUCCESS" }))
+        .mockResolvedValueOnce(okJson({ id: "customer-1" }));
+
+      await customerApi.getCurrentCustomer();
+
+      expect(request).toHaveBeenCalledOnce();
+      expect(request.mock.calls[0][0]).toBe("acme.auth.refresh");
+      expect(refreshCallsBeforeLock).toBe(0);
+      expect(refreshCalls()).toBe(1);
+      expect(mockFetch).toHaveBeenCalledTimes(3);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("401 with any other error code does not trigger refresh", async () => {
     mockFetch.mockResolvedValueOnce(
       errorJson(401, { error: "UNAUTHORIZED", message: "Not authenticated" }),
     );
@@ -1670,8 +1717,8 @@ describe("checkout and orders (PIN-426)", () => {
     expect(retryInit.headers).toMatchObject({ "Idempotency-Key": "key-1" });
   });
 
-  // PIN-438: once the access cookie expires the browser stops sending it, so the order
-  // service answers SIGN_IN_REQUIRED rather than TOKEN_EXPIRED
+  // PIN-438: a browser with no access cookie gets SIGN_IN_REQUIRED from the order service
+  // rather than TOKEN_EXPIRED
   const signInRequired = () =>
     jsonResponse(401, {
       error: "Sign in to continue",
@@ -1694,6 +1741,28 @@ describe("checkout and orders (PIN-426)", () => {
 
   // What identity's refresh answers when there is no session to refresh
   const refreshRefused = () => jsonResponse(401, { error: "TOKEN_EXPIRED" });
+
+  it("orderApi.place signs the customer out without a redirect when TOKEN_EXPIRED can't refresh", async () => {
+    const effects = stubRefreshFailureEffects();
+    try {
+      mockFetch
+        .mockResolvedValueOnce(
+          jsonResponse(401, { error: "TOKEN_EXPIRED", code: "TOKEN_EXPIRED" }),
+        )
+        .mockResolvedValueOnce(refreshRefused());
+
+      const error = await orderApi.place("session-1", "key-1").catch((e) => e);
+
+      // The page, not the client, sends them to sign-in, so it can keep redirect=/cart
+      expect(error).toBeInstanceOf(ApiError);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(effects.clearUser).toHaveBeenCalledOnce();
+      expect(effects.clearProfile).toHaveBeenCalledOnce();
+      expect(effects.assignedHref()).toBeNull();
+    } finally {
+      effects.restore();
+    }
+  });
 
   it("orderApi.place signs the customer out without a redirect when SIGN_IN_REQUIRED can't refresh", async () => {
     const effects = stubRefreshFailureEffects();

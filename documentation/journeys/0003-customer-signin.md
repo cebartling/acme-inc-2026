@@ -255,7 +255,7 @@ Content-Type: application/json
 ```
 HTTP/1.1 200 OK
 Content-Type: application/json
-Set-Cookie: access_token=<jwt>; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=900
+Set-Cookie: access_token=<jwt>; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=604800
 Set-Cookie: refresh_token=<jwt>; HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth/refresh; Max-Age=604800
 
 {
@@ -384,7 +384,7 @@ Content-Type: application/json
 ```
 HTTP/1.1 200 OK
 Content-Type: application/json
-Set-Cookie: access_token=<jwt>; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=900
+Set-Cookie: access_token=<jwt>; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=604800
 Set-Cookie: refresh_token=<jwt>; HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth/refresh; Max-Age=604800
 Set-Cookie: device_trust=<token>; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=2592000
 
@@ -506,7 +506,7 @@ sequenceDiagram
 
 | Cookie | Value | Attributes |
 |--------|-------|------------|
-| `access_token` | JWT | `HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=900` |
+| `access_token` | JWT | `HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=604800` |
 | `refresh_token` | JWT | `HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth/refresh; Max-Age=604800` |
 | `device_trust` | Token | `HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=2592000` |
 
