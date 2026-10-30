@@ -256,4 +256,22 @@ describe("CheckoutPage (PIN-426)", () => {
     );
     expect(mockedStart).not.toHaveBeenCalled();
   });
+
+  it("sends a customer whose sign-in lapsed to sign-in, back to the cart (PIN-438)", async () => {
+    // What orderApi.place does when the access cookie expired and the refresh failed too
+    mockedPlace.mockImplementationOnce(async () => {
+      useAuthStore.getState().clearUser();
+      throw orderError(401, "SIGN_IN_REQUIRED");
+    });
+    renderPage();
+
+    await userEvent.click(await screen.findByTestId("placeOrder"));
+
+    await waitFor(() =>
+      expect(navigate).toHaveBeenCalledWith({
+        to: "/signin",
+        search: { redirect: "/cart" },
+      }),
+    );
+  });
 });

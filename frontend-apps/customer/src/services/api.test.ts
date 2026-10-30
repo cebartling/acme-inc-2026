@@ -28,6 +28,50 @@ function rejectOnAbort(signal: AbortSignal | null | undefined) {
   });
 }
 
+/**
+ * Stands in for what a failed refresh touches: the auth and customer stores (which api.ts
+ * imports lazily) and window.location, so a redirect is observed without navigating. Call
+ * `restore` from a `finally`, so a failed assertion doesn't leak the stubs into later cases.
+ */
+function stubRefreshFailureEffects() {
+  const originalLocation = window.location;
+  let assignedHref: string | null = null;
+  Object.defineProperty(window, "location", {
+    configurable: true,
+    value: {
+      ...originalLocation,
+      set href(value: string) {
+        assignedHref = value;
+      },
+      get href() {
+        return assignedHref ?? originalLocation.href;
+      },
+    },
+  });
+  const clearUser = vi.fn();
+  const clearProfile = vi.fn();
+  vi.doMock("@/stores/auth.store", () => ({
+    useAuthStore: { getState: () => ({ clearUser }) },
+  }));
+  vi.doMock("@/stores/customer.store", () => ({
+    useCustomerStore: { getState: () => ({ clearProfile }) },
+  }));
+
+  return {
+    clearUser,
+    clearProfile,
+    assignedHref: () => assignedHref,
+    restore() {
+      Object.defineProperty(window, "location", {
+        configurable: true,
+        value: originalLocation,
+      });
+      vi.doUnmock("@/stores/auth.store");
+      vi.doUnmock("@/stores/customer.store");
+    },
+  };
+}
+
 describe("ApiError", () => {
   it("creates error with message and status", () => {
     const error = new ApiError("Not found", 404);
@@ -737,58 +781,24 @@ describe("token-refresh interceptor", () => {
   });
 
   it("refresh failure clears auth stores, redirects to /signin?logout=true, and rejects the original request", async () => {
-    // Mock window.location so we can observe the redirect without
-    // actually navigating in the JSDOM environment.
-    const originalLocation = window.location;
-    let assignedHref: string | null = null;
-    Object.defineProperty(window, "location", {
-      configurable: true,
-      value: {
-        ...originalLocation,
-        set href(value: string) {
-          assignedHref = value;
-        },
-        get href() {
-          return assignedHref ?? originalLocation.href;
-        },
-      },
-    });
+    const effects = stubRefreshFailureEffects();
+    try {
+      // 1) original request → 401
+      // 2) /refresh → 401 TOKEN_EXPIRED (refresh itself rejected)
+      mockFetch
+        .mockResolvedValueOnce(tokenExpired())
+        .mockResolvedValueOnce(tokenExpired());
 
-    // Mock the auth + customer stores so we can assert cleanup.
-    const clearUser = vi.fn();
-    const clearProfile = vi.fn();
-    vi.doMock("@/stores/auth.store", () => ({
-      useAuthStore: {
-        getState: () => ({ clearUser }),
-      },
-    }));
-    vi.doMock("@/stores/customer.store", () => ({
-      useCustomerStore: {
-        getState: () => ({ clearProfile }),
-      },
-    }));
+      await expect(customerApi.getCurrentCustomer()).rejects.toBeInstanceOf(
+        ApiError,
+      );
 
-    // 1) original request → 401
-    // 2) /refresh → 401 TOKEN_EXPIRED (refresh itself rejected)
-    mockFetch
-      .mockResolvedValueOnce(tokenExpired())
-      .mockResolvedValueOnce(tokenExpired());
-
-    await expect(customerApi.getCurrentCustomer()).rejects.toBeInstanceOf(
-      ApiError,
-    );
-
-    expect(clearUser).toHaveBeenCalledOnce();
-    expect(clearProfile).toHaveBeenCalledOnce();
-    expect(assignedHref).toBe("/signin?logout=true");
-
-    // Restore.
-    Object.defineProperty(window, "location", {
-      configurable: true,
-      value: originalLocation,
-    });
-    vi.doUnmock("@/stores/auth.store");
-    vi.doUnmock("@/stores/customer.store");
+      expect(effects.clearUser).toHaveBeenCalledOnce();
+      expect(effects.clearProfile).toHaveBeenCalledOnce();
+      expect(effects.assignedHref()).toBe("/signin?logout=true");
+    } finally {
+      effects.restore();
+    }
   });
 
   it("401 with a non-TOKEN_EXPIRED error code does not trigger refresh", async () => {
@@ -1658,6 +1668,123 @@ describe("checkout and orders (PIN-426)", () => {
     const [retryUrl, retryInit] = mockFetch.mock.calls[2];
     expect(retryUrl).toBe("http://localhost:10305/api/v1/orders");
     expect(retryInit.headers).toMatchObject({ "Idempotency-Key": "key-1" });
+  });
+
+  // PIN-438: once the access cookie expires the browser stops sending it, so the order
+  // service answers SIGN_IN_REQUIRED rather than TOKEN_EXPIRED
+  const signInRequired = () =>
+    jsonResponse(401, {
+      error: "Sign in to continue",
+      code: "SIGN_IN_REQUIRED",
+    });
+
+  it("orderApi.place refreshes on SIGN_IN_REQUIRED and retries with the same key", async () => {
+    mockFetch
+      .mockResolvedValueOnce(signInRequired())
+      .mockResolvedValueOnce(jsonResponse(200, { status: "SUCCESS" }))
+      .mockResolvedValueOnce(jsonResponse(201, placed));
+
+    await expect(orderApi.place("session-1", "key-1")).resolves.toEqual(placed);
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+    expect(mockFetch.mock.calls[1][0]).toContain("/api/v1/auth/refresh");
+    const [retryUrl, retryInit] = mockFetch.mock.calls[2];
+    expect(retryUrl).toBe("http://localhost:10305/api/v1/orders");
+    expect(retryInit.headers).toMatchObject({ "Idempotency-Key": "key-1" });
+  });
+
+  // What identity's refresh answers when there is no session to refresh
+  const refreshRefused = () => jsonResponse(401, { error: "TOKEN_EXPIRED" });
+
+  it("orderApi.place signs the customer out without a redirect when SIGN_IN_REQUIRED can't refresh", async () => {
+    const effects = stubRefreshFailureEffects();
+    try {
+      mockFetch
+        .mockResolvedValueOnce(signInRequired())
+        .mockResolvedValueOnce(refreshRefused());
+
+      const error = await orderApi.place("session-1", "key-1").catch((e) => e);
+
+      // The page, not the client, sends them to sign-in, so it can keep redirect=/cart
+      expect(error).toBeInstanceOf(ApiError);
+      expect(error.status).toBe(401);
+      expect(error.data.code).toBe("SIGN_IN_REQUIRED");
+      // Why the refresh failed is kept, not swallowed
+      expect(error.cause).toBeInstanceOf(ApiError);
+      expect(error.cause.data.error).toBe("TOKEN_EXPIRED");
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(effects.clearUser).toHaveBeenCalledOnce();
+      expect(effects.clearProfile).toHaveBeenCalledOnce();
+      expect(effects.assignedHref()).toBeNull();
+    } finally {
+      effects.restore();
+    }
+  });
+
+  it("orderApi.place queued behind a failed refresh still rejects with SIGN_IN_REQUIRED", async () => {
+    const effects = stubRefreshFailureEffects();
+    try {
+      // 1) customer profile → 401 TOKEN_EXPIRED, starts the refresh
+      // 2) place → 401 SIGN_IN_REQUIRED, queues behind it  3) /refresh → 401
+      mockFetch
+        .mockResolvedValueOnce(jsonResponse(401, { error: "TOKEN_EXPIRED" }))
+        .mockResolvedValueOnce(signInRequired())
+        .mockResolvedValueOnce(refreshRefused());
+
+      const [profileError, placeError] = await Promise.all([
+        customerApi.getCurrentCustomer().catch((e) => e),
+        orderApi.place("session-1", "key-1").catch((e) => e),
+      ]);
+
+      expect(mockFetch).toHaveBeenCalledTimes(3);
+      expect(profileError).toBeInstanceOf(ApiError);
+      expect(placeError).toBeInstanceOf(ApiError);
+      expect(placeError.data.code).toBe("SIGN_IN_REQUIRED");
+      expect(placeError.cause).toBeInstanceOf(ApiError);
+    } finally {
+      effects.restore();
+    }
+  });
+
+  it("orderApi.get does not refresh on SIGN_IN_REQUIRED", async () => {
+    const effects = stubRefreshFailureEffects();
+    try {
+      mockFetch.mockResolvedValueOnce(signInRequired());
+
+      const error = await orderApi.get("order-1").catch((e) => e);
+
+      expect(error).toBeInstanceOf(ApiError);
+      expect(error.data.code).toBe("SIGN_IN_REQUIRED");
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(effects.clearUser).not.toHaveBeenCalled();
+      expect(effects.assignedHref()).toBeNull();
+    } finally {
+      effects.restore();
+    }
+  });
+
+  it("a TOKEN_EXPIRED request queued behind a SIGN_IN_REQUIRED refresh that fails still redirects", async () => {
+    const effects = stubRefreshFailureEffects();
+    try {
+      // 1) place → 401 SIGN_IN_REQUIRED, starts the refresh
+      // 2) customer profile → 401 TOKEN_EXPIRED, queues behind it  3) /refresh → 401
+      mockFetch
+        .mockResolvedValueOnce(signInRequired())
+        .mockResolvedValueOnce(jsonResponse(401, { error: "TOKEN_EXPIRED" }))
+        .mockResolvedValueOnce(refreshRefused());
+
+      const [placeError, profileError] = await Promise.all([
+        orderApi.place("session-1", "key-1").catch((e) => e),
+        customerApi.getCurrentCustomer().catch((e) => e),
+      ]);
+
+      expect(mockFetch).toHaveBeenCalledTimes(3);
+      expect(placeError.data.code).toBe("SIGN_IN_REQUIRED");
+      expect(profileError).toBeInstanceOf(ApiError);
+      expect(effects.clearUser).toHaveBeenCalled();
+      expect(effects.assignedHref()).toBe("/signin?logout=true");
+    } finally {
+      effects.restore();
+    }
   });
 
   it("orderApi.place rejects with the order service's code", async () => {
