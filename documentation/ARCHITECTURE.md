@@ -629,9 +629,10 @@ read their orders back (PIN-367).
     `409 CART_ALREADY_CONVERTED` replace the page with a message and a link back to the cart,
     and reload the cart query; `503 CART_UNAVAILABLE` offers
     Try again with the same key. `TOKEN_EXPIRED` is refreshed and retried by `api.ts`'s
-    interceptor, like any other service's. So is `401 SIGN_IN_REQUIRED` (PIN-438): the
-    `access_token` cookie lasts 15 minutes and a session 30, so after it expires the browser
-    sends no token. The retry keeps the same key. If that refresh fails too, the interceptor
+    interceptor, like any other service's. For Place order only, so is `401 SIGN_IN_REQUIRED`
+    (PIN-438, `refreshOnSignInRequired`): the `access_token` cookie lasts 15 minutes and a
+    session 30, so after it expires the browser sends no token. The retry keeps the same key.
+    Other callers don't refresh on it, since a refused refresh also clears `device_trust`. If that refresh fails too, the interceptor
     clears the auth stores without redirecting, and `CheckoutPage` sends the customer to
     `/signin?redirect=/cart`.
   - **Placed:** the page replaces itself with `/orders/$orderId/confirmation`

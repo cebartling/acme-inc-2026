@@ -49,7 +49,9 @@ export class ApiError extends Error {
 // The order service answers 401 + code SIGN_IN_REQUIRED when the access
 // cookie has expired and the browser no longer sends it (PIN-438). The
 // refresh cookie is HttpOnly, so the only way to know whether one exists
-// is to try: that 401 also refreshes and retries. If the refresh fails, the
+// is to try: a caller that sets `refreshOnSignInRequired` (only Place
+// order) also refreshes and retries on that 401. Other callers don't, since
+// a refused refresh also clears identity's device_trust cookie. If the refresh fails, the
 // customer really is signed out: the auth stores are cleared but there is
 // no hard redirect, so the page can send them to sign-in with its own
 // `redirect` (CheckoutPage uses /cart).
@@ -82,6 +84,8 @@ interface RefreshAwareRequestInit extends RequestInit {
   __isRetry?: boolean;
   /** Internal flag set on the refresh-call itself so it never triggers a nested refresh. */
   __skipRefresh?: boolean;
+  /** Also refresh and retry on 401 + code SIGN_IN_REQUIRED (PIN-438). */
+  refreshOnSignInRequired?: boolean;
   /**
    * Abandon the request after this many milliseconds and throw a TimeoutError.
    *
@@ -132,9 +136,9 @@ function flushWaiters(error?: unknown): void {
 }
 
 /**
- * Best-effort: clear local auth state and bounce the user to /signin
- * after a refresh failure. Stores and window are imported lazily to
- * avoid a static-import cycle (auth.store imports api types).
+ * Best-effort: clear local auth state after a refresh failure and, when
+ * `redirect` is set, bounce the user to /signin. Stores are imported
+ * lazily to avoid a static-import cycle (auth.store imports api types).
  */
 async function handleRefreshFailure(redirect: boolean): Promise<void> {
   // Dynamic imports avoid a static cycle (stores import API types). The
@@ -219,7 +223,13 @@ async function apiRequest<T>(
   url: string,
   options: RefreshAwareRequestInit = {},
 ): Promise<T> {
-  const { __isRetry, __skipRefresh, timeoutMs, ...fetchOptions } = options;
+  const {
+    __isRetry,
+    __skipRefresh,
+    refreshOnSignInRequired,
+    timeoutMs,
+    ...fetchOptions
+  } = options;
   const headers: HeadersInit = {
     "Content-Type": "application/json",
     ...fetchOptions.headers,
@@ -254,12 +264,21 @@ async function apiRequest<T>(
 
   const errorData = payload;
 
-  const signInRequired = errorData?.code === "SIGN_IN_REQUIRED";
+  const signInRequired =
+    !!refreshOnSignInRequired && errorData?.code === "SIGN_IN_REQUIRED";
   const apiError = new ApiError(
     errorData?.error || errorData?.message || `HTTP ${response.status}`,
     response.status,
     errorData ?? undefined,
   );
+
+  // What a failed refresh rejects with: SIGN_IN_REQUIRED keeps its own error so
+  // the page can tell why, with the refresh's error kept on it as `cause`
+  const refreshFailure = (refreshError: unknown): unknown => {
+    if (!signInRequired) return refreshError;
+    apiError.cause = refreshError;
+    return apiError;
+  };
 
   // Token-refresh interception: only on 401 + TOKEN_EXPIRED (or
   // SIGN_IN_REQUIRED, see the comment at the top), only when
@@ -279,7 +298,14 @@ async function apiRequest<T>(
     if (isRefreshing) {
       // Another request is already refreshing. Queue up; once the
       // refresh resolves we retry our original request.
-      await waitForRefresh();
+      try {
+        await waitForRefresh();
+      } catch (refreshError) {
+        // The refreshing request has cleared the stores, but whether to
+        // redirect follows this request's own code, not that one's
+        if (!signInRequired) await handleRefreshFailure(true);
+        throw refreshFailure(refreshError);
+      }
       return apiRequest<T>(url, { ...options, __isRetry: true });
     }
 
@@ -295,7 +321,7 @@ async function apiRequest<T>(
     } catch (refreshError) {
       flushWaiters(refreshError);
       await handleRefreshFailure(!signInRequired);
-      throw signInRequired ? apiError : refreshError;
+      throw refreshFailure(refreshError);
     } finally {
       isRefreshing = false;
     }
@@ -1356,6 +1382,8 @@ export const orderApi = {
       credentials: "include",
       headers: { "Idempotency-Key": idempotencyKey },
       body: JSON.stringify({ checkoutSessionId }),
+      // The access cookie (15 min) can lapse during a checkout session (30 min)
+      refreshOnSignInRequired: true,
     });
   },
 
