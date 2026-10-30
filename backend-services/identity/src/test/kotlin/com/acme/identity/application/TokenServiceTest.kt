@@ -4,6 +4,9 @@ import com.acme.identity.config.JwtConfig
 import com.acme.identity.domain.User
 import com.acme.identity.domain.UserStatus
 import com.acme.identity.infrastructure.security.SigningKeyProvider
+import com.nimbusds.jose.JWSAlgorithm
+import com.nimbusds.jose.JWSHeader
+import com.nimbusds.jose.crypto.RSASSASigner
 import com.nimbusds.jwt.SignedJWT
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -269,11 +272,14 @@ class TokenServiceTest {
 
     @Test
     fun `isExpiredAccessToken should be false for an expired token with a forged signature`() {
-        val forged = TokenService(SigningKeyProvider(jwtConfig), shortLivedConfig())
-            .createTokens(createTestUser(), testSessionId, testTokenFamily)
-        Thread.sleep(1100)
+        // Under the real kid, so it reaches the signature check rather than failing the key lookup
+        val forged = SignedJWT(
+            JWSHeader.Builder(JWSAlgorithm.RS256).keyID(signingKeyProvider.getCurrentKey().keyId).build(),
+            SignedJWT.parse(expiredTokens().accessToken).jwtClaimsSet
+        )
+        forged.sign(RSASSASigner(SigningKeyProvider(jwtConfig).getCurrentKey().privateKey))
 
-        assertFalse(tokenService.isExpiredAccessToken(forged.accessToken))
+        assertFalse(tokenService.isExpiredAccessToken(forged.serialize()))
     }
 
     @Test
@@ -282,25 +288,21 @@ class TokenServiceTest {
     }
 
     @Test
-    fun `isExpiredAccessToken should be false for a refresh token`() {
-        val tokens = tokenService.createTokens(createTestUser(), testSessionId, testTokenFamily)
-
-        assertFalse(tokenService.isExpiredAccessToken(tokens.refreshToken))
+    fun `isExpiredAccessToken should be false for an expired refresh token`() {
+        assertFalse(tokenService.isExpiredAccessToken(expiredTokens().refreshToken))
     }
 
-    private fun shortLivedConfig() = JwtConfig(
-        issuer = jwtConfig.issuer,
-        audience = jwtConfig.audience,
-        accessTokenExpiryMinutes = 0,
-        refreshTokenExpiryDays = 7,
-        keyRotationPeriodDays = 30
-    )
-
+    /** Tokens signed with the real key, already past their expiry when created. */
     private fun expiredTokens(): TokenPair {
-        val tokens = TokenService(signingKeyProvider, shortLivedConfig())
+        val config = JwtConfig(
+            issuer = jwtConfig.issuer,
+            audience = jwtConfig.audience,
+            accessTokenExpiryMinutes = -1,
+            refreshTokenExpiryDays = -1,
+            keyRotationPeriodDays = 30
+        )
+        return TokenService(signingKeyProvider, config)
             .createTokens(createTestUser(), testSessionId, testTokenFamily)
-        Thread.sleep(1100)
-        return tokens
     }
 
     @Test
@@ -330,6 +332,20 @@ class TokenServiceTest {
         val claims = tokenService.parseAccessTokenClaims(tokens.refreshToken)
 
         assertNull(claims)
+    }
+
+    @Test
+    fun `parseAccessToken should return the user ID for a valid token`() {
+        val tokens = tokenService.createTokens(createTestUser(), testSessionId, testTokenFamily)
+
+        assertEquals(testUserId, tokenService.parseAccessToken(tokens.accessToken))
+    }
+
+    @Test
+    fun `parseAccessToken should reject a refresh token (token_use mismatch)`() {
+        val tokens = tokenService.createTokens(createTestUser(), testSessionId, testTokenFamily)
+
+        assertNull(tokenService.parseAccessToken(tokens.refreshToken))
     }
 
     @Test

@@ -527,21 +527,19 @@ class AuthenticationControllerIntegrationTest {
             .andExpect(jsonPath("$.error").value("TOKEN_EXPIRED"))
     }
 
-    /** Signed with the service's real key, by a TokenService whose tokens expire at once. */
+    /** Signed with the service's real key, by a TokenService whose tokens are already expired. */
     private fun expiredAccessToken(): String {
         val config = JwtConfig(
             issuer = jwtConfig.issuer,
             audience = jwtConfig.audience,
-            accessTokenExpiryMinutes = 0,
+            accessTokenExpiryMinutes = -1,
             refreshTokenExpiryDays = jwtConfig.refreshTokenExpiryDays,
             keyRotationPeriodDays = jwtConfig.keyRotationPeriodDays
         )
         val user = createUserWithNoMfa("expired-${UUID.randomUUID()}@example.com", "ValidP@ss123!")
-        val token = TokenService(signingKeyProvider, config)
+        return TokenService(signingKeyProvider, config)
             .createTokens(user, "sess_${UUID.randomUUID()}", "fam_${UUID.randomUUID()}")
             .accessToken
-        Thread.sleep(1100)
-        return token
     }
 
     @Test

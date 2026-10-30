@@ -148,7 +148,9 @@ customer re-submitting the same term would never trigger a probe.
   `exp`, `iss`, `aud`, plus `token_use=access` and a UUID `sub`). Every endpoint stays open to guests: with a valid token the caller
   acts on their user cart, which follows them to any device; without one, on the session's.
   An expired token is `401 {"error":"TOKEN_EXPIRED"}`, which the customer app's API client
-  answers by refreshing and retrying; any other bad token is `401 INVALID_TOKEN`.
+  answers by refreshing and retrying; any other bad token is `401 INVALID_TOKEN`, which it
+  answers the same way, because a 7-day cookie can outlive identity's in-memory signing keys
+  (PIN-443). The refresh then renews the cookies or clears them, so the customer isn't stuck.
 - **One line per variant**: `cart_items` has a unique `(cart_id, variant_id)`, so adding a
   variant already in the cart increments its quantity rather than adding a line.
 - **Product snapshot**: each line stores the product name, SKU, image and attributes as
@@ -630,15 +632,16 @@ read their orders back (PIN-367).
     and reload the cart query; `503 CART_UNAVAILABLE` offers
     Try again with the same key. `TOKEN_EXPIRED` is refreshed and retried by `api.ts`'s
     interceptor, like any other service's. The `access_token` cookie lasts as long as the
-    refresh token (7 days, PIN-443), so an expired 15-minute JWT still reaches every service,
-    which answers `TOKEN_EXPIRED`; identity's own endpoints do too. The interceptor holds a Web
-    Lock (`acme.auth.refresh`) across the refresh, because two tabs refreshing at once would
-    look like token reuse and sign the customer out of every device.
+    refresh token (7 days, PIN-443), so an expired 15-minute JWT still reaches the cart and
+    order services, which answer `TOKEN_EXPIRED`; identity's own endpoints do too. The
+    interceptor holds a Web Lock (`acme.auth.refresh`) across the refresh, because two tabs
+    refreshing at once would look like token reuse and sign the customer out of every device.
     For Place order only, `401 SIGN_IN_REQUIRED` also refreshes (PIN-438,
     `refreshOnSignInRequired`), as a fallback for a browser with no access cookie. The retry
     keeps the same key. Other callers don't refresh on it, since a refused refresh also clears
-    `device_trust`. If that refresh fails too, the interceptor clears the auth stores without
-    redirecting, and `CheckoutPage` sends the customer to `/signin?redirect=/cart`.
+    `device_trust`. If Place order's refresh fails, on either 401, the interceptor clears the
+    auth stores without redirecting, and `CheckoutPage` sends the customer to
+    `/signin?redirect=/cart`.
   - **Placed:** the page replaces itself with `/orders/$orderId/confirmation`
     (`OrderConfirmation`), which reads the order with `GET /api/v1/orders/{orderId}`, so a
     reload never places it again (AC-6.5). The cart query is invalidated, and the converted
