@@ -1660,6 +1660,76 @@ describe("checkout and orders (PIN-426)", () => {
     expect(retryInit.headers).toMatchObject({ "Idempotency-Key": "key-1" });
   });
 
+  // PIN-438: once the access cookie expires the browser stops sending it, so the order
+  // service answers SIGN_IN_REQUIRED rather than TOKEN_EXPIRED
+  const signInRequired = () =>
+    jsonResponse(401, {
+      error: "Sign in to continue",
+      code: "SIGN_IN_REQUIRED",
+    });
+
+  it("orderApi.place refreshes on SIGN_IN_REQUIRED and retries with the same key", async () => {
+    mockFetch
+      .mockResolvedValueOnce(signInRequired())
+      .mockResolvedValueOnce(jsonResponse(200, { status: "SUCCESS" }))
+      .mockResolvedValueOnce(jsonResponse(201, placed));
+
+    await expect(orderApi.place("session-1", "key-1")).resolves.toEqual(placed);
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+    expect(mockFetch.mock.calls[1][0]).toContain("/api/v1/auth/refresh");
+    const [retryUrl, retryInit] = mockFetch.mock.calls[2];
+    expect(retryUrl).toBe("http://localhost:10305/api/v1/orders");
+    expect(retryInit.headers).toMatchObject({ "Idempotency-Key": "key-1" });
+  });
+
+  it("orderApi.place signs the customer out without a redirect when SIGN_IN_REQUIRED can't refresh", async () => {
+    const originalLocation = window.location;
+    let assignedHref: string | null = null;
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: {
+        ...originalLocation,
+        set href(value: string) {
+          assignedHref = value;
+        },
+        get href() {
+          return assignedHref ?? originalLocation.href;
+        },
+      },
+    });
+    const clearUser = vi.fn();
+    const clearProfile = vi.fn();
+    vi.doMock("@/stores/auth.store", () => ({
+      useAuthStore: { getState: () => ({ clearUser }) },
+    }));
+    vi.doMock("@/stores/customer.store", () => ({
+      useCustomerStore: { getState: () => ({ clearProfile }) },
+    }));
+    mockFetch
+      .mockResolvedValueOnce(signInRequired())
+      .mockResolvedValueOnce(
+        jsonResponse(401, { error: "INVALID_REFRESH_TOKEN" }),
+      );
+
+    const error = await orderApi.place("session-1", "key-1").catch((e) => e);
+
+    // The page, not the client, sends them to sign-in, so it can keep redirect=/cart
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error.status).toBe(401);
+    expect(error.data.code).toBe("SIGN_IN_REQUIRED");
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(clearUser).toHaveBeenCalledOnce();
+    expect(clearProfile).toHaveBeenCalledOnce();
+    expect(assignedHref).toBeNull();
+
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: originalLocation,
+    });
+    vi.doUnmock("@/stores/auth.store");
+    vi.doUnmock("@/stores/customer.store");
+  });
+
   it("orderApi.place rejects with the order service's code", async () => {
     mockFetch.mockResolvedValueOnce(
       jsonResponse(404, {

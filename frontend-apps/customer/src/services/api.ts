@@ -46,6 +46,14 @@ export class ApiError extends Error {
 // refresh is in flight queues onto `refreshWaiters` and retries after the
 // refresh resolves.
 //
+// The order service answers 401 + code SIGN_IN_REQUIRED when the access
+// cookie has expired and the browser no longer sends it (PIN-438). The
+// refresh cookie is HttpOnly, so the only way to know whether one exists
+// is to try: that 401 also refreshes and retries. If the refresh fails, the
+// customer really is signed out: the auth stores are cleared but there is
+// no hard redirect, so the page can send them to sign-in with its own
+// `redirect` (CheckoutPage uses /cart).
+//
 // State lives at module scope because there's no AuthProvider in the
 // customer app. The `__resetRefreshStateForTests` export is a deliberate
 // test seam — vitest calls it in `beforeEach` so module-level state
@@ -128,7 +136,7 @@ function flushWaiters(error?: unknown): void {
  * after a refresh failure. Stores and window are imported lazily to
  * avoid a static-import cycle (auth.store imports api types).
  */
-async function handleRefreshFailure(): Promise<void> {
+async function handleRefreshFailure(redirect: boolean): Promise<void> {
   // Dynamic imports avoid a static cycle (stores import API types). The
   // catch branches log a warning rather than swallowing silently — a
   // bundler quirk or future store rename that breaks the import path
@@ -146,7 +154,7 @@ async function handleRefreshFailure(): Promise<void> {
   } catch (err) {
     console.warn("refresh-cleanup: failed to clear customer store", err);
   }
-  if (typeof window !== "undefined") {
+  if (redirect && typeof window !== "undefined") {
     window.location.href = "/signin?logout=true";
   }
 }
@@ -246,7 +254,15 @@ async function apiRequest<T>(
 
   const errorData = payload;
 
-  // Token-refresh interception: only on 401 + TOKEN_EXPIRED, only when
+  const signInRequired = errorData?.code === "SIGN_IN_REQUIRED";
+  const apiError = new ApiError(
+    errorData?.error || errorData?.message || `HTTP ${response.status}`,
+    response.status,
+    errorData ?? undefined,
+  );
+
+  // Token-refresh interception: only on 401 + TOKEN_EXPIRED (or
+  // SIGN_IN_REQUIRED, see the comment at the top), only when
   // this isn't itself the refresh call, and only once per original
   // request. The path-suffix check is defense-in-depth backing up
   // __skipRefresh — using `endsWith` instead of strict URL equality means
@@ -255,7 +271,7 @@ async function apiRequest<T>(
   // invariant.
   if (
     response.status === 401 &&
-    errorData?.error === "TOKEN_EXPIRED" &&
+    (errorData?.error === "TOKEN_EXPIRED" || signInRequired) &&
     !__skipRefresh &&
     !__isRetry &&
     !url.endsWith("/api/v1/auth/refresh")
@@ -278,18 +294,14 @@ async function apiRequest<T>(
       return apiRequest<T>(url, { ...options, __isRetry: true });
     } catch (refreshError) {
       flushWaiters(refreshError);
-      await handleRefreshFailure();
-      throw refreshError;
+      await handleRefreshFailure(!signInRequired);
+      throw signInRequired ? apiError : refreshError;
     } finally {
       isRefreshing = false;
     }
   }
 
-  throw new ApiError(
-    errorData?.error || errorData?.message || `HTTP ${response.status}`,
-    response.status,
-    errorData ?? undefined,
-  );
+  throw apiError;
 }
 
 /**
