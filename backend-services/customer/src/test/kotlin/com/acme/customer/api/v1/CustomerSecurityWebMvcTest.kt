@@ -5,6 +5,8 @@ import com.acme.customer.application.GetCustomerProfileUseCase
 import com.acme.customer.application.ProfileCompletenessCalculator
 import com.acme.customer.application.UpdateProfileUseCase
 import com.acme.customer.config.SecurityConfig
+import com.acme.customer.config.ServiceCredentials
+import com.acme.customer.domain.Customer
 import com.acme.customer.infrastructure.persistence.CustomerPreferencesRepository
 import com.acme.customer.infrastructure.persistence.CustomerRepository
 import io.mockk.clearMocks
@@ -29,17 +31,21 @@ import org.springframework.security.oauth2.jwt.JwtValidationException
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.options
+import java.net.URI
+import java.util.Optional
 import java.util.UUID
 
 /**
- * `GET /api/v1/customers/me` through the real security chain: who the customer is comes from
- * the verified `access_token` cookie, never from a header the caller chose.
+ * The customer endpoints through the real security chain: who the customer is comes from the
+ * verified `access_token` cookie, never from a header the caller chose, and only a service may
+ * look a customer up.
  */
-@WebMvcTest(CustomerController::class)
-@Import(SecurityConfig::class)
-class CurrentCustomerWebMvcTest(
+@WebMvcTest(CustomerController::class, properties = ["acme.customer.service-token=test-service-token"])
+@Import(SecurityConfig::class, ServiceCredentials::class)
+class CustomerSecurityWebMvcTest(
     @Autowired private val mockMvc: MockMvc,
     @Autowired private val getProfile: GetCustomerProfileUseCase,
+    @Autowired private val customerRepository: CustomerRepository,
     @Autowired private val jwtDecoder: JwtDecoder,
     @Autowired private val accessTokenValidator: OAuth2TokenValidator<Jwt>
 ) {
@@ -71,7 +77,7 @@ class CurrentCustomerWebMvcTest(
 
     @BeforeEach
     fun setUp() {
-        clearMocks(getProfile, jwtDecoder)
+        clearMocks(getProfile, jwtDecoder, customerRepository)
         every { jwtDecoder.decode("good-token") } returns jwt(subject = userId.toString())
         every { getProfile.execute(any()) } returns GetCustomerProfileResult.NotFound(userId)
     }
@@ -164,10 +170,77 @@ class CurrentCustomerWebMvcTest(
     }
 
     @Test
-    fun `other customer endpoints don't check the access cookie`() {
-        // Inside the chain this cookie would be a 401; the controller answers the bad ID instead
-        mockMvc.get("/api/v1/customers/by-user/not-a-uuid") {
-            cookie(accessToken("bad-token"))
-        }.andExpect { status { isBadRequest() } }
+    fun `a page of a customer's own needs the access cookie`() {
+        val id = UUID.randomUUID()
+
+        mockMvc.get("/api/v1/customers/$id/profile/completeness") {
+            header("X-User-Id", userId.toString())
+        }.andExpect {
+            status { isUnauthorized() }
+            jsonPath("$.code") { value("SIGN_IN_REQUIRED") }
+        }
+    }
+
+    @Test
+    fun `an X-User-Id header doesn't reach a customer the token doesn't own`() {
+        val id = UUID.randomUUID()
+        val otherUser = UUID.randomUUID()
+        val customer = mockk<Customer> { every { this@mockk.userId } returns otherUser }
+        every { customerRepository.findById(id) } returns Optional.of(customer)
+
+        mockMvc.get("/api/v1/customers/$id/profile/completeness") {
+            cookie(accessToken())
+            header("X-User-Id", otherUser.toString())
+        }.andExpect { status { isNotFound() } }
+    }
+
+    @Test
+    fun `a lookup with no credentials is a 401`() {
+        val paths = listOf(
+            "/api/v1/customers/${UUID.randomUUID()}",
+            "/api/v1/customers/by-user/${UUID.randomUUID()}",
+            "/api/v1/customers/by-number/ACME-1",
+            "/api/v1/customers/by-email/a@example.com"
+        )
+
+        paths.forEach { mockMvc.get(it).andExpect { status { isUnauthorized() } } }
+    }
+
+    @Test
+    fun `a signed-in customer can't use a lookup`() {
+        mockMvc.get("/api/v1/customers/by-email/a@example.com") {
+            cookie(accessToken())
+        }.andExpect { status { isForbidden() } }
+    }
+
+    @Test
+    fun `a wrong service token can't use a lookup`() {
+        mockMvc.get("/api/v1/customers/by-email/a@example.com") {
+            header(ServiceCredentials.HEADER, "wrong")
+        }.andExpect { status { isUnauthorized() } }
+    }
+
+    @Test
+    fun `a service can look a customer up`() {
+        every { customerRepository.findByEmail("a@example.com") } returns null
+
+        mockMvc.get("/api/v1/customers/by-email/a@example.com") {
+            header(ServiceCredentials.HEADER, SERVICE_TOKEN)
+        }.andExpect { status { isNotFound() } }
+    }
+
+    @Test
+    fun `an email with a percent sign reaches the lookup`() {
+        every { customerRepository.findByEmail("a%b@example.com") } returns null
+
+        mockMvc.get(URI("/api/v1/customers/by-email/a%25b%40example.com")) {
+            header(ServiceCredentials.HEADER, SERVICE_TOKEN)
+        }.andExpect { status { isNotFound() } }
+
+        verify(exactly = 1) { customerRepository.findByEmail("a%b@example.com") }
+    }
+
+    private companion object {
+        const val SERVICE_TOKEN = "test-service-token"
     }
 }

@@ -11,6 +11,7 @@ import { MfaVerificationForm } from "@/components/mfa";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/stores/auth.store";
 import { mergeCartAfterSignIn } from "@/hooks/useCart";
+import { isSafeRedirect } from "@/lib/redirect";
 import { identityApi, ApiError } from "@/services/api";
 import { Button } from "@/components/ui/button";
 import {
@@ -40,7 +41,12 @@ interface MfaState {
 const mfaVerifySearchSchema = z.object({
   token: z.string().optional(),
   email: z.string().optional(),
-  redirect: z.string().optional(),
+  // Dropped rather than rejected, as on sign-in: a bad link can still finish MFA
+  redirect: z
+    .string()
+    .optional()
+    .refine((val) => !val || isSafeRedirect(val))
+    .catch(undefined),
 });
 
 export const Route = createFileRoute("/mfa-verify")({
@@ -223,7 +229,11 @@ function MfaVerifyPage() {
       await mergeCartAfterSignIn(queryClient);
 
       // Navigate to redirect URL or home
-      const redirectTo = mfaState.redirect || "/";
+      // Checked here too: this one may have come from sessionStorage
+      const redirectTo =
+        mfaState.redirect && isSafeRedirect(mfaState.redirect)
+          ? mfaState.redirect
+          : "/";
       navigate({ to: redirectTo });
     } catch (err) {
       if (err instanceof ApiError) {

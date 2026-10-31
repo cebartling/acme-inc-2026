@@ -2,6 +2,8 @@ import { Given, When, Then } from '@cucumber/cucumber';
 import { expect } from '@playwright/test';
 import { CustomWorld } from '../../support/world.js';
 import { verifyEmail } from '../../support/verify-email.js';
+import { accessCookieFor } from '../../support/access-token.js';
+import { config } from '../../playwright.config.js';
 
 interface RegistrationRequest {
   email: string;
@@ -214,6 +216,26 @@ When('I request my customer profile as the authenticated user', async function (
   }
 });
 
+When(
+  "I request that customer's addresses claiming to be them in a header",
+  async function (this: CustomWorld) {
+    const url = `${config.customerApiUrl}/api/v1/customers/${this.getTestData<string>('customerId')}/addresses`;
+    const response = await fetch(url, {
+      headers: { 'X-User-Id': this.getTestData<string>('userId')! },
+    });
+    this.setTestData('lastResponseStatus', response.status);
+  }
+);
+
+When(
+  'I look that customer up by email without a service token',
+  async function (this: CustomWorld) {
+    const email = encodeURIComponent(this.getTestData<string>('registeredEmail')!);
+    const response = await fetch(`${config.customerApiUrl}/api/v1/customers/by-email/${email}`);
+    this.setTestData('lastResponseStatus', response.status);
+  }
+);
+
 When('I request customer profile without authentication', async function (this: CustomWorld) {
   try {
     const response = await this.customerApiClient.get<CustomerProfile>('/api/v1/customers/me', {
@@ -286,7 +308,12 @@ When('I update my profile information', async function (this: CustomWorld) {
         firstName: 'Updated',
         lastName: 'Name',
       },
-      { headers: { 'X-User-Id': userId!, 'X-Correlation-Id': crypto.randomUUID() } }
+      {
+        headers: {
+          Cookie: await accessCookieFor(this, userId!),
+          'X-Correlation-Id': crypto.randomUUID(),
+        },
+      }
     );
 
     this.setTestData('profileUpdated', true);

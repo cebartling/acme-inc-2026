@@ -72,6 +72,7 @@ class TestController(
     private val passwordResetTokenRepository: PasswordResetTokenRepository,
     private val passwordResetRequestLogRepository: PasswordResetRequestLogRepository,
     private val passwordResetTokenGenerator: PasswordResetTokenGenerator,
+    private val tokenService: com.acme.identity.application.TokenService,
     @Value("\${identity.test.api-key:test-api-key-for-acceptance-tests}")
     private val testApiKey: String
 ) {
@@ -919,6 +920,29 @@ class TestController(
         val sessionsCreated: Int,
         val totalSessions: Int
     )
+
+    /**
+     * Issues a signed access token for a user ID, which needn't exist here: acceptance tests seed
+     * customers directly into the customer service, with user IDs identity has never seen. Going
+     * through verification beats a way around it, so they call it with a real token.
+     *
+     * @param userId The user the token is for.
+     * @return The access token, to send as the `access_token` cookie.
+     */
+    @PostMapping("/users/{userId}/access-token")
+    fun issueAccessToken(@PathVariable userId: UUID): ResponseEntity<Map<String, String>> {
+        val user = com.acme.identity.domain.User(
+            id = userId,
+            email = "$userId@test.invalid",
+            passwordHash = "",
+            firstName = "Test",
+            lastName = "User",
+            tosAcceptedAt = Instant.now(),
+            registrationSource = com.acme.identity.domain.RegistrationSource.WEB
+        )
+        val tokens = tokenService.createTokens(user, "test-session-$userId", "test-family-$userId")
+        return ResponseEntity.ok(mapOf("accessToken" to tokens.accessToken))
+    }
 
     /**
      * Creates multiple test sessions for a user.

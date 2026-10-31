@@ -36,7 +36,7 @@ spring:
   security:
     oauth2:
       resourceserver:
-        # Verifies identity's access_token cookie on /customers/me, as the cart does (ADR-0043):
+        # Verifies identity's access_token cookie, as the cart does (ADR-0043):
         # signature against identity's public keys, plus exp, iss and aud. Keys are re-fetched
         # when a token carries an unknown kid (identity regenerates its keys on restart).
         jwt:
@@ -79,6 +79,12 @@ management:
       show-details: when_authorized
       probes:
         enabled: true
+
+acme:
+  customer:
+    # The secret a service sends in X-Service-Token to look a customer up. No default: the service
+    # won't start without it.
+    service-token: ${ACME_CUSTOMER_SERVICE_TOKEN:}
 
 customer:
   events:

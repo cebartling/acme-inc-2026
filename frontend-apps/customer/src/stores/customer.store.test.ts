@@ -99,6 +99,19 @@ describe("useCustomerStore", () => {
   });
 
   describe("fetchProfile", () => {
+    it("keeps the failure itself, and clears it with the profile", async () => {
+      const failure = new Error("Sign in to continue");
+      vi.mocked(customerApi.getCurrentCustomer).mockRejectedValueOnce(failure);
+
+      await expect(useCustomerStore.getState().fetchProfile()).rejects.toBe(
+        failure,
+      );
+      expect(useCustomerStore.getState().loadError).toBe(failure);
+
+      useCustomerStore.getState().clearProfile();
+      expect(useCustomerStore.getState().loadError).toBeNull();
+    });
+
     it("sets loading to true when fetching starts", async () => {
       vi.mocked(customerApi.getCurrentCustomer).mockImplementation(
         () => new Promise(() => {}), // Never resolves

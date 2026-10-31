@@ -1,6 +1,7 @@
 import { Given, When, Then } from '@cucumber/cucumber';
 import { expect } from '@playwright/test';
 import { CustomWorld } from '../../support/world.js';
+import { accessCookieFor } from '../../support/access-token.js';
 
 interface ConsentRequest {
   consentType: string;
@@ -132,7 +133,7 @@ async function grantConsent(
     const response = await world.customerApiClient.post<ConsentResponse>(
       `/api/v1/customers/${custId}/consents`,
       request,
-      { headers: { 'X-User-Id': userId! } }
+      { headers: { Cookie: await accessCookieFor(world, userId!) } }
     );
 
     world.setTestData('lastResponseStatus', response.status);
@@ -178,7 +179,7 @@ async function revokeConsent(
     const response = await world.customerApiClient.post<ConsentResponse>(
       `/api/v1/customers/${custId}/consents`,
       request,
-      { headers: { 'X-User-Id': userId! } }
+      { headers: { Cookie: await accessCookieFor(world, userId!) } }
     );
 
     world.setTestData('lastResponseStatus', response.status);
@@ -300,7 +301,7 @@ When('I request my consents', async function (this: CustomWorld) {
   try {
     const response = await this.customerApiClient.get<ConsentsListResponse>(
       `/api/v1/customers/${customerId}/consents`,
-      { headers: { 'X-User-Id': userId! } }
+      { headers: { Cookie: await accessCookieFor(this, userId!) } }
     );
 
     this.setTestData('lastResponseStatus', response.status);
@@ -328,7 +329,7 @@ When(
     try {
       const response = await this.customerApiClient.get<ConsentsListResponse>(
         `/api/v1/customers/${normalizedCustomerId}/consents`,
-        { headers: { 'X-User-Id': userId! } }
+        { headers: { Cookie: await accessCookieFor(this, userId!) } }
       );
 
       this.setTestData('lastResponseStatus', response.status);
@@ -357,7 +358,7 @@ When('I export my consent history', async function (this: CustomWorld) {
   try {
     const response = await this.customerApiClient.get<ConsentHistoryExportResponse>(
       `/api/v1/customers/${customerId}/consents/history?format=json`,
-      { headers: { 'X-User-Id': userId! } }
+      { headers: { Cookie: await accessCookieFor(this, userId!) } }
     );
 
     this.setTestData('lastResponseStatus', response.status);
@@ -388,7 +389,7 @@ When(
     try {
       const response = await this.customerApiClient.get<ConsentHistoryExportResponse>(
         `/api/v1/customers/${customerId}/consents/history?format=${format}`,
-        { headers: { 'X-User-Id': userId! } }
+        { headers: { Cookie: await accessCookieFor(this, userId!) } }
       );
 
       this.setTestData('lastResponseStatus', response.status);
@@ -416,7 +417,7 @@ When(
     try {
       const response = await this.customerApiClient.get<ConsentHistoryExportResponse>(
         `/api/v1/customers/${normalizedCustomerId}/consents/history?format=json`,
-        { headers: { 'X-User-Id': userId! } }
+        { headers: { Cookie: await accessCookieFor(this, userId!) } }
       );
 
       this.setTestData('lastResponseStatus', response.status);

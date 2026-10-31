@@ -199,7 +199,7 @@ class CustomerController(
     @PatchMapping("/{id}/profile")
     fun updateProfile(
         @PathVariable id: String,
-        @RequestHeader("X-User-Id") userId: String,
+        @AuthenticationPrincipal(expression = "subject") userId: String,
         @RequestHeader("X-Correlation-Id", required = false) correlationId: String?,
         @RequestBody request: UpdateProfileRequest
     ): ResponseEntity<Any> {
@@ -285,7 +285,7 @@ class CustomerController(
     @GetMapping("/{id}/profile/completeness")
     fun getProfileCompleteness(
         @PathVariable id: String,
-        @RequestHeader("X-User-Id", required = false) userId: String?
+        @AuthenticationPrincipal(expression = "subject") userId: String
     ): ResponseEntity<ProfileCompletenessResponse> {
         logger.debug("Getting profile completeness for customer: {}", id)
 
@@ -302,19 +302,9 @@ class CustomerController(
                 return ResponseEntity.notFound().build()
             }
 
-        // Authorization check: if userId is provided, verify ownership
-        if (userId != null) {
-            val parsedUserId = try {
-                UUID.fromString(userId)
-            } catch (e: IllegalArgumentException) {
-                logger.warn("Invalid user ID format: {}", userId)
-                return ResponseEntity.badRequest().build()
-            }
-
-            if (customer.userId != parsedUserId) {
-                logger.debug("User {} not authorized to access customer {}", userId, id)
-                return ResponseEntity.notFound().build()
-            }
+        if (customer.userId != UUID.fromString(userId)) {
+            logger.debug("User {} not authorized to access customer {}", userId, id)
+            return ResponseEntity.notFound().build()
         }
 
         val completeness = profileCompletenessCalculator.calculate(customer)

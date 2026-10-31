@@ -14,6 +14,7 @@ import com.acme.customer.application.GrantConsentResult
 import com.acme.customer.application.GrantConsentUseCase
 import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
+import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
@@ -51,7 +52,7 @@ class ConsentController(
     @PostMapping("/{customerId}/consents")
     fun grantOrRevokeConsent(
         @PathVariable customerId: String,
-        @RequestHeader("X-User-Id") userId: String,
+        @AuthenticationPrincipal(expression = "subject") userId: String,
         @RequestHeader("X-Correlation-Id", required = false) correlationId: String?,
         @RequestBody request: GrantConsentRequest
     ): ResponseEntity<Any> {
@@ -150,7 +151,7 @@ class ConsentController(
     @GetMapping("/{customerId}/consents")
     fun getConsents(
         @PathVariable customerId: String,
-        @RequestHeader("X-User-Id") userId: String
+        @AuthenticationPrincipal(expression = "subject") userId: String
     ): ResponseEntity<Any> {
         logger.debug("Getting consents for customer: {}", customerId)
 
@@ -203,7 +204,7 @@ class ConsentController(
     @GetMapping("/{customerId}/consents/history")
     fun exportConsentHistory(
         @PathVariable customerId: String,
-        @RequestHeader("X-User-Id") userId: String,
+        @AuthenticationPrincipal(expression = "subject") userId: String,
         @RequestParam(required = false, defaultValue = "json") format: String
     ): ResponseEntity<Any> {
         logger.debug("Exporting consent history for customer: {} (format={})", customerId, format)

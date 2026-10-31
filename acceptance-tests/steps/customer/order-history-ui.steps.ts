@@ -95,6 +95,12 @@ Then('I should be on {string}', async function (this: CustomWorld, path: string)
     .toBe(path);
 });
 
+Then('I should stay on {string}', async function (this: CustomWorld, path: string) {
+  await this.page.waitForTimeout(1000);
+  const url = new URL(this.page.url());
+  expect(url.pathname + url.search).toBe(path);
+});
+
 Given('my access cookie is gone', async function (this: CustomWorld) {
   await this.context.clearCookies({ name: 'access_token' });
 });

@@ -77,6 +77,9 @@ notification:
   customer-service:
     base-url: ${CUSTOMER_SERVICE_URL:http://localhost:10301}
     timeout-ms: ${CUSTOMER_SERVICE_TIMEOUT_MS:5000}
+    # Sent in X-Service-Token: the customer service answers lookups only to services. No default:
+    # the service won't start without it.
+    service-token: ${ACME_CUSTOMER_SERVICE_TOKEN:}
 
   email:
     from-address: ${EMAIL_FROM_ADDRESS:noreply@acme.com}

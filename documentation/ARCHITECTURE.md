@@ -677,6 +677,12 @@ read their orders back (PIN-367).
     `redirect`. The detail page carries the history's `page`, so Back to your orders returns
     to it. Their query keys carry the user ID, so the next account on a browser can't read
     them from the cache. The header's user menu and the dashboard link to `/orders`.
+  - **Customer service auth** (PIN-428): everything under `/api/v1/customers/` needs identity's
+    verified `access_token` cookie, and the user comes from the token, not a header. Lookups by
+    ID, user ID, number and email return a whole customer, so they take `X-Service-Token`
+    (`ACME_CUSTOMER_SERVICE_TOKEN`), which the notification service sends. The dashboard and
+    preferences send a customer to sign-in on a `401` as the order pages do, and a dead session
+    leaves the sign-in, registration and password pages alone (`SIGNED_OUT_PAGES` in `api.ts`).
 - **Persistence** ([ADR-0041](adrs/0041-per-service-persistence-model.md)): plain JPA with Flyway and `ddl-auto: validate`, like the other services.
   The epic's event store and CQRS read models are deferred. `V1__baseline.sql` is empty,
   `V2` adds the `outbox` table (PIN-368), and `V3` the `orders`, `order_items` and

@@ -109,7 +109,6 @@ describe("customerApi", () => {
 
   describe("getPreferences", () => {
     const customerId = "customer-123";
-    const userId = "user-456";
 
     it("makes GET request with correct URL", async () => {
       mockFetch.mockResolvedValueOnce({
@@ -137,16 +136,13 @@ describe("customerApi", () => {
           }),
       });
 
-      await customerApi.getPreferences(customerId, userId);
+      await customerApi.getPreferences(customerId);
 
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining(`/api/v1/customers/${customerId}/preferences`),
         expect.objectContaining({
           method: "GET",
-          headers: expect.objectContaining({
-            "Content-Type": "application/json",
-            "X-User-Id": userId,
-          }),
+          credentials: "include",
         }),
       );
     });
@@ -178,7 +174,7 @@ describe("customerApi", () => {
         json: () => Promise.resolve(expectedResponse),
       });
 
-      const result = await customerApi.getPreferences(customerId, userId);
+      const result = await customerApi.getPreferences(customerId);
       expect(result).toEqual(expectedResponse);
     });
 
@@ -190,9 +186,9 @@ describe("customerApi", () => {
         json: () => Promise.resolve({ error: "Customer not found" }),
       });
 
-      await expect(
-        customerApi.getPreferences(customerId, userId),
-      ).rejects.toThrow(ApiError);
+      await expect(customerApi.getPreferences(customerId)).rejects.toThrow(
+        ApiError,
+      );
     });
 
     it("throws ApiError with correct status code", async () => {
@@ -204,7 +200,7 @@ describe("customerApi", () => {
       });
 
       try {
-        await customerApi.getPreferences(customerId, userId);
+        await customerApi.getPreferences(customerId);
       } catch (error) {
         expect(error).toBeInstanceOf(ApiError);
         expect((error as ApiError).status).toBe(403);
@@ -486,7 +482,6 @@ describe("customerApi", () => {
 
   describe("updatePreferences", () => {
     const customerId = "customer-123";
-    const userId = "user-456";
     const preferences = {
       communication: { email: false },
       privacy: { allowAnalytics: false },
@@ -518,16 +513,13 @@ describe("customerApi", () => {
           }),
       });
 
-      await customerApi.updatePreferences(customerId, userId, preferences);
+      await customerApi.updatePreferences(customerId, preferences);
 
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining(`/api/v1/customers/${customerId}/preferences`),
         expect.objectContaining({
           method: "PUT",
-          headers: expect.objectContaining({
-            "Content-Type": "application/json",
-            "X-User-Id": userId,
-          }),
+          credentials: "include",
           body: JSON.stringify(preferences),
         }),
       );
@@ -566,7 +558,6 @@ describe("customerApi", () => {
 
       const result = await customerApi.updatePreferences(
         customerId,
-        userId,
         preferences,
       );
       expect(result).toEqual(expectedResponse);
@@ -585,7 +576,7 @@ describe("customerApi", () => {
       });
 
       await expect(
-        customerApi.updatePreferences(customerId, userId, preferences),
+        customerApi.updatePreferences(customerId, preferences),
       ).rejects.toThrow(ApiError);
     });
 
@@ -602,7 +593,7 @@ describe("customerApi", () => {
       });
 
       try {
-        await customerApi.updatePreferences(customerId, userId, preferences);
+        await customerApi.updatePreferences(customerId, preferences);
       } catch (error) {
         expect(error).toBeInstanceOf(ApiError);
         expect((error as ApiError).status).toBe(403);
@@ -621,7 +612,7 @@ describe("customerApi", () => {
       });
 
       try {
-        await customerApi.getPreferences("customer-123", "user-456");
+        await customerApi.getPreferences("customer-123");
       } catch (error) {
         expect(error).toBeInstanceOf(ApiError);
         expect((error as ApiError).status).toBe(500);
@@ -638,7 +629,7 @@ describe("customerApi", () => {
       });
 
       try {
-        await customerApi.getPreferences("customer-123", "user-456");
+        await customerApi.getPreferences("customer-123");
       } catch (error) {
         expect((error as ApiError).message).toBe("INVALID_INPUT");
       }
@@ -653,7 +644,7 @@ describe("customerApi", () => {
       });
 
       try {
-        await customerApi.getPreferences("customer-123", "user-456");
+        await customerApi.getPreferences("customer-123");
       } catch (error) {
         expect((error as ApiError).message).toBe("Something went wrong");
       }
@@ -673,7 +664,7 @@ describe("customerApi", () => {
       });
 
       try {
-        await customerApi.getPreferences("customer-123", "user-456");
+        await customerApi.getPreferences("customer-123");
       } catch (error) {
         expect((error as ApiError).data).toEqual(errorData);
       }
@@ -781,7 +772,7 @@ describe("token-refresh interceptor", () => {
 
     const [profileResult, prefsResult] = await Promise.all([
       customerApi.getCurrentCustomer(),
-      customerApi.getPreferences("c", "u"),
+      customerApi.getPreferences("c"),
     ]);
 
     expect(profileResult).toEqual(profile);
@@ -863,11 +854,13 @@ describe("token-refresh interceptor", () => {
     }
   });
 
-  it("a refused refresh on the sign-in page stays there, keeping its redirect", async () => {
-    const effects = stubRefreshFailureEffects({
-      pathname: "/signin",
-      search: "?logout=true&redirect=%2Fcart",
-    });
+  it.each([
+    ["/signin", "?logout=true&redirect=%2Fcart"],
+    ["/reset-password", "?token=secret"],
+    ["/register", ""],
+    ["/mfa-verify", ""],
+  ])("a refused refresh on %s%s stays there", async (pathname, search) => {
+    const effects = stubRefreshFailureEffects({ pathname, search });
     try {
       mockFetch
         .mockResolvedValueOnce(tokenExpired())
@@ -968,7 +961,7 @@ describe("token-refresh interceptor", () => {
 
     const [profileResult, prefsResult] = await Promise.all([
       customerApi.getCurrentCustomer(),
-      customerApi.getPreferences("c", "u"),
+      customerApi.getPreferences("c"),
     ]);
 
     expect(profileResult).toEqual(profile);

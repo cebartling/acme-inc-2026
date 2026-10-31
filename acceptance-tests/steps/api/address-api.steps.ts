@@ -2,6 +2,7 @@ import { Given, When, Then, DataTable } from '@cucumber/cucumber';
 import { expect } from '@playwright/test';
 import { CustomWorld } from '../../support/world.js';
 import { ApiResponse } from '../../support/api-client.js';
+import { accessCookieFor } from '../../support/access-token.js';
 
 interface AddAddressRequest {
   type: string;
@@ -98,7 +99,7 @@ Given(
     const response = await this.customerApiClient.post<AddressResponse>(
       `/api/v1/customers/${customerId}/addresses`,
       request,
-      { headers: { 'X-User-Id': userId! } }
+      { headers: { Cookie: await accessCookieFor(this, userId!) } }
     );
 
     this.setTestData(`address-${label}`, response.data);
@@ -124,7 +125,7 @@ Given('I already have {int} shipping addresses', async function (this: CustomWor
     await this.customerApiClient.post<AddressResponse>(
       `/api/v1/customers/${customerId}/addresses`,
       request,
-      { headers: { 'X-User-Id': userId! } }
+      { headers: { Cookie: await accessCookieFor(this, userId!) } }
     );
   }
 });
@@ -147,7 +148,7 @@ Given('I have an address labeled {string}', async function (this: CustomWorld, l
   const response = await this.customerApiClient.post<AddressResponse>(
     `/api/v1/customers/${customerId}/addresses`,
     request,
-    { headers: { 'X-User-Id': userId! } }
+    { headers: { Cookie: await accessCookieFor(this, userId!) } }
   );
 
   this.setTestData(`address-${label}`, response.data);
@@ -173,7 +174,7 @@ Given('I have the following addresses:', async function (this: CustomWorld, data
     const response = await this.customerApiClient.post<AddressResponse>(
       `/api/v1/customers/${customerId}/addresses`,
       request,
-      { headers: { 'X-User-Id': userId! } }
+      { headers: { Cookie: await accessCookieFor(this, userId!) } }
     );
 
     this.setTestData(`address-${addr.label}`, response.data);
@@ -217,7 +218,7 @@ async function addAddress(world: CustomWorld, type: string, dataTable: DataTable
   const response = await world.customerApiClient.post<AddressResponse | ErrorResponse>(
     `/api/v1/customers/${customerId}/addresses`,
     request,
-    { headers: { 'X-User-Id': userId! } }
+    { headers: { Cookie: await accessCookieFor(world, userId!) } }
   );
 
   world.setTestData('lastResponse', response);
@@ -241,7 +242,7 @@ When(
     const response = await this.customerApiClient.put<AddressResponse | ErrorResponse>(
       `/api/v1/customers/${customerId}/addresses/${address!.addressId}`,
       updateRequest,
-      { headers: { 'X-User-Id': userId! } }
+      { headers: { Cookie: await accessCookieFor(this, userId!) } }
     );
 
     this.setTestData('lastResponse', response);
@@ -258,7 +259,7 @@ When(
     const response = await this.customerApiClient.put<AddressResponse | ErrorResponse>(
       `/api/v1/customers/${customerId}/addresses/${address!.addressId}`,
       {},
-      { headers: { 'X-User-Id': userId! } }
+      { headers: { Cookie: await accessCookieFor(this, userId!) } }
     );
 
     this.setTestData('lastResponse', response);
@@ -272,7 +273,7 @@ When('I delete the {string} address', async function (this: CustomWorld, label: 
 
   const response = await this.customerApiClient.delete<void>(
     `/api/v1/customers/${customerId}/addresses/${address!.addressId}`,
-    { headers: { 'X-User-Id': userId! } }
+    { headers: { Cookie: await accessCookieFor(this, userId!) } }
   );
 
   this.setTestData('lastResponse', response);
@@ -285,7 +286,7 @@ When('I request all my addresses', async function (this: CustomWorld) {
 
   const response = await this.customerApiClient.get<AddressResponse[]>(
     `/api/v1/customers/${customerId}/addresses`,
-    { headers: { 'X-User-Id': userId! } }
+    { headers: { Cookie: await accessCookieFor(this, userId!) } }
   );
 
   this.setTestData('lastResponse', response);
@@ -299,7 +300,7 @@ When(
 
     const response = await this.customerApiClient.get<AddressResponse[]>(
       `/api/v1/customers/${customerId}/addresses?type=${type}`,
-      { headers: { 'X-User-Id': userId! } }
+      { headers: { Cookie: await accessCookieFor(this, userId!) } }
     );
 
     this.setTestData('lastResponse', response);
@@ -312,7 +313,7 @@ When('I request my default shipping address', async function (this: CustomWorld)
 
   const response = await this.customerApiClient.get<AddressResponse>(
     `/api/v1/customers/${customerId}/addresses/default/SHIPPING`,
-    { headers: { 'X-User-Id': userId! } }
+    { headers: { Cookie: await accessCookieFor(this, userId!) } }
   );
 
   this.setTestData('lastResponse', response);
@@ -325,7 +326,7 @@ When('I try to access that address', async function (this: CustomWorld) {
 
   const response = await this.customerApiClient.get<AddressResponse | ErrorResponse>(
     `/api/v1/customers/${customerId}/addresses/${otherAddressId}`,
-    { headers: { 'X-User-Id': userId! } }
+    { headers: { Cookie: await accessCookieFor(this, userId!) } }
   );
 
   this.setTestData('lastResponse', response);
@@ -346,7 +347,7 @@ Then(
 
     const response = await this.customerApiClient.get<AddressResponse>(
       `/api/v1/customers/${customerId}/addresses/${originalAddress!.addressId}`,
-      { headers: { 'X-User-Id': userId! } }
+      { headers: { Cookie: await accessCookieFor(this, userId!) } }
     );
 
     expect(response.data.isDefault).toBe(false);
@@ -362,7 +363,7 @@ Then(
 
     const response = await this.customerApiClient.get<AddressResponse | ErrorResponse>(
       `/api/v1/customers/${customerId}/addresses/${address!.addressId}`,
-      { headers: { 'X-User-Id': userId! } }
+      { headers: { Cookie: await accessCookieFor(this, userId!) } }
     );
 
     expect(response.status).toBe(404);

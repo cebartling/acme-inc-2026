@@ -42,6 +42,31 @@ Feature: See my orders
     When I sign in from the page I was sent to
     Then I should be on "/orders?page=2"
 
+  Scenario: A customer whose access cookie is gone goes from the dashboard to sign-in and back
+    Given I navigate to "/signin"
+    And I sign in with valid credentials
+    And my access cookie is gone
+    When I navigate to "/dashboard"
+    Then the header should show me signed out
+    When I sign in from the page I was sent to
+    Then I should be on "/dashboard"
+
+  Scenario: A customer whose access cookie is gone goes from preferences to sign-in and back
+    Given I navigate to "/signin"
+    And I sign in with valid credentials
+    And my access cookie is gone
+    When I navigate to "/preferences"
+    Then the header should show me signed out
+    When I sign in from the page I was sent to
+    Then I should be on "/preferences"
+
+  Scenario: A dead session doesn't move a customer off a password reset link
+    Given I navigate to "/signin"
+    And I sign in with valid credentials
+    And my session can't be refreshed
+    When I navigate to "/reset-password?token=not-a-real-token"
+    Then I should stay on "/reset-password?token=not-a-real-token"
+
   Scenario: Orders that fail to load can be tried again
     Given I navigate to "/signin"
     And I sign in with valid credentials

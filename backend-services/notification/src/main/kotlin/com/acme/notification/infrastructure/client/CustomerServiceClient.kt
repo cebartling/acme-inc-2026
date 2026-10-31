@@ -45,6 +45,8 @@ sealed class CustomerQueryResult {
 class CustomerServiceClient(
     @Value("\${notification.customer-service.base-url}")
     private val baseUrl: String,
+    @Value("\${notification.customer-service.service-token}")
+    serviceToken: String,
     meterRegistry: MeterRegistry,
     circuitBreakerRegistry: CircuitBreakerRegistry
 ) {
@@ -52,7 +54,15 @@ class CustomerServiceClient(
 
     private val client: RestClient = RestClient.builder()
         .baseUrl(baseUrl)
+        .defaultHeader("X-Service-Token", serviceToken)
         .build()
+
+    init {
+        require(serviceToken.isNotBlank() && serviceToken == serviceToken.trim()) {
+            "notification.customer-service.service-token (ACME_CUSTOMER_SERVICE_TOKEN) must be set, " +
+                "with no leading or trailing whitespace"
+        }
+    }
 
     private val circuitBreaker: CircuitBreaker = circuitBreakerRegistry.circuitBreaker("customerService")
 

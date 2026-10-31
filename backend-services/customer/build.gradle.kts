@@ -30,7 +30,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-data-redis")
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
-    // Verifies identity's access_token cookie on /customers/me, as the cart and order do
+    // Verifies identity's access_token cookie, as the cart and order do
     implementation("org.springframework.boot:spring-boot-starter-oauth2-resource-server")
 
     // Kotlin

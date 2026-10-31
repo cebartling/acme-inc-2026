@@ -38,12 +38,15 @@ interface PreferencesPageProps {
   customerId: string;
   initialPreferences?: FullPreferencesData;
   onSave?: (data: FullPreferencesData) => Promise<void>;
+  /** Told why a save failed, for a page that acts on it, e.g. on a 401. */
+  onSaveError?: (error: unknown) => void;
 }
 
 export function PreferencesPage({
   customerId,
   initialPreferences,
   onSave,
+  onSaveError,
 }: PreferencesPageProps) {
   const userId = useUserId();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -92,7 +95,7 @@ export function PreferencesPage({
         await onSave(data);
       } else if (userId) {
         // Call Customer Service API
-        await customerApi.updatePreferences(customerId, userId, {
+        await customerApi.updatePreferences(customerId, {
           communication: {
             email: data.communication.email,
             sms: data.communication.sms,
@@ -118,6 +121,7 @@ export function PreferencesPage({
       setTimeout(() => setSubmitStatus("idle"), 3000);
     } catch (error) {
       setSubmitStatus("error");
+      onSaveError?.(error);
       if (error instanceof ApiError) {
         // Handle specific API errors
         if (error.data?.error === "PHONE_NOT_VERIFIED") {

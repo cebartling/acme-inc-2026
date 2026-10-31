@@ -66,7 +66,17 @@ Feature: Customer Profile Loading (US-0003-09)
     When I request customer profile without authentication
     Then the response status should be 401
 
-  # A customer with no profile can't be seeded behind a real sign-in: see CurrentCustomerWebMvcTest.
+  # A customer with no profile can't be seeded behind a real sign-in: see CustomerSecurityWebMvcTest.
+
+  Scenario: Claiming a user ID in a header reads nothing
+    Given an active customer with email "claimed-id@example.com" exists
+    When I request that customer's addresses claiming to be them in a header
+    Then the response status should be 401
+
+  Scenario: A customer can't be looked up without a service's token
+    Given an active customer with email "lookup-no-token@example.com" exists
+    When I look that customer up by email without a service token
+    Then the response status should be 401
 
   Scenario: Profile is cached after first request
     Given an active customer with email "cache-test@example.com" exists

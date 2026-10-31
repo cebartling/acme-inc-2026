@@ -186,11 +186,25 @@ async function handleRefreshFailure(redirect: boolean): Promise<void> {
   } catch (err) {
     console.warn("refresh-cleanup: failed to clear customer store", err);
   }
-  // Not from sign-in itself: a request that fails there must not lose the page's own `redirect`
-  if (redirect && here && here.pathname !== "/signin") {
+  if (redirect && here && !SIGNED_OUT_PAGES.has(here.pathname)) {
     window.location.href = signinUrlBackHere(here);
   }
 }
+
+/**
+ * Pages for someone who isn't signed in, where a dead session is no reason to leave. Sending a
+ * customer away from them would lose sign-in's own `redirect`, or a link's reset token, and coming
+ * back to them after signing in would serve no purpose.
+ */
+const SIGNED_OUT_PAGES = new Set([
+  "/signin",
+  "/mfa-verify",
+  "/register",
+  "/forgot-password",
+  "/reset-password",
+  "/reactivate",
+  "/verify/resend",
+]);
 
 /** Sign-in, and back to this page afterwards. Home is where sign-in goes anyway. */
 function signinUrlBackHere({
@@ -382,17 +396,12 @@ export const customerApi = {
   /**
    * Gets a customer's preferences.
    */
-  async getPreferences(
-    customerId: string,
-    userId: string,
-  ): Promise<PreferencesResponse> {
+  async getPreferences(customerId: string): Promise<PreferencesResponse> {
     return apiRequest<PreferencesResponse>(
       `${CUSTOMER_SERVICE_URL}/api/v1/customers/${customerId}/preferences`,
       {
         method: "GET",
-        headers: {
-          "X-User-Id": userId,
-        },
+        credentials: "include",
       },
     );
   },
@@ -402,16 +411,13 @@ export const customerApi = {
    */
   async updatePreferences(
     customerId: string,
-    userId: string,
     preferences: UpdatePreferencesRequest,
   ): Promise<PreferencesResponse> {
     return apiRequest<PreferencesResponse>(
       `${CUSTOMER_SERVICE_URL}/api/v1/customers/${customerId}/preferences`,
       {
         method: "PUT",
-        headers: {
-          "X-User-Id": userId,
-        },
+        credentials: "include",
         body: JSON.stringify(preferences),
       },
     );
@@ -427,6 +433,7 @@ export const customerApi = {
       `${CUSTOMER_SERVICE_URL}/api/v1/customers/${customerId}/profile/completeness`,
       {
         method: "GET",
+        credentials: "include",
       },
     );
   },

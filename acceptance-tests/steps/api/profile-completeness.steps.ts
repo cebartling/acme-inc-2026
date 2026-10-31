@@ -1,6 +1,7 @@
 import { Given, When, Then, DataTable } from '@cucumber/cucumber';
 import { expect } from '@playwright/test';
 import { CustomWorld } from '../../support/world.js';
+import { accessCookieFor } from '../../support/access-token.js';
 
 interface ProfileCompletenessResponse {
   customerId: string;
@@ -58,7 +59,7 @@ When('I request my profile completeness', async function (this: CustomWorld) {
   try {
     const response = await this.customerApiClient.get<ProfileCompletenessResponse>(
       `/api/v1/customers/${customerId}/profile/completeness`,
-      { headers: { 'X-User-Id': userId! } }
+      { headers: { Cookie: await accessCookieFor(this, userId!) } }
     );
 
     this.setTestData('lastResponseStatus', response.status);
@@ -86,7 +87,7 @@ When(
     try {
       const response = await this.customerApiClient.get<ProfileCompletenessResponse>(
         `/api/v1/customers/${customerId}/profile/completeness`,
-        { headers: { 'X-User-Id': userId! } }
+        { headers: { Cookie: await accessCookieFor(this, userId!) } }
       );
 
       this.setTestData('lastResponseStatus', response.status);
@@ -111,7 +112,7 @@ Given('my profile completeness score is recorded', async function (this: CustomW
 
   const response = await this.customerApiClient.get<ProfileCompletenessResponse>(
     `/api/v1/customers/${customerId}/profile/completeness`,
-    { headers: { 'X-User-Id': userId! } }
+    { headers: { Cookie: await accessCookieFor(this, userId!) } }
   );
 
   this.setTestData('previousCompletenessScore', response.data.overallScore);
@@ -130,7 +131,7 @@ Given('my profile is 100% complete', async function (this: CustomWorld) {
         gender: 'MALE',
         phone: { countryCode: '+1', number: '2024561234' },
       },
-      { headers: { 'X-User-Id': userId! } }
+      { headers: { Cookie: await accessCookieFor(this, userId!) } }
     );
   } catch (error) {
     console.warn('Warning: Could not update profile for 100% completion');
@@ -149,7 +150,7 @@ Given('my profile is 100% complete', async function (this: CustomWorld) {
         country: 'US',
         isDefault: true,
       },
-      { headers: { 'X-User-Id': userId! } }
+      { headers: { Cookie: await accessCookieFor(this, userId!) } }
     );
 
     // Validate the address using test helper
@@ -174,7 +175,7 @@ Given('my profile is 100% complete', async function (this: CustomWorld) {
         source: 'REGISTRATION',
         ipAddress: '127.0.0.1',
       },
-      { headers: { 'X-User-Id': userId! } }
+      { headers: { Cookie: await accessCookieFor(this, userId!) } }
     );
   } catch (error) {
     console.warn('Warning: Could not grant consent for 100% completion');
@@ -203,7 +204,7 @@ Given('my profile is 100% complete', async function (this: CustomWorld) {
           timezone: 'UTC',
         },
       },
-      { headers: { 'X-User-Id': userId! } }
+      { headers: { Cookie: await accessCookieFor(this, userId!) } }
     );
   } catch (error) {
     console.warn('Warning: Could not update preferences for 100% completion');
@@ -216,10 +217,12 @@ Given(
   'my profile completeness is less than {int}',
   async function (this: CustomWorld, threshold: number) {
     const customerId = this.getTestData<string>('customerId');
+    const userId = this.getTestData<string>('userId');
 
     // Get current completeness
     const response = await this.customerApiClient.get<ProfileCompletenessResponse>(
-      `/api/v1/customers/${customerId}/profile/completeness`
+      `/api/v1/customers/${customerId}/profile/completeness`,
+      { headers: { Cookie: await accessCookieFor(this, userId!) } }
     );
 
     // Verify it's below the threshold
@@ -277,7 +280,7 @@ Given(
       {
         phone: { countryCode, number: phoneNumber },
       },
-      { headers: { 'X-User-Id': userId! } }
+      { headers: { Cookie: await accessCookieFor(this, userId!) } }
     );
   }
 );
@@ -311,7 +314,7 @@ Given('I add a shipping address:', async function (this: CustomWorld, dataTable:
         country: rows.country,
         isDefault: true,
       },
-      { headers: { 'X-User-Id': userId! } }
+      { headers: { Cookie: await accessCookieFor(this, userId!) } }
     );
 
     if (response.data && response.data.addressId) {
@@ -362,7 +365,7 @@ When('I update my profile with:', async function (this: CustomWorld, dataTable: 
     const response = await this.customerApiClient.patch(
       `/api/v1/customers/${customerId}/profile`,
       updatePayload,
-      { headers: { 'X-User-Id': userId! } }
+      { headers: { Cookie: await accessCookieFor(this, userId!) } }
     );
 
     this.setTestData('lastResponseStatus', response.status);
@@ -392,7 +395,7 @@ When(
         {
           phone: { countryCode, number: phoneNumber },
         },
-        { headers: { 'X-User-Id': userId! } }
+        { headers: { Cookie: await accessCookieFor(this, userId!) } }
       );
 
       this.setTestData('lastResponseStatus', response.status);

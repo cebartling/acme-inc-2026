@@ -23,6 +23,8 @@ export const config = {
   orderServiceToken: process.env.ACME_ORDER_SERVICE_TOKEN || 'local-dev-order-service-token',
   // Test API key for accessing test endpoints (must match identity.test.api-key in backend)
   testApiKey: process.env.TEST_API_KEY || 'test-api-key-for-acceptance-tests',
+  customerServiceToken:
+    process.env.ACME_CUSTOMER_SERVICE_TOKEN || 'local-dev-customer-service-token',
   timeout: {
     default: 30000,
     navigation: 60000,

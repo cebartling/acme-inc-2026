@@ -103,7 +103,10 @@ export class CustomWorld extends World<CustomWorldParameters> {
     this.identityApiClient = new ApiClient(config.identityApiUrl, {
       'X-Test-Api-Key': config.testApiKey,
     });
-    this.customerApiClient = new ApiClient(config.customerApiUrl);
+    // Customer lookups are for services only; scenarios use them to wait on and check customers
+    this.customerApiClient = new ApiClient(config.customerApiUrl, {
+      'X-Service-Token': config.customerServiceToken,
+    });
     this.notificationApiClient = new ApiClient(config.notificationApiUrl);
     this.cartApiClient = new ApiClient(config.cartApiUrl);
     this.orderApiClient = new ApiClient(config.orderApiUrl);
