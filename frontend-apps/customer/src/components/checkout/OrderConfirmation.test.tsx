@@ -62,6 +62,16 @@ describe("OrderConfirmation (PIN-426)", () => {
     expect(mockedPlace).not.toHaveBeenCalled();
   });
 
+  it("links to the order's detail page (PIN-428)", async () => {
+    mockedGet.mockResolvedValueOnce(order);
+
+    renderPage();
+
+    expect(
+      await screen.findByRole("link", { name: "View order" }),
+    ).toHaveAttribute("href", "/orders/$orderId");
+  });
+
   it("says so when the order can't be read", async () => {
     mockedGet.mockRejectedValueOnce(
       new ApiError("Order not found", 404, {

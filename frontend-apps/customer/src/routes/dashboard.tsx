@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { ProfileCompletenessWidget } from "@/components/profile/ProfileCompletenessWidget";
 import {
@@ -94,6 +94,13 @@ function DashboardPage() {
             Welcome, {profile.name.displayName}!
           </h1>
           <p className="text-gray-400">Customer #{profile.customerNumber}</p>
+          <Link
+            to="/orders"
+            search={{ page: 1 }}
+            className="mt-2 inline-block text-sm text-indigo-400 hover:text-indigo-300"
+          >
+            View your orders
+          </Link>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

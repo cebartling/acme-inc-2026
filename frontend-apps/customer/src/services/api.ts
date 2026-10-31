@@ -1389,6 +1389,25 @@ export interface OrderDetails {
   pricing: { subtotal: Money };
 }
 
+/** One row of the customer's order history (PIN-367). `itemCount` counts units, not lines. */
+export interface OrderSummary {
+  orderId: string;
+  orderNumber: string;
+  status: string;
+  createdAt: string;
+  itemCount: number;
+  subtotal: Money;
+}
+
+/** A page of order history, newest first. `page` is 1-based. */
+export interface OrderList {
+  orders: OrderSummary[];
+  page: number;
+  pageSize: number;
+  totalResults: number;
+  totalPages: number;
+}
+
 /**
  * Order service (PIN-366, PIN-367): signed-in customers only, through identity's
  * `access_token` cookie. Errors carry a `code`, e.g. `CHECKOUT_SESSION_NOT_FOUND`.
@@ -1416,6 +1435,20 @@ export const orderApi = {
     return apiRequest<OrderDetails>(
       `${ORDER_SERVICE_URL}/api/v1/orders/${encodeURIComponent(orderId)}`,
       { method: "GET", credentials: "include" },
+    );
+  },
+
+  async list(page: number, pageSize: number): Promise<OrderList> {
+    const query = new URLSearchParams({
+      page: String(page),
+      pageSize: String(pageSize),
+    });
+    return apiRequest<OrderList>(
+      `${ORDER_SERVICE_URL}/api/v1/orders?${query}`,
+      {
+        method: "GET",
+        credentials: "include",
+      },
     );
   },
 };

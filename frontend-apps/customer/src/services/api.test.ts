@@ -1701,6 +1701,22 @@ describe("checkout and orders (PIN-426)", () => {
     expect(init.headers).toMatchObject({ "Idempotency-Key": "key-1" });
   });
 
+  it("orderApi.list asks the order service for one page of orders", async () => {
+    const list = {
+      orders: [],
+      page: 2,
+      pageSize: 10,
+      totalResults: 0,
+      totalPages: 0,
+    };
+    mockFetch.mockResolvedValueOnce(jsonResponse(200, list));
+
+    await expect(orderApi.list(2, 10)).resolves.toEqual(list);
+    const [url, init] = mockFetch.mock.calls[0];
+    expect(url).toBe("http://localhost:10305/api/v1/orders?page=2&pageSize=10");
+    expect(init).toMatchObject({ method: "GET", credentials: "include" });
+  });
+
   it("orderApi.place refreshes on TOKEN_EXPIRED and retries with the same key", async () => {
     mockFetch
       .mockResolvedValueOnce(

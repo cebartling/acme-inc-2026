@@ -54,12 +54,18 @@ export function OrderConfirmation({ orderId }: { orderId: string }) {
         </span>{" "}
         {pricing.subtotal.currency}
       </p>
-      <Link
-        to="/"
-        className="mt-6 inline-block text-sm text-indigo-400 hover:text-indigo-300"
-      >
-        Continue shopping
-      </Link>
+      <div className="mt-6 flex justify-center gap-6 text-sm">
+        <Link
+          to="/orders/$orderId"
+          params={{ orderId }}
+          className="text-indigo-400 hover:text-indigo-300"
+        >
+          View order
+        </Link>
+        <Link to="/" className="text-indigo-400 hover:text-indigo-300">
+          Continue shopping
+        </Link>
+      </div>
     </div>
   );
 }

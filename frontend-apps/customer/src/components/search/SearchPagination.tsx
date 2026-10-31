@@ -2,17 +2,20 @@ interface SearchPaginationProps {
   currentPage: number;
   totalPages: number;
   onPageChange: (page: number) => void;
+  /** What the pagination pages through, for screen readers. */
+  label?: string;
 }
 
 export function SearchPagination({
   currentPage,
   totalPages,
   onPageChange,
+  label = "Search results pagination",
 }: SearchPaginationProps) {
   return (
     <nav
       data-testid="searchPagination"
-      aria-label="Search results pagination"
+      aria-label={label}
       className="mt-6 flex items-center justify-center gap-4"
     >
       <button
