@@ -27,6 +27,11 @@ Then('the dashboard should link to my orders', async function (this: CustomWorld
   );
 });
 
+When('I open my orders from the user menu', async function (this: CustomWorld) {
+  await this.page.getByRole('button', { name: /open user menu/i }).click();
+  await this.page.getByRole('menuitem', { name: 'Your Orders' }).click();
+});
+
 When('I note the order number', async function (this: CustomWorld) {
   const orderNumber = await this.page.getByTestId('orderNumber').textContent();
   expect(orderNumber).toBeTruthy();

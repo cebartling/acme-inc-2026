@@ -671,7 +671,12 @@ read their orders back (PIN-367).
     `/orders/$orderId` (`OrderDetailPage`) shows one, printing the status as the service
     returns it. A 404, or a 400 for a malformed ID, shows the not-found page. Signed-out
     visitors, and a `401` that reaches either page, go to `/signin?redirect=…`
-    (`useRedirectWhenSignedOut`). These reads don't refresh on `SIGN_IN_REQUIRED`.
+    (`useRedirectWhenSignedOut`). These reads don't refresh on `SIGN_IN_REQUIRED`, and a
+    refused refresh on `TOKEN_EXPIRED` goes to `/signin?logout=true`, as for any read. Their
+    query keys carry the user ID, so the next account on a browser can't read them from the
+    cache. The header's user menu links to `/orders`; so does the dashboard, but a real
+    sign-in can't reach that link while `GET /customers/me` needs an `X-User-Id` header
+    nothing sends.
 - **Persistence** ([ADR-0041](adrs/0041-per-service-persistence-model.md)): plain JPA with Flyway and `ddl-auto: validate`, like the other services.
   The epic's event store and CQRS read models are deferred. `V1__baseline.sql` is empty,
   `V2` adds the `outbox` table (PIN-368), and `V3` the `orders`, `order_items` and

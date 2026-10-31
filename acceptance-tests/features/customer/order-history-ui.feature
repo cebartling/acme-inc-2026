@@ -32,7 +32,7 @@ Feature: See my orders
     And I place the order
     And I should see the order confirmation with an order number
     And I note the order number
-    When I navigate to "/orders"
+    When I open my orders from the user menu
     Then I should see that order in my order history with 2 items
     When I open that order
     Then I should see that order's details with "Gadget Pro"
