@@ -174,6 +174,9 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       SCHEMA_REGISTRY_URL: http://schema-registry:8081
 
+      # Verifies the access_token cookie on /customers/me against identity's public signing keys
+      ACME_IDENTITY_JWKS_URI: http://identity-service:10300/.well-known/jwks.json
+
       # Observability
       OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4317
       OTEL_SERVICE_NAME: customer-service

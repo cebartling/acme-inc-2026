@@ -46,6 +46,11 @@ Services verify identity's access tokens **locally against a published JWKS**:
    (`JwksController` comment, cart `application.yml`), because identity's keys change on
    restart.
 
+The customer service verifies the same way for `GET /api/v1/customers/me` alone (PIN-428). Its
+security chain matches that one path, because a resource server rejects a bad token on any path
+it covers. Its other endpoints still take the `X-User-Id` header unverified. Spring Security's
+firewall does run on them, and answers 400 to a path with `%25` or a semicolon in it.
+
 ## Consequences
 
 ### Positive

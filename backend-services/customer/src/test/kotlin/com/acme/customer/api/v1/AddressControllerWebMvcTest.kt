@@ -5,6 +5,7 @@ import com.acme.customer.application.AddAddressResult
 import com.acme.customer.application.AddAddressUseCase
 import com.acme.customer.application.RemoveAddressUseCase
 import com.acme.customer.application.UpdateAddressUseCase
+import com.acme.customer.config.SecurityConfig
 import com.acme.customer.infrastructure.persistence.AddressRepository
 import com.acme.customer.infrastructure.persistence.CustomerRepository
 import io.mockk.every
@@ -15,7 +16,9 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest
 import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.Import
 import org.springframework.http.MediaType
+import org.springframework.security.oauth2.jwt.JwtDecoder
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.post
 import java.util.UUID
@@ -29,6 +32,7 @@ import kotlin.test.assertNull
  * client omits those fields, which requires the Jackson 3 Kotlin module.
  */
 @WebMvcTest(AddressController::class)
+@Import(SecurityConfig::class)
 class AddressControllerWebMvcTest(
     @Autowired private val mockMvc: MockMvc,
     @Autowired private val addAddressUseCase: AddAddressUseCase
@@ -50,6 +54,9 @@ class AddressControllerWebMvcTest(
 
         @Bean
         fun removeAddressUseCase(): RemoveAddressUseCase = mockk()
+
+        @Bean
+        fun jwtDecoder(): JwtDecoder = mockk()
     }
 
     @Test

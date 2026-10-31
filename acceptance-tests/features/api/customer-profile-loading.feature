@@ -66,10 +66,7 @@ Feature: Customer Profile Loading (US-0003-09)
     When I request customer profile without authentication
     Then the response status should be 401
 
-  Scenario: Return 404 when customer profile does not exist
-    Given I am authenticated as a user with no customer profile
-    When I request my customer profile as the authenticated user
-    Then the response status should be 404
+  # A customer with no profile can't be seeded behind a real sign-in: see CurrentCustomerWebMvcTest.
 
   Scenario: Profile is cached after first request
     Given an active customer with email "cache-test@example.com" exists

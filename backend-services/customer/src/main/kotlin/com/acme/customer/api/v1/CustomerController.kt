@@ -13,6 +13,8 @@ import com.acme.customer.infrastructure.persistence.CustomerPreferencesRepositor
 import com.acme.customer.infrastructure.persistence.CustomerRepository
 import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
+import org.springframework.security.core.annotation.AuthenticationPrincipal
+import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -159,28 +161,15 @@ class CustomerController(
      * This endpoint is used after signin to load the customer profile into the frontend.
      * The profile is cached in Redis with a 5-minute TTL for performance.
      *
-     * @param userId The user ID from the X-User-Id header (injected by API Gateway from JWT).
+     * @param jwt The verified `access_token` cookie (see SecurityConfig). Its subject is a user ID.
      * @return The customer profile or appropriate error response.
      */
     @GetMapping("/me")
-    fun getCurrentCustomer(
-        @RequestHeader("X-User-Id", required = false) userId: String?
-    ): ResponseEntity<CustomerResponse> {
-        if (userId == null) {
-            logger.warn("Missing X-User-Id header")
-            return ResponseEntity.status(401).build()
-        }
-
+    fun getCurrentCustomer(@AuthenticationPrincipal jwt: Jwt): ResponseEntity<CustomerResponse> {
+        val userId = UUID.fromString(jwt.subject)
         logger.debug("Getting current customer for user: {}", userId)
 
-        val parsedUserId = try {
-            UUID.fromString(userId)
-        } catch (e: IllegalArgumentException) {
-            logger.warn("Invalid user ID format: {}", userId)
-            return ResponseEntity.badRequest().build()
-        }
-
-        return when (val result = getCustomerProfileUseCase.execute(parsedUserId)) {
+        return when (val result = getCustomerProfileUseCase.execute(userId)) {
             is GetCustomerProfileResult.Success -> {
                 ResponseEntity.ok(result.profile)
             }
