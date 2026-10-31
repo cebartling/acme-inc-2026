@@ -1,9 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+import { OrderPageSkeleton } from "@/components/orders/OrderPageSkeleton";
 import { useRedirectWhenSignedOut } from "@/hooks/useRedirectWhenSignedOut";
 import { ApiError, orderApi } from "@/services/api";
 import type { OrderLine } from "@/services/api";
-import { useIsAuthenticated } from "@/stores/auth.store";
+import { useIsAuthenticated, useUserId } from "@/stores/auth.store";
 
 /** The order service answers 400 for an ID that is no UUID, and 404 for anyone else's order. */
 function isOrderNotFound(error: unknown): boolean {
@@ -17,27 +18,25 @@ function isOrderNotFound(error: unknown): boolean {
 /** One of the customer's orders, from the product snapshot stored with it (PIN-428). */
 export function OrderDetailPage({ orderId }: { orderId: string }) {
   const isAuthenticated = useIsAuthenticated();
+  const userId = useUserId();
   const order = useQuery({
-    queryKey: ["order", orderId],
+    // By user: the cache outlives signing out, and this isn't the next account's order
+    queryKey: ["order", userId, orderId],
     queryFn: () => orderApi.get(orderId),
     enabled: isAuthenticated,
     // A 404 won't change, and the default retries would hold back the not-found page
     retry: false,
   });
   const redirecting = useRedirectWhenSignedOut(
-    `/orders/${orderId}`,
-    order.error,
+    // The router decoded the ID, and sign-in decodes this
+    `/orders/${encodeURIComponent(orderId)}`,
+    order,
   );
 
   if (redirecting) return null;
 
   if (order.isPending) {
-    return (
-      <div className="animate-pulse space-y-4" aria-busy="true">
-        <div className="h-8 w-1/2 rounded bg-slate-700" />
-        <div className="h-16 rounded bg-slate-700" />
-      </div>
-    );
+    return <OrderPageSkeleton />;
   }
 
   if (isOrderNotFound(order.error)) {
@@ -56,7 +55,8 @@ export function OrderDetailPage({ orderId }: { orderId: string }) {
     );
   }
 
-  if (order.isError) {
+  // Not on a failed refetch, which still has the order to show
+  if (order.isLoadingError) {
     return (
       <p role="alert" className="text-center text-red-400">
         We couldn’t load this order. Please try again.

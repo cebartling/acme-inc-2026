@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type React from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { OrderHistoryPage } from "./OrderHistoryPage";
@@ -50,19 +50,47 @@ const onePage: OrderList = {
   totalPages: 1,
 };
 
-function renderPage(page = 1) {
-  const queryClient = new QueryClient();
-  return render(
+function pageWith(page: number, queryClient: QueryClient) {
+  return (
     <QueryClientProvider client={queryClient}>
       <OrderHistoryPage page={page} />
-    </QueryClientProvider>,
+    </QueryClientProvider>
   );
+}
+
+function renderPage(page = 1, queryClient = new QueryClient()) {
+  return render(pageWith(page, queryClient));
+}
+
+function signInAs(userId: string) {
+  useAuthStore.setState({
+    user: {
+      userId,
+      customerId: userId,
+      email: `${userId}@example.com`,
+      firstName: "Test",
+      lastName: "Customer",
+    },
+  });
+}
+
+/** A background refetch of whatever the page has loaded. React Query notifies a tick later. */
+function refetchAnswering(queryClient: QueryClient, error: ApiError) {
+  mockedList.mockRejectedValueOnce(error);
+  return act(async () => {
+    await queryClient.refetchQueries({ queryKey: ["orders"] });
+    await new Promise((resolve) => setTimeout(resolve));
+  });
 }
 
 describe("OrderHistoryPage (PIN-428)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    useAuthStore.setState({ isAuthenticated: true, isLoading: false });
+    useAuthStore.setState({
+      user: null,
+      isAuthenticated: true,
+      isLoading: false,
+    });
   });
 
   it("lists each order's number, status, unit count and subtotal", async () => {
@@ -164,9 +192,33 @@ describe("OrderHistoryPage (PIN-428)", () => {
       expect(navigate).toHaveBeenCalledWith({
         to: "/signin",
         search: { redirect: "/orders" },
+        replace: true,
       }),
     );
     expect(mockedList).not.toHaveBeenCalled();
+  });
+
+  it("waits for the auth store before deciding a visitor is signed out", () => {
+    useAuthStore.setState({ isAuthenticated: false, isLoading: true });
+
+    const { container } = renderPage();
+
+    expect(container.querySelector("[aria-busy]")).toBeInTheDocument();
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it("comes back to the same page of orders after sign-in", async () => {
+    useAuthStore.setState({ isAuthenticated: false, isLoading: false });
+
+    renderPage(3);
+
+    await waitFor(() =>
+      expect(navigate).toHaveBeenCalledWith({
+        to: "/signin",
+        search: { redirect: "/orders?page=3" },
+        replace: true,
+      }),
+    );
   });
 
   it("sends a customer to sign-in when the order service answers 401", async () => {
@@ -180,7 +232,74 @@ describe("OrderHistoryPage (PIN-428)", () => {
       expect(navigate).toHaveBeenCalledWith({
         to: "/signin",
         search: { redirect: "/orders" },
+        replace: true,
       }),
     );
+  });
+
+  it("doesn't bounce a customer who signed in again over the 401 that sent them away", async () => {
+    const queryClient = new QueryClient();
+    mockedList.mockResolvedValueOnce(onePage);
+    const { unmount } = renderPage(1, queryClient);
+    await screen.findByTestId("orderRow");
+    await refetchAnswering(
+      queryClient,
+      new ApiError("Sign in", 401, { code: "SIGN_IN_REQUIRED" }),
+    );
+    await waitFor(() => expect(navigate).toHaveBeenCalledTimes(1));
+    unmount();
+
+    mockedList.mockResolvedValueOnce(onePage);
+    renderPage(1, queryClient);
+
+    await waitFor(() => expect(mockedList).toHaveBeenCalledTimes(3));
+    expect(await screen.findByTestId("orderRow")).toBeInTheDocument();
+    expect(navigate).toHaveBeenCalledTimes(1);
+  });
+
+  it("doesn't show one customer's cached orders to the next on this browser", async () => {
+    const queryClient = new QueryClient();
+    signInAs("customer-a");
+    mockedList.mockResolvedValueOnce(onePage);
+    const { unmount } = renderPage(1, queryClient);
+    await screen.findByTestId("orderRow");
+    unmount();
+
+    signInAs("customer-b");
+    mockedList.mockReturnValueOnce(new Promise(() => {}));
+    renderPage(1, queryClient);
+
+    await waitFor(() => expect(mockedList).toHaveBeenCalledTimes(2));
+    expect(screen.queryByTestId("orderRow")).not.toBeInTheDocument();
+  });
+
+  it("keeps the list on screen when a background refetch fails", async () => {
+    const queryClient = new QueryClient();
+    mockedList.mockResolvedValueOnce(onePage);
+    renderPage(1, queryClient);
+    await screen.findByTestId("orderRow");
+
+    await refetchAnswering(queryClient, new ApiError("Down", 503));
+
+    expect(screen.getByTestId("orderRow")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("keeps the list and its pagination on screen while the next page loads", async () => {
+    const queryClient = new QueryClient();
+    mockedList.mockResolvedValueOnce({
+      ...onePage,
+      totalResults: 11,
+      totalPages: 2,
+    });
+    const { rerender } = renderPage(1, queryClient);
+    await screen.findByTestId("orderRow");
+
+    mockedList.mockReturnValueOnce(new Promise(() => {}));
+    rerender(pageWith(2, queryClient));
+
+    await waitFor(() => expect(mockedList).toHaveBeenCalledWith(2, 10));
+    expect(screen.getByTestId("orderRow")).toBeInTheDocument();
+    expect(screen.getByTestId("searchPagination")).toBeInTheDocument();
   });
 });

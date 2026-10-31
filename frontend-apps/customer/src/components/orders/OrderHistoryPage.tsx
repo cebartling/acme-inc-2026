@@ -1,10 +1,11 @@
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
+import { OrderPageSkeleton } from "@/components/orders/OrderPageSkeleton";
 import { SearchPagination } from "@/components/search";
 import { useRedirectWhenSignedOut } from "@/hooks/useRedirectWhenSignedOut";
 import { orderApi } from "@/services/api";
 import type { OrderSummary } from "@/services/api";
-import { useIsAuthenticated } from "@/stores/auth.store";
+import { useIsAuthenticated, useUserId } from "@/stores/auth.store";
 
 const PAGE_SIZE = 10;
 
@@ -12,26 +13,29 @@ const PAGE_SIZE = 10;
 export function OrderHistoryPage({ page }: { page: number }) {
   const navigate = useNavigate();
   const isAuthenticated = useIsAuthenticated();
+  const userId = useUserId();
   const orders = useQuery({
-    queryKey: ["orders", page],
+    // By user: the cache outlives signing out, and these aren't the next account's orders
+    queryKey: ["orders", userId, page],
     queryFn: () => orderApi.list(page, PAGE_SIZE),
     enabled: isAuthenticated,
     retry: false,
+    // Keeps the list, and the focus on its pagination, while the next page loads
+    placeholderData: keepPreviousData,
   });
-  const redirecting = useRedirectWhenSignedOut("/orders", orders.error);
+  const redirecting = useRedirectWhenSignedOut(
+    page > 1 ? `/orders?page=${page}` : "/orders",
+    orders,
+  );
 
   if (redirecting) return null;
 
   if (orders.isPending) {
-    return (
-      <div className="animate-pulse space-y-4" aria-busy="true">
-        <div className="h-8 w-1/2 rounded bg-slate-700" />
-        <div className="h-16 rounded bg-slate-700" />
-      </div>
-    );
+    return <OrderPageSkeleton />;
   }
 
-  if (orders.isError) {
+  // Not on a failed refetch, which still has the orders to show
+  if (orders.isLoadingError) {
     return (
       <p role="alert" className="text-center text-red-400">
         We couldn’t load your orders. Please try again.

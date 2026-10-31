@@ -1,25 +1,24 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { CheckCircle2 } from "lucide-react";
+import { OrderPageSkeleton } from "@/components/orders/OrderPageSkeleton";
 import { orderApi } from "@/services/api";
+import { useUserId } from "@/stores/auth.store";
 
 /**
  * The placed order (PIN-426, journey 0005 step 6). It reads the order back, so a reload never
  * places it again (AC-6.5).
  */
 export function OrderConfirmation({ orderId }: { orderId: string }) {
+  const userId = useUserId();
   const order = useQuery({
-    queryKey: ["order", orderId],
+    // Shared with OrderDetailPage, so "View order" opens without loading it again
+    queryKey: ["order", userId, orderId],
     queryFn: () => orderApi.get(orderId),
   });
 
   if (order.isPending) {
-    return (
-      <div className="animate-pulse space-y-4" aria-busy="true">
-        <div className="h-8 w-1/2 rounded bg-slate-700" />
-        <div className="h-16 rounded bg-slate-700" />
-      </div>
-    );
+    return <OrderPageSkeleton />;
   }
 
   if (order.isError) {

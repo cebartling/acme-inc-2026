@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type React from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { OrderDetailPage } from "./OrderDetailPage";
 import { ApiError, orderApi } from "@/services/api";
@@ -54,13 +54,21 @@ const order: OrderDetails = {
   pricing: { subtotal: { amount: 69.98, currency: "USD" } },
 };
 
-function renderPage() {
-  const queryClient = new QueryClient();
+function renderPage(orderId = "order-1", queryClient = new QueryClient()) {
   return render(
     <QueryClientProvider client={queryClient}>
-      <OrderDetailPage orderId="order-1" />
+      <OrderDetailPage orderId={orderId} />
     </QueryClientProvider>,
   );
+}
+
+/** A background refetch of whatever the page has loaded. React Query notifies a tick later. */
+function refetchAnswering(queryClient: QueryClient, error: ApiError) {
+  mockedGet.mockRejectedValueOnce(error);
+  return act(async () => {
+    await queryClient.refetchQueries({ queryKey: ["order"] });
+    await new Promise((resolve) => setTimeout(resolve));
+  });
 }
 
 describe("OrderDetailPage (PIN-428)", () => {
@@ -142,8 +150,65 @@ describe("OrderDetailPage (PIN-428)", () => {
       expect(navigate).toHaveBeenCalledWith({
         to: "/signin",
         search: { redirect: "/orders/order-1" },
+        replace: true,
       }),
     );
     expect(mockedGet).not.toHaveBeenCalled();
+  });
+
+  it("sends a customer to sign-in when the order service answers 401", async () => {
+    mockedGet.mockRejectedValueOnce(
+      new ApiError("Sign in", 401, { code: "SIGN_IN_REQUIRED" }),
+    );
+
+    renderPage();
+
+    await waitFor(() =>
+      expect(navigate).toHaveBeenCalledWith({
+        to: "/signin",
+        search: { redirect: "/orders/order-1" },
+        replace: true,
+      }),
+    );
+  });
+
+  it("encodes the ID in the way back, which sign-in has to decode", async () => {
+    useAuthStore.setState({ isAuthenticated: false, isLoading: false });
+
+    renderPage("50%");
+
+    await waitFor(() =>
+      expect(navigate).toHaveBeenCalledWith({
+        to: "/signin",
+        search: { redirect: "/orders/50%25" },
+        replace: true,
+      }),
+    );
+  });
+
+  it("keeps the order on screen when a background refetch fails", async () => {
+    const queryClient = new QueryClient();
+    mockedGet.mockResolvedValueOnce(order);
+    renderPage("order-1", queryClient);
+    await screen.findByTestId("orderLine");
+
+    await refetchAnswering(queryClient, new ApiError("Down", 503));
+
+    expect(screen.getByTestId("orderLine")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("shows the not-found page when a background refetch answers 404", async () => {
+    const queryClient = new QueryClient();
+    mockedGet.mockResolvedValueOnce(order);
+    renderPage("order-1", queryClient);
+    await screen.findByTestId("orderLine");
+
+    await refetchAnswering(
+      queryClient,
+      new ApiError("Order not found", 404, { code: "ORDER_NOT_FOUND" }),
+    );
+
+    expect(screen.getByTestId("orderNotFound")).toBeInTheDocument();
   });
 });
