@@ -1,25 +1,31 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type React from "react";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { OrderHistoryPage } from "./OrderHistoryPage";
 import { ApiError, orderApi } from "@/services/api";
-import type { OrderList } from "@/services/api";
+import type { CustomerProfile, OrderList } from "@/services/api";
 import { useAuthStore } from "@/stores/auth.store";
+import { useCustomerStore } from "@/stores/customer.store";
 
 const navigate = vi.fn();
 vi.mock("@tanstack/react-router", () => ({
   Link: ({
     to,
+    search,
     children,
     className,
   }: {
     to: string;
+    search?: { page?: number };
     children: React.ReactNode;
     className?: string;
   }) => (
-    <a href={to} className={className}>
+    <a
+      href={search?.page ? `${to}?page=${search.page}` : to}
+      className={className}
+    >
       {children}
     </a>
   ),
@@ -183,6 +189,39 @@ describe("OrderHistoryPage (PIN-428)", () => {
     );
   });
 
+  it("reads the orders again when the customer asks to try again", async () => {
+    mockedList.mockRejectedValueOnce(new ApiError("Down", 503));
+    mockedList.mockResolvedValueOnce(onePage);
+    const user = userEvent.setup();
+
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Try again" }));
+
+    expect(await screen.findByTestId("orderRow")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("tells an order which page of the history it was opened from", async () => {
+    mockedList.mockResolvedValueOnce({ ...onePage, page: 3, totalPages: 3 });
+
+    renderPage(3);
+
+    expect(
+      within(await screen.findByTestId("orderRow")).getByRole("link"),
+    ).toHaveAttribute("href", "/orders/$orderId?page=3");
+  });
+
+  it("keeps the plain order URL from the first page", async () => {
+    mockedList.mockResolvedValueOnce(onePage);
+
+    renderPage();
+
+    expect(
+      within(await screen.findByTestId("orderRow")).getByRole("link"),
+    ).toHaveAttribute("href", "/orders/$orderId");
+  });
+
   it("sends a signed-out visitor to sign-in and back, without asking for orders", async () => {
     useAuthStore.setState({ isAuthenticated: false, isLoading: false });
 
@@ -237,6 +276,21 @@ describe("OrderHistoryPage (PIN-428)", () => {
     );
   });
 
+  it("signs the customer out of the header when the order service answers 401", async () => {
+    signInAs("user-a");
+    useCustomerStore.setState({ profile: {} as CustomerProfile });
+    mockedList.mockRejectedValueOnce(
+      new ApiError("Sign in", 401, { code: "SIGN_IN_REQUIRED" }),
+    );
+
+    renderPage();
+
+    await waitFor(() => expect(navigate).toHaveBeenCalled());
+    expect(useAuthStore.getState().isAuthenticated).toBe(false);
+    expect(useAuthStore.getState().user).toBeNull();
+    expect(useCustomerStore.getState().profile).toBeNull();
+  });
+
   it("doesn't bounce a customer who signed in again over the 401 that sent them away", async () => {
     const queryClient = new QueryClient();
     mockedList.mockResolvedValueOnce(onePage);
@@ -249,6 +303,7 @@ describe("OrderHistoryPage (PIN-428)", () => {
     await waitFor(() => expect(navigate).toHaveBeenCalledTimes(1));
     unmount();
 
+    useAuthStore.setState({ isAuthenticated: true });
     mockedList.mockResolvedValueOnce(onePage);
     renderPage(1, queryClient);
 

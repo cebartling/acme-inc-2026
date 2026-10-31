@@ -1,52 +1,58 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+import { OrderLoadError } from "@/components/orders/OrderLoadError";
 import { OrderPageSkeleton } from "@/components/orders/OrderPageSkeleton";
 import { useRedirectWhenSignedOut } from "@/hooks/useRedirectWhenSignedOut";
 import { ApiError, orderApi } from "@/services/api";
 import type { OrderLine } from "@/services/api";
 import { useIsAuthenticated, useUserId } from "@/stores/auth.store";
 
-/** The order service answers 400 for an ID that is no UUID, and 404 for anyone else's order. */
+const ORDER_ID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** The order service answers 404 for anyone else's order too. */
 function isOrderNotFound(error: unknown): boolean {
-  return (
-    error instanceof ApiError &&
-    (error.status === 404 ||
-      (error.status === 400 && error.data?.code === "INVALID_REQUEST"))
-  );
+  return error instanceof ApiError && error.status === 404;
 }
 
 /** One of the customer's orders, from the product snapshot stored with it (PIN-428). */
-export function OrderDetailPage({ orderId }: { orderId: string }) {
+export function OrderDetailPage({
+  orderId,
+  page = 1,
+}: {
+  orderId: string;
+  /** The page of the order history this was opened from. */
+  page?: number;
+}) {
   const isAuthenticated = useIsAuthenticated();
   const userId = useUserId();
+  const isOrderId = ORDER_ID.test(orderId);
   const order = useQuery({
     // By user: the cache outlives signing out, and this isn't the next account's order
     queryKey: ["order", userId, orderId],
     queryFn: () => orderApi.get(orderId),
-    enabled: isAuthenticated,
+    // Not asked for an ID that can't be one: for a `%2F` in it, Tomcat refuses the preflight, and
+    // the browser reports that as a network failure rather than a 400
+    enabled: isAuthenticated && isOrderId,
     // A 404 won't change, and the default retries would hold back the not-found page
     retry: false,
   });
   const redirecting = useRedirectWhenSignedOut(
     // The router decoded the ID, and sign-in decodes this
-    `/orders/${encodeURIComponent(orderId)}`,
+    `/orders/${encodeURIComponent(orderId)}${page > 1 ? `?page=${page}` : ""}`,
     order,
   );
 
   if (redirecting) return null;
 
-  if (order.isPending) {
-    return <OrderPageSkeleton />;
-  }
-
-  if (isOrderNotFound(order.error)) {
+  if (!isOrderId || isOrderNotFound(order.error)) {
     return (
       <div data-testid="orderNotFound" className="text-center text-slate-300">
         <h1 className="text-3xl font-bold text-white">Order not found</h1>
         <p className="mt-4">We couldn’t find this order on your account.</p>
         <Link
           to="/orders"
-          search={{ page: 1 }}
+          search={{ page }}
           className="mt-6 inline-block text-sm text-indigo-400 hover:text-indigo-300"
         >
           Back to your orders
@@ -55,12 +61,14 @@ export function OrderDetailPage({ orderId }: { orderId: string }) {
     );
   }
 
+  if (order.isPending) {
+    return <OrderPageSkeleton />;
+  }
+
   // Not on a failed refetch, which still has the order to show
   if (order.isLoadingError) {
     return (
-      <p role="alert" className="text-center text-red-400">
-        We couldn’t load this order. Please try again.
-      </p>
+      <OrderLoadError message="We couldn’t load this order." query={order} />
     );
   }
 
@@ -88,7 +96,7 @@ export function OrderDetailPage({ orderId }: { orderId: string }) {
       </p>
       <Link
         to="/orders"
-        search={{ page: 1 }}
+        search={{ page }}
         className="mt-6 inline-block text-sm text-indigo-400 hover:text-indigo-300"
       >
         Back to your orders

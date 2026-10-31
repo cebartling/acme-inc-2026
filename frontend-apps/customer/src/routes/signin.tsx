@@ -16,6 +16,7 @@ import { useAuthStore } from "@/stores/auth.store";
 import { useCustomerStore } from "@/stores/customer.store";
 import { identityApi, ApiError } from "@/services/api";
 import { mergeCartAfterSignIn } from "@/hooks/useCart";
+import { isSafeRedirect } from "@/lib/redirect";
 import { trackSigninFailed } from "@/services/analytics";
 import type { SigninFormData } from "@/schemas/signin.schema";
 
@@ -58,37 +59,15 @@ function isInactiveReason(value: unknown): value is InactiveAccountReason {
   );
 }
 
-/**
- * Validates that a redirect URL is safe (internal path only).
- * Prevents open redirect attacks by rejecting:
- * - Absolute URLs (http://, https://, etc.)
- * - Protocol-relative URLs (//example.com)
- * - URLs with encoded characters that could bypass validation
- */
-function isValidRedirectUrl(url: string): boolean {
-  // Must start with a single forward slash (relative path)
-  if (!url.startsWith("/")) return false;
-
-  // Reject protocol-relative URLs (//example.com)
-  if (url.startsWith("//")) return false;
-
-  // Reject URLs containing protocol indicators
-  if (url.includes("://")) return false;
-
-  // Reject URLs with encoded slashes or colons that could bypass checks
-  const decoded = decodeURIComponent(url);
-  if (decoded.startsWith("//") || decoded.includes("://")) return false;
-
-  return true;
-}
-
 const signinSearchSchema = z.object({
   redirect: z
     .string()
     .optional()
-    .refine((val) => !val || isValidRedirectUrl(val), {
+    .refine((val) => !val || isSafeRedirect(val), {
       message: "Invalid redirect URL",
-    }),
+    })
+    // Dropped rather than rejected, like the outcome params below: a bad link still signs in
+    .catch(undefined),
   logout: z.boolean().optional(),
   // Outcome of identity's email verification redirect (PIN-333). An unknown
   // value is dropped rather than rejected: validateSearch throwing would replace
@@ -277,7 +256,7 @@ function SigninPage() {
 
       // Navigate to redirect URL or home (with validation as defense-in-depth)
       const redirectTo =
-        search.redirect && isValidRedirectUrl(search.redirect)
+        search.redirect && isSafeRedirect(search.redirect)
           ? search.redirect
           : "/";
       navigate({ to: redirectTo });

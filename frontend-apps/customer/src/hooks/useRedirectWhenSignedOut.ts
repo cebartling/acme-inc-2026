@@ -1,7 +1,12 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { ApiError } from "@/services/api";
-import { useIsAuthenticated, useIsAuthLoading } from "@/stores/auth.store";
+import {
+  useAuthStore,
+  useIsAuthenticated,
+  useIsAuthLoading,
+} from "@/stores/auth.store";
+import { useCustomerStore } from "@/stores/customer.store";
 
 /**
  * Sends a signed-out visitor to sign-in, and back to `redirect` afterwards. A 401 that reaches
@@ -10,6 +15,7 @@ import { useIsAuthenticated, useIsAuthLoading } from "@/stores/auth.store";
  * that holds data keeps its error until then, and the customer may have signed in since.
  *
  * The redirect replaces the page in the history, so Back doesn't land on it and bounce again.
+ * The stores are cleared with it, so the header stops showing a customer who is signed out.
  *
  * @returns whether the visitor is being redirected, so the page can render nothing
  */
@@ -28,6 +34,8 @@ export function useRedirectWhenSignedOut(
 
   useEffect(() => {
     if (signedOut) {
+      useAuthStore.getState().clearUser();
+      useCustomerStore.getState().clearProfile();
       navigate({ to: "/signin", search: { redirect }, replace: true });
     }
   }, [signedOut, redirect, navigate]);

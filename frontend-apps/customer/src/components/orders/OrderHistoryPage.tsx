@@ -1,5 +1,6 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
+import { OrderLoadError } from "@/components/orders/OrderLoadError";
 import { OrderPageSkeleton } from "@/components/orders/OrderPageSkeleton";
 import { SearchPagination } from "@/components/search";
 import { useRedirectWhenSignedOut } from "@/hooks/useRedirectWhenSignedOut";
@@ -37,9 +38,7 @@ export function OrderHistoryPage({ page }: { page: number }) {
   // Not on a failed refetch, which still has the orders to show
   if (orders.isLoadingError) {
     return (
-      <p role="alert" className="text-center text-red-400">
-        We couldn’t load your orders. Please try again.
-      </p>
+      <OrderLoadError message="We couldn’t load your orders." query={orders} />
     );
   }
 
@@ -73,7 +72,7 @@ export function OrderHistoryPage({ page }: { page: number }) {
         <>
           <ul className="space-y-3">
             {rows.map((order) => (
-              <OrderRow key={order.orderId} order={order} />
+              <OrderRow key={order.orderId} order={order} page={page} />
             ))}
           </ul>
           {totalPages > 1 && (
@@ -92,7 +91,7 @@ export function OrderHistoryPage({ page }: { page: number }) {
   );
 }
 
-function OrderRow({ order }: { order: OrderSummary }) {
+function OrderRow({ order, page }: { order: OrderSummary; page: number }) {
   const { orderId, orderNumber, status, createdAt, itemCount, subtotal } =
     order;
   return (
@@ -100,6 +99,8 @@ function OrderRow({ order }: { order: OrderSummary }) {
       <Link
         to="/orders/$orderId"
         params={{ orderId }}
+        // So "Back to your orders" returns here; page 1 keeps the plain URL
+        search={{ page: page > 1 ? page : undefined }}
         className="block rounded-xl bg-slate-800 p-4 shadow-lg hover:bg-slate-700"
       >
         <div className="flex flex-wrap items-center justify-between gap-2">

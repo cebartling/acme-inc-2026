@@ -46,11 +46,12 @@ export class ApiError extends Error {
 // refresh is in flight queues onto `refreshWaiters` and retries after the
 // refresh resolves.
 //
-// The cart and order services answer 401 + INVALID_TOKEN for a token they
-// can't verify, which is what a customer's cookie becomes when identity
-// restarts and regenerates its signing keys (PIN-443). It's refreshed the same
-// way: identity then either issues new cookies or clears them, and the
-// customer isn't left with a cookie that fails until it expires in 7 days.
+// The cart and order services, and GET /customers/me, answer 401 +
+// INVALID_TOKEN for a token they can't verify, which is what a customer's
+// cookie becomes when identity restarts and regenerates its signing keys
+// (PIN-443). It's refreshed the same way: identity then either issues new
+// cookies or clears them, and the customer isn't left with a cookie that
+// fails until it expires in 7 days.
 //
 // The order service answers 401 + code SIGN_IN_REQUIRED when the browser
 // sends no access cookie (PIN-438). The refresh cookie is HttpOnly, so the
@@ -162,6 +163,12 @@ function flushWaiters(error?: unknown): void {
  * lazily to avoid a static-import cycle (auth.store imports api types).
  */
 async function handleRefreshFailure(redirect: boolean): Promise<void> {
+  // Read before the stores clear: a page watching them goes to sign-in on its own, which must
+  // neither cancel this redirect, the one with `logout=true`, nor become the page to come back to
+  const here =
+    typeof window === "undefined"
+      ? null
+      : { pathname: window.location.pathname, search: window.location.search };
   // Dynamic imports avoid a static cycle (stores import API types). The
   // catch branches log a warning rather than swallowing silently — a
   // bundler quirk or future store rename that breaks the import path
@@ -179,9 +186,22 @@ async function handleRefreshFailure(redirect: boolean): Promise<void> {
   } catch (err) {
     console.warn("refresh-cleanup: failed to clear customer store", err);
   }
-  if (redirect && typeof window !== "undefined") {
-    window.location.href = "/signin?logout=true";
+  // Not from sign-in itself: a request that fails there must not lose the page's own `redirect`
+  if (redirect && here && here.pathname !== "/signin") {
+    window.location.href = signinUrlBackHere(here);
   }
+}
+
+/** Sign-in, and back to this page afterwards. Home is where sign-in goes anyway. */
+function signinUrlBackHere({
+  pathname,
+  search,
+}: {
+  pathname: string;
+  search: string;
+}): string {
+  if (pathname === "/") return "/signin?logout=true";
+  return `/signin?logout=true&redirect=${encodeURIComponent(pathname + search)}`;
 }
 
 /** A decoded JSON response body, as far as apiRequest itself inspects it. */

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type React from "react";
 import { act, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { OrderDetailPage } from "./OrderDetailPage";
 import { ApiError, orderApi } from "@/services/api";
@@ -11,14 +12,19 @@ const navigate = vi.fn();
 vi.mock("@tanstack/react-router", () => ({
   Link: ({
     to,
+    search,
     children,
     className,
   }: {
     to: string;
+    search?: { page?: number };
     children: React.ReactNode;
     className?: string;
   }) => (
-    <a href={to} className={className}>
+    <a
+      href={search?.page ? `${to}?page=${search.page}` : to}
+      className={className}
+    >
       {children}
     </a>
   ),
@@ -31,6 +37,8 @@ vi.mock("@/services/api", async (importOriginal) => ({
 }));
 
 const mockedGet = vi.mocked(orderApi.get);
+
+const ORDER_ID = "11111111-2222-4333-8444-555555555555";
 
 const line = {
   lineItemId: "line-1",
@@ -46,7 +54,7 @@ const line = {
 };
 
 const order: OrderDetails = {
-  orderId: "order-1",
+  orderId: ORDER_ID,
   orderNumber: "ACME-20261029-000001",
   status: "SUBMITTED",
   createdAt: "2026-10-29T12:00:00Z",
@@ -54,10 +62,14 @@ const order: OrderDetails = {
   pricing: { subtotal: { amount: 69.98, currency: "USD" } },
 };
 
-function renderPage(orderId = "order-1", queryClient = new QueryClient()) {
+function renderPage(
+  orderId = ORDER_ID,
+  queryClient = new QueryClient(),
+  page?: number,
+) {
   return render(
     <QueryClientProvider client={queryClient}>
-      <OrderDetailPage orderId={orderId} />
+      <OrderDetailPage orderId={orderId} page={page} />
     </QueryClientProvider>,
   );
 }
@@ -118,17 +130,26 @@ describe("OrderDetailPage (PIN-428)", () => {
     expect(container.querySelector("img")).toBeNull();
   });
 
-  it.each([
-    ["404 ORDER_NOT_FOUND", 404, "ORDER_NOT_FOUND"],
-    ["400 INVALID_REQUEST", 400, "INVALID_REQUEST"],
-  ])("shows the not-found page for %s", async (_name, status, code) => {
-    mockedGet.mockRejectedValueOnce(new ApiError("Nope", status, { code }));
+  it("shows the not-found page for a 404", async () => {
+    mockedGet.mockRejectedValueOnce(
+      new ApiError("Nope", 404, { code: "ORDER_NOT_FOUND" }),
+    );
 
     renderPage();
 
     expect(await screen.findByTestId("orderNotFound")).toBeInTheDocument();
     expect(mockedGet).toHaveBeenCalledTimes(1);
   });
+
+  it.each(["not-a-uuid", "a://b", "50%"])(
+    "shows the not-found page for %s without asking the service",
+    async (orderId) => {
+      renderPage(orderId);
+
+      expect(await screen.findByTestId("orderNotFound")).toBeInTheDocument();
+      expect(mockedGet).not.toHaveBeenCalled();
+    },
+  );
 
   it("says so when the order can't be read for another reason", async () => {
     mockedGet.mockRejectedValueOnce(new ApiError("Down", 503));
@@ -141,6 +162,65 @@ describe("OrderDetailPage (PIN-428)", () => {
     expect(screen.queryByTestId("orderNotFound")).not.toBeInTheDocument();
   });
 
+  it("reads the order again when the customer asks to try again", async () => {
+    mockedGet.mockRejectedValueOnce(new ApiError("Down", 503));
+    mockedGet.mockResolvedValueOnce(order);
+    const user = userEvent.setup();
+
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Try again" }));
+
+    expect(await screen.findByTestId("orderLine")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("goes back to the page of orders it was opened from", async () => {
+    mockedGet.mockResolvedValueOnce(order);
+
+    renderPage(ORDER_ID, new QueryClient(), 3);
+
+    expect(
+      await screen.findByRole("link", { name: "Back to your orders" }),
+    ).toHaveAttribute("href", "/orders?page=3");
+  });
+
+  it("goes back to that page from the not-found page too", async () => {
+    mockedGet.mockRejectedValueOnce(
+      new ApiError("Nope", 404, { code: "ORDER_NOT_FOUND" }),
+    );
+
+    renderPage(ORDER_ID, new QueryClient(), 3);
+
+    expect(
+      await screen.findByRole("link", { name: "Back to your orders" }),
+    ).toHaveAttribute("href", "/orders?page=3");
+  });
+
+  it("goes back to the first page when opened from elsewhere", async () => {
+    mockedGet.mockResolvedValueOnce(order);
+
+    renderPage();
+
+    expect(
+      await screen.findByRole("link", { name: "Back to your orders" }),
+    ).toHaveAttribute("href", "/orders?page=1");
+  });
+
+  it("keeps the page of orders in the way back from sign-in", async () => {
+    useAuthStore.setState({ isAuthenticated: false, isLoading: false });
+
+    renderPage(ORDER_ID, new QueryClient(), 3);
+
+    await waitFor(() =>
+      expect(navigate).toHaveBeenCalledWith({
+        to: "/signin",
+        search: { redirect: `/orders/${ORDER_ID}?page=3` },
+        replace: true,
+      }),
+    );
+  });
+
   it("sends a signed-out visitor to sign-in and back to this order", async () => {
     useAuthStore.setState({ isAuthenticated: false, isLoading: false });
 
@@ -149,7 +229,7 @@ describe("OrderDetailPage (PIN-428)", () => {
     await waitFor(() =>
       expect(navigate).toHaveBeenCalledWith({
         to: "/signin",
-        search: { redirect: "/orders/order-1" },
+        search: { redirect: `/orders/${ORDER_ID}` },
         replace: true,
       }),
     );
@@ -166,7 +246,7 @@ describe("OrderDetailPage (PIN-428)", () => {
     await waitFor(() =>
       expect(navigate).toHaveBeenCalledWith({
         to: "/signin",
-        search: { redirect: "/orders/order-1" },
+        search: { redirect: `/orders/${ORDER_ID}` },
         replace: true,
       }),
     );
@@ -189,7 +269,7 @@ describe("OrderDetailPage (PIN-428)", () => {
   it("keeps the order on screen when a background refetch fails", async () => {
     const queryClient = new QueryClient();
     mockedGet.mockResolvedValueOnce(order);
-    renderPage("order-1", queryClient);
+    renderPage(ORDER_ID, queryClient);
     await screen.findByTestId("orderLine");
 
     await refetchAnswering(queryClient, new ApiError("Down", 503));
@@ -201,7 +281,7 @@ describe("OrderDetailPage (PIN-428)", () => {
   it("shows the not-found page when a background refetch answers 404", async () => {
     const queryClient = new QueryClient();
     mockedGet.mockResolvedValueOnce(order);
-    renderPage("order-1", queryClient);
+    renderPage(ORDER_ID, queryClient);
     await screen.findByTestId("orderLine");
 
     await refetchAnswering(

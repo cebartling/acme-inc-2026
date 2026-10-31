@@ -1,13 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { OrderHistoryPage } from "@/components/orders/OrderHistoryPage";
-
-/** The order service's limit. A bad `page` falls back to 1: `validateSearch` throwing takes down the route. */
-const MAX_PAGE = 10_000;
+import { orderHistoryPage } from "@/schemas/orderHistoryPage.schema";
 
 export const Route = createFileRoute("/orders/")({
   validateSearch: z.object({
-    page: z.coerce.number().int().min(1).max(MAX_PAGE).default(1).catch(1),
+    page: orderHistoryPage.default(1).catch(1),
   }),
   component: OrdersRoute,
 });

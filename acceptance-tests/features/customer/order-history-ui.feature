@@ -13,6 +13,44 @@ Feature: See my orders
     When I navigate to "/orders"
     Then I should be asked to sign in and come back to my orders
 
+  Scenario: A guest comes back to the same page of their orders after signing in
+    When I navigate to "/orders?page=2"
+    And I sign in from the page I was sent to
+    Then I should be on "/orders?page=2"
+
+  # A hand-typed URL, but sign-in's redirect check used to turn it into the router's error page.
+  Scenario: An order ID that looks like a URL doesn't break sign-in
+    When I navigate to "/orders/a%3A%2F%2Fb"
+    And I sign in from the page I was sent to
+    Then I should see the order not found page
+
+  Scenario: A customer whose access cookie is gone is signed out, and comes back
+    Given I navigate to "/signin"
+    And I sign in with valid credentials
+    And my access cookie is gone
+    When I navigate to "/orders?page=2"
+    Then the header should show me signed out
+    When I sign in from the page I was sent to
+    Then I should be on "/orders?page=2"
+
+  Scenario: A session that can't be refreshed comes back to the page after sign-in
+    Given I navigate to "/signin"
+    And I sign in with valid credentials
+    And my session can't be refreshed
+    When I navigate to "/orders?page=2"
+    Then the header should show me signed out
+    When I sign in from the page I was sent to
+    Then I should be on "/orders?page=2"
+
+  Scenario: Orders that fail to load can be tried again
+    Given I navigate to "/signin"
+    And I sign in with valid credentials
+    And the next read of my orders fails
+    When I navigate to "/orders"
+    Then I should be told my orders couldn't be loaded
+    When I try loading my orders again
+    Then I should be told I have no orders
+
   Scenario: A customer with no orders sees an empty state
     Given I navigate to "/signin"
     And I sign in with valid credentials
@@ -51,10 +89,9 @@ Feature: See my orders
     When I click the "View order" link
     Then I should see that order's details with "Gadget Pro"
 
-  # Seeds the profile like profile-completeness-widget.feature: GET /customers/me needs an
-  # X-User-Id header nothing sends, so a real sign-in gets "Error Loading Profile" on /dashboard.
   Scenario: The dashboard links to the order history
-    Given I am logged in as an authenticated customer
+    Given I navigate to "/signin"
+    And I sign in with valid credentials
     When I navigate to the dashboard
     Then the dashboard should link to my orders
 

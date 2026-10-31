@@ -1,7 +1,8 @@
-import { When, Then } from '@cucumber/cucumber';
+import { Given, When, Then } from '@cucumber/cucumber';
 import { expect } from '@playwright/test';
 import { CustomWorld } from '../../support/world.js';
 import { config } from '../../playwright.config.js';
+import { SigninPage } from '../../pages/customer/signin.page.js';
 
 /**
  * Step definitions for the customer app's order history (PIN-428). Signing in and placing an
@@ -71,4 +72,58 @@ Then(
 
 Then('I should see the order not found page', async function (this: CustomWorld) {
   await expect(this.page.getByTestId('orderNotFound')).toContainText('Order not found');
+});
+
+When('I sign in from the page I was sent to', async function (this: CustomWorld) {
+  await this.page.waitForURL(/\/signin/, { timeout: config.timeout.action });
+  const signinPage = new SigninPage(this.page);
+  await signinPage.fillEmail(this.getTestData<string>('registeredEmail')!);
+  await signinPage.fillPassword('SecureP@ss123');
+  await signinPage.blurPassword();
+  await signinPage.submitForm();
+  await this.page.waitForURL((url) => url.pathname !== '/signin', {
+    timeout: config.timeout.action,
+  });
+});
+
+Then('I should be on {string}', async function (this: CustomWorld, path: string) {
+  await expect
+    .poll(() => {
+      const url = new URL(this.page.url());
+      return url.pathname + url.search;
+    })
+    .toBe(path);
+});
+
+Given('my access cookie is gone', async function (this: CustomWorld) {
+  await this.context.clearCookies({ name: 'access_token' });
+});
+
+// A token the order service can't verify makes the app refresh, and with no refresh cookie
+// identity refuses.
+Given("my session can't be refreshed", async function (this: CustomWorld) {
+  await this.context.clearCookies({ name: 'access_token' });
+  await this.context.clearCookies({ name: 'refresh_token' });
+  await this.context.addCookies([
+    { name: 'access_token', value: 'not-a-token', url: new URL(this.page.url()).origin },
+  ]);
+});
+
+Then('the header should show me signed out', async function (this: CustomWorld) {
+  await this.page.waitForURL(/\/signin/, { timeout: config.timeout.action });
+  await expect(this.page.getByRole('button', { name: /open user menu/i })).toHaveCount(0);
+  const stored = await this.page.evaluate(() => localStorage.getItem('auth-storage'));
+  expect(JSON.parse(stored!).state.isAuthenticated).toBe(false);
+});
+
+Given('the next read of my orders fails', async function (this: CustomWorld) {
+  await this.page.route('**/api/v1/orders?*', (route) => route.abort(), { times: 1 });
+});
+
+Then("I should be told my orders couldn't be loaded", async function (this: CustomWorld) {
+  await expect(this.page.getByRole('alert')).toContainText('couldn’t load your orders');
+});
+
+When('I try loading my orders again', async function (this: CustomWorld) {
+  await this.page.getByRole('button', { name: 'Try again' }).click();
 });

@@ -50,6 +50,6 @@ Feature: Token Refresh — Customer UI (US-0003-12)
     Given a signed-in customer is on the dashboard
     And the customer's session has been invalidated server-side
     When the customer triggers any authenticated request
-    Then the customer is redirected to "/signin?logout=true"
+    Then the customer is redirected to "/signin?logout=true&redirect=%2Fdashboard"
     And the customer sees the "You have been signed out." message
     And the auth store is cleared

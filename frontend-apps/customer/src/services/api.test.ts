@@ -33,13 +33,15 @@ function rejectOnAbort(signal: AbortSignal | null | undefined) {
  * imports lazily) and window.location, so a redirect is observed without navigating. Call
  * `restore` from a `finally`, so a failed assertion doesn't leak the stubs into later cases.
  */
-function stubRefreshFailureEffects() {
+function stubRefreshFailureEffects({ pathname = "/", search = "" } = {}) {
   const originalLocation = window.location;
   let assignedHref: string | null = null;
   Object.defineProperty(window, "location", {
     configurable: true,
     value: {
       ...originalLocation,
+      pathname,
+      search,
       set href(value: string) {
         assignedHref = value;
       },
@@ -811,6 +813,72 @@ describe("token-refresh interceptor", () => {
       expect(effects.clearUser).toHaveBeenCalledOnce();
       expect(effects.clearProfile).toHaveBeenCalledOnce();
       expect(effects.assignedHref()).toBe("/signin?logout=true");
+    } finally {
+      effects.restore();
+    }
+  });
+
+  it.each([
+    ["/orders", "?page=3", "/signin?logout=true&redirect=%2Forders%3Fpage%3D3"],
+    ["/cart", "", "/signin?logout=true&redirect=%2Fcart"],
+  ])(
+    "a refused refresh on %s%s comes back after sign-in",
+    async (pathname, search, expected) => {
+      const effects = stubRefreshFailureEffects({ pathname, search });
+      try {
+        mockFetch
+          .mockResolvedValueOnce(tokenExpired())
+          .mockResolvedValueOnce(tokenExpired());
+
+        await expect(customerApi.getCurrentCustomer()).rejects.toBeInstanceOf(
+          ApiError,
+        );
+
+        expect(effects.assignedHref()).toBe(expected);
+      } finally {
+        effects.restore();
+      }
+    },
+  );
+
+  it("a refused refresh still redirects when a page watching the stores left first", async () => {
+    const effects = stubRefreshFailureEffects({ pathname: "/dashboard" });
+    effects.clearUser.mockImplementation(() => {
+      window.location.pathname = "/signin";
+    });
+    try {
+      mockFetch
+        .mockResolvedValueOnce(tokenExpired())
+        .mockResolvedValueOnce(tokenExpired());
+
+      await expect(customerApi.getCurrentCustomer()).rejects.toBeInstanceOf(
+        ApiError,
+      );
+
+      expect(effects.assignedHref()).toBe(
+        "/signin?logout=true&redirect=%2Fdashboard",
+      );
+    } finally {
+      effects.restore();
+    }
+  });
+
+  it("a refused refresh on the sign-in page stays there, keeping its redirect", async () => {
+    const effects = stubRefreshFailureEffects({
+      pathname: "/signin",
+      search: "?logout=true&redirect=%2Fcart",
+    });
+    try {
+      mockFetch
+        .mockResolvedValueOnce(tokenExpired())
+        .mockResolvedValueOnce(tokenExpired());
+
+      await expect(customerApi.getCurrentCustomer()).rejects.toBeInstanceOf(
+        ApiError,
+      );
+
+      expect(effects.clearUser).toHaveBeenCalledOnce();
+      expect(effects.assignedHref()).toBeNull();
     } finally {
       effects.restore();
     }
