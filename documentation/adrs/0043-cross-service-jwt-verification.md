@@ -46,6 +46,12 @@ Services verify identity's access tokens **locally against a published JWKS**:
    (`JwksController` comment, cart `application.yml`), because identity's keys change on
    restart.
 
+The customer service verifies the same way for everything under `/api/v1/customers/` (PIN-428),
+and takes the user from the token rather than an `X-User-Id` header. The lookups by ID, user ID,
+number and email return a whole customer and no page uses them, so they take a service's
+`X-Service-Token` instead (`ACME_CUSTOMER_SERVICE_TOKEN`, the pattern of
+[ADR-0061](0061-order-service-token-for-cart-calls.md)). The notification service sends it.
+
 ## Consequences
 
 ### Positive

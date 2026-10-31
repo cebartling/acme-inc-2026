@@ -645,7 +645,8 @@ read their orders back (PIN-367).
   - **Placed:** the page replaces itself with `/orders/$orderId/confirmation`
     (`OrderConfirmation`), which reads the order with `GET /api/v1/orders/{orderId}`, so a
     reload never places it again (AC-6.5). The cart query is invalidated, and the converted
-    cart is no longer current, so the badge and `/cart` show an empty cart.
+    cart is no longer current, so the badge and `/cart` show an empty cart. The confirmation
+    page links to the order's detail page.
   - **Acceptance tests** lapse a session through the cart's test-profile-only
     `POST /api/v1/test/checkout-sessions/{checkoutSessionId}/lapse` (`TestHelperController`),
     which moves its expiry a minute back; the cart runs `docker,test` in compose.
@@ -666,6 +667,22 @@ read their orders back (PIN-367).
     answer the same `404 ORDER_NOT_FOUND`.
   - **Bad input:** a malformed `orderId` or out-of-range paging is `400 INVALID_REQUEST`,
     naming the parameter.
+  - **Customer app** (PIN-428): `/orders` (`OrderHistoryPage`) lists 10 orders a page and
+    `/orders/$orderId` (`OrderDetailPage`) shows one, printing the status as the service
+    returns it. A 404, or an ID that isn't a UUID (never sent to the service), shows the
+    not-found page, and a failed read offers Try again (`OrderLoadError`). Signed-out visitors, and a `401` that reaches
+    either page, go to `/signin?redirect=…`, and the auth and customer stores are cleared
+    (`useRedirectWhenSignedOut`). These reads don't refresh on `SIGN_IN_REQUIRED`. A refused
+    refresh on `TOKEN_EXPIRED`, as for any read, goes to `/signin?logout=true` with the page in
+    `redirect`. The detail page carries the history's `page`, so Back to your orders returns
+    to it. Their query keys carry the user ID, so the next account on a browser can't read
+    them from the cache. The header's user menu and the dashboard link to `/orders`.
+  - **Customer service auth** (PIN-428): everything under `/api/v1/customers/` needs identity's
+    verified `access_token` cookie, and the user comes from the token, not a header. Lookups by
+    ID, user ID, number and email return a whole customer, so they take `X-Service-Token`
+    (`ACME_CUSTOMER_SERVICE_TOKEN`), which the notification service sends. The dashboard and
+    preferences send a customer to sign-in on a `401` as the order pages do, and a dead session
+    leaves the sign-in, registration and password pages alone (`SIGNED_OUT_PAGES` in `api.ts`).
 - **Persistence** ([ADR-0041](adrs/0041-per-service-persistence-model.md)): plain JPA with Flyway and `ddl-auto: validate`, like the other services.
   The epic's event store and CQRS read models are deferred. `V1__baseline.sql` is empty,
   `V2` adds the `outbox` table (PIN-368), and `V3` the `orders`, `order_items` and

@@ -1,6 +1,7 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { ProfileCompletenessWidget } from "@/components/profile/ProfileCompletenessWidget";
+import { useRedirectWhenSignedOut } from "@/hooks/useRedirectWhenSignedOut";
 import {
   useCustomerId,
   useIsAuthenticated,
@@ -10,6 +11,7 @@ import {
   useCustomerProfile,
   useCustomerLoading,
   useCustomerError,
+  useCustomerLoadError,
   useCustomerStore,
 } from "@/stores/customer.store";
 
@@ -18,7 +20,6 @@ export const Route = createFileRoute("/dashboard")({
 });
 
 function DashboardPage() {
-  const navigate = useNavigate();
   const customerId = useCustomerId();
   const isAuthenticated = useIsAuthenticated();
   const isAuthLoading = useIsAuthLoading();
@@ -27,14 +28,15 @@ function DashboardPage() {
   const profile = useCustomerProfile();
   const isProfileLoading = useCustomerLoading();
   const profileError = useCustomerError();
+  const profileLoadError = useCustomerLoadError();
   const { fetchProfile } = useCustomerStore();
+  const [widgetError, setWidgetError] = useState<unknown>(null);
 
-  // Redirect to login if not authenticated
-  useEffect(() => {
-    if (!isAuthLoading && !isAuthenticated) {
-      navigate({ to: "/signin" });
-    }
-  }, [isAuthLoading, isAuthenticated, navigate]);
+  // A saved profile skips the fetch, so the widget may be first to hear the session is over
+  const redirecting = useRedirectWhenSignedOut("/dashboard", {
+    error: profileLoadError ?? widgetError,
+    isFetching: isProfileLoading,
+  });
 
   // Fetch profile if authenticated but profile not loaded
   // Note: We check !profileError to prevent infinite retry loops if the API fails.
@@ -42,9 +44,12 @@ function DashboardPage() {
   // clears the error state before calling fetchProfile() again.
   useEffect(() => {
     if (isAuthenticated && !profile && !isProfileLoading && !profileError) {
-      fetchProfile();
+      // A failure lands in the store, which this page renders
+      fetchProfile().catch(() => {});
     }
   }, [isAuthenticated, profile, isProfileLoading, profileError, fetchProfile]);
+
+  if (redirecting) return null;
 
   // Show loading state while checking auth or loading profile
   if (isAuthLoading || (isProfileLoading && !profile)) {
@@ -69,7 +74,7 @@ function DashboardPage() {
             </h2>
             <p className="text-gray-300 mb-4">{profileError}</p>
             <button
-              onClick={() => fetchProfile()}
+              onClick={() => fetchProfile().catch(() => {})}
               className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
             >
               Retry
@@ -94,12 +99,22 @@ function DashboardPage() {
             Welcome, {profile.name.displayName}!
           </h1>
           <p className="text-gray-400">Customer #{profile.customerNumber}</p>
+          <Link
+            to="/orders"
+            search={{ page: 1 }}
+            className="mt-2 inline-block text-sm text-indigo-400 hover:text-indigo-300"
+          >
+            View your orders
+          </Link>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Profile Completeness Widget */}
           <div data-testid="profile-completeness-widget">
-            <ProfileCompletenessWidget customerId={profile.customerId} />
+            <ProfileCompletenessWidget
+              customerId={profile.customerId}
+              onLoadError={setWidgetError}
+            />
           </div>
 
           {/* Placeholder for other dashboard widgets */}

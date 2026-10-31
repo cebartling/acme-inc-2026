@@ -21,6 +21,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
+import org.springframework.security.oauth2.jwt.Jwt
 import java.time.Instant
 import java.time.LocalDate
 import java.util.Optional
@@ -538,14 +539,8 @@ class CustomerControllerTest {
     @Nested
     inner class GetCurrentCustomer {
 
-        @Test
-        fun `should return 400 for invalid user ID format`() {
-            // Given / When
-            val response = controller.getCurrentCustomer("invalid-uuid")
-
-            // Then
-            assertEquals(HttpStatus.BAD_REQUEST, response.statusCode)
-        }
+        private fun accessToken(): Jwt =
+            Jwt.withTokenValue("token").header("alg", "RS256").subject(userId.toString()).build()
 
         @Test
         fun `should return 404 when customer not found`() {
@@ -555,7 +550,7 @@ class CustomerControllerTest {
             } returns com.acme.customer.application.GetCustomerProfileResult.NotFound(userId)
 
             // When
-            val response = controller.getCurrentCustomer(userId.toString())
+            val response = controller.getCurrentCustomer(accessToken())
 
             // Then
             assertEquals(HttpStatus.NOT_FOUND, response.statusCode)
@@ -569,7 +564,7 @@ class CustomerControllerTest {
             } returns com.acme.customer.application.GetCustomerProfileResult.PreferencesNotFound(customerId)
 
             // When
-            val response = controller.getCurrentCustomer(userId.toString())
+            val response = controller.getCurrentCustomer(accessToken())
 
             // Then
             assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.statusCode)
@@ -587,7 +582,7 @@ class CustomerControllerTest {
             } returns com.acme.customer.application.GetCustomerProfileResult.Success(profileResponse)
 
             // When
-            val response = controller.getCurrentCustomer(userId.toString())
+            val response = controller.getCurrentCustomer(accessToken())
 
             // Then
             assertEquals(HttpStatus.OK, response.statusCode)
@@ -611,7 +606,7 @@ class CustomerControllerTest {
             } returns com.acme.customer.application.GetCustomerProfileResult.Success(profileResponse)
 
             // When
-            controller.getCurrentCustomer(userId.toString())
+            controller.getCurrentCustomer(accessToken())
 
             // Then
             verify(exactly = 1) { getCustomerProfileUseCase.execute(userId) }
@@ -629,7 +624,7 @@ class CustomerControllerTest {
             } returns com.acme.customer.application.GetCustomerProfileResult.Success(profileResponse)
 
             // When
-            val response = controller.getCurrentCustomer(userId.toString())
+            val response = controller.getCurrentCustomer(accessToken())
 
             // Then
             assertEquals(HttpStatus.OK, response.statusCode)
@@ -651,7 +646,7 @@ class CustomerControllerTest {
             } returns com.acme.customer.application.GetCustomerProfileResult.Success(profileResponse)
 
             // When
-            val response = controller.getCurrentCustomer(userId.toString())
+            val response = controller.getCurrentCustomer(accessToken())
 
             // Then
             assertEquals(HttpStatus.OK, response.statusCode)

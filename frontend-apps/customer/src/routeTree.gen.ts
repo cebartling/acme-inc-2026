@@ -23,12 +23,14 @@ import { Route as ResetPasswordRouteImport } from "./routes/reset-password";
 import { Route as SearchRouteImport } from "./routes/search";
 import { Route as SigninRouteImport } from "./routes/signin";
 import { Route as ApiHealthRouteImport } from "./routes/api.health";
+import { Route as OrdersIndexRouteImport } from "./routes/orders.index";
 import { Route as ProductsSlugRouteImport } from "./routes/products.$slug";
 import { Route as ProfileCompleteRouteImport } from "./routes/profile/complete";
 import { Route as VerifyResendRouteImport } from "./routes/verify.resend";
 import { Route as DemoApiNamesRouteImport } from "./routes/demo/api.names";
 import { Route as DemoStartApiRequestRouteImport } from "./routes/demo/start.api-request";
 import { Route as DemoStartServerFuncsRouteImport } from "./routes/demo/start.server-funcs";
+import { Route as OrdersOrderIdIndexRouteImport } from "./routes/orders.$orderId.index";
 import { Route as OrdersOrderIdConfirmationRouteImport } from "./routes/orders.$orderId.confirmation";
 import { Route as DemoStartSsrIndexRouteImport } from "./routes/demo/start.ssr.index";
 import { Route as DemoStartSsrDataOnlyRouteImport } from "./routes/demo/start.ssr.data-only";
@@ -105,6 +107,11 @@ const ApiHealthRoute = ApiHealthRouteImport.update({
   path: "/api/health",
   getParentRoute: () => rootRouteImport,
 } as any);
+const OrdersIndexRoute = OrdersIndexRouteImport.update({
+  id: "/orders/",
+  path: "/orders/",
+  getParentRoute: () => rootRouteImport,
+} as any);
 const ProductsSlugRoute = ProductsSlugRouteImport.update({
   id: "/products/$slug",
   path: "/products/$slug",
@@ -133,6 +140,11 @@ const DemoStartApiRequestRoute = DemoStartApiRequestRouteImport.update({
 const DemoStartServerFuncsRoute = DemoStartServerFuncsRouteImport.update({
   id: "/demo/start/server-funcs",
   path: "/demo/start/server-funcs",
+  getParentRoute: () => rootRouteImport,
+} as any);
+const OrdersOrderIdIndexRoute = OrdersOrderIdIndexRouteImport.update({
+  id: "/orders/$orderId/",
+  path: "/orders/$orderId/",
   getParentRoute: () => rootRouteImport,
 } as any);
 const OrdersOrderIdConfirmationRoute =
@@ -180,10 +192,12 @@ export interface FileRoutesByFullPath {
   "/products/$slug": typeof ProductsSlugRoute;
   "/profile/complete": typeof ProfileCompleteRoute;
   "/verify/resend": typeof VerifyResendRoute;
+  "/orders/": typeof OrdersIndexRoute;
   "/demo/api/names": typeof DemoApiNamesRoute;
   "/demo/start/api-request": typeof DemoStartApiRequestRoute;
   "/demo/start/server-funcs": typeof DemoStartServerFuncsRoute;
   "/orders/$orderId/confirmation": typeof OrdersOrderIdConfirmationRoute;
+  "/orders/$orderId/": typeof OrdersOrderIdIndexRoute;
   "/demo/start/ssr/data-only": typeof DemoStartSsrDataOnlyRoute;
   "/demo/start/ssr/full-ssr": typeof DemoStartSsrFullSsrRoute;
   "/demo/start/ssr/spa-mode": typeof DemoStartSsrSpaModeRoute;
@@ -207,10 +221,12 @@ export interface FileRoutesByTo {
   "/products/$slug": typeof ProductsSlugRoute;
   "/profile/complete": typeof ProfileCompleteRoute;
   "/verify/resend": typeof VerifyResendRoute;
+  "/orders": typeof OrdersIndexRoute;
   "/demo/api/names": typeof DemoApiNamesRoute;
   "/demo/start/api-request": typeof DemoStartApiRequestRoute;
   "/demo/start/server-funcs": typeof DemoStartServerFuncsRoute;
   "/orders/$orderId/confirmation": typeof OrdersOrderIdConfirmationRoute;
+  "/orders/$orderId": typeof OrdersOrderIdIndexRoute;
   "/demo/start/ssr/data-only": typeof DemoStartSsrDataOnlyRoute;
   "/demo/start/ssr/full-ssr": typeof DemoStartSsrFullSsrRoute;
   "/demo/start/ssr/spa-mode": typeof DemoStartSsrSpaModeRoute;
@@ -235,10 +251,12 @@ export interface FileRoutesById {
   "/products/$slug": typeof ProductsSlugRoute;
   "/profile/complete": typeof ProfileCompleteRoute;
   "/verify/resend": typeof VerifyResendRoute;
+  "/orders/": typeof OrdersIndexRoute;
   "/demo/api/names": typeof DemoApiNamesRoute;
   "/demo/start/api-request": typeof DemoStartApiRequestRoute;
   "/demo/start/server-funcs": typeof DemoStartServerFuncsRoute;
   "/orders/$orderId/confirmation": typeof OrdersOrderIdConfirmationRoute;
+  "/orders/$orderId/": typeof OrdersOrderIdIndexRoute;
   "/demo/start/ssr/data-only": typeof DemoStartSsrDataOnlyRoute;
   "/demo/start/ssr/full-ssr": typeof DemoStartSsrFullSsrRoute;
   "/demo/start/ssr/spa-mode": typeof DemoStartSsrSpaModeRoute;
@@ -264,10 +282,12 @@ export interface FileRouteTypes {
     | "/products/$slug"
     | "/profile/complete"
     | "/verify/resend"
+    | "/orders/"
     | "/demo/api/names"
     | "/demo/start/api-request"
     | "/demo/start/server-funcs"
     | "/orders/$orderId/confirmation"
+    | "/orders/$orderId/"
     | "/demo/start/ssr/data-only"
     | "/demo/start/ssr/full-ssr"
     | "/demo/start/ssr/spa-mode"
@@ -291,10 +311,12 @@ export interface FileRouteTypes {
     | "/products/$slug"
     | "/profile/complete"
     | "/verify/resend"
+    | "/orders"
     | "/demo/api/names"
     | "/demo/start/api-request"
     | "/demo/start/server-funcs"
     | "/orders/$orderId/confirmation"
+    | "/orders/$orderId"
     | "/demo/start/ssr/data-only"
     | "/demo/start/ssr/full-ssr"
     | "/demo/start/ssr/spa-mode"
@@ -318,10 +340,12 @@ export interface FileRouteTypes {
     | "/products/$slug"
     | "/profile/complete"
     | "/verify/resend"
+    | "/orders/"
     | "/demo/api/names"
     | "/demo/start/api-request"
     | "/demo/start/server-funcs"
     | "/orders/$orderId/confirmation"
+    | "/orders/$orderId/"
     | "/demo/start/ssr/data-only"
     | "/demo/start/ssr/full-ssr"
     | "/demo/start/ssr/spa-mode"
@@ -346,10 +370,12 @@ export interface RootRouteChildren {
   ProductsSlugRoute: typeof ProductsSlugRoute;
   ProfileCompleteRoute: typeof ProfileCompleteRoute;
   VerifyResendRoute: typeof VerifyResendRoute;
+  OrdersIndexRoute: typeof OrdersIndexRoute;
   DemoApiNamesRoute: typeof DemoApiNamesRoute;
   DemoStartApiRequestRoute: typeof DemoStartApiRequestRoute;
   DemoStartServerFuncsRoute: typeof DemoStartServerFuncsRoute;
   OrdersOrderIdConfirmationRoute: typeof OrdersOrderIdConfirmationRoute;
+  OrdersOrderIdIndexRoute: typeof OrdersOrderIdIndexRoute;
   DemoStartSsrDataOnlyRoute: typeof DemoStartSsrDataOnlyRoute;
   DemoStartSsrFullSsrRoute: typeof DemoStartSsrFullSsrRoute;
   DemoStartSsrSpaModeRoute: typeof DemoStartSsrSpaModeRoute;
@@ -456,6 +482,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof ApiHealthRouteImport;
       parentRoute: typeof rootRouteImport;
     };
+    "/orders/": {
+      id: "/orders/";
+      path: "/orders";
+      fullPath: "/orders/";
+      preLoaderRoute: typeof OrdersIndexRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     "/products/$slug": {
       id: "/products/$slug";
       path: "/products/$slug";
@@ -496,6 +529,13 @@ declare module "@tanstack/react-router" {
       path: "/demo/start/server-funcs";
       fullPath: "/demo/start/server-funcs";
       preLoaderRoute: typeof DemoStartServerFuncsRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/orders/$orderId/": {
+      id: "/orders/$orderId/";
+      path: "/orders/$orderId";
+      fullPath: "/orders/$orderId/";
+      preLoaderRoute: typeof OrdersOrderIdIndexRouteImport;
       parentRoute: typeof rootRouteImport;
     };
     "/orders/$orderId/confirmation": {
@@ -554,10 +594,12 @@ const rootRouteChildren: RootRouteChildren = {
   ProductsSlugRoute: ProductsSlugRoute,
   ProfileCompleteRoute: ProfileCompleteRoute,
   VerifyResendRoute: VerifyResendRoute,
+  OrdersIndexRoute: OrdersIndexRoute,
   DemoApiNamesRoute: DemoApiNamesRoute,
   DemoStartApiRequestRoute: DemoStartApiRequestRoute,
   DemoStartServerFuncsRoute: DemoStartServerFuncsRoute,
   OrdersOrderIdConfirmationRoute: OrdersOrderIdConfirmationRoute,
+  OrdersOrderIdIndexRoute: OrdersOrderIdIndexRoute,
   DemoStartSsrDataOnlyRoute: DemoStartSsrDataOnlyRoute,
   DemoStartSsrFullSsrRoute: DemoStartSsrFullSsrRoute,
   DemoStartSsrSpaModeRoute: DemoStartSsrSpaModeRoute,

@@ -46,11 +46,12 @@ export class ApiError extends Error {
 // refresh is in flight queues onto `refreshWaiters` and retries after the
 // refresh resolves.
 //
-// The cart and order services answer 401 + INVALID_TOKEN for a token they
-// can't verify, which is what a customer's cookie becomes when identity
-// restarts and regenerates its signing keys (PIN-443). It's refreshed the same
-// way: identity then either issues new cookies or clears them, and the
-// customer isn't left with a cookie that fails until it expires in 7 days.
+// The cart and order services, and GET /customers/me, answer 401 +
+// INVALID_TOKEN for a token they can't verify, which is what a customer's
+// cookie becomes when identity restarts and regenerates its signing keys
+// (PIN-443). It's refreshed the same way: identity then either issues new
+// cookies or clears them, and the customer isn't left with a cookie that
+// fails until it expires in 7 days.
 //
 // The order service answers 401 + code SIGN_IN_REQUIRED when the browser
 // sends no access cookie (PIN-438). The refresh cookie is HttpOnly, so the
@@ -162,6 +163,12 @@ function flushWaiters(error?: unknown): void {
  * lazily to avoid a static-import cycle (auth.store imports api types).
  */
 async function handleRefreshFailure(redirect: boolean): Promise<void> {
+  // Read before the stores clear: a page watching them goes to sign-in on its own, which must
+  // neither cancel this redirect, the one with `logout=true`, nor become the page to come back to
+  const here =
+    typeof window === "undefined"
+      ? null
+      : { pathname: window.location.pathname, search: window.location.search };
   // Dynamic imports avoid a static cycle (stores import API types). The
   // catch branches log a warning rather than swallowing silently — a
   // bundler quirk or future store rename that breaks the import path
@@ -179,9 +186,36 @@ async function handleRefreshFailure(redirect: boolean): Promise<void> {
   } catch (err) {
     console.warn("refresh-cleanup: failed to clear customer store", err);
   }
-  if (redirect && typeof window !== "undefined") {
-    window.location.href = "/signin?logout=true";
+  if (redirect && here && !SIGNED_OUT_PAGES.has(here.pathname)) {
+    window.location.href = signinUrlBackHere(here);
   }
+}
+
+/**
+ * Pages for someone who isn't signed in, where a dead session is no reason to leave. Sending a
+ * customer away from them would lose sign-in's own `redirect`, or a link's reset token, and coming
+ * back to them after signing in would serve no purpose.
+ */
+const SIGNED_OUT_PAGES = new Set([
+  "/signin",
+  "/mfa-verify",
+  "/register",
+  "/forgot-password",
+  "/reset-password",
+  "/reactivate",
+  "/verify/resend",
+]);
+
+/** Sign-in, and back to this page afterwards. Home is where sign-in goes anyway. */
+function signinUrlBackHere({
+  pathname,
+  search,
+}: {
+  pathname: string;
+  search: string;
+}): string {
+  if (pathname === "/") return "/signin?logout=true";
+  return `/signin?logout=true&redirect=${encodeURIComponent(pathname + search)}`;
 }
 
 /** A decoded JSON response body, as far as apiRequest itself inspects it. */
@@ -362,17 +396,12 @@ export const customerApi = {
   /**
    * Gets a customer's preferences.
    */
-  async getPreferences(
-    customerId: string,
-    userId: string,
-  ): Promise<PreferencesResponse> {
+  async getPreferences(customerId: string): Promise<PreferencesResponse> {
     return apiRequest<PreferencesResponse>(
       `${CUSTOMER_SERVICE_URL}/api/v1/customers/${customerId}/preferences`,
       {
         method: "GET",
-        headers: {
-          "X-User-Id": userId,
-        },
+        credentials: "include",
       },
     );
   },
@@ -382,16 +411,13 @@ export const customerApi = {
    */
   async updatePreferences(
     customerId: string,
-    userId: string,
     preferences: UpdatePreferencesRequest,
   ): Promise<PreferencesResponse> {
     return apiRequest<PreferencesResponse>(
       `${CUSTOMER_SERVICE_URL}/api/v1/customers/${customerId}/preferences`,
       {
         method: "PUT",
-        headers: {
-          "X-User-Id": userId,
-        },
+        credentials: "include",
         body: JSON.stringify(preferences),
       },
     );
@@ -407,6 +433,7 @@ export const customerApi = {
       `${CUSTOMER_SERVICE_URL}/api/v1/customers/${customerId}/profile/completeness`,
       {
         method: "GET",
+        credentials: "include",
       },
     );
   },
@@ -1389,6 +1416,25 @@ export interface OrderDetails {
   pricing: { subtotal: Money };
 }
 
+/** One row of the customer's order history (PIN-367). `itemCount` counts units, not lines. */
+export interface OrderSummary {
+  orderId: string;
+  orderNumber: string;
+  status: string;
+  createdAt: string;
+  itemCount: number;
+  subtotal: Money;
+}
+
+/** A page of order history, newest first. `page` is 1-based. */
+export interface OrderList {
+  orders: OrderSummary[];
+  page: number;
+  pageSize: number;
+  totalResults: number;
+  totalPages: number;
+}
+
 /**
  * Order service (PIN-366, PIN-367): signed-in customers only, through identity's
  * `access_token` cookie. Errors carry a `code`, e.g. `CHECKOUT_SESSION_NOT_FOUND`.
@@ -1416,6 +1462,20 @@ export const orderApi = {
     return apiRequest<OrderDetails>(
       `${ORDER_SERVICE_URL}/api/v1/orders/${encodeURIComponent(orderId)}`,
       { method: "GET", credentials: "include" },
+    );
+  },
+
+  async list(page: number, pageSize: number): Promise<OrderList> {
+    const query = new URLSearchParams({
+      page: String(page),
+      pageSize: String(pageSize),
+    });
+    return apiRequest<OrderList>(
+      `${ORDER_SERVICE_URL}/api/v1/orders?${query}`,
+      {
+        method: "GET",
+        credentials: "include",
+      },
     );
   },
 };

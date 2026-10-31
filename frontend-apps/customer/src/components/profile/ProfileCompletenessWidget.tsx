@@ -21,6 +21,8 @@ interface ProfileCompletenessWidgetProps {
   customerId: string;
   className?: string;
   compact?: boolean;
+  /** Told why the score couldn't load, for a page that acts on it, e.g. on a 401. */
+  onLoadError?: (error: unknown) => void;
 }
 
 /**
@@ -239,6 +241,7 @@ export function ProfileCompletenessWidget({
   customerId,
   className,
   compact = false,
+  onLoadError,
 }: ProfileCompletenessWidgetProps) {
   const [data, setData] = useState<ProfileCompletenessResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -256,13 +259,14 @@ export function ProfileCompletenessWidget({
         setError(
           err instanceof Error ? err.message : "Failed to load profile data",
         );
+        onLoadError?.(err);
       } finally {
         setLoading(false);
       }
     }
 
     fetchCompleteness();
-  }, [customerId]);
+  }, [customerId, onLoadError]);
 
   if (loading) {
     return (

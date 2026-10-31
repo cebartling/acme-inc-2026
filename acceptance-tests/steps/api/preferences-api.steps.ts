@@ -1,6 +1,7 @@
 import { Given, When, Then, DataTable } from '@cucumber/cucumber';
 import { expect } from '@playwright/test';
 import { CustomWorld } from '../../support/world.js';
+import { accessCookieFor } from '../../support/access-token.js';
 
 interface PreferencesRequest {
   communication?: {
@@ -169,7 +170,7 @@ Given('my current preferences are:', async function (this: CustomWorld, table: D
     const response = await this.customerApiClient.put<PreferencesResponse>(
       `/api/v1/customers/${customerId}/preferences`,
       prefs,
-      { headers: { 'X-User-Id': userId! } }
+      { headers: { Cookie: await accessCookieFor(this, userId!) } }
     );
 
     if (response.status !== 200) {
@@ -208,7 +209,7 @@ Given(
       await this.customerApiClient.put<PreferencesResponse>(
         `/api/v1/customers/${customerId}/preferences`,
         prefs,
-        { headers: { 'X-User-Id': userId! } }
+        { headers: { Cookie: await accessCookieFor(this, userId!) } }
       );
 
       // Store the current value for later verification
@@ -264,7 +265,7 @@ When('I update my preferences with:', async function (this: CustomWorld, table: 
     const response = await this.customerApiClient.put<PreferencesResponse>(
       `/api/v1/customers/${customerId}/preferences`,
       request,
-      { headers: { 'X-User-Id': userId! } }
+      { headers: { Cookie: await accessCookieFor(this, userId!) } }
     );
 
     this.setTestData('lastResponse', response);
@@ -291,7 +292,7 @@ When('I request my preferences', async function (this: CustomWorld) {
   try {
     const response = await this.customerApiClient.get<PreferencesResponse>(
       `/api/v1/customers/${customerId}/preferences`,
-      { headers: { 'X-User-Id': userId! } }
+      { headers: { Cookie: await accessCookieFor(this, userId!) } }
     );
 
     this.setTestData('lastResponseStatus', response.status);
@@ -317,7 +318,7 @@ When(
     try {
       const response = await this.customerApiClient.get<PreferencesResponse>(
         `/api/v1/customers/${customerId}/preferences`,
-        { headers: { 'X-User-Id': userId! } }
+        { headers: { Cookie: await accessCookieFor(this, userId!) } }
       );
 
       this.setTestData('lastResponseStatus', response.status);
@@ -346,7 +347,7 @@ When(
       const response = await this.customerApiClient.put<PreferencesResponse>(
         `/api/v1/customers/${customerId}/preferences`,
         request,
-        { headers: { 'X-User-Id': userId! } }
+        { headers: { Cookie: await accessCookieFor(this, userId!) } }
       );
 
       this.setTestData('lastResponseStatus', response.status);
@@ -373,7 +374,7 @@ When('I send an empty preferences update request', async function (this: CustomW
     const response = await this.customerApiClient.put<PreferencesResponse>(
       `/api/v1/customers/${customerId}/preferences`,
       {},
-      { headers: { 'X-User-Id': userId! } }
+      { headers: { Cookie: await accessCookieFor(this, userId!) } }
     );
 
     this.setTestData('lastResponseStatus', response.status);

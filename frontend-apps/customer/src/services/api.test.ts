@@ -33,13 +33,15 @@ function rejectOnAbort(signal: AbortSignal | null | undefined) {
  * imports lazily) and window.location, so a redirect is observed without navigating. Call
  * `restore` from a `finally`, so a failed assertion doesn't leak the stubs into later cases.
  */
-function stubRefreshFailureEffects() {
+function stubRefreshFailureEffects({ pathname = "/", search = "" } = {}) {
   const originalLocation = window.location;
   let assignedHref: string | null = null;
   Object.defineProperty(window, "location", {
     configurable: true,
     value: {
       ...originalLocation,
+      pathname,
+      search,
       set href(value: string) {
         assignedHref = value;
       },
@@ -107,7 +109,6 @@ describe("customerApi", () => {
 
   describe("getPreferences", () => {
     const customerId = "customer-123";
-    const userId = "user-456";
 
     it("makes GET request with correct URL", async () => {
       mockFetch.mockResolvedValueOnce({
@@ -135,16 +136,13 @@ describe("customerApi", () => {
           }),
       });
 
-      await customerApi.getPreferences(customerId, userId);
+      await customerApi.getPreferences(customerId);
 
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining(`/api/v1/customers/${customerId}/preferences`),
         expect.objectContaining({
           method: "GET",
-          headers: expect.objectContaining({
-            "Content-Type": "application/json",
-            "X-User-Id": userId,
-          }),
+          credentials: "include",
         }),
       );
     });
@@ -176,7 +174,7 @@ describe("customerApi", () => {
         json: () => Promise.resolve(expectedResponse),
       });
 
-      const result = await customerApi.getPreferences(customerId, userId);
+      const result = await customerApi.getPreferences(customerId);
       expect(result).toEqual(expectedResponse);
     });
 
@@ -188,9 +186,9 @@ describe("customerApi", () => {
         json: () => Promise.resolve({ error: "Customer not found" }),
       });
 
-      await expect(
-        customerApi.getPreferences(customerId, userId),
-      ).rejects.toThrow(ApiError);
+      await expect(customerApi.getPreferences(customerId)).rejects.toThrow(
+        ApiError,
+      );
     });
 
     it("throws ApiError with correct status code", async () => {
@@ -202,7 +200,7 @@ describe("customerApi", () => {
       });
 
       try {
-        await customerApi.getPreferences(customerId, userId);
+        await customerApi.getPreferences(customerId);
       } catch (error) {
         expect(error).toBeInstanceOf(ApiError);
         expect((error as ApiError).status).toBe(403);
@@ -484,7 +482,6 @@ describe("customerApi", () => {
 
   describe("updatePreferences", () => {
     const customerId = "customer-123";
-    const userId = "user-456";
     const preferences = {
       communication: { email: false },
       privacy: { allowAnalytics: false },
@@ -516,16 +513,13 @@ describe("customerApi", () => {
           }),
       });
 
-      await customerApi.updatePreferences(customerId, userId, preferences);
+      await customerApi.updatePreferences(customerId, preferences);
 
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining(`/api/v1/customers/${customerId}/preferences`),
         expect.objectContaining({
           method: "PUT",
-          headers: expect.objectContaining({
-            "Content-Type": "application/json",
-            "X-User-Id": userId,
-          }),
+          credentials: "include",
           body: JSON.stringify(preferences),
         }),
       );
@@ -564,7 +558,6 @@ describe("customerApi", () => {
 
       const result = await customerApi.updatePreferences(
         customerId,
-        userId,
         preferences,
       );
       expect(result).toEqual(expectedResponse);
@@ -583,7 +576,7 @@ describe("customerApi", () => {
       });
 
       await expect(
-        customerApi.updatePreferences(customerId, userId, preferences),
+        customerApi.updatePreferences(customerId, preferences),
       ).rejects.toThrow(ApiError);
     });
 
@@ -600,7 +593,7 @@ describe("customerApi", () => {
       });
 
       try {
-        await customerApi.updatePreferences(customerId, userId, preferences);
+        await customerApi.updatePreferences(customerId, preferences);
       } catch (error) {
         expect(error).toBeInstanceOf(ApiError);
         expect((error as ApiError).status).toBe(403);
@@ -619,7 +612,7 @@ describe("customerApi", () => {
       });
 
       try {
-        await customerApi.getPreferences("customer-123", "user-456");
+        await customerApi.getPreferences("customer-123");
       } catch (error) {
         expect(error).toBeInstanceOf(ApiError);
         expect((error as ApiError).status).toBe(500);
@@ -636,7 +629,7 @@ describe("customerApi", () => {
       });
 
       try {
-        await customerApi.getPreferences("customer-123", "user-456");
+        await customerApi.getPreferences("customer-123");
       } catch (error) {
         expect((error as ApiError).message).toBe("INVALID_INPUT");
       }
@@ -651,7 +644,7 @@ describe("customerApi", () => {
       });
 
       try {
-        await customerApi.getPreferences("customer-123", "user-456");
+        await customerApi.getPreferences("customer-123");
       } catch (error) {
         expect((error as ApiError).message).toBe("Something went wrong");
       }
@@ -671,7 +664,7 @@ describe("customerApi", () => {
       });
 
       try {
-        await customerApi.getPreferences("customer-123", "user-456");
+        await customerApi.getPreferences("customer-123");
       } catch (error) {
         expect((error as ApiError).data).toEqual(errorData);
       }
@@ -779,7 +772,7 @@ describe("token-refresh interceptor", () => {
 
     const [profileResult, prefsResult] = await Promise.all([
       customerApi.getCurrentCustomer(),
-      customerApi.getPreferences("c", "u"),
+      customerApi.getPreferences("c"),
     ]);
 
     expect(profileResult).toEqual(profile);
@@ -811,6 +804,74 @@ describe("token-refresh interceptor", () => {
       expect(effects.clearUser).toHaveBeenCalledOnce();
       expect(effects.clearProfile).toHaveBeenCalledOnce();
       expect(effects.assignedHref()).toBe("/signin?logout=true");
+    } finally {
+      effects.restore();
+    }
+  });
+
+  it.each([
+    ["/orders", "?page=3", "/signin?logout=true&redirect=%2Forders%3Fpage%3D3"],
+    ["/cart", "", "/signin?logout=true&redirect=%2Fcart"],
+  ])(
+    "a refused refresh on %s%s comes back after sign-in",
+    async (pathname, search, expected) => {
+      const effects = stubRefreshFailureEffects({ pathname, search });
+      try {
+        mockFetch
+          .mockResolvedValueOnce(tokenExpired())
+          .mockResolvedValueOnce(tokenExpired());
+
+        await expect(customerApi.getCurrentCustomer()).rejects.toBeInstanceOf(
+          ApiError,
+        );
+
+        expect(effects.assignedHref()).toBe(expected);
+      } finally {
+        effects.restore();
+      }
+    },
+  );
+
+  it("a refused refresh still redirects when a page watching the stores left first", async () => {
+    const effects = stubRefreshFailureEffects({ pathname: "/dashboard" });
+    effects.clearUser.mockImplementation(() => {
+      window.location.pathname = "/signin";
+    });
+    try {
+      mockFetch
+        .mockResolvedValueOnce(tokenExpired())
+        .mockResolvedValueOnce(tokenExpired());
+
+      await expect(customerApi.getCurrentCustomer()).rejects.toBeInstanceOf(
+        ApiError,
+      );
+
+      expect(effects.assignedHref()).toBe(
+        "/signin?logout=true&redirect=%2Fdashboard",
+      );
+    } finally {
+      effects.restore();
+    }
+  });
+
+  it.each([
+    ["/signin", "?logout=true&redirect=%2Fcart"],
+    ["/reset-password", "?token=secret"],
+    ["/register", ""],
+    ["/mfa-verify", ""],
+  ])("a refused refresh on %s%s stays there", async (pathname, search) => {
+    const effects = stubRefreshFailureEffects({ pathname, search });
+    try {
+      mockFetch
+        .mockResolvedValueOnce(tokenExpired())
+        .mockResolvedValueOnce(tokenExpired());
+
+      await expect(customerApi.getCurrentCustomer()).rejects.toBeInstanceOf(
+        ApiError,
+      );
+
+      expect(effects.clearUser).toHaveBeenCalledOnce();
+      expect(effects.assignedHref()).toBeNull();
     } finally {
       effects.restore();
     }
@@ -900,7 +961,7 @@ describe("token-refresh interceptor", () => {
 
     const [profileResult, prefsResult] = await Promise.all([
       customerApi.getCurrentCustomer(),
-      customerApi.getPreferences("c", "u"),
+      customerApi.getPreferences("c"),
     ]);
 
     expect(profileResult).toEqual(profile);
@@ -1699,6 +1760,22 @@ describe("checkout and orders (PIN-426)", () => {
       body: JSON.stringify({ checkoutSessionId: "session-1" }),
     });
     expect(init.headers).toMatchObject({ "Idempotency-Key": "key-1" });
+  });
+
+  it("orderApi.list asks the order service for one page of orders", async () => {
+    const list = {
+      orders: [],
+      page: 2,
+      pageSize: 10,
+      totalResults: 0,
+      totalPages: 0,
+    };
+    mockFetch.mockResolvedValueOnce(jsonResponse(200, list));
+
+    await expect(orderApi.list(2, 10)).resolves.toEqual(list);
+    const [url, init] = mockFetch.mock.calls[0];
+    expect(url).toBe("http://localhost:10305/api/v1/orders?page=2&pageSize=10");
+    expect(init).toMatchObject({ method: "GET", credentials: "include" });
   });
 
   it("orderApi.place refreshes on TOKEN_EXPIRED and retries with the same key", async () => {

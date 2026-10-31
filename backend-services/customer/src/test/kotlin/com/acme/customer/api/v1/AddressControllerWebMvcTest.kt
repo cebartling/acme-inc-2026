@@ -5,6 +5,8 @@ import com.acme.customer.application.AddAddressResult
 import com.acme.customer.application.AddAddressUseCase
 import com.acme.customer.application.RemoveAddressUseCase
 import com.acme.customer.application.UpdateAddressUseCase
+import com.acme.customer.config.SecurityConfig
+import com.acme.customer.config.ServiceCredentials
 import com.acme.customer.infrastructure.persistence.AddressRepository
 import com.acme.customer.infrastructure.persistence.CustomerRepository
 import io.mockk.every
@@ -15,7 +17,10 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest
 import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.Import
 import org.springframework.http.MediaType
+import org.springframework.security.oauth2.jwt.JwtDecoder
+import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.post
 import java.util.UUID
@@ -28,7 +33,8 @@ import kotlin.test.assertNull
  * Guards PIN-250: Kotlin default values in [AddAddressRequest] must apply when the
  * client omits those fields, which requires the Jackson 3 Kotlin module.
  */
-@WebMvcTest(AddressController::class)
+@WebMvcTest(AddressController::class, properties = ["acme.customer.service-token=test-service-token"])
+@Import(SecurityConfig::class, ServiceCredentials::class)
 class AddressControllerWebMvcTest(
     @Autowired private val mockMvc: MockMvc,
     @Autowired private val addAddressUseCase: AddAddressUseCase
@@ -50,6 +56,9 @@ class AddressControllerWebMvcTest(
 
         @Bean
         fun removeAddressUseCase(): RemoveAddressUseCase = mockk()
+
+        @Bean
+        fun jwtDecoder(): JwtDecoder = mockk()
     }
 
     @Test
@@ -64,7 +73,7 @@ class AddressControllerWebMvcTest(
         // When
         mockMvc.post("/api/v1/customers/$customerId/addresses") {
             contentType = MediaType.APPLICATION_JSON
-            header("X-User-Id", UUID.randomUUID().toString())
+            with(jwt().jwt { it.subject(UUID.randomUUID().toString()) })
             content = """
                 {
                   "type": "SHIPPING",

@@ -2,6 +2,8 @@ import { Given, When, Then } from '@cucumber/cucumber';
 import { expect } from '@playwright/test';
 import { CustomWorld } from '../../support/world.js';
 import { verifyEmail } from '../../support/verify-email.js';
+import { accessCookieFor } from '../../support/access-token.js';
+import { config } from '../../playwright.config.js';
 
 interface RegistrationRequest {
   email: string;
@@ -96,6 +98,28 @@ async function waitFor(
   return false;
 }
 
+/** The password `an active customer with email {string} exists` registers with. */
+const REGISTERED_PASSWORD = 'SecureP@ss123';
+
+/** Signs the registered customer in once: /customers/me reads identity's access_token cookie. */
+async function accessTokenCookie(world: CustomWorld): Promise<string> {
+  const cached = world.getTestData<string>('profileAccessTokenCookie');
+  if (cached) return cached;
+
+  const response = await world.identityApiClient.post('/api/v1/auth/signin', {
+    email: world.getTestData<string>('registeredEmail'),
+    password: REGISTERED_PASSWORD,
+    rememberMe: false,
+  });
+  expect(response.status).toBe(200);
+
+  const cookie = response.headers['set-cookie']?.find((c) => c.startsWith('access_token='));
+  expect(cookie, 'sign-in should set an access_token cookie').toBeDefined();
+  const value = cookie!.split(';')[0];
+  world.setTestData('profileAccessTokenCookie', value);
+  return value;
+}
+
 // Helper function to get nested value from object by dot-notation path
 function getNestedValue(obj: unknown, path: string): unknown {
   const parts = path.split('.');
@@ -117,7 +141,7 @@ Given(
     // Register a user to create a customer profile
     const request: RegistrationRequest = {
       email: uniqueEmail,
-      password: 'SecureP@ss123',
+      password: REGISTERED_PASSWORD,
       firstName: 'Test',
       lastName: 'Customer',
       tosAccepted: true,
@@ -160,22 +184,14 @@ Given(
   }
 );
 
-Given('I am authenticated as a user with no customer profile', async function (this: CustomWorld) {
-  // Create a user without creating a customer profile
-  // This simulates a user that exists but has no customer record
-  const orphanUserId = '00000000-0000-0000-0000-999999999999';
-  this.setTestData('userId', orphanUserId);
-});
-
 When('I request my customer profile as the authenticated user', async function (this: CustomWorld) {
-  const userId = this.getTestData<string>('userId');
-  expect(userId).toBeDefined();
+  const cookie = await accessTokenCookie(this);
 
   const startTime = Date.now();
 
   try {
     const response = await this.customerApiClient.get<CustomerProfile>('/api/v1/customers/me', {
-      headers: { 'X-User-Id': userId! },
+      headers: { Cookie: cookie },
     });
 
     const elapsed = Date.now() - startTime;
@@ -200,10 +216,30 @@ When('I request my customer profile as the authenticated user', async function (
   }
 });
 
+When(
+  "I request that customer's addresses claiming to be them in a header",
+  async function (this: CustomWorld) {
+    const url = `${config.customerApiUrl}/api/v1/customers/${this.getTestData<string>('customerId')}/addresses`;
+    const response = await fetch(url, {
+      headers: { 'X-User-Id': this.getTestData<string>('userId')! },
+    });
+    this.setTestData('lastResponseStatus', response.status);
+  }
+);
+
+When(
+  'I look that customer up by email without a service token',
+  async function (this: CustomWorld) {
+    const email = encodeURIComponent(this.getTestData<string>('registeredEmail')!);
+    const response = await fetch(`${config.customerApiUrl}/api/v1/customers/by-email/${email}`);
+    this.setTestData('lastResponseStatus', response.status);
+  }
+);
+
 When('I request customer profile without authentication', async function (this: CustomWorld) {
   try {
     const response = await this.customerApiClient.get<CustomerProfile>('/api/v1/customers/me', {
-      headers: {}, // No X-User-Id header
+      headers: {}, // No access_token cookie
     });
 
     this.setTestData('lastResponseStatus', response.status);
@@ -224,8 +260,7 @@ When('I request customer profile without authentication', async function (this: 
 When(
   'I request my customer profile as the authenticated user again',
   async function (this: CustomWorld) {
-    const userId = this.getTestData<string>('userId');
-    expect(userId).toBeDefined();
+    const cookie = await accessTokenCookie(this);
 
     // Store the first request time for comparison
     const firstRequestTime = this.getTestData<number>('lastRequestTime');
@@ -235,7 +270,7 @@ When(
 
     try {
       const response = await this.customerApiClient.get<CustomerProfile>('/api/v1/customers/me', {
-        headers: { 'X-User-Id': userId! },
+        headers: { Cookie: cookie },
       });
 
       const elapsed = Date.now() - startTime;
@@ -273,7 +308,12 @@ When('I update my profile information', async function (this: CustomWorld) {
         firstName: 'Updated',
         lastName: 'Name',
       },
-      { headers: { 'X-User-Id': userId!, 'X-Correlation-Id': crypto.randomUUID() } }
+      {
+        headers: {
+          Cookie: await accessCookieFor(this, userId!),
+          'X-Correlation-Id': crypto.randomUUID(),
+        },
+      }
     );
 
     this.setTestData('profileUpdated', true);

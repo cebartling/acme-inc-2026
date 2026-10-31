@@ -15,6 +15,7 @@ import com.acme.customer.infrastructure.persistence.AddressRepository
 import com.acme.customer.infrastructure.persistence.CustomerRepository
 import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
+import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.*
 import java.net.URI
 import java.util.UUID
@@ -47,7 +48,7 @@ class AddressController(
     @GetMapping
     fun listAddresses(
         @PathVariable customerId: String,
-        @RequestHeader("X-User-Id") userId: String,
+        @AuthenticationPrincipal(expression = "subject") userId: String,
         @RequestParam(required = false) type: String?
     ): ResponseEntity<Any> {
         logger.debug("Listing addresses for customer: {}", customerId)
@@ -92,7 +93,7 @@ class AddressController(
     fun getAddress(
         @PathVariable customerId: String,
         @PathVariable addressId: String,
-        @RequestHeader("X-User-Id") userId: String
+        @AuthenticationPrincipal(expression = "subject") userId: String
     ): ResponseEntity<Any> {
         logger.debug("Getting address {} for customer {}", addressId, customerId)
 
@@ -133,7 +134,7 @@ class AddressController(
     @PostMapping
     fun addAddress(
         @PathVariable customerId: String,
-        @RequestHeader("X-User-Id") userId: String,
+        @AuthenticationPrincipal(expression = "subject") userId: String,
         @RequestHeader("X-Correlation-Id", required = false) correlationId: String?,
         @RequestBody request: AddAddressRequest
     ): ResponseEntity<Any> {
@@ -210,7 +211,7 @@ class AddressController(
     fun updateAddress(
         @PathVariable customerId: String,
         @PathVariable addressId: String,
-        @RequestHeader("X-User-Id") userId: String,
+        @AuthenticationPrincipal(expression = "subject") userId: String,
         @RequestHeader("X-Correlation-Id", required = false) correlationId: String?,
         @RequestBody request: UpdateAddressRequest
     ): ResponseEntity<Any> {
@@ -275,7 +276,7 @@ class AddressController(
     fun deleteAddress(
         @PathVariable customerId: String,
         @PathVariable addressId: String,
-        @RequestHeader("X-User-Id") userId: String,
+        @AuthenticationPrincipal(expression = "subject") userId: String,
         @RequestHeader("X-Correlation-Id", required = false) correlationId: String?
     ): ResponseEntity<Any> {
         logger.debug("Deleting address {} for customer {}", addressId, customerId)
@@ -319,7 +320,7 @@ class AddressController(
     fun getDefaultAddress(
         @PathVariable customerId: String,
         @PathVariable type: String,
-        @RequestHeader("X-User-Id") userId: String
+        @AuthenticationPrincipal(expression = "subject") userId: String
     ): ResponseEntity<Any> {
         logger.debug("Getting default {} address for customer {}", type, customerId)
 

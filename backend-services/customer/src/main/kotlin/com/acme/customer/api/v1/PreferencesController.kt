@@ -9,6 +9,7 @@ import com.acme.customer.infrastructure.persistence.CustomerPreferencesRepositor
 import com.acme.customer.infrastructure.persistence.CustomerRepository
 import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
+import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PutMapping
@@ -42,7 +43,7 @@ class PreferencesController(
     @GetMapping("/{id}/preferences")
     fun getPreferences(
         @PathVariable id: String,
-        @RequestHeader("X-User-Id") userId: String
+        @AuthenticationPrincipal(expression = "subject") userId: String
     ): ResponseEntity<Any> {
         logger.debug("Getting preferences for customer: {}", id)
 
@@ -97,7 +98,7 @@ class PreferencesController(
     @PutMapping("/{id}/preferences")
     fun updatePreferences(
         @PathVariable id: String,
-        @RequestHeader("X-User-Id") userId: String,
+        @AuthenticationPrincipal(expression = "subject") userId: String,
         @RequestHeader("X-Correlation-Id", required = false) correlationId: String?,
         @RequestHeader("X-Forwarded-For", required = false) clientIp: String?,
         @RequestHeader("User-Agent", required = false) userAgent: String?,

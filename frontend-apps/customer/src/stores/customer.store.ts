@@ -8,6 +8,8 @@ interface CustomerStore {
   profile: CustomerProfile | null;
   isLoading: boolean;
   error: string | null;
+  /** What `error` describes, for a page that treats some failures differently, e.g. a 401. */
+  loadError: unknown;
 
   // Actions
   fetchProfile: () => Promise<void>;
@@ -33,10 +35,11 @@ export const useCustomerStore = create<CustomerStore>()(
       profile: null,
       isLoading: false,
       error: null,
+      loadError: null,
 
       // Actions
       fetchProfile: async () => {
-        set({ isLoading: true, error: null });
+        set({ isLoading: true, error: null, loadError: null });
         try {
           const profile = await customerApi.getCurrentCustomer();
           set({ profile, isLoading: false, error: null });
@@ -45,14 +48,15 @@ export const useCustomerStore = create<CustomerStore>()(
             err instanceof Error
               ? err.message
               : "Failed to load customer profile";
-          set({ error, isLoading: false, profile: null });
+          set({ error, loadError: err, isLoading: false, profile: null });
           throw err; // Re-throw to allow callers to handle
         }
       },
 
-      setProfile: (profile) => set({ profile, isLoading: false, error: null }),
+      setProfile: (profile) =>
+        set({ profile, isLoading: false, error: null, loadError: null }),
 
-      clearProfile: () => set({ profile: null, error: null }),
+      clearProfile: () => set({ profile: null, error: null, loadError: null }),
 
       setLoading: (isLoading) => set({ isLoading }),
 
@@ -74,3 +78,5 @@ export const useCustomerProfile = () =>
 export const useCustomerLoading = () =>
   useCustomerStore((state) => state.isLoading);
 export const useCustomerError = () => useCustomerStore((state) => state.error);
+export const useCustomerLoadError = () =>
+  useCustomerStore((state) => state.loadError);

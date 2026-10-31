@@ -2,6 +2,8 @@ import { Given, When, Then, DataTable } from '@cucumber/cucumber';
 import { expect } from '@playwright/test';
 import { CustomWorld } from '../../support/world.js';
 import { DashboardPage } from '../../pages/customer/dashboard.page.js';
+import { accessCookieFor, accessTokenFor } from '../../support/access-token.js';
+import { config } from '../../playwright.config.js';
 
 /**
  * Sets up mock auth state in localStorage for frontend routes that require authentication.
@@ -35,6 +37,15 @@ async function setupAuthenticatedCustomer(world: CustomWorld): Promise<void> {
       }
     }
   }
+
+  // The widget reads the customer service as the signed-in customer
+  await world.context.addCookies([
+    {
+      name: 'access_token',
+      value: await accessTokenFor(world, userId),
+      url: config.baseUrl.customer,
+    },
+  ]);
 
   // Inject auth state and customer profile into localStorage before navigation
   await world.page.addInitScript(
@@ -202,14 +213,14 @@ Given('my profile completeness is between 50 and 79 percent', async function (th
   await this.customerApiClient.patch(
     `/api/v1/customers/${customerId}/profile`,
     { phone: { countryCode: '+1', number: '2024561234' } },
-    { headers: { 'X-User-Id': userId! } }
+    { headers: { Cookie: await accessCookieFor(this, userId!) } }
   );
 
   // Add date of birth (+15%)
   await this.customerApiClient.patch(
     `/api/v1/customers/${customerId}/profile`,
     { dateOfBirth: '1990-05-15' },
-    { headers: { 'X-User-Id': userId! } }
+    { headers: { Cookie: await accessCookieFor(this, userId!) } }
   );
 
   // This gives us ~55% (25% basic + 15% contact + 15% personal)
@@ -223,14 +234,14 @@ Given('my profile completeness is 80 percent or higher', async function (this: C
   await this.customerApiClient.patch(
     `/api/v1/customers/${customerId}/profile`,
     { phone: { countryCode: '+1', number: '2024561234' } },
-    { headers: { 'X-User-Id': userId! } }
+    { headers: { Cookie: await accessCookieFor(this, userId!) } }
   );
 
   // Add date of birth (+15%)
   await this.customerApiClient.patch(
     `/api/v1/customers/${customerId}/profile`,
     { dateOfBirth: '1990-05-15' },
-    { headers: { 'X-User-Id': userId! } }
+    { headers: { Cookie: await accessCookieFor(this, userId!) } }
   );
 
   // Add and validate address (+20%)
@@ -246,7 +257,7 @@ Given('my profile completeness is 80 percent or higher', async function (this: C
         country: 'US',
         isDefault: true,
       },
-      { headers: { 'X-User-Id': userId! } }
+      { headers: { Cookie: await accessCookieFor(this, userId!) } }
     );
 
     if (addressResponse.data?.addressId) {
@@ -269,7 +280,7 @@ Given('my profile completeness is 80 percent or higher', async function (this: C
         source: 'REGISTRATION',
         ipAddress: '127.0.0.1',
       },
-      { headers: { 'X-User-Id': userId! } }
+      { headers: { Cookie: await accessCookieFor(this, userId!) } }
     );
   } catch (error) {
     console.warn('Warning: Could not grant consent');
@@ -292,14 +303,14 @@ Given('my profile is 100 percent complete', async function (this: CustomWorld) {
   await this.customerApiClient.patch(
     `/api/v1/customers/${customerId}/profile`,
     { phone: { countryCode: '+1', number: '2024561234' } },
-    { headers: { 'X-User-Id': userId! } }
+    { headers: { Cookie: await accessCookieFor(this, userId!) } }
   );
 
   // Add date of birth (+15%)
   await this.customerApiClient.patch(
     `/api/v1/customers/${customerId}/profile`,
     { dateOfBirth: '1990-05-15' },
-    { headers: { 'X-User-Id': userId! } }
+    { headers: { Cookie: await accessCookieFor(this, userId!) } }
   );
 
   // Add and validate address (+20%)
@@ -315,7 +326,7 @@ Given('my profile is 100 percent complete', async function (this: CustomWorld) {
         country: 'US',
         isDefault: true,
       },
-      { headers: { 'X-User-Id': userId! } }
+      { headers: { Cookie: await accessCookieFor(this, userId!) } }
     );
 
     if (addressResponse.data?.addressId) {
@@ -338,7 +349,7 @@ Given('my profile is 100 percent complete', async function (this: CustomWorld) {
         source: 'REGISTRATION',
         ipAddress: '127.0.0.1',
       },
-      { headers: { 'X-User-Id': userId! } }
+      { headers: { Cookie: await accessCookieFor(this, userId!) } }
     );
   } catch (error) {
     console.warn('Warning: Could not grant consent');

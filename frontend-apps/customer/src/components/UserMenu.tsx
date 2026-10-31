@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { CircleUserRound, LogOut, Monitor } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { CircleUserRound, LogOut, Monitor, Package } from "lucide-react";
 
 import {
   DropdownMenu,
@@ -25,7 +26,7 @@ import { useUser } from "@/stores/auth.store";
 /**
  * Authenticated user menu shown in the header.
  *
- * Two actions:
+ * - "Your Orders": goes to the order history.
  * - "Sign Out": invalidates the current session.
  * - "Sign Out All Devices": confirmation dialog → invalidates every session.
  */
@@ -68,6 +69,13 @@ export function UserMenu() {
               </span>
             </div>
           </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem asChild>
+            <Link to="/orders" search={{ page: 1 }}>
+              <Package className="mr-2 h-4 w-4" />
+              <span>Your Orders</span>
+            </Link>
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => logout(false)} disabled={isLoading}>
             <LogOut className="mr-2 h-4 w-4" />

@@ -1,9 +1,9 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { PreferencesPage } from "@/components/preferences/PreferencesPage";
+import { useRedirectWhenSignedOut } from "@/hooks/useRedirectWhenSignedOut";
 import {
   useCustomerId,
-  useUserId,
   useIsAuthenticated,
   useIsAuthLoading,
 } from "@/stores/auth.store";
@@ -43,9 +43,7 @@ function transformPreferencesResponse(
 }
 
 function PreferencesPageRoute() {
-  const navigate = useNavigate();
   const customerId = useCustomerId();
-  const userId = useUserId();
   const isAuthenticated = useIsAuthenticated();
   const isAuthLoading = useIsAuthLoading();
 
@@ -55,26 +53,27 @@ function PreferencesPageRoute() {
   const [isLoadingPreferences, setIsLoadingPreferences] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  // Redirect to login if not authenticated
-  useEffect(() => {
-    if (!isAuthLoading && !isAuthenticated) {
-      navigate({ to: "/signin" });
-    }
-  }, [isAuthLoading, isAuthenticated, navigate]);
+  const [requestError, setRequestError] = useState<unknown>(null);
+  const redirecting = useRedirectWhenSignedOut("/preferences", {
+    error: requestError,
+    isFetching: isLoadingPreferences,
+  });
 
   // Fetch preferences when authenticated
   useEffect(() => {
     async function fetchPreferences() {
-      if (!customerId || !userId) return;
+      if (!customerId) return;
 
       setIsLoadingPreferences(true);
       setLoadError(null);
+      setRequestError(null);
 
       try {
-        const response = await customerApi.getPreferences(customerId, userId);
+        const response = await customerApi.getPreferences(customerId);
         setPreferences(transformPreferencesResponse(response));
       } catch (error) {
         console.error("Failed to load preferences:", error);
+        setRequestError(error);
         setLoadError(
           error instanceof Error
             ? error.message
@@ -86,10 +85,12 @@ function PreferencesPageRoute() {
       }
     }
 
-    if (isAuthenticated && customerId && userId) {
+    if (isAuthenticated && customerId) {
       fetchPreferences();
     }
-  }, [isAuthenticated, customerId, userId]);
+  }, [isAuthenticated, customerId]);
+
+  if (redirecting) return null;
 
   // Show loading state while checking auth or loading preferences
   if (isAuthLoading || (isAuthenticated && isLoadingPreferences)) {
@@ -124,6 +125,7 @@ function PreferencesPageRoute() {
         </div>
       )}
       <PreferencesPage
+        onSaveError={setRequestError}
         customerId={customerId}
         initialPreferences={preferences ?? undefined}
       />
