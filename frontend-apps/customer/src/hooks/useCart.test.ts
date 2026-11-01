@@ -188,19 +188,18 @@ describe("useClearCart", () => {
 describe("useLeaveCheckout (PIN-439)", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("leaves checkout and reloads the cart instead of caching the response", async () => {
-    mockedLeave.mockResolvedValue(cartWithQuantity(2));
+  it("leaves checkout and caches the unlocked cart", async () => {
+    const unlocked = cartWithQuantity(2);
+    mockedLeave.mockResolvedValue(unlocked);
     const { result } = renderHook(() => useLeaveCheckout(), {
       wrapper: makeWrapper(),
     });
-    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
 
     act(() => result.current.mutate({ cartId: "cart-1" }));
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(mockedLeave).toHaveBeenCalledWith("cart-1");
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: CART_QUERY_KEY });
-    expect(queryClient.getQueryData(CART_QUERY_KEY)).toBeUndefined();
+    expect(queryClient.getQueryData(CART_QUERY_KEY)).toEqual(unlocked);
   });
 
   it("reloads the cart when the service no longer has it", async () => {

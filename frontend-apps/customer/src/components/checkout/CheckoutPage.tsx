@@ -84,11 +84,15 @@ export function CheckoutPage() {
 
   // Unlock first, or /cart refuses every change with CART_LOCKED until the session lapses
   function backToCart() {
-    const toCart = () => navigate({ to: "/cart" });
+    // Replace, so Back doesn't reopen the review, which would lock the cart again
+    const toCart = () => navigate({ to: "/cart", replace: true });
     leave.mutate(
       { cartId: cart!.id },
       {
-        onSuccess: toCart,
+        onSuccess: () => {
+          forgetIdempotencyKey(sessionId!);
+          toCart();
+        },
         onError: (error) => {
           if (isCartGone(error)) toCart();
         },
@@ -149,7 +153,10 @@ export function CheckoutPage() {
           <button
             type="button"
             data-testid="placeOrder"
-            onClick={() => place.mutate()}
+            onClick={() => {
+              leave.reset();
+              place.mutate();
+            }}
             disabled={isBusy}
             className="mt-4 flex w-full items-center justify-center gap-2 rounded-md bg-indigo-600 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-40"
           >

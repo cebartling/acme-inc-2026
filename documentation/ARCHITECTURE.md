@@ -621,9 +621,11 @@ read their orders back (PIN-367).
     carries only the cart's summary, so the lines come from `GET /carts/current`: a cart in
     checkout is locked, so they are the session's.
   - **Leaving (PIN-439):** "Back to cart" on the review calls `DELETE /carts/{cartId}/checkout`
-    before going to `/cart`, so the cart can be edited again. If that fails, the customer stays
-    on the review with a message. Only this button releases the lock: the browser's Back button
-    or a closed tab leaves the cart locked until the session lapses.
+    before going to `/cart`, so the cart can be edited again. `/cart` replaces the review in
+    history, since Back to `/checkout` would lock the cart again. If leaving fails, the customer
+    stays on the review with a message; `404 CART_NOT_FOUND` (the cart was converted or is gone)
+    still goes to `/cart`. Only this button releases the lock: the browser's Back button or a
+    closed tab leaves the cart locked until the session lapses.
   - **Placing:** Place order sends `POST /api/v1/orders` with one `Idempotency-Key` per
     session, a `crypto.randomUUID()` kept in sessionStorage (`acme.checkout.<sessionId>.key`).
     A retry or a reload reuses it, so a lost answer can't place a second order; the button is

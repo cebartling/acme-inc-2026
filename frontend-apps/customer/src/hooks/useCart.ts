@@ -145,17 +145,15 @@ export function useClearCart() {
 }
 
 /**
- * Leaves checkout, so the cart can be edited again (PIN-439). The cart is reloaded, not cached
- * from the response: the service returns a cart not in checkout unchanged, and that could be one
- * another tab has just converted into an order.
+ * Leaves checkout, so the cart can be edited again (PIN-439). A cart another tab has converted
+ * is not the caller's current cart any more, so it answers 404 `CART_NOT_FOUND`, not a cart.
  */
 export function useLeaveCheckout() {
   const queryClient = useQueryClient();
 
   return useMutation<Cart, Error, { cartId: string }>({
     mutationFn: ({ cartId }) => cartApi.leaveCheckout(cartId),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: CART_QUERY_KEY }),
+    onSuccess: (cart) => writeCart(queryClient, cart),
     onError: (error) => reloadIfStale(queryClient, error),
   });
 }

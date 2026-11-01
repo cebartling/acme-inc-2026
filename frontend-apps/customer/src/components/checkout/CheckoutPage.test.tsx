@@ -158,9 +158,32 @@ describe("CheckoutPage (PIN-426)", () => {
     await waitFor(() => expect(mockedLeave).toHaveBeenCalledWith("cart-1"));
     expect(navigate).not.toHaveBeenCalled();
 
+    expect(
+      sessionStorage.getItem("acme.checkout.session-1.key"),
+    ).not.toBeNull();
+
     release(cart);
 
-    await waitFor(() => expect(navigate).toHaveBeenCalledWith({ to: "/cart" }));
+    await waitFor(() =>
+      expect(navigate).toHaveBeenCalledWith({ to: "/cart", replace: true }),
+    );
+    expect(sessionStorage.getItem("acme.checkout.session-1.key")).toBeNull();
+  });
+
+  it("clears the leave failure when placing the order (PIN-439)", async () => {
+    mockedLeave.mockRejectedValueOnce(
+      new ApiError("Something went wrong", 500, { code: "INTERNAL_ERROR" }),
+    );
+    mockedPlace.mockReturnValueOnce(new Promise(() => {}));
+    renderPage();
+
+    await userEvent.click(await screen.findByTestId("backToCart"));
+    await screen.findByTestId("backToCartMessage");
+    await userEvent.click(screen.getByTestId("placeOrder"));
+
+    await waitFor(() =>
+      expect(screen.queryByTestId("backToCartMessage")).not.toBeInTheDocument(),
+    );
   });
 
   it("stays on the review with a message when leaving fails (PIN-439)", async () => {
@@ -186,7 +209,9 @@ describe("CheckoutPage (PIN-426)", () => {
 
     await userEvent.click(await screen.findByTestId("backToCart"));
 
-    await waitFor(() => expect(navigate).toHaveBeenCalledWith({ to: "/cart" }));
+    await waitFor(() =>
+      expect(navigate).toHaveBeenCalledWith({ to: "/cart", replace: true }),
+    );
     expect(screen.queryByTestId("backToCartMessage")).not.toBeInTheDocument();
   });
 
