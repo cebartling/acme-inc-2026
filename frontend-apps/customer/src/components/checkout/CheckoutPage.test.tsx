@@ -30,13 +30,14 @@ vi.mock("@/services/api", async (importOriginal) => ({
     startCheckout: vi.fn(),
     leaveCheckout: vi.fn(),
   },
-  orderApi: { place: vi.fn() },
+  orderApi: { place: vi.fn(), findByKey: vi.fn() },
 }));
 
 const mockedGetCurrent = vi.mocked(cartApi.getCurrent);
 const mockedStart = vi.mocked(cartApi.startCheckout);
 const mockedLeave = vi.mocked(cartApi.leaveCheckout);
 const mockedPlace = vi.mocked(orderApi.place);
+const mockedFind = vi.mocked(orderApi.findByKey);
 
 const cart: Cart = {
   id: "cart-1",
@@ -311,6 +312,370 @@ describe("CheckoutPage (PIN-426)", () => {
       /already placed in another tab/i,
     );
     expect(screen.queryByTestId("placeOrder")).not.toBeInTheDocument();
+  });
+
+  describe("after a lost Place order answer (PIN-440)", () => {
+    // The order may be placed, so the reload finds no cart; returns the key the first try used
+    async function loseTheAnswerAndReload() {
+      mockedPlace.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+      const first = renderPage();
+      await userEvent.click(await screen.findByTestId("placeOrder"));
+      await screen.findByTestId("placeOrderMessage");
+      first.unmount();
+
+      const [, key] = mockedPlace.mock.calls[0];
+      mockedPlace.mockClear();
+      mockedGetCurrent.mockResolvedValue(null);
+      return key;
+    }
+
+    it("finds the order by its key and goes to its confirmation, placing nothing", async () => {
+      const key = await loseTheAnswerAndReload();
+      mockedFind.mockResolvedValueOnce(placed);
+
+      renderPage();
+
+      await waitFor(() =>
+        expect(navigate).toHaveBeenCalledWith({
+          to: "/orders/$orderId/confirmation",
+          params: { orderId: "order-1" },
+          replace: true,
+        }),
+      );
+      expect(mockedFind).toHaveBeenCalledWith(key);
+      expect(mockedPlace).not.toHaveBeenCalled();
+      expect(screen.queryByTestId("checkoutEmpty")).not.toBeInTheDocument();
+      expect(sessionStorage.length).toBe(0);
+    });
+
+    it("shows the empty cart when the key has no order", async () => {
+      await loseTheAnswerAndReload();
+      mockedFind.mockRejectedValueOnce(orderError(404, "ORDER_NOT_FOUND"));
+
+      renderPage();
+
+      expect(await screen.findByTestId("checkoutEmpty")).toBeInTheDocument();
+      expect(mockedPlace).not.toHaveBeenCalled();
+      await waitFor(() => expect(sessionStorage.length).toBe(0));
+    });
+
+    it("places nothing when the cart only looked empty and the key has no order", async () => {
+      await loseTheAnswerAndReload();
+      // No access cookie yet: the cart looks empty until the lookup has refreshed the sign-in
+      mockedGetCurrent.mockResolvedValueOnce(null).mockResolvedValue(cart);
+      mockedFind.mockRejectedValueOnce(orderError(404, "ORDER_NOT_FOUND"));
+
+      renderPage();
+
+      expect(await screen.findByTestId("placeOrder")).toBeInTheDocument();
+      expect(mockedPlace).not.toHaveBeenCalled();
+    });
+
+    it("resumes a PENDING order when its cart is gone", async () => {
+      const key = await loseTheAnswerAndReload();
+      mockedFind.mockResolvedValueOnce({ ...placed, status: "PENDING" });
+      mockedPlace.mockResolvedValueOnce(placed);
+
+      renderPage();
+
+      await waitFor(() =>
+        expect(navigate).toHaveBeenCalledWith(
+          expect.objectContaining({ to: "/orders/$orderId/confirmation" }),
+        ),
+      );
+      expect(mockedPlace).toHaveBeenCalledWith("session-1", key);
+      expect(sessionStorage.length).toBe(0);
+    });
+
+    it("leaves a PENDING order to the customer when its cart still has lines", async () => {
+      const key = await loseTheAnswerAndReload();
+      mockedGetCurrent.mockResolvedValueOnce(null).mockResolvedValue(cart);
+      mockedFind.mockResolvedValueOnce({ ...placed, status: "PENDING" });
+
+      renderPage();
+
+      await userEvent.click(await screen.findByTestId("placeOrder"));
+
+      await waitFor(() => expect(mockedPlace).toHaveBeenCalledTimes(1));
+      expect(mockedPlace).toHaveBeenCalledWith("session-1", key);
+    });
+
+    it.each(["CHECKOUT_SESSION_NOT_FOUND", "CART_NOT_FOUND"])(
+      "shows the empty cart when resuming answers %s",
+      async (code) => {
+        await loseTheAnswerAndReload();
+        mockedFind.mockResolvedValueOnce({ ...placed, status: "PENDING" });
+        mockedPlace.mockRejectedValueOnce(orderError(404, code));
+
+        renderPage();
+
+        expect(await screen.findByTestId("checkoutEmpty")).toBeInTheDocument();
+        await waitFor(() => expect(sessionStorage.length).toBe(0));
+      },
+    );
+
+    it("stops trying when another order has the cart", async () => {
+      await loseTheAnswerAndReload();
+      mockedFind.mockResolvedValueOnce({ ...placed, status: "PENDING" });
+      mockedPlace.mockRejectedValueOnce(
+        orderError(409, "CART_ALREADY_CONVERTED"),
+      );
+
+      renderPage();
+
+      expect(await screen.findByTestId("orderUnconfirmed")).toBeInTheDocument();
+      await waitFor(() => expect(sessionStorage.length).toBe(0));
+    });
+
+    it("finds the order without a reload when a refetch finds the cart gone", async () => {
+      mockedPlace.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+      const { queryClient } = renderPage();
+      await userEvent.click(await screen.findByTestId("placeOrder"));
+      await screen.findByTestId("placeOrderMessage");
+      const [, key] = mockedPlace.mock.calls[0];
+      mockedFind.mockResolvedValueOnce(placed);
+
+      mockedGetCurrent.mockResolvedValue(null);
+      await queryClient.invalidateQueries({ queryKey: CART_QUERY_KEY });
+
+      await waitFor(() =>
+        expect(navigate).toHaveBeenCalledWith({
+          to: "/orders/$orderId/confirmation",
+          params: { orderId: "order-1" },
+          replace: true,
+        }),
+      );
+      expect(mockedFind).toHaveBeenCalledWith(key);
+      expect(sessionStorage.length).toBe(0);
+    });
+
+    it("keeps the next attempt after a lookup found no order", async () => {
+      await loseTheAnswerAndReload();
+      mockedGetCurrent.mockResolvedValueOnce(null).mockResolvedValue(cart);
+      mockedFind.mockRejectedValueOnce(orderError(404, "ORDER_NOT_FOUND"));
+      mockedPlace.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+      const second = renderPage();
+      await userEvent.click(await screen.findByTestId("placeOrder"));
+      await screen.findByTestId("placeOrderMessage");
+      const [, key] = mockedPlace.mock.calls[0];
+      second.unmount();
+
+      mockedGetCurrent.mockResolvedValue(null);
+      mockedFind.mockResolvedValueOnce(placed);
+      renderPage();
+
+      await waitFor(() =>
+        expect(navigate).toHaveBeenCalledWith(
+          expect.objectContaining({ to: "/orders/$orderId/confirmation" }),
+        ),
+      );
+      expect(mockedFind).toHaveBeenLastCalledWith(key);
+    });
+
+    it("looks again when the retry of a PENDING order loses its answer too", async () => {
+      await loseTheAnswerAndReload();
+      mockedGetCurrent.mockResolvedValueOnce(null).mockResolvedValue(cart);
+      mockedFind.mockResolvedValueOnce({ ...placed, status: "PENDING" });
+      mockedPlace.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+      const { queryClient } = renderPage();
+      await userEvent.click(await screen.findByTestId("placeOrder"));
+      await screen.findByTestId("placeOrderMessage");
+
+      mockedGetCurrent.mockResolvedValue(null);
+      mockedFind.mockResolvedValueOnce(placed);
+      await queryClient.invalidateQueries({ queryKey: CART_QUERY_KEY });
+
+      await waitFor(() =>
+        expect(navigate).toHaveBeenCalledWith(
+          expect.objectContaining({ to: "/orders/$orderId/confirmation" }),
+        ),
+      );
+    });
+
+    it("uses a new, recoverable key after a lookup on this page found no order", async () => {
+      mockedPlace.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+      const { queryClient } = renderPage();
+      await userEvent.click(await screen.findByTestId("placeOrder"));
+      await screen.findByTestId("placeOrderMessage");
+      const [, firstKey] = mockedPlace.mock.calls[0];
+
+      // The cart looks empty once, until the lookup has refreshed the sign-in
+      mockedGetCurrent.mockResolvedValueOnce(null);
+      mockedFind.mockRejectedValueOnce(orderError(404, "ORDER_NOT_FOUND"));
+      await queryClient.invalidateQueries({ queryKey: CART_QUERY_KEY });
+      await waitFor(() => expect(mockedFind).toHaveBeenCalledTimes(1));
+
+      mockedPlace.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+      await userEvent.click(await screen.findByTestId("placeOrder"));
+      await waitFor(() => expect(mockedPlace).toHaveBeenCalledTimes(2));
+      const [, secondKey] = mockedPlace.mock.calls[1];
+      expect(secondKey).not.toBe(firstKey);
+      await screen.findByTestId("placeOrderMessage");
+
+      mockedGetCurrent.mockResolvedValue(null);
+      mockedFind.mockResolvedValueOnce(placed);
+      await queryClient.invalidateQueries({ queryKey: CART_QUERY_KEY });
+
+      await waitFor(() =>
+        expect(navigate).toHaveBeenCalledWith(
+          expect.objectContaining({ to: "/orders/$orderId/confirmation" }),
+        ),
+      );
+      expect(mockedFind).toHaveBeenLastCalledWith(secondKey);
+    });
+
+    it("finds the order instead of going to /cart when Back to cart finds the cart gone", async () => {
+      mockedPlace.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+      mockedLeave.mockRejectedValueOnce(
+        new ApiError("Cart not found", 404, { code: "CART_NOT_FOUND" }),
+      );
+      renderPage();
+      await userEvent.click(await screen.findByTestId("placeOrder"));
+      await screen.findByTestId("placeOrderMessage");
+      mockedGetCurrent.mockResolvedValue(null);
+      mockedFind.mockResolvedValueOnce(placed);
+
+      await userEvent.click(screen.getByTestId("backToCart"));
+
+      await waitFor(() =>
+        expect(navigate).toHaveBeenCalledWith(
+          expect.objectContaining({ to: "/orders/$orderId/confirmation" }),
+        ),
+      );
+      expect(navigate).not.toHaveBeenCalledWith({
+        to: "/cart",
+        replace: true,
+      });
+    });
+
+    it("clears the session's key when the cart refetches mid-request", async () => {
+      let answer: (order: PlacedOrder) => void = () => {};
+      mockedPlace.mockReturnValueOnce(
+        new Promise((resolve) => {
+          answer = resolve;
+        }),
+      );
+      const { queryClient } = renderPage();
+      await userEvent.click(await screen.findByTestId("placeOrder"));
+
+      mockedGetCurrent.mockResolvedValue(null);
+      await queryClient.invalidateQueries({ queryKey: CART_QUERY_KEY });
+      await screen.findByTestId("checkoutEmpty");
+      answer(placed);
+
+      await waitFor(() => expect(navigate).toHaveBeenCalled());
+      expect(sessionStorage.length).toBe(0);
+    });
+
+    it("keeps an unanswered attempt when a newer review is left", async () => {
+      const key = await loseTheAnswerAndReload();
+      mockedGetCurrent.mockResolvedValue(cart);
+      mockedStart.mockResolvedValue(sessionOf("session-2"));
+      mockedLeave.mockResolvedValueOnce(cart);
+      const newer = renderPage();
+      await userEvent.click(await screen.findByTestId("backToCart"));
+      await waitFor(() =>
+        expect(navigate).toHaveBeenCalledWith({ to: "/cart", replace: true }),
+      );
+      newer.unmount();
+
+      mockedGetCurrent.mockResolvedValue(null);
+      mockedFind.mockResolvedValueOnce(placed);
+      renderPage();
+
+      await waitFor(() => expect(mockedFind).toHaveBeenCalledWith(key));
+    });
+
+    it.each([
+      ["the service fails", orderError(500, "INTERNAL_ERROR")],
+      ["the network fails", new TypeError("Failed to fetch")],
+    ])(
+      "points to the customer's orders when %s, and can try again",
+      async (_, failure) => {
+        await loseTheAnswerAndReload();
+        mockedFind.mockRejectedValueOnce(failure);
+
+        const second = renderPage();
+
+        expect(await screen.findByTestId("orderUnconfirmed")).toHaveTextContent(
+          /couldn’t confirm your order/i,
+        );
+        expect(
+          screen.getByRole("link", { name: /view your orders/i }),
+        ).toHaveAttribute("href", "/orders");
+        second.unmount();
+
+        mockedFind.mockResolvedValueOnce(placed);
+        renderPage();
+
+        await waitFor(() =>
+          expect(navigate).toHaveBeenCalledWith(
+            expect.objectContaining({ to: "/orders/$orderId/confirmation" }),
+          ),
+        );
+      },
+    );
+
+    it("sends nothing when Place order was never pressed", async () => {
+      const first = renderPage();
+      await screen.findByTestId("placeOrder");
+      first.unmount();
+      mockedGetCurrent.mockResolvedValue(null);
+
+      renderPage();
+
+      expect(await screen.findByTestId("checkoutEmpty")).toBeInTheDocument();
+      expect(mockedFind).not.toHaveBeenCalled();
+      expect(mockedPlace).not.toHaveBeenCalled();
+    });
+
+    it("sends nothing after going back to the cart", async () => {
+      mockedPlace.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+      mockedLeave.mockResolvedValueOnce(cart);
+      const first = renderPage();
+      await userEvent.click(await screen.findByTestId("placeOrder"));
+      await screen.findByTestId("placeOrderMessage");
+      await userEvent.click(screen.getByTestId("backToCart"));
+      await waitFor(() =>
+        expect(navigate).toHaveBeenCalledWith({ to: "/cart", replace: true }),
+      );
+      first.unmount();
+      mockedPlace.mockClear();
+      mockedGetCurrent.mockResolvedValue(null);
+
+      renderPage();
+
+      expect(await screen.findByTestId("checkoutEmpty")).toBeInTheDocument();
+      expect(mockedFind).not.toHaveBeenCalled();
+      expect(mockedPlace).not.toHaveBeenCalled();
+    });
+
+    it("doesn't look for an order when this page's own order empties the cart", async () => {
+      await loseTheAnswerAndReload();
+      mockedGetCurrent.mockResolvedValue(cart);
+      mockedPlace.mockResolvedValueOnce(placed);
+      const { queryClient } = renderPage();
+      await userEvent.click(await screen.findByTestId("placeOrder"));
+      await waitFor(() => expect(navigate).toHaveBeenCalled());
+
+      mockedGetCurrent.mockResolvedValue(null);
+      await queryClient.invalidateQueries({ queryKey: CART_QUERY_KEY });
+
+      await screen.findByTestId("checkoutEmpty");
+      expect(mockedPlace).toHaveBeenCalledTimes(1);
+      expect(mockedFind).not.toHaveBeenCalled();
+    });
+
+    it("links an empty cart to the customer's orders", async () => {
+      mockedGetCurrent.mockResolvedValue(null);
+
+      renderPage();
+
+      await screen.findByTestId("checkoutEmpty");
+      expect(
+        screen.getByRole("link", { name: /view your orders/i }),
+      ).toHaveAttribute("href", "/orders");
+    });
   });
 
   it("shows a refusal to start checkout without retrying it", async () => {

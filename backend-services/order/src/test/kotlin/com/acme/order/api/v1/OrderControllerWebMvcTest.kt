@@ -1,5 +1,6 @@
 package com.acme.order.api.v1
 
+import com.acme.order.application.FindOrderByKeyUseCase
 import com.acme.order.application.GetOrderResult
 import com.acme.order.application.GetOrderUseCase
 import com.acme.order.application.ListOrdersUseCase
@@ -51,6 +52,7 @@ class OrderControllerWebMvcTest(
     @Autowired private val useCase: PlaceOrderUseCase,
     @Autowired private val getOrder: GetOrderUseCase,
     @Autowired private val listOrders: ListOrdersUseCase,
+    @Autowired private val findOrderByKey: FindOrderByKeyUseCase,
     @Autowired private val jwtDecoder: JwtDecoder
 ) {
 
@@ -64,6 +66,9 @@ class OrderControllerWebMvcTest(
 
         @Bean
         fun listOrdersUseCase(): ListOrdersUseCase = mockk()
+
+        @Bean
+        fun findOrderByKeyUseCase(): FindOrderByKeyUseCase = mockk()
 
         /** Stands in for the JWKS-backed decoder; tests decide what a token decodes to. */
         @Bean
@@ -89,7 +94,7 @@ class OrderControllerWebMvcTest(
 
     @BeforeEach
     fun setUp() {
-        clearMocks(useCase, getOrder, listOrders, jwtDecoder)
+        clearMocks(useCase, getOrder, listOrders, findOrderByKey, jwtDecoder)
         every { jwtDecoder.decode("good-token") } returns Jwt.withTokenValue("good-token")
             .header("alg", "RS256")
             .subject(userId.toString())
@@ -300,8 +305,57 @@ class OrderControllerWebMvcTest(
     }
 
     @Test
+    fun `an order found by its key is a 200 with its number and status, and places nothing`() {
+        every { findOrderByKey.execute(userId, "key-1") } returns order
+
+        mockMvc.get("/api/v1/orders/by-idempotency-key") {
+            cookie(accessToken())
+            header("Idempotency-Key", " key-1 ")
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.orderId") { value(order.id.toString()) }
+            jsonPath("$.orderNumber") { value("ACME-20261022-000001") }
+            jsonPath("$.status") { value("SUBMITTED") }
+        }
+
+        verify(exactly = 0) { useCase.execute(any()) }
+    }
+
+    @Test
+    fun `a key with no order is a 404 ORDER_NOT_FOUND`() {
+        every { findOrderByKey.execute(userId, "key-1") } returns null
+
+        mockMvc.get("/api/v1/orders/by-idempotency-key") {
+            cookie(accessToken())
+            header("Idempotency-Key", "key-1")
+        }.andExpect {
+            status { isNotFound() }
+            jsonPath("$.code") { value("ORDER_NOT_FOUND") }
+        }
+    }
+
+    @Test
+    fun `finding an order without a usable key is a 400 IDEMPOTENCY_KEY_REQUIRED`() {
+        mockMvc.get("/api/v1/orders/by-idempotency-key") { cookie(accessToken()) }.andExpect {
+            status { isBadRequest() }
+            jsonPath("$.code") { value("IDEMPOTENCY_KEY_REQUIRED") }
+        }
+        mockMvc.get("/api/v1/orders/by-idempotency-key") {
+            cookie(accessToken())
+            header("Idempotency-Key", "k".repeat(256))
+        }.andExpect {
+            status { isBadRequest() }
+            jsonPath("$.code") { value("IDEMPOTENCY_KEY_REQUIRED") }
+        }
+    }
+
+    @Test
     fun `reading orders without signing in is a 401 SIGN_IN_REQUIRED`() {
-        listOf("/api/v1/orders", "/api/v1/orders/${order.id}").forEach { path ->
+        listOf(
+            "/api/v1/orders",
+            "/api/v1/orders/${order.id}",
+            "/api/v1/orders/by-idempotency-key"
+        ).forEach { path ->
             mockMvc.get(path).andExpect {
                 status { isUnauthorized() }
                 jsonPath("$.code") { value("SIGN_IN_REQUIRED") }

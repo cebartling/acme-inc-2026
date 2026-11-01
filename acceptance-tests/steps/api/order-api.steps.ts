@@ -61,6 +61,24 @@ When('I place the order again with the same idempotency key', async function (th
   await placeOrder(this, { ...accessTokenCookie(this), 'Idempotency-Key': idempotencyKey! });
 });
 
+async function findOrderByKey(world: CustomWorld, idempotencyKey: string) {
+  const response = await world.orderApiClient.get<PlaceOrderResponse>(
+    '/api/v1/orders/by-idempotency-key',
+    { headers: { ...accessTokenCookie(world), 'Idempotency-Key': idempotencyKey } }
+  );
+  world.setLastResponse(response);
+}
+
+When('I look up the order by its idempotency key', async function (this: CustomWorld) {
+  const idempotencyKey = this.getTestData<string>('idempotencyKey');
+  expect(idempotencyKey, 'place the order first').toBeDefined();
+  await findOrderByKey(this, idempotencyKey!);
+});
+
+When('I look up an order by a key that was never used', async function (this: CustomWorld) {
+  await findOrderByKey(this, randomUUID());
+});
+
 When('I place an order without signing in', async function (this: CustomWorld) {
   this.setTestData('checkoutSessionId', randomUUID());
   await placeOrder(this, { 'Idempotency-Key': randomUUID() });
