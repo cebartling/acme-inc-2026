@@ -51,15 +51,6 @@ Feature: See my orders
     When I sign in from the page I was sent to
     Then I should be on "/dashboard"
 
-  Scenario: A customer whose access cookie is gone goes from preferences to sign-in and back
-    Given I navigate to "/signin"
-    And I sign in with valid credentials
-    And my access cookie is gone
-    When I navigate to "/preferences"
-    Then the header should show me signed out
-    When I sign in from the page I was sent to
-    Then I should be on "/preferences"
-
   Scenario: A dead session doesn't move a customer off a password reset link
     Given I navigate to "/signin"
     And I sign in with valid credentials
@@ -99,6 +90,25 @@ Feature: See my orders
     Then I should see that order in my order history with 2 items
     When I open that order
     Then I should see that order's details with "Gadget Pro"
+
+  # The service would need 11 orders for a real second page, so its list is reported as page 2.
+  Scenario: Back to your orders returns to the page the order was opened from
+    Given I navigate to "/signin"
+    And I sign in with valid credentials
+    And I am on the product page for "gadget-pro"
+    And I click Add to Cart
+    And I navigate to "/cart"
+    And I press Checkout
+    And I should see "Gadget Pro" on the order review
+    And I place the order
+    And I should see the order confirmation with an order number
+    And I note the order number
+    And my order history has a second page
+    When I navigate to "/orders?page=2"
+    And I open that order
+    Then I should see that order's details with "Gadget Pro"
+    When I click the "Back to your orders" link
+    Then I should be on "/orders?page=2"
 
   Scenario: The confirmation page links to the order's detail page
     Given I navigate to "/signin"

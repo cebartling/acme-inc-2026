@@ -70,6 +70,29 @@ Then(
   }
 );
 
+Given('my order history has a second page', async function (this: CustomWorld) {
+  // Its own reference: teardown clears `this.page`, and a refetch can outlive the scenario
+  const page = this.page;
+  await page.route('**/api/v1/orders?*', async (route) => {
+    const url = new URL(route.request().url());
+    if (route.request().method() !== 'GET' || url.searchParams.get('page') !== '2') {
+      return route.fallback();
+    }
+
+    url.searchParams.set('page', '1');
+    try {
+      const response = await route.fetch({ url: url.href });
+      const firstPage = await response.json();
+      await route.fulfill({
+        response,
+        json: { ...firstPage, page: 2, totalPages: 2, totalResults: 11 },
+      });
+    } catch (error) {
+      if (!page.isClosed()) throw error;
+    }
+  });
+});
+
 Then('I should see the order not found page', async function (this: CustomWorld) {
   await expect(this.page.getByTestId('orderNotFound')).toContainText('Order not found');
 });
