@@ -651,7 +651,9 @@ read their orders back (PIN-367).
     order couldn't be confirmed, because another order has the cart. Any other failure says the
     same, links to `/orders`, and keeps the entry so another reload can try again. Back to cart
     joins this path: if leaving answers `404 CART_NOT_FOUND` with an attempt unanswered, the page
-    stays and finds the order instead of going to `/cart`. Being sessionStorage, this covers a
+    stays and finds the order instead of going to `/cart`. Pressing Place order again drops the
+    last lookup's answer, so a retry that also goes unanswered gets its own lookup. A lookup
+    that forgets the key makes the page's next attempt use a new one. Being sessionStorage, this covers a
     reload but not a closed tab, so the empty cart notice links to `/orders` too.
   - **Refusals:** `404 CHECKOUT_SESSION_NOT_FOUND` (lapsed, or converted by another tab) and
     `409 CART_ALREADY_CONVERTED` replace the page with a message and a link back to the cart,
@@ -662,10 +664,10 @@ read their orders back (PIN-367).
     order services, which answer `TOKEN_EXPIRED`; identity's own endpoints do too. The
     interceptor holds a Web Lock (`acme.auth.refresh`) across the refresh, because two tabs
     refreshing at once would look like token reuse and sign the customer out of every device.
-    For Place order only, `401 SIGN_IN_REQUIRED` also refreshes (PIN-438,
+    For Place order and its lookup by key only, `401 SIGN_IN_REQUIRED` also refreshes (PIN-438,
     `refreshOnSignInRequired`), as a fallback for a browser with no access cookie. The retry
     keeps the same key. Other callers don't refresh on it, since a refused refresh also clears
-    `device_trust`. If Place order's refresh fails, on either 401, the interceptor clears the
+    `device_trust`. If either's refresh fails, on either 401, the interceptor clears the
     auth stores without redirecting, and `CheckoutPage` sends the customer to
     `/signin?redirect=/cart`.
   - **Placed:** the page replaces itself with `/orders/$orderId/confirmation`

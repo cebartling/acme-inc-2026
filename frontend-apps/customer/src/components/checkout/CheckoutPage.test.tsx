@@ -449,6 +449,81 @@ describe("CheckoutPage (PIN-426)", () => {
       expect(sessionStorage.length).toBe(0);
     });
 
+    it("keeps the next attempt after a lookup found no order", async () => {
+      await loseTheAnswerAndReload();
+      mockedGetCurrent.mockResolvedValueOnce(null).mockResolvedValue(cart);
+      mockedFind.mockRejectedValueOnce(orderError(404, "ORDER_NOT_FOUND"));
+      mockedPlace.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+      const second = renderPage();
+      await userEvent.click(await screen.findByTestId("placeOrder"));
+      await screen.findByTestId("placeOrderMessage");
+      const [, key] = mockedPlace.mock.calls[0];
+      second.unmount();
+
+      mockedGetCurrent.mockResolvedValue(null);
+      mockedFind.mockResolvedValueOnce(placed);
+      renderPage();
+
+      await waitFor(() =>
+        expect(navigate).toHaveBeenCalledWith(
+          expect.objectContaining({ to: "/orders/$orderId/confirmation" }),
+        ),
+      );
+      expect(mockedFind).toHaveBeenLastCalledWith(key);
+    });
+
+    it("looks again when the retry of a PENDING order loses its answer too", async () => {
+      await loseTheAnswerAndReload();
+      mockedGetCurrent.mockResolvedValueOnce(null).mockResolvedValue(cart);
+      mockedFind.mockResolvedValueOnce({ ...placed, status: "PENDING" });
+      mockedPlace.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+      const { queryClient } = renderPage();
+      await userEvent.click(await screen.findByTestId("placeOrder"));
+      await screen.findByTestId("placeOrderMessage");
+
+      mockedGetCurrent.mockResolvedValue(null);
+      mockedFind.mockResolvedValueOnce(placed);
+      await queryClient.invalidateQueries({ queryKey: CART_QUERY_KEY });
+
+      await waitFor(() =>
+        expect(navigate).toHaveBeenCalledWith(
+          expect.objectContaining({ to: "/orders/$orderId/confirmation" }),
+        ),
+      );
+    });
+
+    it("uses a new, recoverable key after a lookup on this page found no order", async () => {
+      mockedPlace.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+      const { queryClient } = renderPage();
+      await userEvent.click(await screen.findByTestId("placeOrder"));
+      await screen.findByTestId("placeOrderMessage");
+      const [, firstKey] = mockedPlace.mock.calls[0];
+
+      // The cart looks empty once, until the lookup has refreshed the sign-in
+      mockedGetCurrent.mockResolvedValueOnce(null);
+      mockedFind.mockRejectedValueOnce(orderError(404, "ORDER_NOT_FOUND"));
+      await queryClient.invalidateQueries({ queryKey: CART_QUERY_KEY });
+      await waitFor(() => expect(mockedFind).toHaveBeenCalledTimes(1));
+
+      mockedPlace.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+      await userEvent.click(await screen.findByTestId("placeOrder"));
+      await waitFor(() => expect(mockedPlace).toHaveBeenCalledTimes(2));
+      const [, secondKey] = mockedPlace.mock.calls[1];
+      expect(secondKey).not.toBe(firstKey);
+      await screen.findByTestId("placeOrderMessage");
+
+      mockedGetCurrent.mockResolvedValue(null);
+      mockedFind.mockResolvedValueOnce(placed);
+      await queryClient.invalidateQueries({ queryKey: CART_QUERY_KEY });
+
+      await waitFor(() =>
+        expect(navigate).toHaveBeenCalledWith(
+          expect.objectContaining({ to: "/orders/$orderId/confirmation" }),
+        ),
+      );
+      expect(mockedFind).toHaveBeenLastCalledWith(secondKey);
+    });
+
     it("finds the order instead of going to /cart when Back to cart finds the cart gone", async () => {
       mockedPlace.mockRejectedValueOnce(new TypeError("Failed to fetch"));
       mockedLeave.mockRejectedValueOnce(

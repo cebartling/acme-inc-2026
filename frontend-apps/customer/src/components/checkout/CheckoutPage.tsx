@@ -73,6 +73,8 @@ export function CheckoutPage() {
   const place = useMutation({
     mutationFn: (placedSessionId: string) => {
       rememberPlacing(placedSessionId);
+      // The last lookup answered for the last attempt, and this one may need its own
+      void queryClient.resetQueries({ queryKey: ORDER_RECOVERY_KEY });
       return orderApi.place(placedSessionId, idempotencyKey!);
     },
     onSuccess: (order, placedSessionId) => {
@@ -95,7 +97,7 @@ export function CheckoutPage() {
   });
 
   const recovery = useQuery({
-    queryKey: ["orderRecovery", placing?.sessionId],
+    queryKey: [...ORDER_RECOVERY_KEY, placing?.sessionId],
     queryFn: () => recoverOrder(placing!, queryClient),
     enabled:
       isAuthenticated &&
@@ -368,6 +370,8 @@ function confirmationOf(order: PlacedOrder) {
   } as const;
 }
 
+const ORDER_RECOVERY_KEY = ["orderRecovery"] as const;
+
 const storageKeyFor = (sessionId: string) => `acme.checkout.${sessionId}.key`;
 
 /** The session this tab last pressed Place order for. The review alone writes only its key. */
@@ -383,7 +387,11 @@ const PLACING_STORAGE_KEY = "acme.checkout.placing";
 function useIdempotencyKey(sessionId: string | undefined): string | undefined {
   // Also held here, so the key stays the same for this page when storage is unavailable
   const held = useRef<{ sessionId: string; key: string } | null>(null);
-  if (!sessionId) return undefined;
+  if (!sessionId) {
+    // A session that comes back rereads storage: the lookup may have forgotten its key meanwhile
+    held.current = null;
+    return undefined;
+  }
   if (held.current?.sessionId !== sessionId) {
     held.current = { sessionId, key: storedKey(sessionId) };
   }

@@ -56,12 +56,12 @@ export class ApiError extends Error {
 // The order service answers 401 + code SIGN_IN_REQUIRED when the browser
 // sends no access cookie (PIN-438). The refresh cookie is HttpOnly, so the
 // only way to know whether one exists is to try: a caller that sets
-// `refreshOnSignInRequired` (only Place order) also refreshes and retries on
-// that 401. Other callers don't, since a refused refresh also clears
-// identity's device_trust cookie. If such a caller's refresh fails, on either
-// 401, the customer really is signed out: the auth stores are cleared but
-// there is no hard redirect, so the page can send them to sign-in with its
-// own `redirect` (CheckoutPage uses /cart).
+// `refreshOnSignInRequired` (only Place order and its lookup by key) also
+// refreshes and retries on that 401. Other callers don't, since a refused
+// refresh also clears identity's device_trust cookie. If such a caller's
+// refresh fails, on either 401, the customer really is signed out: the auth
+// stores are cleared but there is no hard redirect, so the page can send them
+// to sign-in with its own `redirect` (CheckoutPage uses /cart).
 //
 // Refresh tokens rotate on use, and a stale one presented to identity counts
 // as reuse, which signs the customer out of every device. So tabs take turns
