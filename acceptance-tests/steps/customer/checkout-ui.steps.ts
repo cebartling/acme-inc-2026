@@ -1,4 +1,4 @@
-import { When, Then } from '@cucumber/cucumber';
+import { Given, When, Then } from '@cucumber/cucumber';
 import { expect } from '@playwright/test';
 import { CustomWorld } from '../../support/world.js';
 import { config } from '../../playwright.config.js';
@@ -86,6 +86,35 @@ When('I reload the confirmation page', async function (this: CustomWorld) {
 Then('only one order request should have been sent', async function (this: CustomWorld) {
   const sent = this.getTestData<string[]>('placeOrderRequests');
   expect(sent).toHaveLength(1);
+});
+
+Given('the response to my next order request is lost', async function (this: CustomWorld) {
+  await this.page.route(
+    '**/api/v1/orders',
+    async (route) => {
+      // The service places the order; the browser only sees the connection fail
+      const response = await route.fetch();
+      const body = (await response.json()) as { orderNumber: string };
+      this.setTestData('lostOrderNumber', body.orderNumber);
+      await route.abort();
+    },
+    { times: 1 }
+  );
+});
+
+When('I am told the order may not have gone through', async function (this: CustomWorld) {
+  await this.page.getByTestId('placeOrderMessage').waitFor({ timeout: config.timeout.action });
+});
+
+Then('it should be the order whose response was lost', async function (this: CustomWorld) {
+  // A second order would have its own number
+  await expect(this.page.getByTestId('orderNumber')).toHaveText(
+    this.getTestData<string>('lostOrderNumber')!
+  );
+});
+
+When('I press Back to cart on the review', async function (this: CustomWorld) {
+  await this.page.getByTestId('backToCart').click();
 });
 
 When('I go back to my cart from the review', async function (this: CustomWorld) {

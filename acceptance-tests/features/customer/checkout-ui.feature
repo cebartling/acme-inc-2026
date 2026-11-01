@@ -47,6 +47,37 @@ Feature: Review the cart and place an order
     And I place the order
     Then I should be told my checkout session expired
 
+  # PIN-440: the order service has the order, the browser never heard, and the cart is converted
+  Scenario: Reloading after a lost order response shows the placed order
+    Given I navigate to "/signin"
+    And I sign in with valid credentials
+    And I am on the product page for "gadget-pro"
+    And I click Add to Cart
+    And I navigate to "/cart"
+    And I press Checkout
+    And I should see "Gadget Pro" on the order review
+    And the response to my next order request is lost
+    When I place the order
+    And I am told the order may not have gone through
+    And I refresh the page
+    Then I should see the order confirmation with an order number
+    And it should be the order whose response was lost
+
+  Scenario: Going back after a lost order response shows the placed order
+    Given I navigate to "/signin"
+    And I sign in with valid credentials
+    And I am on the product page for "gadget-pro"
+    And I click Add to Cart
+    And I navigate to "/cart"
+    And I press Checkout
+    And I should see "Gadget Pro" on the order review
+    And the response to my next order request is lost
+    When I place the order
+    And I am told the order may not have gone through
+    And I press Back to cart on the review
+    Then I should see the order confirmation with an order number
+    And it should be the order whose response was lost
+
   # PIN-439: going back releases the checkout lock, so the cart isn't CART_LOCKED
   Scenario: Going back from the review leaves the cart editable
     Given I navigate to "/signin"

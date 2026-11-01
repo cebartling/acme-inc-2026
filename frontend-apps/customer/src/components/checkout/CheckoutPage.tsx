@@ -1,5 +1,10 @@
-import { useEffect, useRef, type ReactNode } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { CartSummary } from "@/components/cart/CartSummary";
@@ -8,9 +13,10 @@ import {
   isCartGone,
   useCart,
   useLeaveCheckout,
+  writeCart,
 } from "@/hooks/useCart";
 import { ApiError, cartApi, orderApi } from "@/services/api";
-import type { Cart } from "@/services/api";
+import type { Cart, PlacedOrder } from "@/services/api";
 import { useIsAuthLoading, useIsAuthenticated } from "@/stores/auth.store";
 
 /**
@@ -18,6 +24,11 @@ import { useIsAuthLoading, useIsAuthenticated } from "@/stores/auth.store";
  * or tax. Opening the page starts checkout again, which resumes the live session (PIN-330), so a
  * reload shows the same session. Its lines come from the current cart: a cart in checkout is
  * locked, so they are the session's lines.
+ *
+ * Finding no cart after Place order was pressed may mean the order went through and its answer
+ * was lost, so the page asks the order service for the order by its key (PIN-440). It only looks:
+ * the empty cart can be a sign-in that hasn't refreshed yet, so placing here could order a live
+ * cart the customer was told had failed.
  */
 export function CheckoutPage() {
   const navigate = useNavigate();
@@ -54,30 +65,65 @@ export function CheckoutPage() {
   const sessionId = session.data?.checkoutSessionId;
   const idempotencyKey = useIdempotencyKey(sessionId);
 
+  // The attempt to recover: one from before the reload, or this page's own if it went unanswered.
+  // Never one that was answered, or this page's own order would be looked up when it empties the cart.
+  const [placing, setPlacing] = useState(placingOrder);
+
+  // The session is a variable because a cart refetch can clear `sessionId` while this is in flight
   const place = useMutation({
-    mutationFn: () => orderApi.place(sessionId!, idempotencyKey!),
-    onSuccess: (order) => {
-      forgetIdempotencyKey(sessionId!);
-      // Replace, so Back doesn't return to a review of a cart that is now an order
-      navigate({
-        to: "/orders/$orderId/confirmation",
-        params: { orderId: order.orderId },
-        replace: true,
-      });
+    mutationFn: (placedSessionId: string) => {
+      rememberPlacing(placedSessionId);
+      return orderApi.place(placedSessionId, idempotencyKey!);
+    },
+    onSuccess: (order, placedSessionId) => {
+      forgetIdempotencyKey(placedSessionId);
+      setPlacing(null);
+      navigate(confirmationOf(order));
       // The cart is converted, so there is no current cart: the badge and /cart go empty
       queryClient.invalidateQueries({ queryKey: CART_QUERY_KEY });
     },
-    onError: (error) => {
-      // Either can mean another tab's order converted the cart, so the badge reloads
-      const code = codeOf(error);
-      if (
-        code === "CART_ALREADY_CONVERTED" ||
-        code === "CHECKOUT_SESSION_NOT_FOUND"
-      ) {
+    onError: (error, placedSessionId) => {
+      // Any of these can mean another tab's order converted the cart, so the badge reloads
+      if (isFinalRefusal(error)) {
+        forgetIdempotencyKey(placedSessionId);
+        setPlacing(null);
         queryClient.invalidateQueries({ queryKey: CART_QUERY_KEY });
+      } else {
+        setPlacing(placingOrder());
       }
     },
   });
+
+  const recovery = useQuery({
+    queryKey: ["orderRecovery", placing?.sessionId],
+    queryFn: () => recoverOrder(placing!, queryClient),
+    enabled:
+      isAuthenticated &&
+      !isCartPending &&
+      !isCartError &&
+      !hasLines &&
+      !place.isPending &&
+      !!placing,
+    // Like the session query: it can POST, and the answer decides this page once
+    staleTime: Infinity,
+    gcTime: 0,
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
+
+  const recovered = recovery.data;
+  const recoveryError = recovery.error;
+  useEffect(() => {
+    if (!placing) return;
+    if (recovered) {
+      forgetIdempotencyKey(placing.sessionId);
+      navigate(confirmationOf(recovered));
+    } else if (isFinalRefusal(recoveryError)) {
+      forgetIdempotencyKey(placing.sessionId);
+      // The cart may only have looked empty before the lookup refreshed the sign-in
+      queryClient.invalidateQueries({ queryKey: CART_QUERY_KEY });
+    }
+  }, [recovered, recoveryError, placing, navigate, queryClient]);
 
   const leave = useLeaveCheckout();
   const isBusy = place.isPending || leave.isPending;
@@ -94,13 +140,21 @@ export function CheckoutPage() {
           toCart();
         },
         onError: (error) => {
-          if (isCartGone(error)) toCart();
+          // With an unanswered attempt the cart may have become an order: the cart reload that
+          // `useLeaveCheckout` starts empties this page, which finds it
+          if (isCartGone(error) && !placing) toCart();
         },
       },
     );
   }
 
-  if (!isAuthenticated || isCartPending || (hasLines && session.isPending)) {
+  if (
+    !isAuthenticated ||
+    isCartPending ||
+    (hasLines && session.isPending) ||
+    recovery.isLoading ||
+    recovered
+  ) {
     return (
       <div className="animate-pulse space-y-4" aria-busy="true">
         <div className="h-8 w-1/3 rounded bg-slate-700" />
@@ -133,7 +187,15 @@ export function CheckoutPage() {
     );
   }
   if (!hasLines) {
-    return <Notice testId="checkoutEmpty">Your cart is empty.</Notice>;
+    return recoveryError && !meansNoOrder(recoveryError) ? (
+      <Notice testId="orderUnconfirmed" linkToOrders>
+        We couldn’t confirm your order. Check your orders before trying again.
+      </Notice>
+    ) : (
+      <Notice testId="checkoutEmpty" linkToOrders>
+        Your cart is empty.
+      </Notice>
+    );
   }
   if (!session.isSuccess) {
     return (
@@ -155,7 +217,7 @@ export function CheckoutPage() {
             data-testid="placeOrder"
             onClick={() => {
               leave.reset();
-              place.mutate();
+              place.mutate(sessionId!);
             }}
             disabled={isBusy}
             className="mt-4 flex w-full items-center justify-center gap-2 rounded-md bg-indigo-600 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-40"
@@ -227,18 +289,30 @@ function ReviewLines({ items }: { items: Cart["items"] }) {
   );
 }
 
-function Notice({ testId, children }: { testId: string; children: ReactNode }) {
+function Notice({
+  testId,
+  linkToOrders = false,
+  children,
+}: {
+  testId: string;
+  linkToOrders?: boolean;
+  children: ReactNode;
+}) {
   return (
     <div className="rounded-xl bg-slate-800 p-6 text-center shadow-lg">
       <p role="alert" data-testid={testId} className="text-slate-200">
         {children}
       </p>
-      <Link
-        to="/cart"
-        className="mt-4 inline-block text-sm text-indigo-400 hover:text-indigo-300"
-      >
-        Back to cart
-      </Link>
+      <div className="mt-4 flex justify-center gap-6 text-sm">
+        <Link to="/cart" className="text-indigo-400 hover:text-indigo-300">
+          Back to cart
+        </Link>
+        {linkToOrders && (
+          <Link to="/orders" className="text-indigo-400 hover:text-indigo-300">
+            View your orders
+          </Link>
+        )}
+      </div>
     </div>
   );
 }
@@ -249,7 +323,55 @@ function codeOf(error: unknown): string | undefined {
     : undefined;
 }
 
+/** The order service's final 404s, including from an order the cart refused for good. */
+function meansNoOrder(error: unknown): boolean {
+  const code = codeOf(error);
+  return (
+    code === "ORDER_NOT_FOUND" ||
+    code === "CHECKOUT_SESSION_NOT_FOUND" ||
+    isCartGone(error)
+  );
+}
+
+/** Retrying the session can't help: it is gone, or its cart is another order's. */
+function isFinalRefusal(error: unknown): boolean {
+  return meansNoOrder(error) || codeOf(error) === "CART_ALREADY_CONVERTED";
+}
+
+/**
+ * The order behind an unanswered Place order, or `null` when the customer should decide again on
+ * the review. A PENDING order only resumes once its cart is known to be gone. The lookup has
+ * refreshed any lapsed sign-in by then, so this cart read can be trusted, and lines mean the cart
+ * was never converted.
+ */
+async function recoverOrder(
+  attempt: { sessionId: string; key: string },
+  queryClient: QueryClient,
+): Promise<PlacedOrder | null> {
+  const order = await orderApi.findByKey(attempt.key);
+  if (order.status !== "PENDING") return order;
+
+  const cart = await cartApi.getCurrent();
+  if (cart?.items.length) {
+    await writeCart(queryClient, cart);
+    return null;
+  }
+  return orderApi.place(attempt.sessionId, attempt.key);
+}
+
+/** Replaces the page, so Back doesn't return to a review of a cart that is now an order. */
+function confirmationOf(order: PlacedOrder) {
+  return {
+    to: "/orders/$orderId/confirmation",
+    params: { orderId: order.orderId },
+    replace: true,
+  } as const;
+}
+
 const storageKeyFor = (sessionId: string) => `acme.checkout.${sessionId}.key`;
+
+/** The session this tab last pressed Place order for. The review alone writes only its key. */
+const PLACING_STORAGE_KEY = "acme.checkout.placing";
 
 /**
  * One `Idempotency-Key` per checkout session (AC-5.8), kept for every retry of it, including
@@ -289,7 +411,34 @@ function storedKey(sessionId: string): string {
 function forgetIdempotencyKey(sessionId: string): void {
   try {
     sessionStorage.removeItem(storageKeyFor(sessionId));
+    // A newer session's review mustn't drop an older attempt that is still unanswered
+    if (sessionStorage.getItem(PLACING_STORAGE_KEY) === sessionId) {
+      sessionStorage.removeItem(PLACING_STORAGE_KEY);
+    }
   } catch (error) {
     console.warn("checkout: couldn't clear the order key", error);
+  }
+}
+
+function rememberPlacing(sessionId: string): void {
+  try {
+    sessionStorage.setItem(PLACING_STORAGE_KEY, sessionId);
+  } catch (error) {
+    // The order still goes through; only the recovery after a lost answer is out of reach
+    console.warn("checkout: couldn't record the order attempt", error);
+  }
+}
+
+/** The attempt to recover after a reload; with storage blocked, there is none to find. */
+function placingOrder(): { sessionId: string; key: string } | null {
+  // The server render has no tab; hydration reads this again in the browser
+  if (typeof window === "undefined") return null;
+  try {
+    const sessionId = sessionStorage.getItem(PLACING_STORAGE_KEY);
+    const key = sessionId && sessionStorage.getItem(storageKeyFor(sessionId));
+    return sessionId && key ? { sessionId, key } : null;
+  } catch (error) {
+    console.warn("checkout: couldn't read the order attempt", error);
+    return null;
   }
 }

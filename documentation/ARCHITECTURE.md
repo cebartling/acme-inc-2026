@@ -624,7 +624,7 @@ read their orders back (PIN-367).
     before going to `/cart`, so the cart can be edited again. `/cart` replaces the review in
     history, since Back to `/checkout` would lock the cart again. If leaving fails, the customer
     stays on the review with a message; `404 CART_NOT_FOUND` (the cart was converted or is gone)
-    still goes to `/cart`. Only this button releases the lock: the browser's Back button or a
+    still goes to `/cart`, unless a Place order went unanswered (see Lost answer). Only this button releases the lock: the browser's Back button or a
     closed tab leaves the cart locked until the session lapses.
   - **Placing:** Place order sends `POST /api/v1/orders` with one `Idempotency-Key` per
     session, a `crypto.randomUUID()` kept in sessionStorage (`acme.checkout.<sessionId>.key`).
@@ -633,6 +633,26 @@ read their orders back (PIN-367).
     key; once this tab's order has converted the cart, the converted cart has no live session,
     so that tab gets `404 CHECKOUT_SESSION_NOT_FOUND`, or `409 CART_ALREADY_CONVERTED` only if
     the two raced.
+  - **Lost answer (PIN-440):** pressing Place order also records the session ID in
+    `acme.checkout.placing`, because the key alone is written when the review opens. If
+    `/checkout` then loads with no cart lines and that entry exists, or a refetch (window focus,
+    reconnect) empties the cart under a review whose Place order went unanswered, the order may
+    have gone through, so the page asks `GET /api/v1/orders/by-idempotency-key` for it. It looks
+    rather than replaying `POST`, because an empty-looking cart isn't proof: with no access
+    cookie and a valid refresh cookie, `GET /carts/current` answers 204 for a live cart, and a
+    `POST` would place an order the customer was told had failed. A SUBMITTED order goes to its
+    confirmation. A PENDING one resumes with `POST`, same session and key, only if a second cart
+    read (the lookup has refreshed the sign-in by then) finds no lines; if there are lines, the
+    cart was never converted, so the review comes back and the customer decides. `404
+    ORDER_NOT_FOUND` means no order was placed, so the page drops the entry and reloads the cart,
+    which shows the review if the cart only looked empty, or the empty cart notice. The resuming
+    `POST`'s `404 CHECKOUT_SESSION_NOT_FOUND` or `CART_NOT_FOUND` is treated the same.
+    `409 CART_ALREADY_CONVERTED` also drops the entry, since retrying can't help, but says the
+    order couldn't be confirmed, because another order has the cart. Any other failure says the
+    same, links to `/orders`, and keeps the entry so another reload can try again. Back to cart
+    joins this path: if leaving answers `404 CART_NOT_FOUND` with an attempt unanswered, the page
+    stays and finds the order instead of going to `/cart`. Being sessionStorage, this covers a
+    reload but not a closed tab, so the empty cart notice links to `/orders` too.
   - **Refusals:** `404 CHECKOUT_SESSION_NOT_FOUND` (lapsed, or converted by another tab) and
     `409 CART_ALREADY_CONVERTED` replace the page with a message and a link back to the cart,
     and reload the cart query; `503 CART_UNAVAILABLE` offers
@@ -661,6 +681,11 @@ read their orders back (PIN-367).
   - `GET /api/v1/orders/{orderId}` (`GetOrderUseCase`) answers the order's number, status,
     created time, lines and `pricing.subtotal`. Each line's product name, variant name, SKU,
     image and product ID come from the cart's snapshot stored with it.
+  - `GET /api/v1/orders/by-idempotency-key` (`FindOrderByKeyUseCase`, PIN-440) answers the
+    caller's order saved with the `Idempotency-Key` header, in `POST`'s response shape, and
+    places nothing. Unlike the read above it shows PENDING orders, so a client that lost an
+    answer can resume one. No such order, or a CANCELLED one, is `404 ORDER_NOT_FOUND`; a
+    missing or over-long key is `400 IDEMPOTENCY_KEY_REQUIRED`.
   - `GET /api/v1/orders?page=&pageSize=` (`ListOrdersUseCase`) answers the caller's orders,
     newest first, with each one's unit count. It uses one JPQL projection
     (`OrderRepository.findSummaries`), so no lines are loaded. Paging is 1-based like the

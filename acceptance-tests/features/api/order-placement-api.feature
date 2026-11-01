@@ -31,6 +31,26 @@ Feature: Place Order API
     When I place an order without signing in
     Then the API should respond with status 401
 
+  # PIN-440: asking about an order that was lost in transit places nothing
+  Scenario: A placed order can be found by its idempotency key
+    Given I place an order for my checkout session
+    When I look up the order by its idempotency key
+    Then the API should respond with status 200
+    And it should be the same order
+
+  Scenario: An idempotency key with no order finds nothing, and the cart stays in checkout
+    When I look up an order by a key that was never used
+    Then the API should respond with status 404
+    And I place an order for my checkout session
+    And the API should respond with status 201
+
+  Scenario: Another customer can't find my order by its idempotency key
+    Given I place an order for my checkout session
+    And an active customer with email "order-other-customer@example.com" exists
+    And I am signed in through the API as that customer
+    When I look up the order by its idempotency key
+    Then the API should respond with status 404
+
   # PIN-367 (journey 0005, step 6)
   Scenario: A placed order can be read back and appears in my order history
     Given I place an order for my checkout session

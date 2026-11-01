@@ -1466,6 +1466,23 @@ export const orderApi = {
     });
   },
 
+  /**
+   * The PENDING or SUBMITTED order saved with this key, without placing anything. Rejects with a
+   * 404 `ORDER_NOT_FOUND` `ApiError` when there is none.
+   */
+  async findByKey(idempotencyKey: string): Promise<PlacedOrder> {
+    return apiRequest<PlacedOrder>(
+      `${ORDER_SERVICE_URL}/api/v1/orders/by-idempotency-key`,
+      {
+        method: "GET",
+        credentials: "include",
+        headers: { "Idempotency-Key": idempotencyKey },
+        // CheckoutPage replays Place order through this, so it refreshes the same way
+        refreshOnSignInRequired: true,
+      },
+    );
+  },
+
   async get(orderId: string): Promise<OrderDetails> {
     return apiRequest<OrderDetails>(
       `${ORDER_SERVICE_URL}/api/v1/orders/${encodeURIComponent(orderId)}`,

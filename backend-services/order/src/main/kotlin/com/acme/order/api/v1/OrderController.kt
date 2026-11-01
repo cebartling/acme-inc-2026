@@ -1,5 +1,6 @@
 package com.acme.order.api.v1
 
+import com.acme.order.application.FindOrderByKeyUseCase
 import com.acme.order.application.GetOrderResult
 import com.acme.order.application.GetOrderUseCase
 import com.acme.order.application.ListOrdersUseCase
@@ -71,7 +72,8 @@ data class PlaceOrderResponse(
 class OrderController(
     private val placeOrder: PlaceOrderUseCase,
     private val getOrder: GetOrderUseCase,
-    private val listOrders: ListOrdersUseCase
+    private val listOrders: ListOrdersUseCase,
+    private val findOrderByKey: FindOrderByKeyUseCase
 ) {
 
     private val logger = LoggerFactory.getLogger(OrderController::class.java)
@@ -87,14 +89,7 @@ class OrderController(
         @RequestHeader(IDEMPOTENCY_KEY_HEADER, required = false) idempotencyKey: String?,
         @Valid @RequestBody request: PlaceOrderRequest
     ): ResponseEntity<Any> {
-        val key = idempotencyKey?.trim()
-        if (key.isNullOrEmpty() || key.length > MAX_IDEMPOTENCY_KEY_LENGTH) {
-            return error(
-                HttpStatus.BAD_REQUEST,
-                "An $IDEMPOTENCY_KEY_HEADER header of 1 to $MAX_IDEMPOTENCY_KEY_LENGTH characters is required",
-                IDEMPOTENCY_KEY_REQUIRED
-            )
-        }
+        val key = validKey(idempotencyKey) ?: return idempotencyKeyRequired()
 
         val command = PlaceOrderCommand(
             userId = UUID.fromString(jwt.subject),
@@ -111,6 +106,23 @@ class OrderController(
                 CART_UNAVAILABLE
             )
         }
+    }
+
+    /**
+     * The caller's order saved with this `Idempotency-Key`, PENDING or SUBMITTED (PIN-440), so a
+     * client that lost an answer can ask without placing anything. The key is a header, as on
+     * `POST`, which keeps it out of URLs and access logs. No such order, or a CANCELLED one, is
+     * `404 ORDER_NOT_FOUND`.
+     */
+    @GetMapping("/by-idempotency-key")
+    fun findByKey(
+        @AuthenticationPrincipal jwt: Jwt,
+        @RequestHeader(IDEMPOTENCY_KEY_HEADER, required = false) idempotencyKey: String?
+    ): ResponseEntity<Any> {
+        val key = validKey(idempotencyKey) ?: return idempotencyKeyRequired()
+        return findOrderByKey.execute(UUID.fromString(jwt.subject), key)
+            ?.let { ResponseEntity.ok<Any>(PlaceOrderResponse.from(it)) }
+            ?: error(HttpStatus.NOT_FOUND, "Order not found", ORDER_NOT_FOUND)
     }
 
     /**
@@ -164,6 +176,15 @@ class OrderController(
         val message = if (field == null) "Invalid request" else "Invalid request: $field"
         return error(HttpStatus.BAD_REQUEST, message, INVALID_REQUEST)
     }
+
+    private fun validKey(idempotencyKey: String?): String? =
+        idempotencyKey?.trim()?.takeIf { it.isNotEmpty() && it.length <= MAX_IDEMPOTENCY_KEY_LENGTH }
+
+    private fun idempotencyKeyRequired(): ResponseEntity<Any> = error(
+        HttpStatus.BAD_REQUEST,
+        "An $IDEMPOTENCY_KEY_HEADER header of 1 to $MAX_IDEMPOTENCY_KEY_LENGTH characters is required",
+        IDEMPOTENCY_KEY_REQUIRED
+    )
 
     private fun error(status: HttpStatus, message: String, code: String): ResponseEntity<Any> =
         ResponseEntity.status(status).body(mapOf("error" to message, "code" to code))
