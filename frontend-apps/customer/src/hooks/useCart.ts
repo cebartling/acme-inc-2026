@@ -145,6 +145,22 @@ export function useClearCart() {
 }
 
 /**
+ * Leaves checkout, so the cart can be edited again (PIN-439). The cart is reloaded, not cached
+ * from the response: the service returns a cart not in checkout unchanged, and that could be one
+ * another tab has just converted into an order.
+ */
+export function useLeaveCheckout() {
+  const queryClient = useQueryClient();
+
+  return useMutation<Cart, Error, { cartId: string }>({
+    mutationFn: ({ cartId }) => cartApi.leaveCheckout(cartId),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: CART_QUERY_KEY }),
+    onError: (error) => reloadIfStale(queryClient, error),
+  });
+}
+
+/**
  * One sentence per capped line ("Quantity for {name} was adjusted to the maximum of {N}"), then
  * one per product left out ("{name} is no longer available and wasn't added to your cart",
  * PIN-306). An archived product loses every variant at once, so its name is said only once.

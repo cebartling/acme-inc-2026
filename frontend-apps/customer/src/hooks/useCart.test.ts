@@ -6,6 +6,7 @@ import {
   CART_QUERY_KEY,
   mergeCartAfterSignIn,
   useClearCart,
+  useLeaveCheckout,
   useRemoveCartItem,
   useUpdateCartItem,
 } from "./useCart";
@@ -20,6 +21,7 @@ vi.mock("@/services/api", async (importOriginal) => ({
     updateItem: vi.fn(),
     removeItem: vi.fn(),
     clearCart: vi.fn(),
+    leaveCheckout: vi.fn(),
     merge: vi.fn(),
   },
 }));
@@ -27,6 +29,7 @@ vi.mock("@/services/api", async (importOriginal) => ({
 const mockedUpdate = vi.mocked(cartApi.updateItem);
 const mockedRemove = vi.mocked(cartApi.removeItem);
 const mockedClear = vi.mocked(cartApi.clearCart);
+const mockedLeave = vi.mocked(cartApi.leaveCheckout);
 
 let queryClient: QueryClient;
 
@@ -171,6 +174,40 @@ describe("useClearCart", () => {
       new ApiError("Cart not found", 404, { code: "CART_NOT_FOUND" }),
     );
     const { result } = renderHook(() => useClearCart(), {
+      wrapper: makeWrapper(),
+    });
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+
+    act(() => result.current.mutate({ cartId: "cart-1" }));
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: CART_QUERY_KEY });
+  });
+});
+
+describe("useLeaveCheckout (PIN-439)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("leaves checkout and reloads the cart instead of caching the response", async () => {
+    mockedLeave.mockResolvedValue(cartWithQuantity(2));
+    const { result } = renderHook(() => useLeaveCheckout(), {
+      wrapper: makeWrapper(),
+    });
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+
+    act(() => result.current.mutate({ cartId: "cart-1" }));
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(mockedLeave).toHaveBeenCalledWith("cart-1");
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: CART_QUERY_KEY });
+    expect(queryClient.getQueryData(CART_QUERY_KEY)).toBeUndefined();
+  });
+
+  it("reloads the cart when the service no longer has it", async () => {
+    mockedLeave.mockRejectedValue(
+      new ApiError("Cart not found", 404, { code: "CART_NOT_FOUND" }),
+    );
+    const { result } = renderHook(() => useLeaveCheckout(), {
       wrapper: makeWrapper(),
     });
     const invalidate = vi.spyOn(queryClient, "invalidateQueries");

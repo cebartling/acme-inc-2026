@@ -46,3 +46,16 @@ Feature: Review the cart and place an order
     When my checkout session lapses
     And I place the order
     Then I should be told my checkout session expired
+
+  # PIN-439: going back releases the checkout lock, so the cart isn't CART_LOCKED
+  Scenario: Going back from the review leaves the cart editable
+    Given I navigate to "/signin"
+    And I sign in with valid credentials
+    And I am on the product page for "gadget-pro"
+    And I click Add to Cart
+    And I navigate to "/cart"
+    And I press Checkout
+    And I should see "Gadget Pro" on the order review
+    When I go back to my cart from the review
+    And I increase the line quantity
+    Then the line quantity should be 2
