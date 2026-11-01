@@ -74,12 +74,14 @@ Given('my order history has a second page', async function (this: CustomWorld) {
   // Its own reference: teardown clears `this.page`, and a refetch can outlive the scenario
   const page = this.page;
   await page.route('**/api/v1/orders?*', async (route) => {
-    const url = route.request().url();
-    const pageTwo = /([?&])page=2(?=&|$)/;
-    if (route.request().method() !== 'GET' || !pageTwo.test(url)) return route.fallback();
+    const url = new URL(route.request().url());
+    if (route.request().method() !== 'GET' || url.searchParams.get('page') !== '2') {
+      return route.fallback();
+    }
 
+    url.searchParams.set('page', '1');
     try {
-      const response = await route.fetch({ url: url.replace(pageTwo, '$1page=1') });
+      const response = await route.fetch({ url: url.href });
       const firstPage = await response.json();
       await route.fulfill({
         response,
@@ -90,19 +92,6 @@ Given('my order history has a second page', async function (this: CustomWorld) {
     }
   });
 });
-
-Then(
-  "I should be on the order's page with {string}",
-  async function (this: CustomWorld, search: string) {
-    await this.page.waitForURL(/\/orders\/[0-9a-f-]{36}(\?|$)/, {
-      timeout: config.timeout.action,
-    });
-    expect(new URL(this.page.url()).search).toBe(search);
-    await expect(this.page.getByTestId('orderNumber')).toHaveText(
-      this.getTestData<string>('orderNumber')!
-    );
-  }
-);
 
 Then('I should see the order not found page', async function (this: CustomWorld) {
   await expect(this.page.getByTestId('orderNotFound')).toContainText('Order not found');

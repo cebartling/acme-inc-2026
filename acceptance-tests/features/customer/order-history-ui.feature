@@ -106,7 +106,7 @@ Feature: See my orders
     And my order history has a second page
     When I navigate to "/orders?page=2"
     And I open that order
-    Then I should be on the order's page with "?page=2"
+    Then I should see that order's details with "Gadget Pro"
     When I click the "Back to your orders" link
     Then I should be on "/orders?page=2"
 

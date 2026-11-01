@@ -10,7 +10,3 @@ import { CustomWorld } from '../../support/world.js';
 When('I change a preference', async function (this: CustomWorld) {
   await this.page.locator('#email-notifications').click();
 });
-
-When('I save my preferences', async function (this: CustomWorld) {
-  await this.page.getByRole('button', { name: 'Save Preferences' }).click();
-});

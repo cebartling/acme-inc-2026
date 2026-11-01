@@ -22,7 +22,7 @@ Feature: Preferences when my session ends
     Given I navigate to "/preferences"
     And I change a preference
     And my access cookie is gone
-    When I save my preferences
+    When I click the "Save Preferences" button
     Then the header should show me signed out
     When I sign in from the page I was sent to
     Then I should be on "/preferences"
