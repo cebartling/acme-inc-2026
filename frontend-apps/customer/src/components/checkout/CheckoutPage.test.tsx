@@ -25,12 +25,17 @@ vi.mock("@tanstack/react-router", () => ({
 
 vi.mock("@/services/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/services/api")>()),
-  cartApi: { getCurrent: vi.fn(), startCheckout: vi.fn() },
+  cartApi: {
+    getCurrent: vi.fn(),
+    startCheckout: vi.fn(),
+    leaveCheckout: vi.fn(),
+  },
   orderApi: { place: vi.fn() },
 }));
 
 const mockedGetCurrent = vi.mocked(cartApi.getCurrent);
 const mockedStart = vi.mocked(cartApi.startCheckout);
+const mockedLeave = vi.mocked(cartApi.leaveCheckout);
 const mockedPlace = vi.mocked(orderApi.place);
 
 const cart: Cart = {
@@ -137,6 +142,96 @@ describe("CheckoutPage (PIN-426)", () => {
     );
     expect(mockedPlace).toHaveBeenCalledWith("session-1", expect.any(String));
     expect(invalidate).toHaveBeenCalledWith({ queryKey: CART_QUERY_KEY });
+  });
+
+  it("leaves checkout before going back to the cart (PIN-439)", async () => {
+    let release: (value: Cart) => void = () => {};
+    mockedLeave.mockReturnValueOnce(
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+    );
+    renderPage();
+
+    await userEvent.click(await screen.findByTestId("backToCart"));
+
+    await waitFor(() => expect(mockedLeave).toHaveBeenCalledWith("cart-1"));
+    expect(navigate).not.toHaveBeenCalled();
+
+    expect(
+      sessionStorage.getItem("acme.checkout.session-1.key"),
+    ).not.toBeNull();
+
+    release(cart);
+
+    await waitFor(() =>
+      expect(navigate).toHaveBeenCalledWith({ to: "/cart", replace: true }),
+    );
+    expect(sessionStorage.getItem("acme.checkout.session-1.key")).toBeNull();
+  });
+
+  it("clears the leave failure when placing the order (PIN-439)", async () => {
+    mockedLeave.mockRejectedValueOnce(
+      new ApiError("Something went wrong", 500, { code: "INTERNAL_ERROR" }),
+    );
+    mockedPlace.mockReturnValueOnce(new Promise(() => {}));
+    renderPage();
+
+    await userEvent.click(await screen.findByTestId("backToCart"));
+    await screen.findByTestId("backToCartMessage");
+    await userEvent.click(screen.getByTestId("placeOrder"));
+
+    await waitFor(() =>
+      expect(screen.queryByTestId("backToCartMessage")).not.toBeInTheDocument(),
+    );
+  });
+
+  it("stays on the review with a message when leaving fails (PIN-439)", async () => {
+    mockedLeave.mockRejectedValueOnce(
+      new ApiError("Something went wrong", 500, { code: "INTERNAL_ERROR" }),
+    );
+    renderPage();
+
+    await userEvent.click(await screen.findByTestId("backToCart"));
+
+    expect(await screen.findByTestId("backToCartMessage")).toHaveTextContent(
+      "Something went wrong",
+    );
+    expect(navigate).not.toHaveBeenCalled();
+    expect(screen.getByTestId("placeOrder")).toBeEnabled();
+  });
+
+  it("goes to the cart when there is no cart left to release (PIN-439)", async () => {
+    mockedLeave.mockRejectedValueOnce(
+      new ApiError("Cart not found", 404, { code: "CART_NOT_FOUND" }),
+    );
+    renderPage();
+
+    await userEvent.click(await screen.findByTestId("backToCart"));
+
+    await waitFor(() =>
+      expect(navigate).toHaveBeenCalledWith({ to: "/cart", replace: true }),
+    );
+    expect(screen.queryByTestId("backToCartMessage")).not.toBeInTheDocument();
+  });
+
+  it("can't go back while the order is being placed (PIN-439)", async () => {
+    mockedPlace.mockReturnValue(new Promise(() => {}));
+    renderPage();
+
+    await userEvent.click(await screen.findByTestId("placeOrder"));
+
+    expect(screen.getByTestId("backToCart")).toBeDisabled();
+  });
+
+  it("can't place the order while leaving checkout (PIN-439)", async () => {
+    mockedLeave.mockReturnValue(new Promise(() => {}));
+    renderPage();
+
+    await userEvent.click(await screen.findByTestId("backToCart"));
+
+    expect(screen.getByTestId("placeOrder")).toBeDisabled();
+    expect(screen.getByTestId("backToCart")).toBeDisabled();
   });
 
   it("places one order on a double-click", async () => {

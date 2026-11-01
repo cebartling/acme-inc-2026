@@ -3,7 +3,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { CartSummary } from "@/components/cart/CartSummary";
-import { CART_QUERY_KEY, useCart } from "@/hooks/useCart";
+import {
+  CART_QUERY_KEY,
+  isCartGone,
+  useCart,
+  useLeaveCheckout,
+} from "@/hooks/useCart";
 import { ApiError, cartApi, orderApi } from "@/services/api";
 import type { Cart } from "@/services/api";
 import { useIsAuthLoading, useIsAuthenticated } from "@/stores/auth.store";
@@ -74,6 +79,27 @@ export function CheckoutPage() {
     },
   });
 
+  const leave = useLeaveCheckout();
+  const isBusy = place.isPending || leave.isPending;
+
+  // Unlock first, or /cart refuses every change with CART_LOCKED until the session lapses
+  function backToCart() {
+    // Replace, so Back doesn't reopen the review, which would lock the cart again
+    const toCart = () => navigate({ to: "/cart", replace: true });
+    leave.mutate(
+      { cartId: cart!.id },
+      {
+        onSuccess: () => {
+          forgetIdempotencyKey(sessionId!);
+          toCart();
+        },
+        onError: (error) => {
+          if (isCartGone(error)) toCart();
+        },
+      },
+    );
+  }
+
   if (!isAuthenticated || isCartPending || (hasLines && session.isPending)) {
     return (
       <div className="animate-pulse space-y-4" aria-busy="true">
@@ -127,8 +153,11 @@ export function CheckoutPage() {
           <button
             type="button"
             data-testid="placeOrder"
-            onClick={() => place.mutate()}
-            disabled={place.isPending}
+            onClick={() => {
+              leave.reset();
+              place.mutate();
+            }}
+            disabled={isBusy}
             className="mt-4 flex w-full items-center justify-center gap-2 rounded-md bg-indigo-600 px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {place.isPending && (
@@ -149,12 +178,24 @@ export function CheckoutPage() {
                 : place.error.message}
             </p>
           )}
-          <Link
-            to="/cart"
-            className="mt-4 block text-center text-sm text-slate-400 hover:text-white"
+          <button
+            type="button"
+            data-testid="backToCart"
+            onClick={backToCart}
+            disabled={isBusy}
+            className="mt-4 block w-full text-center text-sm text-slate-400 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
           >
             Back to cart
-          </Link>
+          </button>
+          {leave.error && !isCartGone(leave.error) && (
+            <p
+              role="alert"
+              data-testid="backToCartMessage"
+              className="mt-2 text-center text-sm text-red-400"
+            >
+              {leave.error.message}
+            </p>
+          )}
         </div>
       </div>
     </>

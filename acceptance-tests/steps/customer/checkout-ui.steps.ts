@@ -88,6 +88,11 @@ Then('only one order request should have been sent', async function (this: Custo
   expect(sent).toHaveLength(1);
 });
 
+When('I go back to my cart from the review', async function (this: CustomWorld) {
+  await this.page.getByTestId('backToCart').click();
+  await this.page.waitForURL(/\/cart$/, { timeout: config.timeout.action });
+});
+
 Then('I should be told my checkout session expired', async function (this: CustomWorld) {
   await expect(this.page.getByTestId('checkoutExpired')).toContainText(
     'Your checkout session expired'

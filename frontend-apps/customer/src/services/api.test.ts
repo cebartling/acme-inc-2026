@@ -1748,6 +1748,21 @@ describe("checkout and orders (PIN-426)", () => {
     );
   });
 
+  it("leaveCheckout DELETEs the cart's checkout with credentials", async () => {
+    const cart = {
+      id: "cart 1",
+      items: [],
+      summary: { itemCount: 0, subtotal: 0, currency: "USD" },
+    };
+    mockFetch.mockResolvedValueOnce(jsonResponse(200, cart));
+
+    await expect(cartApi.leaveCheckout("cart 1")).resolves.toEqual(cart);
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringMatching(/\/api\/v1\/carts\/cart%201\/checkout$/),
+      expect.objectContaining({ method: "DELETE", credentials: "include" }),
+    );
+  });
+
   it("orderApi.place sends the session and the Idempotency-Key to the order service", async () => {
     mockFetch.mockResolvedValueOnce(jsonResponse(201, placed));
 

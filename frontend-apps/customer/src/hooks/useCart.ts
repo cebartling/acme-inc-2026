@@ -145,6 +145,20 @@ export function useClearCart() {
 }
 
 /**
+ * Leaves checkout, so the cart can be edited again (PIN-439). A cart another tab has converted
+ * is not the caller's current cart any more, so it answers 404 `CART_NOT_FOUND`, not a cart.
+ */
+export function useLeaveCheckout() {
+  const queryClient = useQueryClient();
+
+  return useMutation<Cart, Error, { cartId: string }>({
+    mutationFn: ({ cartId }) => cartApi.leaveCheckout(cartId),
+    onSuccess: (cart) => writeCart(queryClient, cart),
+    onError: (error) => reloadIfStale(queryClient, error),
+  });
+}
+
+/**
  * One sentence per capped line ("Quantity for {name} was adjusted to the maximum of {N}"), then
  * one per product left out ("{name} is no longer available and wasn't added to your cart",
  * PIN-306). An archived product loses every variant at once, so its name is said only once.

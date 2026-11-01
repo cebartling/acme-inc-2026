@@ -1368,6 +1368,14 @@ export const cartApi = {
       { method: "POST", credentials: "include" },
     );
   },
+
+  /** Unlocks the cart (PIN-330). A cart that isn't in checkout comes back unchanged. */
+  async leaveCheckout(cartId: string): Promise<Cart> {
+    return apiRequest<Cart>(
+      `${CART_SERVICE_URL}/api/v1/carts/${encodeURIComponent(cartId)}/checkout`,
+      { method: "DELETE", credentials: "include" },
+    );
+  },
 };
 
 /** A started or resumed checkout session; `cart` is the summary only, without the lines. */
