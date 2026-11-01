@@ -51,11 +51,22 @@ interface OrderRepository : JpaRepository<Order, UUID> {
     )
     fun markSubmitted(@Param("id") id: UUID, @Param("now") now: Instant): Int
 
-    /** Moves a PENDING order to CANCELLED with the cart's refusal code. Returns 1 or 0. */
+    /**
+     * Moves a PENDING order to CANCELLED with the code saying why: the cart's refusal, or the
+     * abandoned order job's (PIN-427). Returns 1 or 0.
+     */
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query(
         "UPDATE CustomerOrder o SET o.status = $STATUS.CANCELLED, o.cancelCode = :code, o.updatedAt = :now " +
             "WHERE o.id = :id AND o.status = $STATUS.PENDING"
     )
     fun markCancelled(@Param("id") id: UUID, @Param("code") code: String, @Param("now") now: Instant): Int
+
+    /** PENDING orders created before [cutoff], oldest first (PIN-427). */
+    @Query(
+        "SELECT o FROM CustomerOrder o " +
+            "WHERE o.status = $STATUS.PENDING AND o.createdAt < :cutoff " +
+            "ORDER BY o.createdAt, o.id"
+    )
+    fun findAbandoned(@Param("cutoff") cutoff: Instant, pageable: Pageable): List<Order>
 }

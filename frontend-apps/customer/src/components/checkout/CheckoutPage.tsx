@@ -166,7 +166,10 @@ export function CheckoutPage() {
   }
 
   const placeErrorCode = codeOf(place.error);
-  if (placeErrorCode === "CHECKOUT_SESSION_NOT_FOUND") {
+  if (
+    placeErrorCode === "CHECKOUT_SESSION_NOT_FOUND" ||
+    placeErrorCode === "PLACEMENT_ABANDONED"
+  ) {
     return (
       <Notice testId="checkoutExpired">
         Your checkout session expired. Go back to your cart and start checkout
@@ -331,6 +334,7 @@ function meansNoOrder(error: unknown): boolean {
   return (
     code === "ORDER_NOT_FOUND" ||
     code === "CHECKOUT_SESSION_NOT_FOUND" ||
+    code === "PLACEMENT_ABANDONED" ||
     isCartGone(error)
   );
 }

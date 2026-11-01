@@ -263,4 +263,30 @@ class PlaceOrderUseCaseTest {
         assertEquals(OrderStatus.SUBMITTED, (result as PlaceOrderResult.Placed).order.status)
         verify(exactly = 0) { outboxWriter.write(any()) }
     }
+
+    @Test
+    fun `a retry after the abandoned order job is refused with its code`() {
+        storedOrder(OrderStatus.CANCELLED, cancelCode = CancelAbandonedOrdersUseCase.PLACEMENT_ABANDONED)
+
+        val result = useCase.execute(command) as PlaceOrderResult.Refused
+
+        assertEquals(HttpStatus.NOT_FOUND, result.status)
+        assertEquals("PLACEMENT_ABANDONED", result.code)
+        verify(exactly = 0) { cartClient.convert(any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `when the abandoned order job cancels the order during a retry, it stays cancelled`() {
+        val pending = storedOrder(OrderStatus.PENDING)
+        every { cartClient.convert(cartId, pending.id, sessionId, "the-token") } answers {
+            stored[pending.id] = copy(pending, OrderStatus.CANCELLED, CancelAbandonedOrdersUseCase.PLACEMENT_ABANDONED)
+            converted()
+        }
+
+        val result = useCase.execute(command) as PlaceOrderResult.Refused
+
+        assertEquals("PLACEMENT_ABANDONED", result.code)
+        assertEquals(OrderStatus.CANCELLED, stored.getValue(pending.id).status)
+        verify(exactly = 0) { outboxWriter.write(any()) }
+    }
 }

@@ -607,8 +607,13 @@ read their orders back (PIN-367).
     writes `OrderCreated`.
   - **Other errors**, all `{error, code}` (ADR-0050): `401 SIGN_IN_REQUIRED`, `TOKEN_EXPIRED`
     or `INVALID_TOKEN`; `400 IDEMPOTENCY_KEY_REQUIRED` or `INVALID_REQUEST`.
-  - **Not handled yet:** nothing sweeps an order whose retry never comes, so it stays
-    `PENDING`.
+  - **When the retry never comes** (PIN-427, ADR-0062): every 5 minutes
+    `AbandonedOrderScheduledTasks` runs `CancelAbandonedOrdersUseCase`, which moves up to 100
+    orders `PENDING` for over an hour (`acme.order.abandoned.max-age`) to `CANCELLED` with
+    `PLACEMENT_ABANDONED`, through the same conditional update. It can only cancel, because
+    converting needs the customer's token. A later retry with the key is refused with that
+    code as a 404. Each cancel logs a warning and counts in `orders_cancelled_total`,
+    because a crash after convert leaves a `PENDING` order whose cart is already gone.
   - **Browser calls:** CORS follows the cart's `CorsConfig` (PIN-425); see
     [CORS and Browser-Facing Backend URLs](#cors-and-browser-facing-backend-urls).
 - **Checkout in the customer app** (PIN-426, journey 0005 steps 1, 4, 5 and 6): signed-in
