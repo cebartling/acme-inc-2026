@@ -39,14 +39,14 @@ data class OrderLine(
 sealed interface GetOrderResult {
     data class Found(val order: OrderDetails) : GetOrderResult
 
-    /** Missing, someone else's, or not SUBMITTED: the caller can't tell which. */
+    /** Missing, someone else's, or not visible to them: the caller can't tell which. */
     data object NotFound : GetOrderResult
 }
 
 /**
- * Reads one of the caller's orders (PIN-367, journey 0005 step 6). Only SUBMITTED orders are
- * visible: PENDING and CANCELLED ones are placement attempts the customer was told didn't
- * succeed.
+ * Reads one of the caller's orders (PIN-367, journey 0005 step 6). SUBMITTED orders are visible,
+ * and so are those the customer cancelled (PIN-429). PENDING orders and failed placements are
+ * attempts the customer was told didn't succeed.
  */
 @Service
 class GetOrderUseCase(
@@ -56,7 +56,7 @@ class GetOrderUseCase(
 
     @Transactional(readOnly = true)
     fun execute(orderId: UUID, userId: UUID): GetOrderResult =
-        orders.findByIdAndUserIdAndStatus(orderId, userId, OrderStatus.SUBMITTED)
+        orders.findVisible(orderId, userId)
             ?.let { GetOrderResult.Found(details(it)) }
             ?: GetOrderResult.NotFound
 

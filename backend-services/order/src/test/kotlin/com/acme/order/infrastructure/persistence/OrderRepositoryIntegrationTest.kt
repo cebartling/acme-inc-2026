@@ -1,7 +1,9 @@
 package com.acme.order.infrastructure.persistence
 
+import com.acme.order.domain.CancelledBy
 import com.acme.order.domain.Order
 import com.acme.order.domain.OrderStatus
+import org.flywaydb.core.Flyway
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
@@ -21,6 +23,7 @@ import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
 import org.testcontainers.postgresql.PostgreSQLContainer
 import java.math.BigDecimal
+import java.sql.DriverManager
 import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
@@ -164,7 +167,7 @@ class OrderRepositoryIntegrationTest {
         )
 
     @Test
-    fun `findSummaries lists the user's orders in a status, newest first, with unit counts and paging`() {
+    fun `findSummaries lists the user's visible orders, newest first, with unit counts and paging`() {
         val userId = UUID.randomUUID()
         val base = Instant.parse("2026-10-22T12:00:00Z")
         val oldest = saveOrder(userId, base, 1)
@@ -174,8 +177,8 @@ class OrderRepositoryIntegrationTest {
         saveOrder(userId, base.plusSeconds(240), 1, status = OrderStatus.CANCELLED)
         saveOrder(UUID.randomUUID(), base.plusSeconds(300), 1)
 
-        val first = orders.findSummaries(userId, OrderStatus.SUBMITTED, PageRequest.of(0, 2))
-        val second = orders.findSummaries(userId, OrderStatus.SUBMITTED, PageRequest.of(1, 2))
+        val first = orders.findSummaries(userId, PageRequest.of(0, 2))
+        val second = orders.findSummaries(userId, PageRequest.of(1, 2))
 
         assertEquals(listOf(newest.id, middle.id), first.content.map { it.id })
         assertEquals(listOf(4L, 5L), first.content.map { it.itemCount })
@@ -185,17 +188,35 @@ class OrderRepositoryIntegrationTest {
     }
 
     @Test
-    fun `findByIdAndUserIdAndStatus finds only the owner's order in that status`() {
+    fun `findVisible finds only the owner's submitted order`() {
         val userId = UUID.randomUUID()
         val saved = saveOrder(userId, Instant.parse("2026-10-22T12:00:00Z"), 2)
+        val pending = saveOrder(userId, Instant.parse("2026-10-22T12:00:00Z"), 2, status = OrderStatus.PENDING)
 
-        assertEquals(saved.id, orders.findByIdAndUserIdAndStatus(saved.id, userId, OrderStatus.SUBMITTED)?.id)
-        assertEquals(null, orders.findByIdAndUserIdAndStatus(saved.id, UUID.randomUUID(), OrderStatus.SUBMITTED))
-        assertEquals(null, orders.findByIdAndUserIdAndStatus(saved.id, userId, OrderStatus.PENDING))
+        assertEquals(saved.id, orders.findVisible(saved.id, userId)?.id)
+        assertEquals(null, orders.findVisible(saved.id, UUID.randomUUID()))
+        assertEquals(null, orders.findVisible(pending.id, userId))
     }
 
     @Test
-    fun `markCancelled records the cart's code on a pending order`() {
+    fun `a customer's cancelled order stays visible, and a failed placement doesn't`() {
+        val userId = UUID.randomUUID()
+        val base = Instant.parse("2026-10-22T12:00:00Z")
+        val cancelled = saveOrder(userId, base, 2)
+        val failed = saveOrder(userId, base.plusSeconds(60), 1, status = OrderStatus.PENDING)
+
+        inTransaction { orders.markCancelledByCustomer(cancelled.id, userId, "Changed my mind", Instant.now()) }
+        inTransaction { orders.markCancelled(failed.id, "CART_NOT_FOUND", Instant.now()) }
+
+        assertEquals(OrderStatus.CANCELLED, orders.findVisible(cancelled.id, userId)?.status)
+        assertEquals(null, orders.findVisible(failed.id, userId))
+        val listed = orders.findSummaries(userId, PageRequest.of(0, 10))
+        assertEquals(listOf(cancelled.id), listed.content.map { it.id })
+        assertEquals(1, listed.totalElements)
+    }
+
+    @Test
+    fun `markCancelled records the cart's code on a pending order, as a placement failure`() {
         val saved = orders.save(order())
 
         inTransaction { orders.markCancelled(saved.id, "CHECKOUT_SESSION_NOT_FOUND", Instant.now()) }
@@ -203,6 +224,100 @@ class OrderRepositoryIntegrationTest {
         val found = orders.findById(saved.id).get()
         assertEquals(OrderStatus.CANCELLED, found.status)
         assertEquals("CHECKOUT_SESSION_NOT_FOUND", found.cancelCode)
+        assertEquals(CancelledBy.PLACEMENT, found.cancelledBy)
+    }
+
+    @Test
+    fun `markCancelledByCustomer records who and why, and changes nothing a second time`() {
+        val userId = UUID.randomUUID()
+        val saved = saveOrder(userId, Instant.parse("2026-10-22T12:00:00Z"), 1)
+
+        var first = 0
+        var second = 0
+        inTransaction { first = orders.markCancelledByCustomer(saved.id, userId, "Changed my mind", Instant.now()) }
+        inTransaction { second = orders.markCancelledByCustomer(saved.id, userId, "Another reason", Instant.now()) }
+
+        assertEquals(1, first)
+        assertEquals(0, second)
+        val found = orders.findById(saved.id).get()
+        assertEquals(OrderStatus.CANCELLED, found.status)
+        assertEquals(CancelledBy.CUSTOMER, found.cancelledBy)
+        assertEquals("Changed my mind", found.cancelReason)
+        assertEquals(null, found.cancelCode)
+    }
+
+    @Test
+    fun `markCancelledByCustomer leaves a pending order and someone else's order alone`() {
+        val userId = UUID.randomUUID()
+        val pending = saveOrder(userId, Instant.parse("2026-10-22T12:00:00Z"), 1, status = OrderStatus.PENDING)
+        val submitted = saveOrder(userId, Instant.parse("2026-10-22T12:00:00Z"), 1)
+
+        var pendingUpdates = 0
+        var otherUserUpdates = 0
+        inTransaction { pendingUpdates = orders.markCancelledByCustomer(pending.id, userId, "Reason", Instant.now()) }
+        inTransaction {
+            otherUserUpdates = orders.markCancelledByCustomer(submitted.id, UUID.randomUUID(), "Reason", Instant.now())
+        }
+
+        assertEquals(0, pendingUpdates)
+        assertEquals(0, otherUserUpdates)
+        assertEquals(OrderStatus.PENDING, orders.findById(pending.id).get().status)
+        assertEquals(OrderStatus.SUBMITTED, orders.findById(submitted.id).get().status)
+    }
+
+    @Test
+    fun `V6 marks orders cancelled before it as placement failures, and only those`() {
+        fun flyway(target: String) = Flyway.configure()
+            .dataSource(postgres.jdbcUrl, postgres.username, postgres.password)
+            .schemas("v6_backfill")
+            .target(target)
+            .load()
+
+        flyway("5").migrate()
+        DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
+            connection.createStatement().use { statement ->
+                statement.execute("SET search_path TO v6_backfill")
+                listOf("CANCELLED" to "cancelled", "SUBMITTED" to "submitted").forEach { (status, key) ->
+                    statement.execute(
+                        "INSERT INTO orders (id, order_number, user_id, checkout_session_id, cart_id, " +
+                            "idempotency_key, status, subtotal, currency, created_at, updated_at) VALUES " +
+                            "(gen_random_uuid(), '$key', gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), " +
+                            "'$key', '$status', 1, 'USD', now(), now())"
+                    )
+                }
+                flyway("latest").migrate()
+
+                val rows = statement.executeQuery("SELECT status, cancelled_by FROM orders")
+                val cancelledBy = buildMap { while (rows.next()) put(rows.getString(1), rows.getString(2)) }
+                assertEquals(mapOf("CANCELLED" to "PLACEMENT", "SUBMITTED" to null), cancelledBy)
+            }
+        }
+    }
+
+    @Test
+    fun `racing cancels change the order once`() {
+        val threads = Executors.newFixedThreadPool(2)
+        try {
+            repeat(20) {
+                val userId = UUID.randomUUID()
+                val saved = saveOrder(userId, Instant.parse("2026-10-22T12:00:00Z"), 1)
+                val start = CountDownLatch(2)
+                fun racing() = threads.submit<Int> {
+                    start.countDown()
+                    start.await()
+                    TransactionTemplate(transactionManager).execute {
+                        orders.markCancelledByCustomer(saved.id, userId, "Changed my mind", Instant.now())
+                    }
+                }
+
+                val first = racing()
+                val second = racing()
+
+                assertEquals(1, first.get(10, TimeUnit.SECONDS) + second.get(10, TimeUnit.SECONDS))
+            }
+        } finally {
+            threads.shutdownNow()
+        }
     }
 
     @Test

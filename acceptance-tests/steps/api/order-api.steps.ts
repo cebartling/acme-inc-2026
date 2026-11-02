@@ -164,3 +164,30 @@ Then(
     );
   }
 );
+
+// --- PIN-429: cancel an order ----------------------------------------------------------
+
+async function cancelOrder(world: CustomWorld, body: object) {
+  const orderId = world.getTestData<string>('orderId');
+  expect(orderId, 'place the order first').toBeDefined();
+  const response = await world.orderApiClient.post<OrderDetailsResponse>(
+    `/api/v1/orders/${orderId}/cancel`,
+    body,
+    { headers: accessTokenCookie(world) }
+  );
+  world.setLastResponse(response);
+}
+
+When('I cancel my order because {string}', async function (this: CustomWorld, reason: string) {
+  await cancelOrder(this, { reason });
+});
+
+When('I cancel my order without a reason', async function (this: CustomWorld) {
+  await cancelOrder(this, {});
+});
+
+Then('my order should be cancelled', async function (this: CustomWorld) {
+  const order = this.getLastResponse<OrderDetailsResponse>()!.data;
+  expect(order.orderId).toBe(this.getTestData<string>('orderId'));
+  expect(order.status).toBe('CANCELLED');
+});

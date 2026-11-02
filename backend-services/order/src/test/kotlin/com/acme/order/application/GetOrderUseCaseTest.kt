@@ -40,7 +40,7 @@ class GetOrderUseCaseTest {
 
     @Test
     fun `maps the order and its lines, with product details from the snapshot`() {
-        every { orders.findByIdAndUserIdAndStatus(order.id, userId, OrderStatus.SUBMITTED) } returns order
+        every { orders.findVisible(order.id, userId) } returns order
 
         val details = (useCase.execute(order.id, userId) as GetOrderResult.Found).order
 
@@ -57,8 +57,8 @@ class GetOrderUseCaseTest {
     }
 
     @Test
-    fun `an order that isn't the caller's SUBMITTED order is not found`() {
-        every { orders.findByIdAndUserIdAndStatus(any(), any(), any()) } returns null
+    fun `an order the caller can't see is not found`() {
+        every { orders.findVisible(any(), any()) } returns null
 
         assertEquals(GetOrderResult.NotFound, useCase.execute(order.id, userId))
     }

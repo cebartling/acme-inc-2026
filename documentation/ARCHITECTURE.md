@@ -577,8 +577,8 @@ is no authentication.
 ### Order Service
 
 `backend-services/order` (port 10305, database `acme_orders`) owns customer orders
-(Epic 005, PIN-58). A customer can place an order from a checkout session (PIN-366) and
-read their orders back (PIN-367).
+(Epic 005, PIN-58). A customer can place an order from a checkout session (PIN-366), read
+their orders back (PIN-367) and cancel a submitted one (PIN-429).
 
 - **Placing an order** (PIN-366, journey 0005 step 5, without payment, shipping or tax):
   `POST /api/v1/orders {checkoutSessionId}` with an `Idempotency-Key` header.
@@ -684,6 +684,17 @@ read their orders back (PIN-367).
   - **Acceptance tests** lapse a session through the cart's test-profile-only
     `POST /api/v1/test/checkout-sessions/{checkoutSessionId}/lapse` (`TestHelperController`),
     which moves its expiry a minute back; the cart runs `docker,test` in compose.
+- **Cancelling an order** (PIN-429, ADR-0063, epic F3), signed-in customers only:
+  `POST /api/v1/orders/{orderId}/cancel {reason}` (`CancelOrderUseCase`) moves the caller's
+  `SUBMITTED` order to `CANCELLED` with `cancelled_by = CUSTOMER` and the reason.
+  - **Event:** the conditional `SUBMITTED → CANCELLED` update and `OrderCancelled` (order ID,
+    number, user ID, reason) commit together, and only the request whose update moved the order
+    writes the event. Nothing consumes it yet.
+  - **Answers:** `200` in the shape of `GET /api/v1/orders/{orderId}`, also when the customer
+    already cancelled it. Any other order is `404 ORDER_NOT_FOUND`. A missing, blank or
+    over-500-character reason is `400 INVALID_REQUEST`.
+  - **Not covered yet:** there's no payment or inventory to unwind, every `SUBMITTED` order can
+    be cancelled until fulfilment exists, and the customer app has no Cancel button (PIN-436).
 - **Reading orders** (PIN-367, journey 0005 step 6 and the start of epic F5), signed-in
   customers only, like placing them:
   - `GET /api/v1/orders/{orderId}` (`GetOrderUseCase`) answers the order's number, status,
@@ -700,10 +711,12 @@ read their orders back (PIN-367).
     product search's: `page` 1–10,000 (capped so the offset can't overflow, the PIN-308
     bug), `pageSize` 1–100 (default 24), and `page`, `pageSize`, `totalResults` and
     `totalPages` in the answer.
-  - **Only `SUBMITTED` orders are visible.** `PENDING` and `CANCELLED` orders are placement
-    attempts the customer was told didn't succeed. The status and the caller's `userId` are
-    in the query, so a missing order, someone else's, and a `PENDING` or `CANCELLED` one all
-    answer the same `404 ORDER_NOT_FOUND`.
+  - **Visible orders** (ADR-0063): `SUBMITTED` orders, and `CANCELLED` ones with
+    `cancelled_by = CUSTOMER`. `PENDING` orders and failed placements (`cancelled_by =
+    PLACEMENT`) are attempts the customer was told didn't succeed. The rule and the caller's
+    `userId` are in the query (`OrderRepository.findVisible` and `findSummaries`), so a missing
+    order, someone else's, a `PENDING` one and a failed placement all answer the same `404
+    ORDER_NOT_FOUND`.
   - **Bad input:** a malformed `orderId` or out-of-range paging is `400 INVALID_REQUEST`,
     naming the parameter.
   - **Customer app** (PIN-428): `/orders` (`OrderHistoryPage`) lists 10 orders a page and
