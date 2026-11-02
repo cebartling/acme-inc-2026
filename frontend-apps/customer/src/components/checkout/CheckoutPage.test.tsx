@@ -401,19 +401,20 @@ describe("CheckoutPage (PIN-426)", () => {
       expect(mockedPlace).toHaveBeenCalledWith("session-1", key);
     });
 
-    it.each(["CHECKOUT_SESSION_NOT_FOUND", "CART_NOT_FOUND"])(
-      "shows the empty cart when resuming answers %s",
-      async (code) => {
-        await loseTheAnswerAndReload();
-        mockedFind.mockResolvedValueOnce({ ...placed, status: "PENDING" });
-        mockedPlace.mockRejectedValueOnce(orderError(404, code));
+    it.each([
+      "CHECKOUT_SESSION_NOT_FOUND",
+      "CART_NOT_FOUND",
+      "PLACEMENT_ABANDONED",
+    ])("shows the empty cart when resuming answers %s", async (code) => {
+      await loseTheAnswerAndReload();
+      mockedFind.mockResolvedValueOnce({ ...placed, status: "PENDING" });
+      mockedPlace.mockRejectedValueOnce(orderError(404, code));
 
-        renderPage();
+      renderPage();
 
-        expect(await screen.findByTestId("checkoutEmpty")).toBeInTheDocument();
-        await waitFor(() => expect(sessionStorage.length).toBe(0));
-      },
-    );
+      expect(await screen.findByTestId("checkoutEmpty")).toBeInTheDocument();
+      await waitFor(() => expect(sessionStorage.length).toBe(0));
+    });
 
     it("stops trying when another order has the cart", async () => {
       await loseTheAnswerAndReload();

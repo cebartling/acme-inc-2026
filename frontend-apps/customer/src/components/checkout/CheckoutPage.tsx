@@ -328,7 +328,7 @@ function codeOf(error: unknown): string | undefined {
     : undefined;
 }
 
-/** The order service's final 404s, including from an order the cart refused for good. */
+/** The order service's final 404s, including from an order that was cancelled for good. */
 function meansNoOrder(error: unknown): boolean {
   const code = codeOf(error);
   return (
@@ -339,7 +339,7 @@ function meansNoOrder(error: unknown): boolean {
   );
 }
 
-/** Retrying the session can't help: it is gone, or its cart is another order's. */
+/** This key can't succeed: the session or order is gone, or the cart is another order's. */
 function isFinalRefusal(error: unknown): boolean {
   return meansNoOrder(error) || codeOf(error) === "CART_ALREADY_CONVERTED";
 }

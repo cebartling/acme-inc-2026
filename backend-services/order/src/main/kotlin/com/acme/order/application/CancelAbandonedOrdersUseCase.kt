@@ -20,18 +20,20 @@ import java.time.Instant
  * SUBMITTED or CANCELLED. Each run takes one batch; what's left waits for the next run.
  *
  * Every cancel is logged and counted, because an order can be PENDING with its cart already
- * converted, if the service crashed between the two. That customer has no cart and no order,
- * and this job can't tell, so support has to follow up.
+ * converted: the service crashed between the two, or the convert committed but its answer
+ * timed out and no retry came. That customer has no cart and no order, and this job can't tell,
+ * so support has to follow up.
  */
 @Service
 class CancelAbandonedOrdersUseCase(
     private val orders: OrderRepository,
     private val transactionTemplate: TransactionTemplate,
-    private val meterRegistry: MeterRegistry,
+    meterRegistry: MeterRegistry,
     @Value("\${acme.order.abandoned.max-age}") private val maxAge: Duration,
     @Value("\${acme.order.abandoned.batch-size}") private val batchSize: Int
 ) {
     private val logger = LoggerFactory.getLogger(CancelAbandonedOrdersUseCase::class.java)
+    private val abandonedOrders = meterRegistry.counter("orders_cancelled_total", "reason", PLACEMENT_ABANDONED)
 
     init {
         require(maxAge > MINIMUM_MAX_AGE) {
@@ -53,7 +55,7 @@ class CancelAbandonedOrdersUseCase(
                     "converted, the customer has no cart and no order",
                 order.id, order.orderNumber, order.userId, order.createdAt, order.cartId
             )
-            meterRegistry.counter("orders_cancelled_total", "reason", PLACEMENT_ABANDONED).increment()
+            abandonedOrders.increment()
         }
         return cancelled
     }
