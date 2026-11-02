@@ -282,23 +282,24 @@ describe("CheckoutPage (PIN-426)", () => {
     expect(secondKey).not.toBe(firstKey);
   });
 
-  it("tells the customer to start again when the session lapsed", async () => {
-    mockedPlace.mockRejectedValueOnce(
-      orderError(404, "CHECKOUT_SESSION_NOT_FOUND"),
-    );
-    renderPage();
+  it.each(["CHECKOUT_SESSION_NOT_FOUND", "PLACEMENT_ABANDONED"])(
+    "tells the customer to start again on %s",
+    async (code) => {
+      mockedPlace.mockRejectedValueOnce(orderError(404, code));
+      renderPage();
 
-    await userEvent.click(await screen.findByTestId("placeOrder"));
+      await userEvent.click(await screen.findByTestId("placeOrder"));
 
-    expect(await screen.findByTestId("checkoutExpired")).toHaveTextContent(
-      /checkout session expired/i,
-    );
-    expect(screen.getByRole("link", { name: /back to cart/i })).toHaveAttribute(
-      "href",
-      "/cart",
-    );
-    expect(screen.queryByTestId("placeOrder")).not.toBeInTheDocument();
-  });
+      expect(await screen.findByTestId("checkoutExpired")).toHaveTextContent(
+        /checkout session expired/i,
+      );
+      expect(
+        screen.getByRole("link", { name: /back to cart/i }),
+      ).toHaveAttribute("href", "/cart");
+      expect(screen.queryByTestId("placeOrder")).not.toBeInTheDocument();
+      await waitFor(() => expect(sessionStorage.length).toBe(0));
+    },
+  );
 
   it("says so when the order was already placed in another tab", async () => {
     mockedPlace.mockRejectedValueOnce(
@@ -400,19 +401,20 @@ describe("CheckoutPage (PIN-426)", () => {
       expect(mockedPlace).toHaveBeenCalledWith("session-1", key);
     });
 
-    it.each(["CHECKOUT_SESSION_NOT_FOUND", "CART_NOT_FOUND"])(
-      "shows the empty cart when resuming answers %s",
-      async (code) => {
-        await loseTheAnswerAndReload();
-        mockedFind.mockResolvedValueOnce({ ...placed, status: "PENDING" });
-        mockedPlace.mockRejectedValueOnce(orderError(404, code));
+    it.each([
+      "CHECKOUT_SESSION_NOT_FOUND",
+      "CART_NOT_FOUND",
+      "PLACEMENT_ABANDONED",
+    ])("shows the empty cart when resuming answers %s", async (code) => {
+      await loseTheAnswerAndReload();
+      mockedFind.mockResolvedValueOnce({ ...placed, status: "PENDING" });
+      mockedPlace.mockRejectedValueOnce(orderError(404, code));
 
-        renderPage();
+      renderPage();
 
-        expect(await screen.findByTestId("checkoutEmpty")).toBeInTheDocument();
-        await waitFor(() => expect(sessionStorage.length).toBe(0));
-      },
-    );
+      expect(await screen.findByTestId("checkoutEmpty")).toBeInTheDocument();
+      await waitFor(() => expect(sessionStorage.length).toBe(0));
+    });
 
     it("stops trying when another order has the cart", async () => {
       await loseTheAnswerAndReload();

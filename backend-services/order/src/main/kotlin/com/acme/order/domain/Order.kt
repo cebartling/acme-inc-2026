@@ -20,7 +20,7 @@ import java.util.UUID
 /**
  * Where an order is in placement (PIN-366). It is saved PENDING, becomes SUBMITTED once
  * the cart is converted (and only then is `OrderCreated` written), or CANCELLED when the
- * cart refuses the conversion for good.
+ * cart refuses the conversion for good or no retry finishes it (PIN-427).
  */
 enum class OrderStatus { PENDING, SUBMITTED, CANCELLED }
 

@@ -24,6 +24,9 @@ import java.math.BigDecimal
 import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
 
 /**
@@ -200,5 +203,48 @@ class OrderRepositoryIntegrationTest {
         val found = orders.findById(saved.id).get()
         assertEquals(OrderStatus.CANCELLED, found.status)
         assertEquals("CHECKOUT_SESSION_NOT_FOUND", found.cancelCode)
+    }
+
+    @Test
+    fun `findAbandoned finds only pending orders before the cutoff, oldest first, up to the page size`() {
+        val userId = UUID.randomUUID()
+        val cutoff = Instant.parse("2026-10-22T12:00:00Z")
+        val oldest = saveOrder(userId, cutoff.minusSeconds(120), 1, status = OrderStatus.PENDING)
+        val older = saveOrder(userId, cutoff.minusSeconds(60), 1, status = OrderStatus.PENDING)
+        saveOrder(userId, cutoff.minusSeconds(30), 1, status = OrderStatus.PENDING)
+        saveOrder(userId, cutoff, 1, status = OrderStatus.PENDING)
+        saveOrder(userId, cutoff.minusSeconds(180), 1, status = OrderStatus.SUBMITTED)
+        saveOrder(userId, cutoff.minusSeconds(180), 1, status = OrderStatus.CANCELLED)
+
+        val found = orders.findAbandoned(cutoff, PageRequest.of(0, 2))
+
+        assertEquals(listOf(oldest.id, older.id), found.map { it.id })
+    }
+
+    @Test
+    fun `a racing submit and cancel leave the order in exactly one of the two states`() {
+        val threads = Executors.newFixedThreadPool(2)
+        try {
+            repeat(20) { attempt ->
+                val saved = orders.save(order(idempotencyKey = "race-$attempt"))
+                val start = CountDownLatch(2)
+                fun racing(update: () -> Int) = threads.submit<Int> {
+                    start.countDown()
+                    start.await()
+                    TransactionTemplate(transactionManager).execute { update() }
+                }
+
+                val submit = racing { orders.markSubmitted(saved.id, Instant.now()) }
+                val cancel = racing { orders.markCancelled(saved.id, "PLACEMENT_ABANDONED", Instant.now()) }
+                val submitted = submit.get(10, TimeUnit.SECONDS)
+                val cancelled = cancel.get(10, TimeUnit.SECONDS)
+
+                assertEquals(1, submitted + cancelled)
+                val expected = if (submitted == 1) OrderStatus.SUBMITTED else OrderStatus.CANCELLED
+                assertEquals(expected, orders.findById(saved.id).get().status)
+            }
+        } finally {
+            threads.shutdownNow()
+        }
     }
 }

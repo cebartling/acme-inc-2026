@@ -39,7 +39,10 @@ sealed interface PlaceOrderResult {
     /** The order can't be placed; `code` is answered in the `{error, code}` body. */
     data class Refused(val status: HttpStatus, val code: String, val message: String) : PlaceOrderResult
 
-    /** The cart didn't answer. Any saved order stays PENDING, and the same key resumes it. */
+    /**
+     * The cart didn't answer. Any saved order stays PENDING, and the same key resumes it until
+     * [CancelAbandonedOrdersUseCase] cancels it.
+     */
     data object CartUnavailable : PlaceOrderResult
 }
 
@@ -151,6 +154,10 @@ class PlaceOrderUseCase(
         return if (submitted.status == OrderStatus.SUBMITTED) {
             PlaceOrderResult.Placed(submitted)
         } else {
+            logger.error(
+                "Cart {} converted for order {} ({}), which was cancelled with {}: user {} has no cart and no order",
+                submitted.cartId, submitted.id, submitted.orderNumber, submitted.cancelCode, submitted.userId
+            )
             refused(submitted.cancelCode ?: CHECKOUT_SESSION_NOT_FOUND, "The order was not placed")
         }
     }

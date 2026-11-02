@@ -14,7 +14,7 @@ import org.springframework.scheduling.annotation.EnableScheduling
  * @see <a href="../../documentation/epics/005-order-management.md">Epic 005: Order Management</a>
  */
 @SpringBootApplication
-@EnableScheduling // OutboxRelay's poll (PIN-368)
+@EnableScheduling // OutboxRelay's poll (PIN-368) and the abandoned order job (PIN-427)
 class OrderServiceApplication
 
 /**

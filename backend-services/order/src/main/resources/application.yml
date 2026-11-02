@@ -26,6 +26,12 @@ spring:
       accept-float-as-int: false
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+  task:
+    scheduling:
+      pool:
+        # One thread per job (outbox relay, abandoned orders), so the relay blocked on Kafka
+        # never holds up the other. The default is a single shared thread.
+        size: 2
   security:
     oauth2:
       resourceserver:
@@ -60,3 +66,12 @@ acme:
       poll-delay-ms: 1000
       alert-after-attempts: 5
       batch-size: 100
+    abandoned:
+      # The job that cancels orders left PENDING (PIN-427); ISO-8601 durations. max-age must be
+      # longer than the cart's checkout session plus its unlock grace and interval: the service
+      # won't start otherwise. One run cancels at most batch-size orders.
+      enabled: ${ACME_ORDER_ABANDONED_ENABLED:true}
+      max-age: ${ACME_ORDER_ABANDONED_MAX_AGE:PT1H}
+      initial-delay: ${ACME_ORDER_ABANDONED_INITIAL_DELAY:PT5M}
+      interval: ${ACME_ORDER_ABANDONED_INTERVAL:PT5M}
+      batch-size: ${ACME_ORDER_ABANDONED_BATCH_SIZE:100}

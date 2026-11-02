@@ -166,7 +166,10 @@ export function CheckoutPage() {
   }
 
   const placeErrorCode = codeOf(place.error);
-  if (placeErrorCode === "CHECKOUT_SESSION_NOT_FOUND") {
+  if (
+    placeErrorCode === "CHECKOUT_SESSION_NOT_FOUND" ||
+    placeErrorCode === "PLACEMENT_ABANDONED"
+  ) {
     return (
       <Notice testId="checkoutExpired">
         Your checkout session expired. Go back to your cart and start checkout
@@ -325,17 +328,18 @@ function codeOf(error: unknown): string | undefined {
     : undefined;
 }
 
-/** The order service's final 404s, including from an order the cart refused for good. */
+/** The order service's final 404s, including from an order that was cancelled for good. */
 function meansNoOrder(error: unknown): boolean {
   const code = codeOf(error);
   return (
     code === "ORDER_NOT_FOUND" ||
     code === "CHECKOUT_SESSION_NOT_FOUND" ||
+    code === "PLACEMENT_ABANDONED" ||
     isCartGone(error)
   );
 }
 
-/** Retrying the session can't help: it is gone, or its cart is another order's. */
+/** This key can't succeed: the session or order is gone, or the cart is another order's. */
 function isFinalRefusal(error: unknown): boolean {
   return meansNoOrder(error) || codeOf(error) === "CART_ALREADY_CONVERTED";
 }
