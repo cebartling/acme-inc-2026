@@ -692,7 +692,7 @@ their orders back (PIN-367) and cancel a submitted one (PIN-429).
     writes the event. Nothing consumes it yet.
   - **Answers:** `200` in the shape of `GET /api/v1/orders/{orderId}`, also when the customer
     already cancelled it. Any other order is `404 ORDER_NOT_FOUND`. A missing, blank or
-    over-500-character reason is `400 INVALID_REQUEST`.
+    over-500-character reason, or one with a NUL character, is `400 INVALID_REQUEST`.
   - **Not covered yet:** there's no payment or inventory to unwind, every `SUBMITTED` order can
     be cancelled until fulfilment exists, and the customer app has no Cancel button (PIN-436).
 - **Reading orders** (PIN-367, journey 0005 step 6 and the start of epic F5), signed-in
@@ -761,9 +761,9 @@ their orders back (PIN-367) and cancel a submitted one (PIN-429).
     interrupt (shutdown) is not an attempt, and a failed save after a send is thrown, so the
     message is sent again.
   - **Delivery** is at least once, so consumers deduplicate by `eventId` (ADR-0018).
-  - `OrderCreated` is the only event so far (PIN-366). The broker creates the topic on
-    first use. `acme.order.events.publish-timeout-seconds` (default 10) bounds a
-    send, including the producer's wait for metadata while Kafka is down.
+  - `OrderCreated` (PIN-366) and `OrderCancelled` (PIN-429) are the only events so far. The
+    broker creates the topic on first use. `acme.order.events.publish-timeout-seconds`
+    (default 10) bounds a send, including the producer's wait for metadata while Kafka is down.
   - Sent rows are not purged yet, and only one instance may run the relay.
 
 ## Observability

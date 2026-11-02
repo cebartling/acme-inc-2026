@@ -421,6 +421,15 @@ class OrderControllerWebMvcTest(
     }
 
     @Test
+    fun `a reason Postgres can't store, with a NUL character, is a 400 INVALID_REQUEST`() {
+        cancel(reason = """{"reason":"Changed\u0000 my mind"}""").andExpect {
+            status { isBadRequest() }
+            jsonPath("$.code") { value("INVALID_REQUEST") }
+        }
+        verify(exactly = 0) { cancelOrder.execute(any(), any(), any()) }
+    }
+
+    @Test
     fun `a body that isn't JSON is refused, as the CSRF reasoning needs`() {
         mockMvc.post("/api/v1/orders/${order.id}/cancel") {
             cookie(accessToken())

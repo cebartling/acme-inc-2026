@@ -219,6 +219,17 @@ class PlaceOrderUseCaseTest {
     }
 
     @Test
+    fun `a repeated key for an order the customer cancelled, which has no code, is refused`() {
+        storedOrder(OrderStatus.CANCELLED, cancelCode = null)
+
+        val result = useCase.execute(command) as PlaceOrderResult.Refused
+
+        assertEquals(HttpStatus.NOT_FOUND, result.status)
+        assertEquals("CHECKOUT_SESSION_NOT_FOUND", result.code)
+        verify(exactly = 0) { cartClient.convert(any(), any(), any(), any()) }
+    }
+
+    @Test
     fun `a repeated key with a different checkout session is a 422`() {
         storedOrder(OrderStatus.SUBMITTED, checkoutSessionId = UUID.randomUUID())
 

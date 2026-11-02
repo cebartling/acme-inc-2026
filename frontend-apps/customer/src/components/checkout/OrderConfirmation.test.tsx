@@ -72,6 +72,17 @@ describe("OrderConfirmation (PIN-426)", () => {
     ).toHaveAttribute("href", "/orders/$orderId");
   });
 
+  it("doesn't thank the customer for an order they cancelled (PIN-429)", async () => {
+    mockedGet.mockResolvedValueOnce({ ...order, status: "CANCELLED" });
+
+    renderPage();
+
+    expect(
+      await screen.findByRole("heading", { name: "This order was cancelled" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Thank you for your order")).toBeNull();
+  });
+
   it("says so when the order can't be read", async () => {
     mockedGet.mockRejectedValueOnce(
       new ApiError("Order not found", 404, {

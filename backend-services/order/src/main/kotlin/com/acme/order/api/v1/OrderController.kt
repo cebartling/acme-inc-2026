@@ -14,6 +14,7 @@ import jakarta.validation.constraints.Max
 import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotNull
+import jakarta.validation.constraints.Pattern
 import jakarta.validation.constraints.Size
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
@@ -45,6 +46,8 @@ data class PlaceOrderRequest(
 data class CancelOrderRequest(
     @field:NotBlank
     @field:Size(max = OrderController.MAX_CANCEL_REASON_LENGTH)
+    // Postgres can't store a NUL character, in the order or in the event's JSON
+    @field:Pattern(regexp = "[^\\x00]*")
     val reason: String?
 )
 
@@ -199,7 +202,8 @@ class OrderController(
         invalidRequestResponse(null, unreadable)
 
     private fun invalidRequestResponse(field: String?, cause: Exception): ResponseEntity<Any> {
-        logger.debug("Rejected an invalid order request: {}", cause.message)
+        // Not cause.message: it can quote the rejected value, and a cancel reason isn't logged
+        logger.debug("Rejected an invalid order request: {} on {}", cause.javaClass.simpleName, field)
         val message = if (field == null) "Invalid request" else "Invalid request: $field"
         return error(HttpStatus.BAD_REQUEST, message, INVALID_REQUEST)
     }
