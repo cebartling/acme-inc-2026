@@ -1,5 +1,6 @@
 package com.acme.order.api.v1
 
+import com.acme.order.application.CancelOrderUseCase
 import com.acme.order.application.FindOrderByKeyUseCase
 import com.acme.order.application.GetOrderResult
 import com.acme.order.application.GetOrderUseCase
@@ -53,6 +54,7 @@ class OrderControllerWebMvcTest(
     @Autowired private val getOrder: GetOrderUseCase,
     @Autowired private val listOrders: ListOrdersUseCase,
     @Autowired private val findOrderByKey: FindOrderByKeyUseCase,
+    @Autowired private val cancelOrder: CancelOrderUseCase,
     @Autowired private val jwtDecoder: JwtDecoder
 ) {
 
@@ -69,6 +71,9 @@ class OrderControllerWebMvcTest(
 
         @Bean
         fun findOrderByKeyUseCase(): FindOrderByKeyUseCase = mockk()
+
+        @Bean
+        fun cancelOrderUseCase(): CancelOrderUseCase = mockk()
 
         /** Stands in for the JWKS-backed decoder; tests decide what a token decodes to. */
         @Bean
@@ -94,7 +99,7 @@ class OrderControllerWebMvcTest(
 
     @BeforeEach
     fun setUp() {
-        clearMocks(useCase, getOrder, listOrders, findOrderByKey, jwtDecoder)
+        clearMocks(useCase, getOrder, listOrders, findOrderByKey, cancelOrder, jwtDecoder)
         every { jwtDecoder.decode("good-token") } returns Jwt.withTokenValue("good-token")
             .header("alg", "RS256")
             .subject(userId.toString())
@@ -360,6 +365,85 @@ class OrderControllerWebMvcTest(
                 status { isUnauthorized() }
                 jsonPath("$.code") { value("SIGN_IN_REQUIRED") }
             }
+        }
+    }
+
+    // --- PIN-429: cancelling an order -------------------------------------------------------
+
+    private fun cancel(id: UUID = order.id, reason: String = """{"reason":"Changed my mind"}""", signedIn: Boolean = true) =
+        mockMvc.post("/api/v1/orders/$id/cancel") {
+            if (signedIn) cookie(accessToken())
+            contentType = MediaType.APPLICATION_JSON
+            content = reason
+        }
+
+    @Test
+    fun `a cancelled order is a 200 in the shape of a read`() {
+        every { cancelOrder.execute(order.id, userId, "Changed my mind") } returns
+            GetOrderResult.Found(details.copy(status = OrderStatus.CANCELLED))
+
+        cancel().andExpect {
+            status { isOk() }
+            jsonPath("$.orderId") { value(order.id.toString()) }
+            jsonPath("$.status") { value("CANCELLED") }
+            jsonPath("$.lineItems[0].productName") { value("Gadget Pro") }
+        }
+    }
+
+    @Test
+    fun `cancelling an order the caller can't see is a 404 ORDER_NOT_FOUND`() {
+        every { cancelOrder.execute(any(), any(), any()) } returns GetOrderResult.NotFound
+
+        cancel().andExpect {
+            status { isNotFound() }
+            jsonPath("$.code") { value("ORDER_NOT_FOUND") }
+        }
+    }
+
+    @Test
+    fun `a reason of 500 characters is accepted`() {
+        val longest = "r".repeat(500)
+        every { cancelOrder.execute(order.id, userId, longest) } returns
+            GetOrderResult.Found(details.copy(status = OrderStatus.CANCELLED))
+
+        cancel(reason = """{"reason":"$longest"}""").andExpect { status { isOk() } }
+    }
+
+    @Test
+    fun `a missing, blank or over-long reason is a 400 INVALID_REQUEST`() {
+        listOf("{}", """{"reason":"   "}""", """{"reason":"${"r".repeat(501)}"}""", "").forEach { invalid ->
+            cancel(reason = invalid).andExpect {
+                status { isBadRequest() }
+                jsonPath("$.code") { value("INVALID_REQUEST") }
+            }
+        }
+        verify(exactly = 0) { cancelOrder.execute(any(), any(), any()) }
+    }
+
+    @Test
+    fun `a reason Postgres can't store, with a NUL character, is a 400 INVALID_REQUEST`() {
+        cancel(reason = """{"reason":"Changed\u0000 my mind"}""").andExpect {
+            status { isBadRequest() }
+            jsonPath("$.code") { value("INVALID_REQUEST") }
+        }
+        verify(exactly = 0) { cancelOrder.execute(any(), any(), any()) }
+    }
+
+    @Test
+    fun `a body that isn't JSON is refused, as the CSRF reasoning needs`() {
+        mockMvc.post("/api/v1/orders/${order.id}/cancel") {
+            cookie(accessToken())
+            contentType = MediaType.TEXT_PLAIN
+            content = """{"reason":"Changed my mind"}"""
+        }.andExpect { status { isUnsupportedMediaType() } }
+        verify(exactly = 0) { cancelOrder.execute(any(), any(), any()) }
+    }
+
+    @Test
+    fun `cancelling without signing in is a 401 SIGN_IN_REQUIRED`() {
+        cancel(signedIn = false).andExpect {
+            status { isUnauthorized() }
+            jsonPath("$.code") { value("SIGN_IN_REQUIRED") }
         }
     }
 

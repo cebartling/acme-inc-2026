@@ -42,6 +42,6 @@ class OrderServiceApplicationTest {
 
     @Test
     fun `the context starts and Flyway applies every migration`() {
-        assertEquals("5", flyway.info().current()?.version?.version)
+        assertEquals("6", flyway.info().current()?.version?.version)
     }
 }

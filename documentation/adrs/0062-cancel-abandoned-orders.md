@@ -26,7 +26,8 @@ needs a token too.
    `acme.order.abandoned.max-age` (default one hour) to `CANCELLED` with
    `PLACEMENT_ABANDONED`, one bounded batch per run. It uses the conditional
    `OrderRepository.markCancelled`, so a racing retry leaves the order either `SUBMITTED` or
-   `CANCELLED`. These orders stay hidden from the customer, like other failed placements.
+   `CANCELLED`. These orders stay hidden from the customer, like other failed placements
+   (recorded as `cancelled_by = PLACEMENT` since [ADR-0063](0063-customer-order-cancellation.md)).
 2. **A late retry is refused for good.** The same key answers 404 `PLACEMENT_ABANDONED`
    through `PlaceOrderUseCase.resume`, and the customer app treats that as an expired
    checkout.

@@ -1,6 +1,5 @@
 package com.acme.order.application
 
-import com.acme.order.domain.OrderStatus
 import com.acme.order.infrastructure.persistence.OrderRepository
 import io.mockk.every
 import io.mockk.mockk
@@ -18,12 +17,12 @@ class ListOrdersUseCaseTest {
     private val userId = UUID.randomUUID()
 
     @Test
-    fun `lists the caller's SUBMITTED orders, turning the 1-based page into a 0-based one`() {
-        every { orders.findSummaries(any(), any(), any()) } returns Page.empty()
+    fun `lists the caller's orders, turning the 1-based page into a 0-based one`() {
+        every { orders.findSummaries(any(), any()) } returns Page.empty()
 
         useCase.execute(userId, page = 3, pageSize = 10)
 
-        verify { orders.findSummaries(userId, OrderStatus.SUBMITTED, PageRequest.of(2, 10)) }
+        verify { orders.findSummaries(userId, PageRequest.of(2, 10)) }
     }
 
     @Test

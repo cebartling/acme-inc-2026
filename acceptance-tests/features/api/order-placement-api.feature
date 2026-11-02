@@ -67,3 +67,36 @@ Feature: Place Order API
     And I am signed in through the API as that customer
     When I get my order
     Then the API should respond with status 404
+
+  # PIN-429
+  Scenario: A cancelled order can still be read back and stays in my order history
+    Given I place an order for my checkout session
+    When I cancel my order because "Changed my mind"
+    Then the API should respond with status 200
+    And my order should be cancelled
+    When I get my order
+    Then the API should respond with status 200
+    And my order should be cancelled
+    When I list my orders
+    Then the API should respond with status 200
+    And my order should be first in the list, with 2 items
+
+  Scenario: Cancelling an order twice answers the same cancelled order
+    Given I place an order for my checkout session
+    And I cancel my order because "Changed my mind"
+    When I cancel my order because "Changed my mind"
+    Then the API should respond with status 200
+    And my order should be cancelled
+
+  Scenario: Cancelling an order needs a reason
+    Given I place an order for my checkout session
+    When I cancel my order without a reason
+    Then the API should respond with status 400
+    And the response should contain error code "INVALID_REQUEST"
+
+  Scenario: Another customer can't cancel my order
+    Given I place an order for my checkout session
+    And an active customer with email "order-other-customer@example.com" exists
+    And I am signed in through the API as that customer
+    When I cancel my order because "Not mine"
+    Then the API should respond with status 404

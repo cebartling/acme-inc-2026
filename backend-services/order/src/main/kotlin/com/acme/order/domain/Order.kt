@@ -20,17 +20,21 @@ import java.util.UUID
 /**
  * Where an order is in placement (PIN-366). It is saved PENDING, becomes SUBMITTED once
  * the cart is converted (and only then is `OrderCreated` written), or CANCELLED when the
- * cart refuses the conversion for good or no retry finishes it (PIN-427).
+ * cart refuses the conversion for good or no retry finishes it (PIN-427). A customer can also
+ * cancel a SUBMITTED order (PIN-429).
  */
 enum class OrderStatus { PENDING, SUBMITTED, CANCELLED }
+
+/** Why an order is CANCELLED: a customer's choice, or a placement that failed (ADR-0063). */
+enum class CancelledBy { CUSTOMER, PLACEMENT }
 
 /**
  * A customer's order, copied from their checkout session's cart (journey 0005 step 5).
  *
  * `(userId, idempotencyKey)` is unique, so a repeated `POST /api/v1/orders` with the
  * same `Idempotency-Key` finds this order instead of creating another (AC-5.8). Status
- * changes go through `OrderRepository.markSubmitted` / `markCancelled`, conditional updates,
- * so two racing requests can't both submit the order.
+ * changes go through the `mark` methods on `OrderRepository`, conditional updates, so two
+ * racing requests can't both submit or cancel the order.
  */
 // ORDER is a JPQL keyword, so queries name the entity CustomerOrder
 @Entity(name = "CustomerOrder")
@@ -71,7 +75,14 @@ class Order(
     val createdAt: Instant,
 
     @Column(name = "updated_at", nullable = false)
-    val updatedAt: Instant = createdAt
+    val updatedAt: Instant = createdAt,
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "cancelled_by", length = 20)
+    val cancelledBy: CancelledBy? = null,
+
+    @Column(name = "cancel_reason", length = 500)
+    val cancelReason: String? = null
 ) {
     @OneToMany(mappedBy = "order", cascade = [CascadeType.ALL], orphanRemoval = true, fetch = FetchType.LAZY)
     val items: MutableList<OrderItem> = mutableListOf()

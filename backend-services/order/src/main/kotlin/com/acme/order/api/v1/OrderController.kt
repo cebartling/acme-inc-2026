@@ -1,5 +1,6 @@
 package com.acme.order.api.v1
 
+import com.acme.order.application.CancelOrderUseCase
 import com.acme.order.application.FindOrderByKeyUseCase
 import com.acme.order.application.GetOrderResult
 import com.acme.order.application.GetOrderUseCase
@@ -11,7 +12,10 @@ import com.acme.order.domain.Order
 import jakarta.validation.Valid
 import jakarta.validation.constraints.Max
 import jakarta.validation.constraints.Min
+import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotNull
+import jakarta.validation.constraints.Pattern
+import jakarta.validation.constraints.Size
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -39,6 +43,14 @@ data class PlaceOrderRequest(
     val checkoutSessionId: UUID?
 )
 
+data class CancelOrderRequest(
+    @field:NotBlank
+    @field:Size(max = OrderController.MAX_CANCEL_REASON_LENGTH)
+    // Postgres can't store a NUL character, in the order or in the event's JSON
+    @field:Pattern(regexp = "[^\\x00]*")
+    val reason: String?
+)
+
 data class MoneyResponse(val amount: BigDecimal, val currency: String)
 
 data class OrderSummaryResponse(val subtotal: MoneyResponse)
@@ -63,7 +75,7 @@ data class PlaceOrderResponse(
 }
 
 /**
- * Places orders (PIN-366) and reads them back (PIN-367). Signed-in customers only: the order service verifies identity's
+ * Places orders (PIN-366), reads them back (PIN-367) and cancels them (PIN-429). Signed-in customers only: the order service verifies identity's
  * `access_token` cookie and forwards it to the cart (ADR-0044). Errors are `{error, code}`
  * (ADR-0050).
  */
@@ -73,7 +85,8 @@ class OrderController(
     private val placeOrder: PlaceOrderUseCase,
     private val getOrder: GetOrderUseCase,
     private val listOrders: ListOrdersUseCase,
-    private val findOrderByKey: FindOrderByKeyUseCase
+    private val findOrderByKey: FindOrderByKeyUseCase,
+    private val cancelOrder: CancelOrderUseCase
 ) {
 
     private val logger = LoggerFactory.getLogger(OrderController::class.java)
@@ -126,19 +139,36 @@ class OrderController(
     }
 
     /**
-     * One of the caller's SUBMITTED orders (PIN-367). Missing, someone else's, PENDING and
-     * CANCELLED all answer the same `404 ORDER_NOT_FOUND`.
+     * One of the caller's orders, SUBMITTED or cancelled by them (PIN-367, PIN-429). Missing,
+     * someone else's, PENDING and failed placements all answer the same `404 ORDER_NOT_FOUND`.
      */
     @GetMapping("/{orderId}")
     fun get(@AuthenticationPrincipal jwt: Jwt, @PathVariable orderId: UUID): ResponseEntity<Any> =
-        when (val result = getOrder.execute(orderId, UUID.fromString(jwt.subject))) {
+        orderResponse(getOrder.execute(orderId, UUID.fromString(jwt.subject)))
+
+    /**
+     * Cancels the caller's SUBMITTED order (PIN-429). `200` with the order, also when they already
+     * cancelled it. Any other order answers as `GET` does, `404 ORDER_NOT_FOUND`. The JSON body
+     * is required, which `SecurityConfig`'s CSRF reasoning depends on.
+     */
+    @PostMapping("/{orderId}/cancel")
+    fun cancel(
+        @AuthenticationPrincipal jwt: Jwt,
+        @PathVariable orderId: UUID,
+        @Valid @RequestBody request: CancelOrderRequest
+    ): ResponseEntity<Any> =
+        orderResponse(cancelOrder.execute(orderId, UUID.fromString(jwt.subject), request.reason!!))
+
+    private fun orderResponse(result: GetOrderResult): ResponseEntity<Any> =
+        when (result) {
             is GetOrderResult.Found -> ResponseEntity.ok(OrderDetailsResponse.from(result.order))
             GetOrderResult.NotFound -> error(HttpStatus.NOT_FOUND, "Order not found", ORDER_NOT_FOUND)
         }
 
     /**
-     * The caller's SUBMITTED orders, newest first (PIN-367). `page` is 1-based and capped, so
-     * the offset can't overflow (the product search's PIN-308 bug).
+     * The caller's SUBMITTED orders and those they cancelled, newest first (PIN-367, PIN-429).
+     * `page` is 1-based and capped, so the offset can't overflow (the product search's PIN-308
+     * bug).
      */
     @GetMapping
     fun list(
@@ -172,7 +202,8 @@ class OrderController(
         invalidRequestResponse(null, unreadable)
 
     private fun invalidRequestResponse(field: String?, cause: Exception): ResponseEntity<Any> {
-        logger.debug("Rejected an invalid order request: {}", cause.message)
+        // Not cause.message: it can quote the rejected value, and a cancel reason isn't logged
+        logger.debug("Rejected an invalid order request: {} on {}", cause.javaClass.simpleName, field)
         val message = if (field == null) "Invalid request" else "Invalid request: $field"
         return error(HttpStatus.BAD_REQUEST, message, INVALID_REQUEST)
     }
@@ -196,6 +227,7 @@ class OrderController(
         const val INVALID_REQUEST = "INVALID_REQUEST"
         const val CART_UNAVAILABLE = "CART_UNAVAILABLE"
         const val ORDER_NOT_FOUND = "ORDER_NOT_FOUND"
+        const val MAX_CANCEL_REASON_LENGTH = 500
         const val MAX_PAGE = 10_000
         const val MAX_PAGE_SIZE = 100
     }

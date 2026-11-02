@@ -29,16 +29,20 @@ export function OrderConfirmation({ orderId }: { orderId: string }) {
     );
   }
 
-  const { orderNumber, pricing } = order.data;
+  const { orderNumber, status, pricing } = order.data;
+  // This URL stays in the browser's history after the customer cancels (PIN-429)
+  const cancelled = status === "CANCELLED";
   return (
     <div className="rounded-xl bg-slate-800 p-8 text-center shadow-lg">
-      <CheckCircle2
-        size={40}
-        className="mx-auto text-green-400"
-        aria-hidden="true"
-      />
+      {!cancelled && (
+        <CheckCircle2
+          size={40}
+          className="mx-auto text-green-400"
+          aria-hidden="true"
+        />
+      )}
       <h1 className="mt-4 text-3xl font-bold text-white">
-        Thank you for your order
+        {cancelled ? "This order was cancelled" : "Thank you for your order"}
       </h1>
       <p className="mt-4 text-slate-300">
         Order number{" "}
