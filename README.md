@@ -46,6 +46,7 @@ docker compose down -v
 | Debezium Connect | 8083 | http://localhost:8083 | CDC connectors |
 | Vault | 8200 | http://localhost:8200 | Secrets management |
 | Prometheus | 9090 | http://localhost:9090 | Metrics collection |
+| Alertmanager | 9095 | http://localhost:9095 | Alert routing |
 | Loki | 3100 | http://localhost:3100 | Log aggregation |
 | Tempo | 3200 | http://localhost:3200 | Distributed tracing |
 | Grafana | 3000 | http://localhost:3000 | Observability dashboards |
@@ -187,6 +188,7 @@ The `health` command checks the following services:
 | Service | Health Check Endpoint |
 |---------|----------------------|
 | Prometheus | `GET /-/healthy` |
+| Alertmanager | `GET /-/healthy` |
 | Loki | `GET /ready` |
 | Tempo | `GET /ready` |
 | Grafana | `GET /api/health` |

@@ -10,11 +10,11 @@ global:
     cluster: acme-local
     env: development
 
-# Alertmanager configuration (optional, for future use)
+# Alertmanager (PIN-495): notifies the receiver in docker/alertmanager/config/alertmanager.yml
 alerting:
   alertmanagers:
     - static_configs:
-        - targets: []
+        - targets: ["alertmanager:9093"]
 
 # Rule files for recording and alerting rules
 rule_files:
@@ -41,6 +41,11 @@ scrape_configs:
   - job_name: "tempo"
     static_configs:
       - targets: ["tempo:3200"]
+
+  # Alertmanager metrics (PIN-495): up{job="alertmanager"} and notification failure counters
+  - job_name: "alertmanager"
+    static_configs:
+      - targets: ["alertmanager:9093"]
 
   # Order service metrics (PIN-493)
   - job_name: "order-service"

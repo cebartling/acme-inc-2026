@@ -1,0 +1,20 @@
+# =============================================================================
+# Alertmanager Configuration
+# Receives alerts from Prometheus and routes them to a receiver (PIN-495)
+# =============================================================================
+
+route:
+  receiver: default
+  group_by: [alertname, job]
+  group_wait: 10s
+  group_interval: 1m
+  repeat_interval: 4h
+
+receivers:
+  # Local receiver: an echo container that logs each notification
+  # (`docker logs acme-alert-webhook`). Swap in Slack, email or PagerDuty here
+  # for a deployed environment; severity stays on every alert as a label.
+  - name: default
+    webhook_configs:
+      - url: http://alert-webhook:8080/
+        send_resolved: true

@@ -204,7 +204,9 @@ jobs:
         run: diff -r .claude/skills .agents/skills
 
   # The rules file is loaded at Prometheus startup: a bad edit stops Prometheus,
-  # and Grafana waits on its healthcheck. Image version matches docker-compose.yml.
+  # and Grafana waits on its healthcheck. A bad Alertmanager config stops Alertmanager,
+  # and Prometheus alerts then reach no receiver (PIN-495). Image versions match
+  # docker-compose.yml.
   prometheus-rules:
     name: Prometheus · rules
     runs-on: ubuntu-latest
@@ -217,3 +219,8 @@ jobs:
             check rules /p/config/rules/alerts.yml
           docker run --rm --entrypoint promtool -v "$PWD/docker/prometheus:/p:ro" prom/prometheus:v3.14.0 \
             test rules /p/tests/alerts.test.yml
+
+      - name: amtool check-config
+        run: |
+          docker run --rm --entrypoint amtool -v "$PWD/docker/alertmanager:/a:ro" prom/alertmanager:v0.32.0 \
+            check-config /a/config/alertmanager.yml
