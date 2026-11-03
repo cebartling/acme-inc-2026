@@ -83,8 +83,8 @@ because every cart read needed a customer token. Decision 3's read doesn't.
   or `max-age` raised too. Nothing checks this across the two services.
 - Every instance runs the job (PIN-390). The conditional update keeps that harmless, and
   only the instance that cancelled an order logs and counts it.
-- The order service has no Prometheus registry yet, so the metric shows at
-  `/actuator/metrics` only and nothing alerts on it automatically.
+- Prometheus scrapes the order service's metrics at `/actuator/prometheus` (PIN-493), but no
+  alert rule or dashboard reads them yet, so nothing alerts on them automatically.
 - **Decided in PIN-464: a late retry can still race the job, and we leave it.** The job
   measures age from `createdAt` and a retry doesn't update it, so the job can cancel an order
   between a retry's successful convert and `markSubmitted`. The cart ends `CONVERTED`, the
