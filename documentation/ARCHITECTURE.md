@@ -619,7 +619,7 @@ their orders back (PIN-367) and cancel a submitted one (PIN-429).
     cart (`CartClient.getConversion`, the service token alone, since the job has no customer
     token). If the cart converted for that order, the convert's answer was lost, and the job
     submits the order instead (`OrderSubmitter`, shared with `PlaceOrderUseCase`) and counts
-    `orders_recovered_total`. If the cart didn't, it cancels. If the cart can't be asked, the
+    `orders_recovered_total` only if this run's update moved it, not if a retry submitted it first. If the cart didn't, it cancels. If the cart can't be asked, the
     order stays `PENDING` for the next run. A run pages through the backlog oldest first (100 a
     page, at most 10 pages), so orders left `PENDING` don't hide the ones behind them; it stops
     when a whole page got no answer from the cart, and one order failing is logged and skipped.

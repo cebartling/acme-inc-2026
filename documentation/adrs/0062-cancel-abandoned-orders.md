@@ -50,7 +50,9 @@ because every cart read needed a customer token. Decision 3's read doesn't.
    customer token, so the owner check on the cart's other two order-service calls can't apply.
    - **Converted:** the job submits the order through `OrderSubmitter`, the same conditional
      `PENDING → SUBMITTED` update and `OrderCreated` outbox write as `PlaceOrderUseCase`. It logs
-     a warning and counts `orders_recovered_total{reason=LOST_CONVERT}`.
+     a warning and counts `orders_recovered_total{reason=LOST_CONVERT}` only when this call
+     moved the order (`SubmitResult.Submitted`); an order a retry submitted first is not
+     counted, and one a racing caller cancelled is logged as an error by `OrderSubmitter`.
    - **Not converted:** the order is cancelled, logged and counted as before. The cart keeps the
      order's ID on a `CONVERTED` cart (`carts.order_id`) for 90 days (`ACME_CART_RETENTION`),
      far longer than `max-age`, so a purged cart can't be mistaken for "not converted".

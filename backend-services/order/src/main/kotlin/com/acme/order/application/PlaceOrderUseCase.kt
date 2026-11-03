@@ -122,19 +122,13 @@ class PlaceOrderUseCase(
             }
         }
 
-    private fun submit(order: Order): PlaceOrderResult {
-        val submitted = submitter.submit(order)
-        // A racing request may have cancelled it first; answer what the order actually is
-        return if (submitted.status == OrderStatus.SUBMITTED) {
-            PlaceOrderResult.Placed(submitted)
-        } else {
-            logger.error(
-                "Cart {} converted for order {} ({}), which was cancelled with {}: user {} has no cart and no order",
-                submitted.cartId, submitted.id, submitted.orderNumber, submitted.cancelCode, submitted.userId
-            )
-            refused(submitted.cancelCode ?: CHECKOUT_SESSION_NOT_FOUND, "The order was not placed")
+    private fun submit(order: Order): PlaceOrderResult =
+        when (val result = submitter.submit(order)) {
+            is SubmitResult.Submitted, is SubmitResult.AlreadySubmitted -> PlaceOrderResult.Placed(result.order)
+            // A racing request cancelled it first; the submitter has logged that. Answer what the order is
+            is SubmitResult.Cancelled ->
+                refused(result.order.cancelCode ?: CHECKOUT_SESSION_NOT_FOUND, "The order was not placed")
         }
-    }
 
     private fun cancel(order: Order, code: String, command: PlaceOrderCommand): PlaceOrderResult {
         logger.info("Cart refused converting cart {} for order {} with {}; cancelling it", order.cartId, order.id, code)

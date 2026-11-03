@@ -44,7 +44,7 @@ order it is.
   CHECKOUT_SESSION_NOT_FOUND`, because customer cancels have no `cancel_code`. Its message, "The
   order was not placed", isn't accurate there, but the retry places nothing.
 - A placement retry in flight while the customer cancels the same order logs
-  `PlaceOrderUseCase`'s "no cart and no order" error, which isn't true in that case. It needs a
+  `OrderSubmitter`'s "no cart and no order" error, which isn't true in that case. It needs a
   retry racing a cancel, so it stays as it is.
 - `idx_orders_user_status_created` may no longer serve the list's sort because of the `OR`.
   Postgres then sorts one customer's orders, which is a small set.
