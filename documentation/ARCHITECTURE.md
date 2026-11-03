@@ -632,7 +632,11 @@ their orders back (PIN-367) and cancel a submitted one (PIN-429).
     rule reads it yet, so nothing alerts on it. `orders_recovered_total` does have one: the
     `OrderRecoveredLostConvert` rule in `docker/prometheus/config/rules/alerts.yml` fires for an
     hour after a recovery (PIN-494). With no Alertmanager running, it shows only in the
-    Prometheus UI.
+    Prometheus UI. Memory alerts split by runtime in the same file: `HighMemoryUsage` watches
+    JVM heap (`jvm_memory_used_bytes`, live data above 512MB for 5 minutes, since the order
+    service has no container limit to take a share of), and `HighProcessMemoryUsage` keeps the
+    resident-memory rule for the jobs that emit no JVM metrics (Prometheus, Grafana, Loki,
+    Tempo).
   - **Browser calls:** CORS follows the cart's `CorsConfig` (PIN-425); see
     [CORS and Browser-Facing Backend URLs](#cors-and-browser-facing-backend-urls).
 - **Checkout in the customer app** (PIN-426, journey 0005 steps 1, 4, 5 and 6): signed-in
