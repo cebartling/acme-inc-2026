@@ -47,32 +47,12 @@ scrape_configs:
     static_configs:
       - targets: ["alertmanager:9093"]
 
-  # Order service metrics (PIN-493)
+  # Order service metrics (PIN-493). With only docker-compose.yml running this target does not
+  # exist, so ServiceDown fires for it; that is expected.
   - job_name: "order-service"
     static_configs:
       - targets: ["order-service:10305"]
     metrics_path: /actuator/prometheus
-
-  # Kafka metrics (when available)
-  - job_name: "kafka"
-    static_configs:
-      - targets: ["kafka:9092"]
-    metrics_path: /metrics
-    scrape_interval: 30s
-
-  # Schema Registry metrics
-  - job_name: "schema-registry"
-    static_configs:
-      - targets: ["schema-registry:8081"]
-    metrics_path: /metrics
-    scrape_interval: 30s
-
-  # Debezium Connect metrics
-  - job_name: "debezium-connect"
-    static_configs:
-      - targets: ["debezium-connect:8083"]
-    metrics_path: /metrics
-    scrape_interval: 30s
 
 # Remote write for receiving metrics from Tempo
 remote_write: []
