@@ -9,6 +9,9 @@ still forwards the customer's credentials, and now also proves who it is. This r
 ADR-0044's decision 3, which left service-to-service authentication out of scope, and
 qualifies decision 2: these two endpoints now check the caller as well as the owner.
 
+Amended in PIN-491: a third endpoint, the conversion read, takes the service token alone
+(decision 5).
+
 ## Context
 
 Under ADR-0044, the cart authorizes the order service's calls only by owner, so it can't tell
@@ -42,6 +45,15 @@ identity, and no secret shared between services.
    the order service reaches only the customer's own cart.
 4. **The check is in the controller**, not in `SecurityConfig`, which keeps its "every
    endpoint open, token optional" setup (ADR-0043).
+5. **The conversion read needs the service token and no owner (PIN-491).** `GET
+   /api/v1/carts/{cartId}/conversions/{orderId}` answers whether the cart converted for that
+   order, for the abandoned-order job ([ADR-0062](0062-cancel-abandoned-orders.md)), which has
+   no customer token. It is checked like decision 3, token first, but with no owner check. It
+   answers only for a matching cart and order ID pair, both unguessable UUIDs, returns no cart
+   contents, and changes nothing; every other case is 404 `CART_NOT_CONVERTED`. Someone with
+   the secret could already convert any cart they hold a token for, so it adds little. Anyone
+   with the secret and both IDs can confirm a conversion, which is the cost of having no
+   owner to check.
 
 ## Alternatives Considered
 

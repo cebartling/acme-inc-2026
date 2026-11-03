@@ -28,8 +28,8 @@ An Architecture Decision Record documents a significant architectural decision, 
 | [ADR-0044](0044-forward-customer-credentials-between-services.md) | Service-to-Service Calls Carry the Customer's Credentials | Accepted, amended by [ADR-0061](0061-order-service-token-for-cart-calls.md) |
 | [ADR-0045](0045-cart-product-calls-fail-closed.md) | Cart Calls the Product Service Synchronously and Fails Closed | Accepted |
 | [ADR-0050](0050-api-error-body-format.md) | API Error Response Body Format | Accepted |
-| [ADR-0061](0061-order-service-token-for-cart-calls.md) | The Order Service Authenticates to the Cart with a Shared Secret | Accepted |
-| [ADR-0062](0062-cancel-abandoned-orders.md) | Abandoned Orders Are Cancelled, and a Lost Convert Is Logged for Support Until the Cart Read Exists | Accepted |
+| [ADR-0061](0061-order-service-token-for-cart-calls.md) | The Order Service Authenticates to the Cart with a Shared Secret | Accepted, amended in PIN-491 |
+| [ADR-0062](0062-cancel-abandoned-orders.md) | Abandoned Orders Are Cancelled, Unless the Cart Converted for Them, and Then They Are Submitted | Accepted |
 | [ADR-0063](0063-customer-order-cancellation.md) | Customers Can Cancel Submitted Orders, and Those Orders Stay Visible | Accepted |
 
 ### Shopping Cart
