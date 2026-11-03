@@ -635,9 +635,9 @@ their orders back (PIN-367) and cancel a submitted one (PIN-429).
     compose only), which groups them by `alertname` and `job` and posts them to one webhook
     receiver, the `alert-webhook` echo container: read the notifications with
     `docker logs acme-alert-webhook`. Prometheus scrapes Alertmanager too, so a down
-    Alertmanager shows as `up{job="alertmanager"} == 0`. A deployed environment swaps in a real receiver in
-    `docker/alertmanager/config/alertmanager.yml`. Alertmanager's host port is 9095 because
-    9093 is Kafka's controller port. Memory alerts split by runtime in the same file:
+    Alertmanager shows as `up{job="alertmanager"} == 0`. A deployed environment swaps in a
+    real receiver in `docker/alertmanager/config/alertmanager.yml`. Alertmanager's host port
+    is 9095 because 9093 is Kafka's controller port. Memory alerts split by runtime in the same file:
     `HighMemoryUsage` watches JVM heap (`jvm_memory_used_bytes`, live data above 512MB for 5
     minutes, since the order service has no container limit to take a share of), and
     `HighProcessMemoryUsage` keeps the resident-memory rule for the jobs that emit no JVM
