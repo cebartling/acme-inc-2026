@@ -73,6 +73,9 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318
       # Boot samples 10% by default; sample everything locally
       MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "1.0"
+      # OTEL_EXPORTER_OTLP_ENDPOINT also points Boot's OTLP metrics push at Tempo, which
+      # accepts traces only (404 and a WARN stack trace every minute); Prometheus has the metrics
+      MANAGEMENT_OTLP_METRICS_EXPORT_ENABLED: "false"
       OTEL_SERVICE_NAME: identity-service
 
       # Test API (enabled for acceptance tests)
@@ -186,6 +189,9 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318
       # Boot samples 10% by default; sample everything locally
       MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "1.0"
+      # OTEL_EXPORTER_OTLP_ENDPOINT also points Boot's OTLP metrics push at Tempo, which
+      # accepts traces only (404 and a WARN stack trace every minute); Prometheus has the metrics
+      MANAGEMENT_OTLP_METRICS_EXPORT_ENABLED: "false"
       OTEL_SERVICE_NAME: customer-service
     networks:
       - acme-network
@@ -269,6 +275,9 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318
       # Boot samples 10% by default; sample everything locally
       MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "1.0"
+      # OTEL_EXPORTER_OTLP_ENDPOINT also points Boot's OTLP metrics push at Tempo, which
+      # accepts traces only (404 and a WARN stack trace every minute); Prometheus has the metrics
+      MANAGEMENT_OTLP_METRICS_EXPORT_ENABLED: "false"
       OTEL_SERVICE_NAME: notification-service
     networks:
       - acme-network
@@ -335,6 +344,9 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318
       # Boot samples 10% by default; sample everything locally
       MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "1.0"
+      # OTEL_EXPORTER_OTLP_ENDPOINT also points Boot's OTLP metrics push at Tempo, which
+      # accepts traces only (404 and a WARN stack trace every minute); Prometheus has the metrics
+      MANAGEMENT_OTLP_METRICS_EXPORT_ENABLED: "false"
       OTEL_SERVICE_NAME: product-service
     networks:
       - acme-network
@@ -409,6 +421,9 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318
       # Boot samples 10% by default; sample everything locally
       MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "1.0"
+      # OTEL_EXPORTER_OTLP_ENDPOINT also points Boot's OTLP metrics push at Tempo, which
+      # accepts traces only (404 and a WARN stack trace every minute); Prometheus has the metrics
+      MANAGEMENT_OTLP_METRICS_EXPORT_ENABLED: "false"
       OTEL_SERVICE_NAME: shopping-cart-service
     networks:
       - acme-network
@@ -481,6 +496,9 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318
       # Boot samples 10% by default; sample everything locally
       MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "1.0"
+      # OTEL_EXPORTER_OTLP_ENDPOINT also points Boot's OTLP metrics push at Tempo, which
+      # accepts traces only (404 and a WARN stack trace every minute); Prometheus has the metrics
+      MANAGEMENT_OTLP_METRICS_EXPORT_ENABLED: "false"
       OTEL_SERVICE_NAME: order-service
     networks:
       - acme-network

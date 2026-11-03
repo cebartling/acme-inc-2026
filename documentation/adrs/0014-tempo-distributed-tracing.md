@@ -4,7 +4,7 @@
 
 Accepted
 
-**Current state (2026-11-03, PIN-370):** Every backend service declares `spring-boot-starter-opentelemetry` (Boot 4 keeps tracing auto-configuration in a separate module the old bridge/exporter pair did not bring) and exports spans straight to Tempo's OTLP HTTP receiver (`OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo:4318`, set in `docker-compose.apps.yml`) at 100% sampling locally. There is no OpenTelemetry Collector yet; the diagram below shows the intended design.
+**Current state (2026-11-03, PIN-370):** Every backend service declares `spring-boot-starter-opentelemetry` (Boot 4 keeps tracing auto-configuration in a separate module the old bridge/exporter pair did not bring) and exports spans straight to Tempo's OTLP HTTP receiver (`OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo:4318`, set in `docker-compose.apps.yml`) at 100% sampling locally. The starter also brings Micrometer's OTLP metrics registry, which would push metrics to the same endpoint; Tempo accepts traces only, so `docker-compose.apps.yml` sets `MANAGEMENT_OTLP_METRICS_EXPORT_ENABLED=false` and Prometheus stays the metrics path. Each service's inbound requests are traced, but outbound `RestClient` calls (order to cart, cart to product, notification to customer) are built with the static `RestClient.builder()` and send no trace headers, so a request that crosses services shows up as separate traces. There is no OpenTelemetry Collector yet; the diagram below shows the intended design.
 
 ## Context
 
