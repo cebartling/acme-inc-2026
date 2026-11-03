@@ -42,6 +42,11 @@ scrape_configs:
     static_configs:
       - targets: ["tempo:3200"]
 
+  # Alertmanager metrics (PIN-495): up{job="alertmanager"} and notification failure counters
+  - job_name: "alertmanager"
+    static_configs:
+      - targets: ["alertmanager:9093"]
+
   # Order service metrics (PIN-493)
   - job_name: "order-service"
     static_configs:
