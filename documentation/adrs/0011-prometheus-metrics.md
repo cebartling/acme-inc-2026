@@ -4,7 +4,7 @@
 
 Accepted
 
-**Current state (2026-10-21, PIN-386):** Prometheus runs, but it collects no metrics from the application services. No service declares `micrometer-registry-prometheus`; order's built jar, for example, has `micrometer-core` but no Prometheus registry. So `/actuator/prometheus` does not exist on any service, even though identity, customer and notification list `prometheus` in `management.endpoints.web.exposure.include`. Product, shopping-cart and order expose only `health,info,metrics`. `docker/prometheus/config/prometheus.yml` scrapes only infrastructure (prometheus, grafana, loki, tempo, kafka, schema-registry and debezium-connect) and has no job for any backend service.
+**Current state (2026-11-03, PIN-493):** Prometheus runs and collects metrics from one application service, order. Order declares `micrometer-registry-prometheus`, exposes `/actuator/prometheus` without authentication (the actuator is open in `SecurityConfig`), and has an `order-service` job in `docker/prometheus/config/prometheus.yml`. No other service declares the registry, so `/actuator/prometheus` does not exist on them, even though identity, customer and notification list `prometheus` in `management.endpoints.web.exposure.include`. Product and shopping-cart expose only `health,info,metrics`. The other scrape jobs are infrastructure (prometheus, grafana, loki, tempo, kafka, schema-registry and debezium-connect); no other backend service has a job.
 
 ## Context
 

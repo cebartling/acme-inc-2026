@@ -628,8 +628,8 @@ their orders back (PIN-367) and cancel a submitted one (PIN-429).
     is refused with that code as a 404. Each cancel logs a warning and counts in
     `orders_cancelled_total`, so support can follow up a customer who lost cart and order that
     way. The counter covers only this job's cancels, not `PlaceOrderUseCase.cancel` or customer
-    cancels (ADR-0063), and the order service has no Prometheus registry, so nothing alerts on
-    it.
+    cancels (ADR-0063). Prometheus scrapes it at `/actuator/prometheus` (PIN-493), but no alert
+    rule reads it yet, so nothing alerts on it.
   - **Browser calls:** CORS follows the cart's `CorsConfig` (PIN-425); see
     [CORS and Browser-Facing Backend URLs](#cors-and-browser-facing-backend-urls).
 - **Checkout in the customer app** (PIN-426, journey 0005 steps 1, 4, 5 and 6): signed-in
