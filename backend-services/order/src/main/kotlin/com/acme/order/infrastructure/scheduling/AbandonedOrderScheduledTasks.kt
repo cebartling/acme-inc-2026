@@ -7,8 +7,8 @@ import org.springframework.context.annotation.Configuration
 import org.springframework.scheduling.annotation.Scheduled
 
 /**
- * Cancels abandoned orders on a fixed delay (PIN-427). `acme.order.abandoned.enabled=false`
- * turns it off.
+ * Settles abandoned orders on a fixed delay (PIN-427, PIN-491): submits one whose cart
+ * converted for it, cancels the rest. `acme.order.abandoned.enabled=false` turns it off.
  */
 @Configuration
 @ConditionalOnProperty(name = ["acme.order.abandoned.enabled"], havingValue = "true", matchIfMissing = true)

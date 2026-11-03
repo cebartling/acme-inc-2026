@@ -42,7 +42,7 @@ class PlaceOrderUseCaseTest {
     private val outboxWriter = mockk<OutboxWriter>()
     private val transactionTemplate = TransactionTemplate(mockk<PlatformTransactionManager>(relaxed = true))
     private val useCase = PlaceOrderUseCase(
-        orders, orderNumbers, OrderIdGenerator(), cartClient, outboxWriter, transactionTemplate, JacksonConfig().objectMapper()
+        orders, orderNumbers, OrderIdGenerator(), cartClient, OrderSubmitter(orders, outboxWriter, transactionTemplate), transactionTemplate, JacksonConfig().objectMapper()
     )
 
     private val userId = UUID.randomUUID()

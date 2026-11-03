@@ -480,6 +480,12 @@ sequenceDiagram
   order for the same session finds it and answers the same, saving and publishing nothing,
   and the order service can retry. A different order or session is 409 `CART_ALREADY_CONVERTED`. A cart
   not in checkout for that session is 404 `CHECKOUT_SESSION_NOT_FOUND`.
+- **Reading a conversion (PIN-491, [ADR-0061](adrs/0061-order-service-token-for-cart-calls.md))**: `GET /api/v1/carts/{cartId}/conversions/{orderId}`
+  is for the order service's abandoned-order job, which has no customer token, so it checks the
+  service token only, with no owner check. It answers the same `{cartId, status, orderId,
+  convertedAt}` as convert if the cart is `CONVERTED` for that order, and 404
+  `CART_NOT_CONVERTED` otherwise (unknown cart, another status, another order). It changes
+  nothing.
 
 ### Product Service
 
@@ -608,16 +614,22 @@ their orders back (PIN-367) and cancel a submitted one (PIN-429).
   - **Other errors**, all `{error, code}` (ADR-0050): `401 SIGN_IN_REQUIRED`, `TOKEN_EXPIRED`
     or `INVALID_TOKEN`; `400 IDEMPOTENCY_KEY_REQUIRED` or `INVALID_REQUEST`.
   - **When the retry never comes** (PIN-427, ADR-0062): every 5 minutes
-    `AbandonedOrderScheduledTasks` runs `CancelAbandonedOrdersUseCase`, which moves up to 100
-    orders `PENDING` for over an hour (`acme.order.abandoned.max-age`) to `CANCELLED` with
-    `PLACEMENT_ABANDONED`, through the same conditional update. It can only cancel, because
-    converting needs the customer's token. A later retry with the key is refused with that
-    code as a 404. Each cancel logs a warning and counts in `orders_cancelled_total`,
-    because a crash after convert, or a convert that commits but times out, leaves a `PENDING`
-    order whose cart is already gone. The counter covers only this job's cancels, not
-    `PlaceOrderUseCase.cancel` or customer cancels (ADR-0063), and the order service has no
-    Prometheus registry, so nothing alerts on it. A service-token cart read, so the job can
-    finish a lost convert instead of cancelling it, is decided but not built (PIN-491).
+    `AbandonedOrderScheduledTasks` runs `CancelAbandonedOrdersUseCase`, which moves orders `PENDING` for over an hour (`acme.order.abandoned.max-age`) to `CANCELLED` with
+    `PLACEMENT_ABANDONED`, through the same conditional update. Before cancelling, it asks the
+    cart (`CartClient.getConversion`, the service token alone, since the job has no customer
+    token). If the cart converted for that order, the convert's answer was lost, and the job
+    submits the order instead (`OrderSubmitter`, shared with `PlaceOrderUseCase`) and counts
+    `orders_recovered_total`. If the cart didn't, it cancels. If the cart can't be asked, the
+    order stays `PENDING` for the next run. A run pages through the backlog oldest first (100 a
+    page, at most 10 pages), so orders left `PENDING` don't hide the ones behind them; it stops
+    when a whole page got no answer from the cart, and one order failing is logged and skipped.
+    The check narrows the race with a retry but doesn't
+    close it: a retry can convert between the check and the cancel. A later retry with the key
+    is refused with that code as a 404. Each cancel logs a warning and counts in
+    `orders_cancelled_total`, so support can follow up a customer who lost cart and order that
+    way. The counter covers only this job's cancels, not `PlaceOrderUseCase.cancel` or customer
+    cancels (ADR-0063), and the order service has no Prometheus registry, so nothing alerts on
+    it.
   - **Browser calls:** CORS follows the cart's `CorsConfig` (PIN-425); see
     [CORS and Browser-Facing Backend URLs](#cors-and-browser-facing-backend-urls).
 - **Checkout in the customer app** (PIN-426, journey 0005 steps 1, 4, 5 and 6): signed-in

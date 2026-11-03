@@ -2,13 +2,9 @@ package com.acme.order.application
 
 import com.acme.order.domain.Order
 import com.acme.order.domain.OrderStatus
-import com.acme.order.domain.events.Money
-import com.acme.order.domain.events.OrderCreated
-import com.acme.order.domain.events.OrderCreatedPayload
 import com.acme.order.infrastructure.cart.CartClient
 import com.acme.order.infrastructure.cart.CartResult
 import com.acme.order.infrastructure.cart.CheckoutSession
-import com.acme.order.infrastructure.messaging.OutboxWriter
 import com.acme.order.infrastructure.persistence.OrderIdGenerator
 import com.acme.order.infrastructure.persistence.OrderNumberSequenceRepository
 import com.acme.order.infrastructure.persistence.OrderRepository
@@ -41,7 +37,7 @@ sealed interface PlaceOrderResult {
 
     /**
      * The cart didn't answer. Any saved order stays PENDING, and the same key resumes it until
-     * [CancelAbandonedOrdersUseCase] cancels it.
+     * [CancelAbandonedOrdersUseCase] submits it (its cart converted) or cancels it.
      */
     data object CartUnavailable : PlaceOrderResult
 }
@@ -67,7 +63,7 @@ class PlaceOrderUseCase(
     private val orderNumbers: OrderNumberSequenceRepository,
     private val ids: OrderIdGenerator,
     private val cartClient: CartClient,
-    private val outboxWriter: OutboxWriter,
+    private val submitter: OrderSubmitter,
     private val transactionTemplate: TransactionTemplate,
     private val objectMapper: ObjectMapper
 ) {
@@ -127,29 +123,7 @@ class PlaceOrderUseCase(
         }
 
     private fun submit(order: Order): PlaceOrderResult {
-        val submitted = transactionTemplate.execute {
-            val now = Instant.now()
-            val submittedNow = orders.markSubmitted(order.id, now) == 1
-            val current = orders.findById(order.id).get()
-            if (submittedNow) {
-                outboxWriter.write(
-                    OrderCreated.create(
-                        OrderCreatedPayload(
-                            orderId = current.id,
-                            orderNumber = current.orderNumber,
-                            userId = current.userId,
-                            status = OrderStatus.SUBMITTED.name,
-                            total = Money(current.subtotal, current.currency),
-                            itemCount = current.items.sumOf { it.quantity }
-                        ),
-                        correlationId = current.checkoutSessionId,
-                        now = now
-                    )
-                )
-                logger.info("Order {} ({}) SUBMITTED", current.id, current.orderNumber)
-            }
-            current
-        }!!
+        val submitted = submitter.submit(order)
         // A racing request may have cancelled it first; answer what the order actually is
         return if (submitted.status == OrderStatus.SUBMITTED) {
             PlaceOrderResult.Placed(submitted)

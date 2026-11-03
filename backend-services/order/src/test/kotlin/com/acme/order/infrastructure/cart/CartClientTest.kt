@@ -1,6 +1,7 @@
 package com.acme.order.infrastructure.cart
 
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpHeaders
@@ -149,6 +150,43 @@ class CartClientTest {
         )
 
         assertEquals(CartResult.Unavailable, client.convert(cartId, orderId, sessionId, "the-token"))
+    }
+
+    private val conversionUrl = "http://cart/api/v1/carts/$cartId/conversions/$orderId"
+
+    @Test
+    fun `reads the conversion with the service token alone`() {
+        server.expect(requestTo(conversionUrl))
+            .andExpect(method(HttpMethod.GET))
+            .andExpect(header(CartClient.SERVICE_TOKEN_HEADER, "order-secret"))
+            .andExpect { request -> assertNull(request.headers.getFirst(HttpHeaders.COOKIE)) }
+            .andRespond(
+                withSuccess(
+                    """{"cartId":"$cartId","status":"CONVERTED","orderId":"$orderId","convertedAt":"2026-10-22T12:00:00Z"}""",
+                    MediaType.APPLICATION_JSON
+                )
+            )
+
+        assertEquals(
+            CartResult.Ok(CartConversion(cartId, orderId, Instant.parse("2026-10-22T12:00:00Z"))),
+            client.getConversion(cartId, orderId)
+        )
+    }
+
+    @Test
+    fun `a cart not converted for the order is refused with CART_NOT_CONVERTED`() {
+        server.expect(requestTo(conversionUrl)).andRespond(
+            errorBody(HttpStatus.NOT_FOUND, """{"error":"Not converted","code":"CART_NOT_CONVERTED"}""")
+        )
+
+        assertEquals(CartResult.Refused("CART_NOT_CONVERTED", "Not converted"), client.getConversion(cartId, orderId))
+    }
+
+    @Test
+    fun `a cart that cannot answer the conversion read is unavailable`() {
+        server.expect(requestTo(conversionUrl)).andRespond(withServerError())
+
+        assertEquals(CartResult.Unavailable, client.getConversion(cartId, orderId))
     }
 
     @Test

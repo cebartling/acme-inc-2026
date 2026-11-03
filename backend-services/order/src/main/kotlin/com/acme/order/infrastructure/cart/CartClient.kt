@@ -96,6 +96,20 @@ class CartClient(
                 .body(CartConversion::class.java)
         }
 
+    /**
+     * `GET /api/v1/carts/{cartId}/conversions/{orderId}` (PIN-491): whether the cart converted for
+     * this order. For the abandoned-order job, which has no customer token, so only the service
+     * token is sent. [CartResult.Refused] with `CART_NOT_CONVERTED` means it didn't.
+     */
+    fun getConversion(cartId: UUID, orderId: UUID): CartResult<CartConversion> =
+        call("read conversion of cart $cartId for order $orderId") {
+            cartRestClient.get()
+                .uri("/api/v1/carts/{cartId}/conversions/{orderId}", cartId, orderId)
+                .header(SERVICE_TOKEN_HEADER, serviceToken)
+                .retrieve()
+                .body(CartConversion::class.java)
+        }
+
     private fun <T> call(description: String, request: () -> T?): CartResult<T> =
         try {
             request()?.let { CartResult.Ok(it) } ?: run {
@@ -119,7 +133,7 @@ class CartClient(
         return when {
             // The cart's 401 body is {"error": "TOKEN_EXPIRED" | "INVALID_TOKEN"}, with no code
             ex.statusCode == HttpStatus.UNAUTHORIZED -> CartResult.Unauthorized(body?.error ?: "INVALID_TOKEN")
-            body?.code in FINAL_CODES -> CartResult.Refused(body!!.code!!, body.error ?: body.code!!)
+            body?.code in FINAL_CODES || body?.code == CART_NOT_CONVERTED -> CartResult.Refused(body!!.code!!, body.error ?: body.code!!)
             // A configuration error, not an outage: no retry can succeed until the tokens match
             body?.code == SERVICE_CREDENTIALS_REQUIRED -> {
                 logger.error(
@@ -142,6 +156,9 @@ class CartClient(
         const val ACCESS_TOKEN_COOKIE = "access_token"
         const val SERVICE_TOKEN_HEADER = "X-Service-Token"
         const val SERVICE_CREDENTIALS_REQUIRED = "SERVICE_CREDENTIALS_REQUIRED"
+
+        /** The answer to [getConversion] when the cart didn't convert for that order. */
+        const val CART_NOT_CONVERTED = "CART_NOT_CONVERTED"
 
         /** The cart's answers that mean the order can't go ahead; anything else is retried. */
         val FINAL_CODES = setOf("CHECKOUT_SESSION_NOT_FOUND", "CART_NOT_FOUND", "CART_ALREADY_CONVERTED")
