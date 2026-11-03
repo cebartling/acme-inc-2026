@@ -217,3 +217,8 @@ jobs:
             check rules /p/config/rules/alerts.yml
           docker run --rm --entrypoint promtool -v "$PWD/docker/prometheus:/p:ro" prom/prometheus:v3.14.0 \
             test rules /p/tests/alerts.test.yml
+
+      - name: amtool check-config
+        run: |
+          docker run --rm --entrypoint amtool -v "$PWD/docker/alertmanager:/a:ro" prom/alertmanager:v0.32.0 \
+            check-config /a/config/alertmanager.yml

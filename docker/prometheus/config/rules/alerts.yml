@@ -55,7 +55,7 @@ groups:
           severity: warning
         annotations:
           summary: "Order service recovered a lost convert"
-          description: "A convert's answer was lost between the order service and the cart, and the abandoned-order job submitted the order afterwards. See documentation/adrs/0062-cancel-abandoned-orders.md."
+          description: "A convert's answer was lost between the order service and the cart, and the abandoned-order job submitted the order afterwards. The job logs a warning for each recovery in the order-service logs. See documentation/adrs/0062-cancel-abandoned-orders.md."
 
   - name: kafka
     rules:

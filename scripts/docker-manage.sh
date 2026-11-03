@@ -530,6 +530,15 @@ health_check() {
         all_healthy=false
     fi
 
+    # Check Alertmanager
+    local alertmanager_port="${ALERTMANAGER_PORT:-9095}"
+    if curl -sf "http://localhost:${alertmanager_port}/-/healthy" &>/dev/null; then
+        print_success "Alertmanager: healthy"
+    else
+        print_error "Alertmanager: unhealthy or not running"
+        all_healthy=false
+    fi
+
     # Check Loki
     local loki_port="${LOKI_PORT:-3100}"
     if curl -sf "http://localhost:${loki_port}/ready" &>/dev/null; then

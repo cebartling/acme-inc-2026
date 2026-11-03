@@ -22,7 +22,7 @@ tests:
           - exp_labels: {severity: warning, job: order-service, reason: LOST_CONVERT}
             exp_annotations:
               summary: "Order service recovered a lost convert"
-              description: "A convert's answer was lost between the order service and the cart, and the abandoned-order job submitted the order afterwards. See documentation/adrs/0062-cancel-abandoned-orders.md."
+              description: "A convert's answer was lost between the order service and the cart, and the abandoned-order job submitted the order afterwards. The job logs a warning for each recovery in the order-service logs. See documentation/adrs/0062-cancel-abandoned-orders.md."
 
   # PIN-494: the series is first scraped already at 1, so increase() has no prior sample.
   - interval: 1m
@@ -36,7 +36,7 @@ tests:
           - exp_labels: {severity: warning, job: order-service, reason: LOST_CONVERT}
             exp_annotations:
               summary: "Order service recovered a lost convert"
-              description: "A convert's answer was lost between the order service and the cart, and the abandoned-order job submitted the order afterwards. See documentation/adrs/0062-cancel-abandoned-orders.md."
+              description: "A convert's answer was lost between the order service and the cart, and the abandoned-order job submitted the order afterwards. The job logs a warning for each recovery in the order-service logs. See documentation/adrs/0062-cancel-abandoned-orders.md."
 
   # PIN-494: a counter that stays at 0 never alerts.
   - interval: 1m

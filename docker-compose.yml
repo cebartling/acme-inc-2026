@@ -227,6 +227,40 @@ services:
       retries: 5
       start_period: 10s
 
+  alertmanager:
+    image: prom/alertmanager:v0.32.0
+    container_name: acme-alertmanager
+    hostname: alertmanager
+    ports:
+      # Container port stays 9093 for Prometheus; the default host port is Kafka's controller.
+      - "${ALERTMANAGER_PORT:-9095}:9093"
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
+    volumes:
+      - ./docker/alertmanager/config/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    networks:
+      - acme-network
+    depends_on:
+      - alert-webhook
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9093/-/healthy || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Local alert receiver: logs every notification Alertmanager sends (PIN-495).
+  alert-webhook:
+    image: mendhak/http-https-echo:43
+    container_name: acme-alert-webhook
+    hostname: alert-webhook
+    environment:
+      HTTP_PORT: "8080"
+      DISABLE_REQUEST_LOGS: "false"
+    networks:
+      - acme-network
+
   loki:
     image: grafana/loki:3.3.2
     container_name: acme-loki
