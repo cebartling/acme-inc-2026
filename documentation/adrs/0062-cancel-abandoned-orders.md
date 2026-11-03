@@ -1,8 +1,12 @@
-# ADR-0062: Abandoned Orders Are Cancelled, and a Lost Convert Is Logged for Support
+# ADR-0062: Abandoned Orders Are Cancelled, and a Lost Convert Is Logged for Support Until the Cart Read Exists
 
 ## Status
 
 Accepted
+
+Amended in PIN-464: decision 3 now commits to a service-token cart read (PIN-491) instead
+of declining it. PIN-491 must also amend [ADR-0061](0061-order-service-token-for-cart-calls.md),
+because the read has no customer token (see decision 3).
 
 ## Context
 
@@ -37,7 +41,9 @@ needs a token too, until the service-token read of decision 3 exists.
    `reason`, so support can follow up. We will add a service-token cart read asking whether
    the cart was converted for this order, so the job can finish the placement instead of
    cancelling (PIN-491). PIN-464 reversed the original choice to skip it: a customer who loses
-   both cart and order is worse than the cost of a new endpoint. Until PIN-491 ships, this
+   both cart and order is worse than the cost of a new endpoint. The job has no customer token, so
+   the read can't use the owner check ADR-0061 keeps on the cart's two order-service calls.
+   PIN-491 decides how the cart authorizes it and amends ADR-0061. Until PIN-491 ships, this
    warning is the only trace in the order service. The cart keeps the order's ID on the
    `CONVERTED` cart (`carts.order_id`), which is how support can confirm a lost convert.
 4. **The minimum age is a constant.** The service refuses to start unless `max-age` is over
@@ -48,12 +54,11 @@ needs a token too, until the service-token read of decision 3 exists.
 ## Consequences
 
 - A customer whose convert was lost has no cart and no order until support acts on the
-  warning. The same happens if the job wins a race with a retry whose convert succeeded, which
-  needs a retry at the very moment the order passes `max-age`. That case is known for certain,
-  so `PlaceOrderUseCase` logs it as an error naming the cart.
+  warning.
 - The job can cancel an order whose checkout session is still live. Resuming a session moves
-  its expiry out, so reloading `/checkout` can keep it alive past `max-age`. Nothing is lost:
-  the cart is still locked and unconverted, and the customer starts checkout again.
+  its expiry out, so reloading `/checkout` can keep it alive past `max-age`. Nothing is lost,
+  but the cart can stay locked until the session lapses (see the cart-lock decision below),
+  and the customer starts checkout again.
 - Raising the cart's session length, grace or interval past the constant needs the constant
   or `max-age` raised too. Nothing checks this across the two services.
 - Every instance runs the job (PIN-390). The conditional update keeps that harmless, and
@@ -64,9 +69,11 @@ needs a token too, until the service-token read of decision 3 exists.
   measures age from `createdAt` and a retry doesn't update it, so the job can cancel an order
   between a retry's successful convert and `markSubmitted`. The cart ends `CONVERTED`, the
   order `CANCELLED`, and the customer gets 404 `PLACEMENT_ABANDONED`. It needs a retry at the
-  moment the order passes `max-age`, and the error log names the customer. Closing it means a
-  retry updating `updatedAt` and the job filtering on it instead of on `createdAt`, which
-  changes decision 1's age rule.
+  moment the order passes `max-age`. That case is known for certain, so `PlaceOrderUseCase`
+  logs it as an error naming the cart, order and user, and support acts on it like a lost
+  convert. Closing it means a retry updating `updatedAt` and the job filtering on it instead
+  of on `createdAt`, which changes decision 1's age rule. PIN-491's cart check narrows the
+  window but doesn't close it: a retry can still convert between the check and the cancel.
 - **Decided in PIN-464: the cart stays locked after the expired notice, and we leave it.**
   When Place order is refused with `PLACEMENT_ABANDONED`, the Back to cart link in the expired
   notice in `CheckoutPage.tsx` doesn't call `leaveCheckout`. If reloads kept the session alive
