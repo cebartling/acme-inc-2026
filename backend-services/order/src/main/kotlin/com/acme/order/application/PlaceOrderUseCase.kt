@@ -124,8 +124,7 @@ class PlaceOrderUseCase(
 
     private fun submit(order: Order): PlaceOrderResult =
         when (val result = submitter.submit(order)) {
-            is SubmitResult.Submitted -> PlaceOrderResult.Placed(result.order)
-            is SubmitResult.AlreadySubmitted -> PlaceOrderResult.Placed(result.order)
+            is SubmitResult.Submitted, is SubmitResult.AlreadySubmitted -> PlaceOrderResult.Placed(result.order)
             // A racing request cancelled it first; the submitter has logged that. Answer what the order is
             is SubmitResult.Cancelled ->
                 refused(result.order.cancelCode ?: CHECKOUT_SESSION_NOT_FOUND, "The order was not placed")

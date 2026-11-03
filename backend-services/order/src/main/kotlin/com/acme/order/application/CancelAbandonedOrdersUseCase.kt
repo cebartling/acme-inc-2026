@@ -93,10 +93,7 @@ class CancelAbandonedOrdersUseCase(
 
     private fun settle(order: Order, now: Instant): Outcome =
         when (val conversion = cartClient.getConversion(order.cartId, order.id)) {
-            is CartResult.Ok -> {
-                recover(order)
-                Outcome.RECOVERED
-            }
+            is CartResult.Ok -> recover(order)
             // Only this answer says the cart didn't convert; any other refusal is not a reason to cancel
             is CartResult.Refused ->
                 if (conversion.code == CartClient.CART_NOT_CONVERTED) {
@@ -119,14 +116,14 @@ class CancelAbandonedOrdersUseCase(
     }
 
     /** Counts a recovery only when this call submitted the order; the submitter logs a cancelled one. */
-    private fun recover(order: Order) {
-        if (submitter.submit(order) is SubmitResult.Submitted) {
-            logger.warn(
-                "Cart {} converted for abandoned order {} ({}), PENDING since {}; submitted it for user {}",
-                order.cartId, order.id, order.orderNumber, order.createdAt, order.userId
-            )
-            recoveredOrders.increment()
-        }
+    private fun recover(order: Order): Outcome {
+        if (submitter.submit(order) !is SubmitResult.Submitted) return Outcome.SKIPPED
+        logger.warn(
+            "Cart {} converted for abandoned order {} ({}), PENDING since {}; submitted it for user {}",
+            order.cartId, order.id, order.orderNumber, order.createdAt, order.userId
+        )
+        recoveredOrders.increment()
+        return Outcome.RECOVERED
     }
 
     private fun cancel(order: Order, now: Instant): Boolean {

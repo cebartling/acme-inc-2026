@@ -61,7 +61,9 @@ class OrderSubmitter(
                 )
                 SubmitResult.Cancelled(current)
             }
-            else -> SubmitResult.AlreadySubmitted(current)
+            OrderStatus.SUBMITTED -> SubmitResult.AlreadySubmitted(current)
+            // markSubmitted updates only PENDING orders, so one it left alone can't still be PENDING
+            OrderStatus.PENDING -> error("Order ${current.id} (${current.orderNumber}) is still PENDING after markSubmitted changed no row")
         }
     }!!
 }
