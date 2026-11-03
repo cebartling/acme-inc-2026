@@ -5,6 +5,7 @@ import com.acme.cart.application.CheckoutStarted
 import com.acme.cart.application.ConvertCartUseCase
 import com.acme.cart.domain.AvailabilityIssue
 import com.acme.cart.domain.Cart
+import com.acme.cart.domain.CartConversion
 import com.acme.cart.domain.CartStatus
 import com.acme.cart.domain.CheckoutSession
 import com.acme.cart.domain.MergeResult
@@ -183,6 +184,13 @@ data class CartConversionResponse(
             status = converted.cart.status,
             orderId = converted.conversion.orderId,
             convertedAt = converted.conversion.convertedAt
+        )
+
+        fun from(cart: Cart, conversion: CartConversion) = CartConversionResponse(
+            cartId = cart.id,
+            status = cart.status,
+            orderId = conversion.orderId,
+            convertedAt = conversion.convertedAt
         )
     }
 }

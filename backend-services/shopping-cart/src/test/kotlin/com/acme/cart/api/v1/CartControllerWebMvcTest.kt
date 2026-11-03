@@ -62,6 +62,7 @@ import org.springframework.test.web.servlet.post
 import java.math.BigDecimal
 import java.time.Duration
 import java.time.Instant
+import java.util.Optional
 import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -1307,5 +1308,73 @@ class CartControllerWebMvcTest(
             }
         }
         verify(exactly = 0) { cartRepository.findBySessionIdAndStatusIn(any(), any()) }
+    }
+
+    // --- PIN-491: the order service asks whether a cart converted for an order ----------
+
+    private fun getConversion(forOrderId: UUID = orderId, serviceToken: String? = ORDER_SERVICE_TOKEN) =
+        mockMvc.get("/api/v1/carts/$cartId/conversions/$forOrderId") {
+            serviceToken?.let { header(ServiceCredentials.HEADER, it) }
+        }
+
+    private fun convertedCart(): Cart {
+        val cart = cartFor(sessionId)
+        val session = cart.startCheckout(java.time.Duration.ofMinutes(30)).getOrNull()!!
+        cart.convertToOrder(orderId, session.id, now = Instant.parse("2026-10-19T15:08:04Z")).getOrNull()!!
+        return cart
+    }
+
+    @Test
+    fun `reading the conversion of a cart converted for that order answers it without a customer token`() {
+        every { cartRepository.findById(cartId) } returns Optional.of(convertedCart())
+
+        getConversion().andExpect {
+            status { isOk() }
+            jsonPath("$.cartId") { value(cartId.toString()) }
+            jsonPath("$.status") { value("CONVERTED") }
+            jsonPath("$.orderId") { value(orderId.toString()) }
+            jsonPath("$.convertedAt") { value("2026-10-19T15:08:04Z") }
+        }
+    }
+
+    @Test
+    fun `reading the conversion for another order is a 404 CART_NOT_CONVERTED`() {
+        every { cartRepository.findById(cartId) } returns Optional.of(convertedCart())
+
+        getConversion(forOrderId = UUID.randomUUID()).andExpect {
+            status { isNotFound() }
+            jsonPath("$.code") { value("CART_NOT_CONVERTED") }
+        }
+    }
+
+    @Test
+    fun `reading the conversion of a cart not converted is a 404 CART_NOT_CONVERTED`() {
+        every { cartRepository.findById(cartId) } returns Optional.of(cartFor(sessionId))
+
+        getConversion().andExpect {
+            status { isNotFound() }
+            jsonPath("$.code") { value("CART_NOT_CONVERTED") }
+        }
+    }
+
+    @Test
+    fun `reading the conversion of an unknown cart is a 404 CART_NOT_CONVERTED`() {
+        every { cartRepository.findById(cartId) } returns Optional.empty()
+
+        getConversion().andExpect {
+            status { isNotFound() }
+            jsonPath("$.code") { value("CART_NOT_CONVERTED") }
+        }
+    }
+
+    @Test
+    fun `reading a conversion without the order service's token is a 403`() {
+        listOf(null, "wrong-token").forEach { token ->
+            getConversion(serviceToken = token).andExpect {
+                status { isForbidden() }
+                jsonPath("$.code") { value("SERVICE_CREDENTIALS_REQUIRED") }
+            }
+        }
+        verify(exactly = 0) { cartRepository.findById(any()) }
     }
 }

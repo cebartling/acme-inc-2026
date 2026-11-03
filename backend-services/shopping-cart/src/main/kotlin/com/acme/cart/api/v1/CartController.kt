@@ -236,6 +236,25 @@ class CartController(
     }
 
     /**
+     * Whether the cart was converted for this order (PIN-491), for the order service's
+     * abandoned-order job to finish a lost convert (ADR-0061, ADR-0062). The job has no customer
+     * token, so unlike the other two order-service calls this one checks only the service
+     * token, not the owner. It answers only for a cart and order ID pair that match, and
+     * changes nothing. Anything else is 404 `CART_NOT_CONVERTED`.
+     */
+    @GetMapping("/{cartId}/conversions/{orderId}")
+    fun getConversion(
+        @RequestHeader(ServiceCredentials.HEADER, required = false) serviceToken: String?,
+        @PathVariable cartId: UUID,
+        @PathVariable orderId: UUID
+    ): ResponseEntity<Any> {
+        if (!serviceCredentials.isOrderService(serviceToken)) return errorResponse(CartError.ServiceCredentialsRequired)
+        val cart = cartRepository.findById(cartId).orElse(null)
+        val conversion = cart?.conversionFor(orderId) ?: return errorResponse(CartError.CartNotConverted(cartId, orderId))
+        return ResponseEntity.ok(CartConversionResponse.from(cart, conversion))
+    }
+
+    /**
      * Merges the caller's guest cart (from the session cookie) into their account cart
      * after sign-in (US-0004-08). Requires a signed-in caller. 204 when there was nothing
      * to merge and the user has no cart either.
@@ -334,7 +353,7 @@ class CartController(
         is CartError.MaxQuantityExceeded, is CartError.CartEmpty, is CartError.CartUnavailableItems ->
             HttpStatus.UNPROCESSABLE_CONTENT
         is CartError.VariantNotFound, is CartError.CartItemNotFound, is CartError.CartNotFound,
-        is CartError.CheckoutSessionNotFound -> HttpStatus.NOT_FOUND
+        is CartError.CheckoutSessionNotFound, is CartError.CartNotConverted -> HttpStatus.NOT_FOUND
         is CartError.CartLocked, is CartError.CartAlreadyConverted -> HttpStatus.CONFLICT
         is CartError.PricingUnavailable, is CartError.AvailabilityUnavailable -> HttpStatus.SERVICE_UNAVAILABLE
         is CartError.ServiceCredentialsRequired -> HttpStatus.FORBIDDEN
@@ -352,6 +371,7 @@ class CartController(
         is CartError.AvailabilityUnavailable -> "AVAILABILITY_UNAVAILABLE"
         is CartError.CheckoutSessionNotFound -> "CHECKOUT_SESSION_NOT_FOUND"
         is CartError.CartAlreadyConverted -> "CART_ALREADY_CONVERTED"
+        is CartError.CartNotConverted -> "CART_NOT_CONVERTED"
         is CartError.ServiceCredentialsRequired -> "SERVICE_CREDENTIALS_REQUIRED"
     }
 

@@ -327,6 +327,10 @@ class Cart(
         return conversion(repeated = false).right()
     }
 
+    /** The conversion if this cart is CONVERTED for [orderId] (PIN-491), else null; changes nothing. */
+    fun conversionFor(orderId: UUID): CartConversion? =
+        if (status == CartStatus.CONVERTED && this.orderId == orderId) conversion(repeated = true) else null
+
     /** Nothing changes a CONVERTED cart, so the time it was last updated is when it converted. */
     private fun conversion(repeated: Boolean) = CartConversion(
         orderId = checkNotNull(orderId) { "CONVERTED cart $id has no order" },
