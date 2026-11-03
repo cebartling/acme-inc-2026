@@ -1,7 +1,6 @@
 package com.acme.order.application
 
 import com.acme.order.domain.Order
-import com.acme.order.domain.OrderStatus
 import com.acme.order.infrastructure.cart.CartClient
 import com.acme.order.infrastructure.cart.CartResult
 import com.acme.order.infrastructure.persistence.OrderRepository
@@ -119,19 +118,14 @@ class CancelAbandonedOrdersUseCase(
         )
     }
 
+    /** Counts a recovery only when this call submitted the order; the submitter logs a cancelled one. */
     private fun recover(order: Order) {
-        val submitted = submitter.submit(order)
-        if (submitted.status == OrderStatus.SUBMITTED) {
+        if (submitter.submit(order) is SubmitResult.Submitted) {
             logger.warn(
                 "Cart {} converted for abandoned order {} ({}), PENDING since {}; submitted it for user {}",
                 order.cartId, order.id, order.orderNumber, order.createdAt, order.userId
             )
             recoveredOrders.increment()
-        } else {
-            logger.error(
-                "Cart {} converted for order {} ({}), which was cancelled with {}: user {} has no cart and no order",
-                order.cartId, order.id, order.orderNumber, submitted.cancelCode, order.userId
-            )
         }
     }
 

@@ -183,6 +183,13 @@ class CartClientTest {
     }
 
     @Test
+    fun `a refused service token on the conversion read is unauthorized with the cart's code`() {
+        server.expect(requestTo(conversionUrl)).andRespond(errorBody(HttpStatus.UNAUTHORIZED, """{"error":"INVALID_TOKEN"}"""))
+
+        assertEquals(CartResult.Unauthorized("INVALID_TOKEN"), client.getConversion(cartId, orderId))
+    }
+
+    @Test
     fun `a cart that cannot answer the conversion read is unavailable`() {
         server.expect(requestTo(conversionUrl)).andRespond(withServerError())
 

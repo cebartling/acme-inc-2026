@@ -85,7 +85,7 @@ class CancelAbandonedOrdersUseCaseTest {
         every { orders.findAbandoned(any(), any(), any(), any()) } returns listOf(lost)
         every { cartClient.getConversion(lost.cartId, lost.id) } returns
             CartResult.Ok(CartConversion(lost.cartId, lost.id, now))
-        every { submitter.submit(lost) } returns pendingOrder(OrderStatus.SUBMITTED, lost.id)
+        every { submitter.submit(lost) } returns SubmitResult.Submitted(pendingOrder(OrderStatus.SUBMITTED, lost.id))
 
         assertEquals(0, useCase().execute(now))
 
@@ -146,12 +146,26 @@ class CancelAbandonedOrdersUseCaseTest {
     }
 
     @Test
+    fun `an order another caller submitted first is not counted as recovered`() {
+        val lost = pendingOrder()
+        every { orders.findAbandoned(any(), any(), any(), any()) } returns listOf(lost)
+        every { cartClient.getConversion(lost.cartId, lost.id) } returns
+            CartResult.Ok(CartConversion(lost.cartId, lost.id, now))
+        every { submitter.submit(lost) } returns SubmitResult.AlreadySubmitted(pendingOrder(OrderStatus.SUBMITTED, lost.id))
+
+        assertEquals(0, useCase().execute(now))
+
+        assertEquals(0.0, recoveredCount())
+        assertEquals(0.0, cancelledCount())
+    }
+
+    @Test
     fun `an order a racing caller cancelled before it could be submitted is not counted as recovered`() {
         val lost = pendingOrder()
         every { orders.findAbandoned(any(), any(), any(), any()) } returns listOf(lost)
         every { cartClient.getConversion(lost.cartId, lost.id) } returns
             CartResult.Ok(CartConversion(lost.cartId, lost.id, now))
-        every { submitter.submit(lost) } returns pendingOrder(OrderStatus.CANCELLED, lost.id)
+        every { submitter.submit(lost) } returns SubmitResult.Cancelled(pendingOrder(OrderStatus.CANCELLED, lost.id))
 
         assertEquals(0, useCase().execute(now))
 
