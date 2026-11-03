@@ -37,9 +37,10 @@ nullable column on `products`. There is no categories table, so the "category tr
 sequence diagram is a flat, alphabetical list.
 
 **AC-0004-09-08 (Prometheus metrics) is deferred to [PIN-270](https://linear.app/pintail-consulting/issue/PIN-270/ac-0004-09-08-expose-search-circuit-breaker-metrics-via-prometheus).**
-No service declares `micrometer-registry-prometheus`, Prometheus scrapes no application
-services, and the frontend has no telemetry transport, so exporting a browser-held value is
-cross-cutting observability work rather than search work. AC-01 through AC-07 are implemented.
+The product service, which serves search, declares no `micrometer-registry-prometheus` and
+Prometheus doesn't scrape it (only the order service is scraped, PIN-493), and the frontend has
+no telemetry transport, so exporting a browser-held value is cross-cutting observability work
+rather than search work. AC-01 through AC-07 are implemented.
 
 **Deviations from the Technical Implementation sketch below**, each deliberate:
 
