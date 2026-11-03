@@ -34,7 +34,7 @@ identity, and no secret shared between services.
    `acme.cart.service-token` in the order service). It has no default, and either service
    refuses to start without it, or with leading or trailing whitespace, which the cart's
    server trims off the header and so could never match.
-2. **Only these two endpoints require it.** `convert` and the checkout-session read are for
+2. **Only these two endpoints require it, until decision 5.** `convert` and the checkout-session read are for
    the order service only. No frontend calls them. Every other cart endpoint stays open to
    the customer, as before.
 3. **Checked first, then ownership.** The cart's `ServiceCredentials` compares the header in

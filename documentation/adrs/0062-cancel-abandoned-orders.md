@@ -54,8 +54,8 @@ because every cart read needed a customer token. Decision 3's read doesn't.
    - **Not converted:** the order is cancelled, logged and counted as before. The cart keeps the
      order's ID on a `CONVERTED` cart (`carts.order_id`) for 90 days (`ACME_CART_RETENTION`),
      far longer than `max-age`, so a purged cart can't be mistaken for "not converted".
-   - **Cart can't be asked** (timeout, 5xx, a refused token): the order stays `PENDING` and the
-     next run tries again. Cancelling on a guess could lose a converted cart.
+   - **Cart can't be asked** (timeout, 5xx, a refused token, or any refusal but
+     `CART_NOT_CONVERTED`): the order stays `PENDING` and the next run tries again. Cancelling on a guess could lose a converted cart.
 4. **The minimum age is a constant.** The service refuses to start unless `max-age` is over
    33 minutes: the cart's 30-minute checkout session, 2-minute unlock grace and 1-minute unlock
    interval. The order service can't read the cart's settings, so these are the cart's

@@ -133,6 +133,33 @@ class CancelAbandonedOrdersUseCaseTest {
     }
 
     @Test
+    fun `an order the cart refuses with any other code stays PENDING`() {
+        val unknown = pendingOrder()
+        every { orders.findAbandoned(any(), any()) } returns listOf(unknown)
+        every { cartClient.getConversion(any(), any()) } returns CartResult.Refused("CART_NOT_FOUND", "Cart not found")
+
+        assertEquals(0, useCase().execute(now))
+
+        verify(exactly = 0) { orders.markCancelled(any(), any(), any()) }
+        verify(exactly = 0) { submitter.submit(any()) }
+        assertEquals(0.0, cancelledCount())
+    }
+
+    @Test
+    fun `an order a racing caller cancelled before it could be submitted is not counted as recovered`() {
+        val lost = pendingOrder()
+        every { orders.findAbandoned(any(), any()) } returns listOf(lost)
+        every { cartClient.getConversion(lost.cartId, lost.id) } returns
+            CartResult.Ok(CartConversion(lost.cartId, lost.id, now))
+        every { submitter.submit(lost) } returns pendingOrder(OrderStatus.CANCELLED, lost.id)
+
+        assertEquals(0, useCase().execute(now))
+
+        assertEquals(0.0, recoveredCount())
+        assertEquals(0.0, cancelledCount())
+    }
+
+    @Test
     fun `one run takes one batch`() {
         val page = slot<Pageable>()
         every { orders.findAbandoned(any(), capture(page)) } returns emptyList()

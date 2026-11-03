@@ -179,12 +179,7 @@ data class CartConversionResponse(
     val convertedAt: Instant
 ) {
     companion object {
-        fun from(converted: ConvertCartUseCase.Converted) = CartConversionResponse(
-            cartId = converted.cart.id,
-            status = converted.cart.status,
-            orderId = converted.conversion.orderId,
-            convertedAt = converted.conversion.convertedAt
-        )
+        fun from(converted: ConvertCartUseCase.Converted) = from(converted.cart, converted.conversion)
 
         fun from(cart: Cart, conversion: CartConversion) = CartConversionResponse(
             cartId = cart.id,

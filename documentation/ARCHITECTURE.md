@@ -480,6 +480,12 @@ sequenceDiagram
   order for the same session finds it and answers the same, saving and publishing nothing,
   and the order service can retry. A different order or session is 409 `CART_ALREADY_CONVERTED`. A cart
   not in checkout for that session is 404 `CHECKOUT_SESSION_NOT_FOUND`.
+- **Reading a conversion (PIN-491, [ADR-0061](adrs/0061-order-service-token-for-cart-calls.md))**: `GET /api/v1/carts/{cartId}/conversions/{orderId}`
+  is for the order service's abandoned-order job, which has no customer token, so it checks the
+  service token only, with no owner check. It answers the same `{cartId, status, orderId,
+  convertedAt}` as convert if the cart is `CONVERTED` for that order, and 404
+  `CART_NOT_CONVERTED` otherwise (unknown cart, another status, another order). It changes
+  nothing.
 
 ### Product Service
 
@@ -498,12 +504,6 @@ is no authentication.
 | `GET /api/v1/prices/{variantId}` | `{variantId, price, originalPrice, tierPricing}`; 404 `VARIANT_NOT_FOUND` for an unknown variant or an archived product's |
 | `GET /api/v1/inventory/availability/{variantId}` | `{variantId, availability}`, `IN_STOCK` or `OUT_OF_STOCK`; 404 `VARIANT_NOT_FOUND` for an unknown variant or an archived product's |
 
-- **Reading a conversion (PIN-491, [ADR-0061](adrs/0061-order-service-token-for-cart-calls.md))**: `GET /api/v1/carts/{cartId}/conversions/{orderId}`
-  is for the order service's abandoned-order job, which has no customer token, so it checks the
-  service token only, with no owner check. It answers the same `{cartId, status, orderId,
-  convertedAt}` as convert if the cart is `CONVERTED` for that order, and 404
-  `CART_NOT_CONVERTED` otherwise (unknown cart, another status, another order). It changes
-  nothing.
 - **Search request rules** (`SearchRequest.kt`): `query` is required, not blank and at most
   200 characters; `page` ≥ 1 (default 1); `pageSize` 1–100 (default 24); the
   `filters.priceMin`/`priceMax` are ≥ 0. `page` and `pageSize` must be JSON integers, so

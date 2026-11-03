@@ -66,15 +66,19 @@ class CancelAbandonedOrdersUseCase(
                 recover(order)
                 false
             }
-            is CartResult.Refused -> cancel(order, now)
-            is CartResult.Unauthorized, CartResult.Unavailable -> {
-                logger.warn(
-                    "Could not ask cart {} whether it converted for abandoned order {} ({}): {}; leaving it PENDING",
-                    order.cartId, order.id, order.orderNumber, conversion
-                )
-                false
-            }
+            // Only this answer says the cart didn't convert; any other refusal is not a reason to cancel
+            is CartResult.Refused ->
+                if (conversion.code == CartClient.CART_NOT_CONVERTED) cancel(order, now) else leavePending(order, conversion)
+            is CartResult.Unauthorized, CartResult.Unavailable -> leavePending(order, conversion)
         }
+
+    private fun leavePending(order: Order, answer: CartResult<*>): Boolean {
+        logger.warn(
+            "Could not ask cart {} whether it converted for abandoned order {} ({}): {}; leaving it PENDING",
+            order.cartId, order.id, order.orderNumber, answer
+        )
+        return false
+    }
 
     private fun recover(order: Order) {
         val submitted = submitter.submit(order)

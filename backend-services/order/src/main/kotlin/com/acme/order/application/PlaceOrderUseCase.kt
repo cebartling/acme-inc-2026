@@ -37,7 +37,7 @@ sealed interface PlaceOrderResult {
 
     /**
      * The cart didn't answer. Any saved order stays PENDING, and the same key resumes it until
-     * [CancelAbandonedOrdersUseCase] cancels it.
+     * [CancelAbandonedOrdersUseCase] submits it (its cart converted) or cancels it.
      */
     data object CartUnavailable : PlaceOrderResult
 }
