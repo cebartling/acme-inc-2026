@@ -42,6 +42,12 @@ scrape_configs:
     static_configs:
       - targets: ["tempo:3200"]
 
+  # Order service metrics (PIN-493)
+  - job_name: "order-service"
+    static_configs:
+      - targets: ["order-service:10305"]
+    metrics_path: /actuator/prometheus
+
   # Kafka metrics (when available)
   - job_name: "kafka"
     static_configs:
