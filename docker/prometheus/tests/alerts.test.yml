@@ -1,0 +1,78 @@
+# Unit tests for ../config/rules/alerts.yml. Run with:
+#   docker run --rm --entrypoint promtool -v "$PWD/docker/prometheus:/p:ro" \
+#     prom/prometheus:v3.14.0 test rules /p/tests/alerts.test.yml
+rule_files:
+  - ../config/rules/alerts.yml
+
+evaluation_interval: 1m
+
+tests:
+  # PIN-494: a recovery after a scrape that saw 0.
+  - interval: 1m
+    input_series:
+      - series: 'orders_recovered_total{job="order-service",reason="LOST_CONVERT"}'
+        values: '0 0 1 1 1'
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: OrderRecoveredLostConvert
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: OrderRecoveredLostConvert
+        exp_alerts:
+          - exp_labels: {severity: warning, job: order-service, reason: LOST_CONVERT}
+            exp_annotations:
+              summary: "Order service recovered a lost convert"
+              description: "A convert's answer was lost between the order service and the cart, and the abandoned-order job submitted the order afterwards. See documentation/adrs/0062-cancel-abandoned-orders.md."
+
+  # PIN-494: the series is first scraped already at 1, so increase() has no prior sample.
+  - interval: 1m
+    input_series:
+      - series: 'orders_recovered_total{job="order-service",reason="LOST_CONVERT"}'
+        values: '_ _ 1 1 1'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: OrderRecoveredLostConvert
+        exp_alerts:
+          - exp_labels: {severity: warning, job: order-service, reason: LOST_CONVERT}
+            exp_annotations:
+              summary: "Order service recovered a lost convert"
+              description: "A convert's answer was lost between the order service and the cart, and the abandoned-order job submitted the order afterwards. See documentation/adrs/0062-cancel-abandoned-orders.md."
+
+  # PIN-494: a counter that stays at 0 never alerts.
+  - interval: 1m
+    input_series:
+      - series: 'orders_recovered_total{job="order-service",reason="LOST_CONVERT"}'
+        values: '0 0 0 0 0'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: OrderRecoveredLostConvert
+        exp_alerts: []
+
+  # PIN-494: heap alert needs the heap floor above 512MB for the whole 5m window;
+  # the resident-memory alert covers non-JVM jobs only.
+  - interval: 1m
+    input_series:
+      - series: 'jvm_memory_used_bytes{job="order-service",instance="o:1",area="heap",id="G1 Old Gen"}'
+        values: '104857600 104857600 104857600 104857600 734003200+0x6'
+      - series: 'process_resident_memory_bytes{job="order-service",instance="o:1"}'
+        values: '943718400+0x9'
+      - series: 'process_resident_memory_bytes{job="loki",instance="l:1"}'
+        values: '943718400+0x9'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: HighMemoryUsage
+        exp_alerts: []
+      - eval_time: 9m
+        alertname: HighMemoryUsage
+        exp_alerts:
+          - exp_labels: {severity: warning, job: order-service}
+            exp_annotations:
+              summary: "High heap usage on order-service"
+              description: "order-service has held more than 512MB of heap for 5 minutes."
+      - eval_time: 9m
+        alertname: HighProcessMemoryUsage
+        exp_alerts:
+          - exp_labels: {severity: warning, job: loki, instance: "l:1"}
+            exp_annotations:
+              summary: "High memory usage on loki"
+              description: "loki is using more than 512MB of memory."

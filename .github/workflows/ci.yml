@@ -202,3 +202,18 @@ jobs:
 
       - name: .agents/skills must match .claude/skills
         run: diff -r .claude/skills .agents/skills
+
+  # The rules file is loaded at Prometheus startup: a bad edit stops Prometheus,
+  # and Grafana waits on its healthcheck. Image version matches docker-compose.yml.
+  prometheus-rules:
+    name: Prometheus · rules
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: promtool check and test rules
+        run: |
+          docker run --rm --entrypoint promtool -v "$PWD/docker/prometheus:/p:ro" prom/prometheus:v3.14.0 \
+            check rules /p/config/rules/alerts.yml
+          docker run --rm --entrypoint promtool -v "$PWD/docker/prometheus:/p:ro" prom/prometheus:v3.14.0 \
+            test rules /p/tests/alerts.test.yml

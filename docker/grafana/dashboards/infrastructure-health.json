@@ -216,6 +216,11 @@
           "expr": "process_resident_memory_bytes",
           "legendFormat": "{{job}}",
           "refId": "A"
+        },
+        {
+          "expr": "sum by (job) (jvm_memory_used_bytes{area=\"heap\"})",
+          "legendFormat": "{{job}} (heap)",
+          "refId": "B"
         }
       ],
       "title": "Memory Usage",
