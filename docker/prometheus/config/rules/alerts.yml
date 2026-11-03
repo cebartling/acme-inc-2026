@@ -45,7 +45,12 @@ groups:
     rules:
       # A customer got a 503 and the abandoned-order job later submitted their order (ADR-0062)
       - alert: OrderRecoveredLostConvert
-        expr: increase(orders_recovered_total{reason="LOST_CONVERT"}[1h]) > 0
+        # increase() needs a prior sample, so a series first scraped already above 0 (Prometheus
+        # started after the order service, or lost its data) is caught by the second clause.
+        expr: |
+          increase(orders_recovered_total{reason="LOST_CONVERT"}[1h]) > 0
+            or
+          (orders_recovered_total{reason="LOST_CONVERT"} > 0 unless orders_recovered_total{reason="LOST_CONVERT"} offset 1h)
         labels:
           severity: warning
         annotations:
