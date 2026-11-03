@@ -58,8 +58,7 @@ dependencies {
     implementation("org.springframework.kafka:spring-kafka")
 
     // Observability
-    implementation("io.micrometer:micrometer-tracing-bridge-otel")
-    implementation("io.opentelemetry:opentelemetry-exporter-otlp")
+    implementation("org.springframework.boot:spring-boot-starter-opentelemetry")
 
     // Rate limiting
     implementation("com.bucket4j:bucket4j_jdk17-core:8.20.0")
