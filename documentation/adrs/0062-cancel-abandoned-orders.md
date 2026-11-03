@@ -16,7 +16,8 @@ A scheduled job can't finish the placement. Converting forwards the customer's a
 
 A convert can also succeed without the order hearing of it. The service can crash before
 `markSubmitted`, or the cart can commit the convert but answer after the 2-second read timeout,
-so the customer gets `503 CART_UNAVAILABLE` and may never retry. Either way the order is
+so the customer gets `503 CART_UNAVAILABLE` and may never retry. The timeout case needs no
+crash, so it's more than an edge case (PIN-464). Either way the order is
 `PENDING` and its cart is already `CONVERTED`. The job can't see this, because reading the cart
 needs a token too.
 
@@ -31,11 +32,13 @@ needs a token too.
 2. **A late retry is refused for good.** The same key answers 404 `PLACEMENT_ABANDONED`
    through `PlaceOrderUseCase.resume`, and the customer app treats that as an expired
    checkout.
-3. **A lost convert is accepted and logged for support.** Every cancel logs a warning with
-   the order, user and cart, and counts in `orders_cancelled_total`, tagged with `reason`, so
-   support can follow up. We don't add a service-token cart read asking whether the cart was
-   converted for this order. It's a new endpoint for an uncommon case, and this is the smaller
-   change.
+3. **A lost convert is logged for support until the cart read exists.** Every cancel logs a
+   warning with the order, user and cart, and counts in `orders_cancelled_total`, tagged with
+   `reason`, so support can follow up. We will add a service-token cart read asking whether
+   the cart was converted for this order, so the job can finish the placement instead of
+   cancelling (PIN-491). PIN-464 reversed the original choice to skip it: a customer who loses
+   both cart and order is worse than the cost of a new endpoint. Until PIN-491 ships, this
+   warning is the only trace.
 4. **The minimum age is a constant.** The service refuses to start unless `max-age` is over
    33 minutes: the cart's 30-minute checkout session, 2-minute unlock grace and 1-minute unlock
    interval. The order service can't read the cart's settings, so these are the cart's
@@ -56,3 +59,21 @@ needs a token too.
   only the instance that cancelled an order logs and counts it.
 - The order service has no Prometheus registry yet, so the metric shows at
   `/actuator/metrics` only and nothing alerts on it automatically.
+- **Decided in PIN-464: a late retry can still race the job, and we leave it.** The job
+  measures age from `createdAt` and a retry doesn't update it, so the job can cancel an order
+  between a retry's successful convert and `markSubmitted`. The cart ends `CONVERTED`, the
+  order `CANCELLED`, and the customer gets 404 `PLACEMENT_ABANDONED`. It needs a retry at the
+  moment the order passes `max-age`, and the error log names the customer. Closing it means a
+  retry updating `updatedAt` and the job filtering on it, which reverses the tradeoff in
+  decision 1.
+- **Decided in PIN-464: the cart stays locked after the expired notice, and we leave it.**
+  When Place order is refused with `PLACEMENT_ABANDONED`, the Back to cart link in
+  `CheckoutPage.tsx` doesn't call `leaveCheckout`, so `/cart` refuses changes with
+  `CART_LOCKED` for up to 30 minutes. The customer gets out by starting checkout again and
+  pressing Back to cart. Unlocking on that refusal could break an order in flight from another
+  tab on the same session. Revisit if support sees it.
+- **Decided in PIN-464: the scope of `orders_cancelled_total` waits.** It counts only the
+  job's cancels. Cancels from `PlaceOrderUseCase.cancel`, when the cart refuses, never appear,
+  so a dashboard reading it as all cancelled orders undercounts and `reason` only ever has one
+  value. Fixing it means renaming a metric this ADR documents, or giving `PlaceOrderUseCase`
+  a dependency. Decide when the metric is first put on a dashboard or alert.
