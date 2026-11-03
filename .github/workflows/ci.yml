@@ -204,7 +204,9 @@ jobs:
         run: diff -r .claude/skills .agents/skills
 
   # The rules file is loaded at Prometheus startup: a bad edit stops Prometheus,
-  # and Grafana waits on its healthcheck. Image version matches docker-compose.yml.
+  # and Grafana waits on its healthcheck. A bad Alertmanager config stops Alertmanager,
+  # and Prometheus alerts then reach no receiver (PIN-495). Image versions match
+  # docker-compose.yml.
   prometheus-rules:
     name: Prometheus · rules
     runs-on: ubuntu-latest

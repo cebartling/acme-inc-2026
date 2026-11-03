@@ -636,11 +636,11 @@ their orders back (PIN-367) and cancel a submitted one (PIN-429).
     receiver, the `alert-webhook` echo container: read the notifications with
     `docker logs acme-alert-webhook`. A deployed environment swaps in a real receiver in
     `docker/alertmanager/config/alertmanager.yml`. Alertmanager's host port is 9095 because
-    9093 is Kafka's controller port. Memory alerts split by runtime in the same file: `HighMemoryUsage` watches
-    JVM heap (`jvm_memory_used_bytes`, live data above 512MB for 5 minutes, since the order
-    service has no container limit to take a share of), and `HighProcessMemoryUsage` keeps the
-    resident-memory rule for the jobs that emit no JVM metrics (Prometheus, Grafana, Loki,
-    Tempo).
+    9093 is Kafka's controller port. Memory alerts split by runtime in the same file:
+    `HighMemoryUsage` watches JVM heap (`jvm_memory_used_bytes`, live data above 512MB for 5
+    minutes, since the order service has no container limit to take a share of), and
+    `HighProcessMemoryUsage` keeps the resident-memory rule for the jobs that emit no JVM
+    metrics (Prometheus, Grafana, Loki, Tempo).
     `docker/prometheus/tests/alerts.test.yml` tests the rules with `promtool test rules`, and the
     `prometheus-rules` CI job runs it. The Memory Usage panel in the infrastructure-health
     dashboard graphs both resident memory and JVM heap.

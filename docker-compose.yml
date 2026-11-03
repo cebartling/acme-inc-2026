@@ -237,7 +237,10 @@ services:
     command:
       - "--config.file=/etc/alertmanager/alertmanager.yml"
       - "--storage.path=/alertmanager"
+      # One instance, so no gossip cluster: skips the 10s gossip-settle wait at startup.
+      - "--cluster.listen-address="
     volumes:
+      - alertmanager_data:/alertmanager
       - ./docker/alertmanager/config/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
     networks:
       - acme-network
@@ -365,6 +368,8 @@ volumes:
     name: acme-vault-data
   prometheus_data:
     name: acme-prometheus-data
+  alertmanager_data:
+    name: acme-alertmanager-data
   loki_data:
     name: acme-loki-data
   tempo_data:
