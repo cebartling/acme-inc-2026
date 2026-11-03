@@ -629,7 +629,10 @@ their orders back (PIN-367) and cancel a submitted one (PIN-429).
     `orders_cancelled_total`, so support can follow up a customer who lost cart and order that
     way. The counter covers only this job's cancels, not `PlaceOrderUseCase.cancel` or customer
     cancels (ADR-0063). Prometheus scrapes it at `/actuator/prometheus` (PIN-493), but no alert
-    rule reads it yet, so nothing alerts on it.
+    rule reads it yet, so nothing alerts on it. `orders_recovered_total` does have one: the
+    `OrderRecoveredLostConvert` rule in `docker/prometheus/config/rules/alerts.yml` fires for an
+    hour after a recovery (PIN-494). With no Alertmanager running, it shows only in the
+    Prometheus UI.
   - **Browser calls:** CORS follows the cart's `CorsConfig` (PIN-425); see
     [CORS and Browser-Facing Backend URLs](#cors-and-browser-facing-backend-urls).
 - **Checkout in the customer app** (PIN-426, journey 0005 steps 1, 4, 5 and 6): signed-in

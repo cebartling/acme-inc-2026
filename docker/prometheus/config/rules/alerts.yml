@@ -16,15 +16,28 @@ groups:
           summary: "Service {{ $labels.job }} is down"
           description: "{{ $labels.job }} has been down for more than 1 minute."
 
-      # High memory usage
+      # High JVM heap usage (Micrometer emits jvm_memory_*, not process_resident_memory_bytes)
       - alert: HighMemoryUsage
-        expr: (process_resident_memory_bytes / 1024 / 1024) > 512
+        expr: |
+          sum by (job) (jvm_memory_used_bytes{area="heap"})
+            / sum by (job) (jvm_memory_max_bytes{area="heap"} > 0) > 0.9
         for: 5m
         labels:
           severity: warning
         annotations:
-          summary: "High memory usage on {{ $labels.job }}"
-          description: "{{ $labels.job }} is using more than 512MB of memory."
+          summary: "High heap usage on {{ $labels.job }}"
+          description: "{{ $labels.job }} is using {{ $value | humanizePercentage }} of its max heap."
+
+  - name: orders
+    rules:
+      # A customer got a 503 and the abandoned-order job later submitted their order (ADR-0062)
+      - alert: OrderRecoveredLostConvert
+        expr: increase(orders_recovered_total{reason="LOST_CONVERT"}[1h]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: "Order service recovered a lost convert"
+          description: "A customer saw a failure at checkout and the abandoned-order job submitted the order. See documentation/adrs/0062-cancel-abandoned-orders.md."
 
   - name: kafka
     rules:
