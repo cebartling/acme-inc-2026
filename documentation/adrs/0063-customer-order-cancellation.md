@@ -48,7 +48,7 @@ order it is.
   retry racing a cancel, so it stays as it is.
 - `idx_orders_user_status_created` may no longer serve the list's sort because of the `OR`.
   Postgres then sorts one customer's orders, which is a small set.
-- `orders_cancelled_total` doesn't count customer cancels. PIN-464 holds the decision on that
-  metric's scope.
+- `orders_cancelled_total` doesn't count customer cancels. ADR-0062 records that its scope waits
+  until the metric is put on a dashboard or alert (PIN-464).
 - Refusing to cancel after fulfilment starts follows from the status: only `SUBMITTED` orders can
   be cancelled. Refunds and inventory release come with the Payment and Inventory epics.

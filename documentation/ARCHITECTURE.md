@@ -614,7 +614,10 @@ their orders back (PIN-367) and cancel a submitted one (PIN-429).
     converting needs the customer's token. A later retry with the key is refused with that
     code as a 404. Each cancel logs a warning and counts in `orders_cancelled_total`,
     because a crash after convert, or a convert that commits but times out, leaves a `PENDING`
-    order whose cart is already gone.
+    order whose cart is already gone. The counter covers only this job's cancels, not
+    `PlaceOrderUseCase.cancel` or customer cancels (ADR-0063), and the order service has no
+    Prometheus registry, so nothing alerts on it. A service-token cart read, so the job can
+    finish a lost convert instead of cancelling it, is decided but not built (PIN-491).
   - **Browser calls:** CORS follows the cart's `CorsConfig` (PIN-425); see
     [CORS and Browser-Facing Backend URLs](#cors-and-browser-facing-backend-urls).
 - **Checkout in the customer app** (PIN-426, journey 0005 steps 1, 4, 5 and 6): signed-in
@@ -630,8 +633,9 @@ their orders back (PIN-367) and cancel a submitted one (PIN-429).
     before going to `/cart`, so the cart can be edited again. `/cart` replaces the review in
     history, since Back to `/checkout` would lock the cart again. If leaving fails, the customer
     stays on the review with a message; `404 CART_NOT_FOUND` (the cart was converted or is gone)
-    still goes to `/cart`, unless a Place order went unanswered (see Lost answer). Only this button releases the lock: the browser's Back button or a
-    closed tab leaves the cart locked until the session lapses.
+    still goes to `/cart`, unless a Place order went unanswered (see Lost answer). Only this button releases the lock: the browser's Back button, a
+    closed tab, or the "checkout session expired" notice's Back to cart link (ADR-0062) leaves
+    the cart locked until the session lapses.
   - **Placing:** Place order sends `POST /api/v1/orders` with one `Idempotency-Key` per
     session, a `crypto.randomUUID()` kept in sessionStorage (`acme.checkout.<sessionId>.key`).
     A retry or a reload reuses it, so a lost answer can't place a second order; the button is

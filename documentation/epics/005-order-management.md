@@ -496,7 +496,7 @@ Following platform observability standards:
 |--------|------|-------------|
 | orders_created_total | Counter | Total orders created |
 | orders_completed_total | Counter | Total orders successfully delivered |
-| orders_cancelled_total | Counter | Total orders cancelled |
+| orders_cancelled_total | Counter | Orders cancelled (as built, only the abandoned-order job's cancels; ADR-0062) |
 | order_processing_duration | Histogram | Time from submission to delivery |
 | order_value | Histogram | Order total amounts |
 | active_orders | Gauge | Orders currently in progress |
