@@ -32,7 +32,7 @@ because every cart read needed a customer token. Decision 3's read doesn't.
 1. **The job cancels, unless the cart converted for the order (PIN-491).**
    `CancelAbandonedOrdersUseCase` moves `PENDING` orders older than
    `acme.order.abandoned.max-age` (default one hour) to `CANCELLED` with `PLACEMENT_ABANDONED`,
-   one bounded batch per run, after the cart read of decision 3 says the cart did not convert
+   a bounded run (see below), after the cart read of decision 3 says the cart did not convert
    for the order. It uses the conditional
    `OrderRepository.markCancelled`, so a racing retry leaves the order either `SUBMITTED` or
    `CANCELLED`. These orders stay hidden from the customer, like other failed placements
@@ -56,6 +56,12 @@ because every cart read needed a customer token. Decision 3's read doesn't.
      far longer than `max-age`, so a purged cart can't be mistaken for "not converted".
    - **Cart can't be asked** (timeout, 5xx, a refused token, or any refusal but
      `CART_NOT_CONVERTED`): the order stays `PENDING` and the next run tries again. Cancelling on a guess could lose a converted cart.
+   - **A run is bounded and can't be starved (PIN-491).** It pages through the abandoned
+     orders oldest first by `(createdAt, id)`, `batch-size` at a time and at most 10 pages, so
+     orders left `PENDING` don't hide the ones behind them. It stops early when every order on
+     a page got no answer from the cart (down, or refusing the token), because walking the
+     backlog would only wait out timeouts. One order throwing is logged as an error and
+     skipped; the rest of the batch is still settled.
 4. **The minimum age is a constant.** The service refuses to start unless `max-age` is over
    33 minutes: the cart's 30-minute checkout session, 2-minute unlock grace and 1-minute unlock
    interval. The order service can't read the cart's settings, so these are the cart's

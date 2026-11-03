@@ -70,7 +70,7 @@ acme:
       # The job that settles orders left PENDING (PIN-427, PIN-491): it submits one whose cart
       # converted for it and cancels the rest; ISO-8601 durations. max-age must be
       # longer than the cart's checkout session plus its unlock grace and interval: the service
-      # won't start otherwise. One run settles at most batch-size orders.
+      # won't start otherwise. One run reads at most 10 pages of batch-size orders.
       enabled: ${ACME_ORDER_ABANDONED_ENABLED:true}
       max-age: ${ACME_ORDER_ABANDONED_MAX_AGE:PT1H}
       initial-delay: ${ACME_ORDER_ABANDONED_INITIAL_DELAY:PT5M}

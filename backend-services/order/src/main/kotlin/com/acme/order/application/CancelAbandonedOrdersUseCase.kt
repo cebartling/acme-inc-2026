@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.support.TransactionTemplate
 import java.time.Duration
 import java.time.Instant
+import java.util.UUID
 
 /**
  * Settles orders left PENDING because the customer never retried (PIN-427, ADR-0062, PIN-491).
@@ -23,7 +24,11 @@ import java.time.Instant
  * didn't, the order is cancelled by the conditional `OrderRepository.markCancelled`, so a retry
  * submitting it at the same moment leaves it either SUBMITTED or CANCELLED. If the cart can't
  * be asked, the order stays PENDING for the next run: cancelling on a guess could lose a
- * converted cart. Each run takes one batch; what's left waits for the next run.
+ * converted cart. A run pages through the abandoned orders oldest first, [batchSize] at a time
+ * and at most [MAX_PAGES] pages, so orders it leaves PENDING can't hide the ones behind them. It
+ * stops early when a whole page couldn't reach the cart, since the cart is then down or
+ * refusing the token, and walking the backlog would only wait out timeouts. One order failing
+ * is logged and skipped; it doesn't stop the rest. What's left waits for the next run.
  *
  * The check narrows the race with a retry but doesn't close it: a retry can convert the cart
  * between the check and the cancel, and the customer then has no cart and no order. Every
@@ -53,31 +58,65 @@ class CancelAbandonedOrdersUseCase(
     }
 
     /**
-     * Settles up to one batch of orders PENDING for longer than [maxAge], and returns how many
-     * it cancelled. Orders it submitted or left PENDING aren't counted.
+     * Settles orders PENDING for longer than [maxAge], and returns how many it cancelled. Orders
+     * it submitted or left PENDING aren't counted.
      */
-    fun execute(now: Instant = Instant.now()): Int =
-        orders.findAbandoned(now.minus(maxAge), PageRequest.of(0, batchSize)).count { settle(it, now) }
+    fun execute(now: Instant = Instant.now()): Int {
+        val cutoff = now.minus(maxAge)
+        var cancelled = 0
+        var afterCreatedAt = Instant.EPOCH
+        var afterId = UUID(0, 0)
+        repeat(MAX_PAGES) {
+            val page = orders.findAbandoned(cutoff, afterCreatedAt, afterId, PageRequest.of(0, batchSize))
+            val outcomes = page.map { settleIsolated(it, now) }
+            cancelled += outcomes.count { it == Outcome.CANCELLED }
+            val cartUnreachable = page.isNotEmpty() && outcomes.all { it == Outcome.CART_UNREACHABLE }
+            if (page.size < batchSize || cartUnreachable) return cancelled
+            afterCreatedAt = page.last().createdAt
+            afterId = page.last().id
+        }
+        return cancelled
+    }
 
-    /** True if this call cancelled the order. */
-    private fun settle(order: Order, now: Instant): Boolean =
+    private enum class Outcome { CANCELLED, RECOVERED, SKIPPED, CART_UNREACHABLE }
+
+    /** One order's failure is logged and leaves it PENDING for the next run; the batch goes on. */
+    private fun settleIsolated(order: Order, now: Instant): Outcome =
+        try {
+            settle(order, now)
+        } catch (ex: RuntimeException) {
+            logger.error(
+                "Failed to settle abandoned order {} ({}) for cart {}; leaving it PENDING",
+                order.id, order.orderNumber, order.cartId, ex
+            )
+            Outcome.SKIPPED
+        }
+
+    private fun settle(order: Order, now: Instant): Outcome =
         when (val conversion = cartClient.getConversion(order.cartId, order.id)) {
             is CartResult.Ok -> {
                 recover(order)
-                false
+                Outcome.RECOVERED
             }
             // Only this answer says the cart didn't convert; any other refusal is not a reason to cancel
             is CartResult.Refused ->
-                if (conversion.code == CartClient.CART_NOT_CONVERTED) cancel(order, now) else leavePending(order, conversion)
-            is CartResult.Unauthorized, CartResult.Unavailable -> leavePending(order, conversion)
+                if (conversion.code == CartClient.CART_NOT_CONVERTED) {
+                    if (cancel(order, now)) Outcome.CANCELLED else Outcome.SKIPPED
+                } else {
+                    leavePending(order, conversion)
+                    Outcome.SKIPPED
+                }
+            is CartResult.Unauthorized, CartResult.Unavailable -> {
+                leavePending(order, conversion)
+                Outcome.CART_UNREACHABLE
+            }
         }
 
-    private fun leavePending(order: Order, answer: CartResult<*>): Boolean {
+    private fun leavePending(order: Order, answer: CartResult<*>) {
         logger.warn(
             "Could not ask cart {} whether it converted for abandoned order {} ({}): {}; leaving it PENDING",
             order.cartId, order.id, order.orderNumber, answer
         )
-        return false
     }
 
     private fun recover(order: Order) {
@@ -112,6 +151,9 @@ class CancelAbandonedOrdersUseCase(
     companion object {
         const val PLACEMENT_ABANDONED = "PLACEMENT_ABANDONED"
         const val LOST_CONVERT = "LOST_CONVERT"
+
+        /** Bounds one run: at most this many pages of `batch-size` orders. */
+        const val MAX_PAGES = 10
 
         /**
          * The cart's 30-minute checkout session, 2-minute unlock grace and 1-minute unlock

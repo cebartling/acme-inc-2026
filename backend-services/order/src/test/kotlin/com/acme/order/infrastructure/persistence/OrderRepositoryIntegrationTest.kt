@@ -331,9 +331,27 @@ class OrderRepositoryIntegrationTest {
         saveOrder(userId, cutoff.minusSeconds(180), 1, status = OrderStatus.SUBMITTED)
         saveOrder(userId, cutoff.minusSeconds(180), 1, status = OrderStatus.CANCELLED)
 
-        val found = orders.findAbandoned(cutoff, PageRequest.of(0, 2))
+        val found = orders.findAbandoned(cutoff, Instant.EPOCH, UUID(0, 0), PageRequest.of(0, 2))
 
         assertEquals(listOf(oldest.id, older.id), found.map { it.id })
+    }
+
+    @Test
+    fun `findAbandoned pages past the order it is given, even among orders created at the same instant`() {
+        val userId = UUID.randomUUID()
+        val cutoff = Instant.parse("2026-10-22T12:00:00Z")
+        val sameInstant = cutoff.minusSeconds(60)
+        val saved = listOf(
+            saveOrder(userId, cutoff.minusSeconds(120), 1, status = OrderStatus.PENDING),
+            saveOrder(userId, sameInstant, 1, status = OrderStatus.PENDING),
+            saveOrder(userId, sameInstant, 1, status = OrderStatus.PENDING),
+            saveOrder(userId, cutoff.minusSeconds(30), 1, status = OrderStatus.PENDING)
+        ).sortedWith(compareBy({ it.createdAt }, { it.id }))
+
+        val firstPage = orders.findAbandoned(cutoff, Instant.EPOCH, UUID(0, 0), PageRequest.of(0, 2))
+        val secondPage = orders.findAbandoned(cutoff, firstPage.last().createdAt, firstPage.last().id, PageRequest.of(0, 2))
+
+        assertEquals(saved.map { it.id }, (firstPage + secondPage).map { it.id })
     }
 
     @Test

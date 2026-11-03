@@ -81,11 +81,21 @@ interface OrderRepository : JpaRepository<Order, UUID> {
         @Param("now") now: Instant
     ): Int
 
-    /** PENDING orders created before [cutoff], oldest first (PIN-427). */
+    /**
+     * PENDING orders created before [cutoff], oldest first (PIN-427), starting after the order
+     * at ([afterCreatedAt], [afterId]) so a run can page past orders it left PENDING (PIN-491).
+     * Start with [Instant.EPOCH] and a nil UUID.
+     */
     @Query(
         "SELECT o FROM CustomerOrder o " +
             "WHERE o.status = $STATUS.PENDING AND o.createdAt < :cutoff " +
+            "AND (o.createdAt > :afterCreatedAt OR (o.createdAt = :afterCreatedAt AND o.id > :afterId)) " +
             "ORDER BY o.createdAt, o.id"
     )
-    fun findAbandoned(@Param("cutoff") cutoff: Instant, pageable: Pageable): List<Order>
+    fun findAbandoned(
+        @Param("cutoff") cutoff: Instant,
+        @Param("afterCreatedAt") afterCreatedAt: Instant,
+        @Param("afterId") afterId: UUID,
+        pageable: Pageable
+    ): List<Order>
 }

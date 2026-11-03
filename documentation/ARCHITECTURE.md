@@ -614,14 +614,16 @@ their orders back (PIN-367) and cancel a submitted one (PIN-429).
   - **Other errors**, all `{error, code}` (ADR-0050): `401 SIGN_IN_REQUIRED`, `TOKEN_EXPIRED`
     or `INVALID_TOKEN`; `400 IDEMPOTENCY_KEY_REQUIRED` or `INVALID_REQUEST`.
   - **When the retry never comes** (PIN-427, ADR-0062): every 5 minutes
-    `AbandonedOrderScheduledTasks` runs `CancelAbandonedOrdersUseCase`, which moves up to 100
-    orders `PENDING` for over an hour (`acme.order.abandoned.max-age`) to `CANCELLED` with
+    `AbandonedOrderScheduledTasks` runs `CancelAbandonedOrdersUseCase`, which moves orders `PENDING` for over an hour (`acme.order.abandoned.max-age`) to `CANCELLED` with
     `PLACEMENT_ABANDONED`, through the same conditional update. Before cancelling, it asks the
     cart (`CartClient.getConversion`, the service token alone, since the job has no customer
     token). If the cart converted for that order, the convert's answer was lost, and the job
     submits the order instead (`OrderSubmitter`, shared with `PlaceOrderUseCase`) and counts
     `orders_recovered_total`. If the cart didn't, it cancels. If the cart can't be asked, the
-    order stays `PENDING` for the next run. The check narrows the race with a retry but doesn't
+    order stays `PENDING` for the next run. A run pages through the backlog oldest first (100 a
+    page, at most 10 pages), so orders left `PENDING` don't hide the ones behind them; it stops
+    when a whole page got no answer from the cart, and one order failing is logged and skipped.
+    The check narrows the race with a retry but doesn't
     close it: a retry can convert between the check and the cancel. A later retry with the key
     is refused with that code as a 404. Each cancel logs a warning and counts in
     `orders_cancelled_total`, so support can follow up a customer who lost cart and order that
