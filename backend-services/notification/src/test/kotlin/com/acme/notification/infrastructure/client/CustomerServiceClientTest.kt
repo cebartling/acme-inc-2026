@@ -8,6 +8,7 @@ import io.micrometer.observation.ObservationHandler
 import io.micrometer.observation.ObservationRegistry
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.springframework.web.client.RestClient
 import java.net.InetSocketAddress
@@ -23,8 +24,13 @@ class CustomerServiceClientTest {
         start()
     }
 
+    private val slowServer = HttpServer.create(InetSocketAddress("localhost", 0), 0)
+
     @AfterEach
-    fun stopServer() = server.stop(0)
+    fun stopServers() {
+        server.stop(0)
+        slowServer.stop(0)
+    }
 
     @Test
     fun `the customer client is built from the injected builder, so its calls are observed for tracing`() {
@@ -40,6 +46,7 @@ class CustomerServiceClientTest {
         val client = CustomerServiceClient(
             baseUrl = "http://localhost:${server.address.port}",
             serviceToken = "test-token",
+            timeoutMs = 5000,
             restClientBuilder = RestClient.builder().observationRegistry(registry),
             meterRegistry = SimpleMeterRegistry(),
             circuitBreakerRegistry = CircuitBreakerRegistry.ofDefaults()
@@ -48,5 +55,31 @@ class CustomerServiceClientTest {
 
         assertEquals(CustomerQueryResult.NotFound, result)
         assertEquals(listOf("http.client.requests"), observedNames)
+    }
+
+    @Test
+    fun `a customer service that never answers fails the call at the configured timeout`() {
+        slowServer.createContext("/") { exchange ->
+            Thread.sleep(3000)
+            exchange.sendResponseHeaders(200, -1)
+            exchange.close()
+        }
+        slowServer.start()
+
+        val client = CustomerServiceClient(
+            baseUrl = "http://localhost:${slowServer.address.port}",
+            serviceToken = "test-token",
+            timeoutMs = 200,
+            restClientBuilder = RestClient.builder(),
+            meterRegistry = SimpleMeterRegistry(),
+            circuitBreakerRegistry = CircuitBreakerRegistry.ofDefaults()
+        )
+
+        val startedAt = System.nanoTime()
+        val result = client.getCustomerById(UUID.randomUUID())
+        val elapsedMs = (System.nanoTime() - startedAt) / 1_000_000
+
+        assertTrue(result is CustomerQueryResult.Error, "expected Error but was $result")
+        assertTrue(elapsedMs < 2000, "call took ${elapsedMs}ms; the 200ms timeout was not applied")
     }
 }

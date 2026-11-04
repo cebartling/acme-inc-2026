@@ -10,9 +10,11 @@ import io.micrometer.core.instrument.Timer
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.HttpStatus
+import org.springframework.http.client.SimpleClientHttpRequestFactory
 import org.springframework.stereotype.Component
 import org.springframework.web.client.HttpClientErrorException
 import org.springframework.web.client.RestClient
+import java.time.Duration
 import java.util.UUID
 
 /**
@@ -47,6 +49,8 @@ class CustomerServiceClient(
     private val baseUrl: String,
     @Value("\${notification.customer-service.service-token}")
     serviceToken: String,
+    @Value("\${notification.customer-service.timeout-ms}")
+    timeoutMs: Long,
     restClientBuilder: RestClient.Builder,
     meterRegistry: MeterRegistry,
     circuitBreakerRegistry: CircuitBreakerRegistry
@@ -54,6 +58,12 @@ class CustomerServiceClient(
     private val logger = LoggerFactory.getLogger(CustomerServiceClient::class.java)
 
     private val client: RestClient = restClientBuilder
+        .requestFactory(
+            SimpleClientHttpRequestFactory().apply {
+                setConnectTimeout(Duration.ofMillis(timeoutMs))
+                setReadTimeout(Duration.ofMillis(timeoutMs))
+            }
+        )
         .baseUrl(baseUrl)
         .defaultHeader("X-Service-Token", serviceToken)
         .build()
