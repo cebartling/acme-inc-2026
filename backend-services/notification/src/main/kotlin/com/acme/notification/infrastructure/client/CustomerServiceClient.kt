@@ -73,6 +73,13 @@ class CustomerServiceClient(
             "notification.customer-service.service-token (ACME_CUSTOMER_SERVICE_TOKEN) must be set, " +
                 "with no leading or trailing whitespace"
         }
+        // SimpleClientHttpRequestFactory treats 0 as "wait forever" and ignores a negative value (the
+        // Duration is narrowed to an Int, so anything above Int.MAX_VALUE goes negative), which would
+        // silently turn the timeout back off.
+        require(timeoutMs in 1..Int.MAX_VALUE) {
+            "notification.customer-service.timeout-ms (CUSTOMER_SERVICE_TIMEOUT_MS) must be between 1 and " +
+                "${Int.MAX_VALUE} milliseconds, but was $timeoutMs"
+        }
     }
 
     private val circuitBreaker: CircuitBreaker = circuitBreakerRegistry.circuitBreaker("customerService")
