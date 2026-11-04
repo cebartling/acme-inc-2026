@@ -16,12 +16,12 @@ class ProductClientConfig(
     @Value("\${acme.product.base-url}") private val baseUrl: String
 ) {
     @Bean
-    fun productRestClient(): RestClient {
+    fun productRestClient(builder: RestClient.Builder): RestClient {
         val requestFactory = SimpleClientHttpRequestFactory().apply {
             setConnectTimeout(Duration.ofSeconds(2))
             setReadTimeout(Duration.ofSeconds(2))
         }
-        return RestClient.builder()
+        return builder
             .baseUrl(baseUrl)
             .requestFactory(requestFactory)
             .build()
