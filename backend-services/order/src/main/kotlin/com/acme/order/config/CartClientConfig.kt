@@ -17,12 +17,12 @@ class CartClientConfig(
     @Value("\${acme.cart.base-url}") private val baseUrl: String
 ) {
     @Bean
-    fun cartRestClient(): RestClient {
+    fun cartRestClient(builder: RestClient.Builder): RestClient {
         val requestFactory = SimpleClientHttpRequestFactory().apply {
             setConnectTimeout(Duration.ofSeconds(2))
             setReadTimeout(Duration.ofSeconds(2))
         }
-        return RestClient.builder()
+        return builder
             .baseUrl(baseUrl)
             .requestFactory(requestFactory)
             .build()

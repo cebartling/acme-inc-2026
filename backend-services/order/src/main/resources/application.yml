@@ -22,7 +22,9 @@ spring:
   jackson:
     deserialization:
       # Like the cart (PIN-279): reject a decimal in an integer field with a 400 instead of
-      # truncating it. Only affects Spring MVC's Jackson 3 mapper.
+      # truncating it. Affects the Jackson 3 mappers of Spring MVC and of the cart RestClient
+      # (built from Boot's RestClient.Builder, PIN-497), so a decimal in the cart's integer
+      # fields fails the call too. Not JacksonConfig's Kafka mapper.
       accept-float-as-int: false
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}

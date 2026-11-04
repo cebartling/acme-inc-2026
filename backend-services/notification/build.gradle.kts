@@ -76,6 +76,7 @@ dependencies {
 
     // Observability
     implementation("org.springframework.boot:spring-boot-starter-opentelemetry")
+    implementation("org.springframework.boot:spring-boot-starter-restclient")
 
     // Testing - JUnit 6
     testImplementation(platform("org.junit:junit-bom:6.1.3"))

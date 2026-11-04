@@ -47,12 +47,13 @@ class CustomerServiceClient(
     private val baseUrl: String,
     @Value("\${notification.customer-service.service-token}")
     serviceToken: String,
+    restClientBuilder: RestClient.Builder,
     meterRegistry: MeterRegistry,
     circuitBreakerRegistry: CircuitBreakerRegistry
 ) {
     private val logger = LoggerFactory.getLogger(CustomerServiceClient::class.java)
 
-    private val client: RestClient = RestClient.builder()
+    private val client: RestClient = restClientBuilder
         .baseUrl(baseUrl)
         .defaultHeader("X-Service-Token", serviceToken)
         .build()

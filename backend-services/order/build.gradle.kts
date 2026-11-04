@@ -52,6 +52,7 @@ dependencies {
     // Exports the actuator metrics at /actuator/prometheus for Prometheus to scrape (PIN-493)
     runtimeOnly("io.micrometer:micrometer-registry-prometheus")
     implementation("org.springframework.boot:spring-boot-starter-opentelemetry")
+    implementation("org.springframework.boot:spring-boot-starter-restclient")
 
     // Testing - JUnit 6
     testImplementation(platform("org.junit:junit-bom:6.1.3"))

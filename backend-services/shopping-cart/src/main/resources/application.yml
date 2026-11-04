@@ -27,7 +27,9 @@ spring:
     deserialization:
       # PIN-279: reject {"quantity": 2.9} with a 400 instead of truncating it to 2. Applies to
       # every integer field of every request body, and rejects 2.0 too.
-      # Only affects Spring MVC's Jackson 3 mapper, not JacksonConfig's Kafka/snapshot mapper.
+      # Affects the Jackson 3 mappers of Spring MVC and of the product RestClient (built from
+      # Boot's RestClient.Builder, PIN-497), so a decimal in the product service's integer
+      # fields fails the call too. Not JacksonConfig's Kafka/snapshot mapper.
       accept-float-as-int: false
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
