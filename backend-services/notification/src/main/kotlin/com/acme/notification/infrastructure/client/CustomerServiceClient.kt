@@ -10,9 +10,11 @@ import io.micrometer.core.instrument.Timer
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.HttpStatus
+import org.springframework.http.client.SimpleClientHttpRequestFactory
 import org.springframework.stereotype.Component
 import org.springframework.web.client.HttpClientErrorException
 import org.springframework.web.client.RestClient
+import java.time.Duration
 import java.util.UUID
 
 /**
@@ -47,6 +49,8 @@ class CustomerServiceClient(
     private val baseUrl: String,
     @Value("\${notification.customer-service.service-token}")
     serviceToken: String,
+    @Value("\${notification.customer-service.timeout-ms}")
+    timeoutMs: Long,
     restClientBuilder: RestClient.Builder,
     meterRegistry: MeterRegistry,
     circuitBreakerRegistry: CircuitBreakerRegistry
@@ -54,6 +58,12 @@ class CustomerServiceClient(
     private val logger = LoggerFactory.getLogger(CustomerServiceClient::class.java)
 
     private val client: RestClient = restClientBuilder
+        .requestFactory(
+            SimpleClientHttpRequestFactory().apply {
+                setConnectTimeout(Duration.ofMillis(timeoutMs))
+                setReadTimeout(Duration.ofMillis(timeoutMs))
+            }
+        )
         .baseUrl(baseUrl)
         .defaultHeader("X-Service-Token", serviceToken)
         .build()
@@ -62,6 +72,13 @@ class CustomerServiceClient(
         require(serviceToken.isNotBlank() && serviceToken == serviceToken.trim()) {
             "notification.customer-service.service-token (ACME_CUSTOMER_SERVICE_TOKEN) must be set, " +
                 "with no leading or trailing whitespace"
+        }
+        // SimpleClientHttpRequestFactory treats 0 as "wait forever" and ignores a negative value (the
+        // Duration is narrowed to an Int, so anything above Int.MAX_VALUE goes negative), which would
+        // silently turn the timeout back off.
+        require(timeoutMs in 1..Int.MAX_VALUE) {
+            "notification.customer-service.timeout-ms (CUSTOMER_SERVICE_TIMEOUT_MS) must be between 1 and " +
+                "${Int.MAX_VALUE} milliseconds, but was $timeoutMs"
         }
     }
 
