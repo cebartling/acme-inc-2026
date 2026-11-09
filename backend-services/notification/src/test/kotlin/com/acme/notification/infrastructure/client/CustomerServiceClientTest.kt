@@ -1,6 +1,8 @@
 package com.acme.notification.infrastructure.client
 
+import com.acme.notification.infrastructure.config.ResilienceConfig
 import com.sun.net.httpserver.HttpServer
+import io.github.resilience4j.circuitbreaker.CircuitBreaker
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import io.micrometer.observation.Observation
@@ -18,6 +20,7 @@ import java.net.SocketTimeoutException
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 class CustomerServiceClientTest {
 
@@ -112,5 +115,95 @@ class CustomerServiceClientTest {
             }
             assertTrue(failure.message!!.contains("CUSTOMER_SERVICE_TIMEOUT_MS"), "message was: ${failure.message}")
         }
+    }
+
+    @Test
+    fun `5xx responses open the circuit breaker, which then fails fast without calling the service`() {
+        val hits = AtomicInteger()
+        val failingServer = serverAnswering(500, hits)
+
+        try {
+            val breakers = productionBreakerRegistry()
+            val client = clientFor(failingServer.address.port, breakers)
+
+            repeat(BREAKER_MIN_CALLS) { client.getCustomerById(UUID.randomUUID()) }
+            assertEquals(CircuitBreaker.State.OPEN, breakers.circuitBreaker("customerService").state)
+
+            val hitsWhenOpened = hits.get()
+            val result = client.getCustomerById(UUID.randomUUID())
+
+            val error = assertInstanceOf(CustomerQueryResult.Error::class.java, result, "expected Error but was $result")
+            assertTrue(error.message.contains("circuit breaker open"), "message was: ${error.message}")
+            assertEquals(hitsWhenOpened, hits.get(), "an open breaker must not call the customer service")
+        } finally {
+            failingServer.stop(0)
+        }
+    }
+
+    @Test
+    fun `connection failures open the circuit breaker`() {
+        val deadPort = server.address.port
+        server.stop(0)
+
+        val breakers = productionBreakerRegistry()
+        val client = clientFor(deadPort, breakers)
+
+        repeat(BREAKER_MIN_CALLS) { client.getCustomerById(UUID.randomUUID()) }
+
+        assertEquals(CircuitBreaker.State.OPEN, breakers.circuitBreaker("customerService").state)
+        val result = client.getCustomerById(UUID.randomUUID())
+        val error = assertInstanceOf(CustomerQueryResult.Error::class.java, result, "expected Error but was $result")
+        assertTrue(error.message.contains("circuit breaker open"), "message was: ${error.message}")
+    }
+
+    @Test
+    fun `404 and other 4xx responses do not open the circuit breaker`() {
+        listOf(404, 403).forEach { status ->
+            val clientErrorServer = serverAnswering(status)
+
+            try {
+                val breakers = productionBreakerRegistry()
+                val client = clientFor(clientErrorServer.address.port, breakers)
+
+                repeat(BREAKER_MIN_CALLS * 2) { client.getCustomerById(UUID.randomUUID()) }
+
+                assertEquals(
+                    CircuitBreaker.State.CLOSED,
+                    breakers.circuitBreaker("customerService").state,
+                    "a $status must not count as a breaker failure"
+                )
+            } finally {
+                clientErrorServer.stop(0)
+            }
+        }
+    }
+
+    private fun serverAnswering(status: Int, hits: AtomicInteger = AtomicInteger()): HttpServer =
+        HttpServer.create(InetSocketAddress("localhost", 0), 0).apply {
+            createContext("/") { exchange ->
+                hits.incrementAndGet()
+                exchange.sendResponseHeaders(status, -1)
+                exchange.close()
+            }
+            start()
+        }
+
+    // The production breaker configuration, so a change to ResilienceConfig that stops 5xx or I/O failures
+    // from being recorded fails these tests.
+    private fun productionBreakerRegistry(): CircuitBreakerRegistry =
+        ResilienceConfig().circuitBreakerRegistry(SimpleMeterRegistry())
+
+    private fun clientFor(port: Int, breakers: CircuitBreakerRegistry) = CustomerServiceClient(
+        baseUrl = "http://localhost:$port",
+        serviceToken = "test-token",
+        timeoutMs = 1000,
+        restClientBuilder = RestClient.builder(),
+        meterRegistry = SimpleMeterRegistry(),
+        circuitBreakerRegistry = breakers
+    )
+
+    private companion object {
+        // ResilienceConfig's minimumNumberOfCalls: the fewest calls that can open the breaker.
+        const val BREAKER_MIN_CALLS = 5
     }
 }
