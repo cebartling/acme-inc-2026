@@ -1,8 +1,8 @@
 package com.acme.notification.infrastructure.client
 
+import com.acme.notification.infrastructure.config.ResilienceConfig
 import com.sun.net.httpserver.HttpServer
 import io.github.resilience4j.circuitbreaker.CircuitBreaker
-import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import io.micrometer.observation.Observation
@@ -123,7 +123,7 @@ class CustomerServiceClientTest {
         val failingServer = serverAnswering(500, hits)
 
         try {
-            val breakers = smallBreakerRegistry()
+            val breakers = productionBreakerRegistry()
             val client = clientFor(failingServer.address.port, breakers)
 
             repeat(BREAKER_MIN_CALLS) { client.getCustomerById(UUID.randomUUID()) }
@@ -145,7 +145,7 @@ class CustomerServiceClientTest {
         val deadPort = server.address.port
         server.stop(0)
 
-        val breakers = smallBreakerRegistry()
+        val breakers = productionBreakerRegistry()
         val client = clientFor(deadPort, breakers)
 
         repeat(BREAKER_MIN_CALLS) { client.getCustomerById(UUID.randomUUID()) }
@@ -159,10 +159,10 @@ class CustomerServiceClientTest {
     @Test
     fun `404 and other 4xx responses do not open the circuit breaker`() {
         listOf(404, 403).forEach { status ->
-            val clientErrorServer = serverAnswering(status, AtomicInteger())
+            val clientErrorServer = serverAnswering(status)
 
             try {
-                val breakers = smallBreakerRegistry()
+                val breakers = productionBreakerRegistry()
                 val client = clientFor(clientErrorServer.address.port, breakers)
 
                 repeat(BREAKER_MIN_CALLS * 2) { client.getCustomerById(UUID.randomUUID()) }
@@ -178,7 +178,7 @@ class CustomerServiceClientTest {
         }
     }
 
-    private fun serverAnswering(status: Int, hits: AtomicInteger): HttpServer =
+    private fun serverAnswering(status: Int, hits: AtomicInteger = AtomicInteger()): HttpServer =
         HttpServer.create(InetSocketAddress("localhost", 0), 0).apply {
             createContext("/") { exchange ->
                 hits.incrementAndGet()
@@ -188,16 +188,10 @@ class CustomerServiceClientTest {
             start()
         }
 
-    // The slow-call settings are left at their defaults, so only recorded failures can open the breaker.
-    private fun smallBreakerRegistry(): CircuitBreakerRegistry =
-        CircuitBreakerRegistry.of(
-            CircuitBreakerConfig.custom()
-                .failureRateThreshold(50f)
-                .slidingWindowType(CircuitBreakerConfig.SlidingWindowType.COUNT_BASED)
-                .slidingWindowSize(BREAKER_MIN_CALLS)
-                .minimumNumberOfCalls(BREAKER_MIN_CALLS)
-                .build()
-        )
+    // The production breaker configuration, so a change to ResilienceConfig that stops 5xx or I/O failures
+    // from being recorded fails these tests.
+    private fun productionBreakerRegistry(): CircuitBreakerRegistry =
+        ResilienceConfig().circuitBreakerRegistry(SimpleMeterRegistry())
 
     private fun clientFor(port: Int, breakers: CircuitBreakerRegistry) = CustomerServiceClient(
         baseUrl = "http://localhost:$port",
@@ -209,6 +203,7 @@ class CustomerServiceClientTest {
     )
 
     private companion object {
+        // ResilienceConfig's minimumNumberOfCalls: the fewest calls that can open the breaker.
         const val BREAKER_MIN_CALLS = 5
     }
 }
