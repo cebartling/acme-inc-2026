@@ -119,7 +119,10 @@ class CustomerServiceClient(
             try {
                 logger.debug("Fetching customer details for ID: {}", customerId)
 
-                // Execute the REST call within the circuit breaker
+                // Execute the REST call within the circuit breaker. The supplier returns normally for
+                // anything that is not a service failure (success, 404, other 4xx). Anything that escapes
+                // it (5xx, I/O errors, timeouts) is recorded by the breaker as a failure and mapped to
+                // CustomerQueryResult.Error by the catch below.
                 circuitBreaker.executeSupplier {
                     try {
                         val response = client.get()
@@ -156,11 +159,6 @@ class CustomerServiceClient(
                             logger.error("Client error fetching customer {}: {}", customerId, e.statusCode, e)
                             CustomerQueryResult.Error("Client error: ${e.statusCode}", e)
                         }
-                    } catch (e: Exception) {
-                        // Server errors (5xx), timeouts, and other failures - counted as circuit breaker failures
-                        errorCounter.increment()
-                        logger.error("Error fetching customer {}: {}", customerId, e.message, e)
-                        CustomerQueryResult.Error("Failed to fetch customer: ${e.message}", e)
                     }
                 }
             } catch (e: CallNotPermittedException) {
@@ -169,10 +167,11 @@ class CustomerServiceClient(
                 logger.error("Circuit breaker is OPEN for customer service, failing fast for customer {}", customerId)
                 CustomerQueryResult.Error("Customer service is currently unavailable (circuit breaker open)", e)
             } catch (e: Exception) {
-                // Fallback for any unexpected exceptions not handled within the circuit breaker
+                // Server errors (5xx), timeouts, I/O errors and anything unexpected. These escaped the
+                // circuit breaker supplier, so the breaker has already recorded them as failures.
                 errorCounter.increment()
-                logger.error("Unexpected error fetching customer {}: {}", customerId, e.message, e)
-                CustomerQueryResult.Error("Unexpected error: ${e.message}", e)
+                logger.error("Error fetching customer {}: {}", customerId, e.message, e)
+                CustomerQueryResult.Error("Failed to fetch customer: ${e.message}", e)
             }
         } ?: CustomerQueryResult.Error("Timer returned null result")
     }
