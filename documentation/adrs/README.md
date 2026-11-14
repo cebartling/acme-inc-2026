@@ -23,7 +23,7 @@ An Architecture Decision Record documents a significant architectural decision, 
 | [ADR-0022](0022-transactional-outbox-pattern.md) | Transactional Outbox Pattern for Event Publishing | Accepted, amended in PIN-534 |
 | [ADR-0023](0023-kafka-consumer-group-patterns.md) | Kafka Consumer Group Patterns for Multi-Event Topics | Accepted |
 | [ADR-0024](0024-synchronous-customer-lookup-for-notifications.md) | Synchronous Customer Lookup for Welcome Notifications | Accepted |
-| [ADR-0041](0041-per-service-persistence-model.md) | Per-Service Persistence Model | Accepted |
+| [ADR-0041](0041-per-service-persistence-model.md) | Per-Service Persistence Model | Accepted, amended in PIN-534 |
 | [ADR-0042](0042-best-effort-event-publishing.md) | Best-Effort Event Publishing in Cart and Product | Superseded for the cart by [ADR-0060](0060-cart-events-through-outbox.md) |
 | [ADR-0044](0044-forward-customer-credentials-between-services.md) | Service-to-Service Calls Carry the Customer's Credentials | Accepted, amended by [ADR-0061](0061-order-service-token-for-cart-calls.md) |
 | [ADR-0045](0045-cart-product-calls-fail-closed.md) | Cart Calls the Product Service Synchronously and Fails Closed | Accepted |

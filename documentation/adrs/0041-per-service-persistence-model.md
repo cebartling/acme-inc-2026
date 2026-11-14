@@ -2,11 +2,16 @@
 
 ## Status
 
-Accepted
+Accepted, amended in [PIN-534](https://linear.app/pintail-consulting/issue/PIN-534/wire-debezium-cdc-into-cqrs-for-all-services)
 
 Narrows the scope of [ADR-0002](0002-cqrs-pattern.md), [ADR-0003](0003-event-sourcing.md)
 and [ADR-0006](0006-mongodb-query-store.md), which describe CQRS, event sourcing and a
 MongoDB read model for every service.
+
+Amended 2026-11-14 ([PIN-534](https://linear.app/pintail-consulting/issue/PIN-534/wire-debezium-cdc-into-cqrs-for-all-services)):
+decision 3 below is superseded for identity, customer, notification, product and
+shopping-cart, which all get read models ([ADR-0006](0006-mongodb-query-store.md)). Order
+is deferred.
 
 ## Context
 
