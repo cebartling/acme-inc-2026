@@ -12,7 +12,7 @@ Accepted, amended in [PIN-534](https://linear.app/pintail-consulting/issue/PIN-5
 - **Snapshots.** Outbox connectors use `snapshot.mode` `no_data` ([ADR-0008](0008-debezium-cdc-connector.md)), so cutting over does not republish rows the relay already sent.
 - **Topics, keys and payloads are unchanged.** The router takes the Kafka topic from `topic`, the key from `message_key` and the value from `payload`.
 - **Ordering and duplicates.** Events for one aggregate stay in commit order, because they share a message key and so a partition. Delivery is still at-least-once, so consumers stay idempotent ([ADR-0018](0018-idempotent-event-processing.md)).
-- **Order service: deferred.** The order service owns `acme_orders`, and none of PIN-534's sub-issues covers it. Its relay, outbox table and connector are unchanged for now, as described under Implementation Scope. Moving order onto Debezium needs its own issue.
+- **Order service: deferred.** The order service owns `acme_orders`, and none of PIN-534's sub-issues covers it. Its relay and outbox table are unchanged for now, as described under Implementation Scope; its unused connector config was removed (PIN-546). Moving order onto Debezium needs its own issue.
 - **Exceptions.** Product's catalog tables are captured directly, because product has no write path. Product's analytics events (`ProductViewed`, `SearchExecuted`, `FiltersApplied`) are not state changes, so they keep publishing directly. Identity's session, device and token-reuse events describe state in Redis, so the outbox gives them one path to Kafka but not atomicity with the Redis change.
 
 ## Context
