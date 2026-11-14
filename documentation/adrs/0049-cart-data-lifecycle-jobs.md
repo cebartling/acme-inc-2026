@@ -69,8 +69,8 @@ switch, a use case, and a partial index for its scan.
 
 - Nothing coordinates runs across instances. Several instances would all scan; the
   conditional writes keep that correct but do redundant work.
-- `CartPurged` is the only record of a purge. Events are best-effort and Debezium only
-  captures `acme_orders`, so a lost publish leaves no trace of the deleted cart.
+- `CartPurged` is the only record of a purge. Events are best-effort and no Debezium
+  connector captures this database, so a lost publish leaves no trace of the deleted cart.
 - Unlike the consent history of [ADR-0028](0028-append-only-consent-records.md), cart rows
   are not kept forever: after 90 days a final cart and its lines are gone.
 - Some comments are behind the code: the `acme.cart.retention` comment in `application.yml`,

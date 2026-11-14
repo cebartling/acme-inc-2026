@@ -244,7 +244,7 @@ sequenceDiagram
   DELETE per cart that re-checks it is still final and old enough, so a cart that is no
   longer final is kept. `CartPurged` is published only for carts it deleted (counted as
   `cart.purged`). ACTIVE and CHECKOUT carts are never deleted. `acme.cart.purge.enabled=false` turns the
-  job off. Debezium only captures `acme_orders`, so these deletes emit no change events.
+  job off. No Debezium connector captures this database, so these deletes emit no change events.
   The scheduler has four threads (`spring.task.scheduling.pool.size`), one per job (expiry,
   purge, checkout unlock, outbox relay), so a slow run, e.g. the relay blocked on Kafka,
   never holds up the others.
