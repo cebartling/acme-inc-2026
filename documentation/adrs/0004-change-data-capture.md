@@ -2,9 +2,19 @@
 
 ## Status
 
-Accepted
+Accepted, amended in [PIN-534](https://linear.app/pintail-consulting/issue/PIN-534/wire-debezium-cdc-into-cqrs-for-all-services)
 
-**Current state (2026-10-21, PIN-386):** Debezium Connect runs in `docker-compose.yml`, but no service publishes its events through CDC. The only connector config, `docker/debezium/connectors/postgres-connector.json` (`acme-postgres-connector`), captures `acme_orders`, and nothing registers it automatically; you have to POST it to the Connect REST API by hand. Customer and order instead write events to a transactional outbox table that a scheduled `OutboxRelay` polls about once a second and sends to Kafka, which is the polling pattern described below. Product, shopping-cart, identity and notification publish straight to Kafka ([ADR-0042](0042-best-effort-event-publishing.md)). Customer's MongoDB read model is projected in-process by `CustomerReadModelProjector`, not fed by CDC ([ADR-0041](0041-per-service-persistence-model.md)). Schema Registry (see Mitigations) is not used.
+**Amended 2026-11-14 ([PIN-534](https://linear.app/pintail-consulting/issue/PIN-534/wire-debezium-cdc-into-cqrs-for-all-services), PIN-545):** How change data capture works in the services is now settled, and the Decision below reflects it. This is a decision, not yet implemented: the services still run as described under "Current implementation" at the end of this block.
+
+- **Outbox tables.** A service writes its events to an outbox table in the same transaction as its state change. Debezium's outbox event router publishes them to the existing topics, with unchanged keys and JSON payloads, so existing consumers keep working. Debezium does not capture the services' state tables.
+- **Product captures tables directly.** Product has no write path: its catalog comes from Flyway seeds. Debezium captures the catalog tables, and the connector's first snapshot loads the seeded catalog into MongoDB. This is the one exception to the outbox rule.
+- **Product's analytics events keep publishing directly.** `ProductViewed`, `SearchExecuted` and `FiltersApplied` are not state changes, so there is nothing to capture. They are the only events that stay on direct `KafkaTemplate` sends.
+- **Connectors.** One connector per service database, registered automatically by the local stack ([ADR-0008](0008-debezium-cdc-connector.md)).
+- **No polling relay.** The polling `OutboxRelay` is replaced by Debezium ([ADR-0022](0022-transactional-outbox-pattern.md)), except in the order service.
+- **Order is deferred.** The order service owns `acme_orders` and has its own outbox and polling relay. None of PIN-534's sub-issues covers it, so it keeps its relay until a separate issue moves it onto Debezium.
+- **Identity's Redis-backed events.** Session, device and token-reuse events describe state that lives in Redis. Writing them to a PostgreSQL outbox gives them one path to Kafka, but not atomicity with the Redis change.
+
+**Current implementation (2026-10-21, PIN-386; shopping-cart moved to an outbox in [ADR-0060](0060-cart-events-through-outbox.md) since):** Debezium Connect runs in `docker-compose.yml`, but no service publishes its events through CDC. The only connector config, `docker/debezium/connectors/postgres-connector.json` (`acme-postgres-connector`), captures `acme_orders`, and nothing registers it automatically; you have to POST it to the Connect REST API by hand. Customer and order instead write events to a transactional outbox table that a scheduled `OutboxRelay` polls about once a second and sends to Kafka, which is the polling pattern described below. Shopping-cart also writes to a polled outbox ([ADR-0060](0060-cart-events-through-outbox.md)). Product, identity and notification publish straight to Kafka ([ADR-0042](0042-best-effort-event-publishing.md)). Customer's MongoDB read model is projected in-process by `CustomerReadModelProjector`, not fed by CDC ([ADR-0041](0041-per-service-persistence-model.md)). Schema Registry (see Mitigations) is not used.
 
 ## Context
 
@@ -40,18 +50,21 @@ flowchart LR
     PG -.-> WAL[Transaction Log<br/>Write-Ahead Log]
 ```
 
-How it works:
-1. Service writes events to PostgreSQL within a transaction
-2. PostgreSQL records changes in the Write-Ahead Log (WAL)
-3. Debezium reads the WAL and captures row-level changes
-4. Changes are published to Kafka topics (one per table)
-5. Downstream consumers process events from Kafka
+How it works (amended 2026-11-14, PIN-534):
+1. The service writes its state change and an outbox row in one transaction ([ADR-0022](0022-transactional-outbox-pattern.md))
+2. PostgreSQL records the outbox insert in the Write-Ahead Log (WAL)
+3. Debezium reads the WAL and captures the outbox row
+4. Debezium's outbox event router publishes the row's payload to the row's topic, keyed by its message key
+5. Downstream consumers and the service's own projector process the events from Kafka
+
+Product is the exception: Debezium captures its catalog tables directly and publishes row-level changes to one topic per table.
 
 Debezium configuration:
 - **Slot Name**: Dedicated replication slot per connector
 - **Plugin**: `pgoutput` (built-in logical decoding)
-- **Topic Routing**: `{server}.{schema}.{table}` naming convention
-- **Transforms**: Extract event payloads, route to appropriate topics
+- **Topic Routing**: Outbox rows go to the topic in their `topic` column. Product's table capture uses `{server}.{schema}.{table}`.
+- **Transforms**: The outbox event router (`io.debezium.transforms.outbox.EventRouter`) for outbox rows
+- **Serialization**: JSON ([ADR-0008](0008-debezium-cdc-connector.md))
 
 ## Consequences
 
@@ -72,7 +85,7 @@ Debezium configuration:
 
 ### Mitigations
 
-- Use Schema Registry for schema evolution and compatibility checking
+- Keep event payloads backward compatible. There is no Schema Registry ([ADR-0008](0008-debezium-cdc-connector.md)), so consumers and producers agree on JSON shapes by contract.
 - Monitor replication slot lag with alerts for growing lag
 - Implement event transformation in Kafka Streams or dedicated consumers
 - Use Debezium's built-in transforms for simple field extraction

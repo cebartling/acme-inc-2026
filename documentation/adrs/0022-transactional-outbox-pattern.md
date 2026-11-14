@@ -2,7 +2,18 @@
 
 ## Status
 
-Accepted
+Accepted, amended in [PIN-534](https://linear.app/pintail-consulting/issue/PIN-534/wire-debezium-cdc-into-cqrs-for-all-services)
+
+**Amended 2026-11-14 ([PIN-534](https://linear.app/pintail-consulting/issue/PIN-534/wire-debezium-cdc-into-cqrs-for-all-services), PIN-545):** This is a decision, not yet implemented: today's services still run the relay. Debezium replaces the polling relay in every service except order, which is deferred (see below). Services keep writing to the outbox table in the same transaction as their state change, and Debezium's outbox event router publishes the rows ([ADR-0004](0004-change-data-capture.md), [ADR-0008](0008-debezium-cdc-connector.md)). The sections below that describe the relay (Component 3, the Event Flow diagram, the relay configuration and the polling notes under Consequences) describe the design before this amendment. Specifically:
+
+- **`OutboxRelay` goes away.** Apart from order, no service polls the outbox or sends domain events to Kafka itself.
+- **`published_at`, `retry_count` and `last_error` are dropped.** They exist only for the relay: Debezium never writes them, and Kafka Connect owns retries. Each service's migration drops them, along with the polling indexes: customer's `idx_outbox_created_published` and `idx_outbox_published_at`, and shopping-cart's `idx_outbox_unpublished_sequence`, which is partial on `published_at IS NULL` and has to go first. Shopping-cart's `sequence_number` identity column existed to order the relay's batches; it can stay, since Debezium reads in commit order and does not use it.
+- **Old rows are purged by a new scheduled retention job in each service.** No service purges its outbox today: the "scheduled job" under Mitigations was never built, and [ADR-0060](0060-cart-events-through-outbox.md) records that the cart's sent rows are not purged (PIN-395). The job deletes rows whose `created_at` is older than 7 days and never looks at `published_at`, which no longer exists. Deleting a row does not affect delivery: Debezium reads inserts from the WAL, not from the table, and the router ignores deletes. Catching up after a Debezium outage depends on the connector's replication slot, so slot lag is what to watch. The 7 days is how long the table keeps its audit trail, and how far back a re-snapshot could go.
+- **Snapshots.** Outbox connectors use `snapshot.mode` `no_data` ([ADR-0008](0008-debezium-cdc-connector.md)), so cutting over does not republish rows the relay already sent.
+- **Topics, keys and payloads are unchanged.** The router takes the Kafka topic from `topic`, the key from `message_key` and the value from `payload`.
+- **Ordering and duplicates.** Events for one aggregate stay in commit order, because they share a message key and so a partition. Delivery is still at-least-once, so consumers stay idempotent ([ADR-0018](0018-idempotent-event-processing.md)).
+- **Order service: deferred.** The order service owns `acme_orders`, and none of PIN-534's sub-issues covers it. Its relay, outbox table and connector are unchanged for now, as described under Implementation Scope. Moving order onto Debezium needs its own issue.
+- **Exceptions.** Product's catalog tables are captured directly, because product has no write path. Product's analytics events (`ProductViewed`, `SearchExecuted`, `FiltersApplied`) are not state changes, so they keep publishing directly. Identity's session, device and token-reuse events describe state in Redis, so the outbox gives them one path to Kafka but not atomicity with the Redis change.
 
 ## Context
 
@@ -249,7 +260,7 @@ fun execute(...) {
 | Concern | Mitigation |
 |---------|------------|
 | Storage growth | Scheduled job to purge published messages older than 7 days |
-| Polling inefficiency | Consider LISTEN/NOTIFY or Change Data Capture for high-volume scenarios |
+| Polling inefficiency | Resolved 2026-11-14 (PIN-534): Debezium Change Data Capture replaces the polling relay |
 | Duplicate events | Consumers implement idempotent processing (ADR-0018) |
 | Failed messages | Alerting on messages exceeding max retry count |
 | Backlog monitoring | Prometheus metrics for outbox queue depth |
@@ -262,6 +273,7 @@ Currently implemented in:
 |---------|-----------|
 | Customer Service | `CreateCustomerUseCase`, `ActivateCustomerUseCase` |
 | Order Service | All order lifecycle events, starting with `OrderCreated` (PIN-366) |
+| Shopping-Cart Service | All cart events on `cart.events` ([ADR-0060](0060-cart-events-through-outbox.md)) |
 
 The order service has its own copy (PIN-368), since the services share no code. It
 differs from the customer service's in four ways:
