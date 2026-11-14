@@ -6,6 +6,21 @@ Accepted
 
 Narrowed in scope by [ADR-0041](0041-per-service-persistence-model.md): this describes the target for a service that needs it, not what every service does today.
 
+**Amended 2026-11-14 ([PIN-534](https://linear.app/pintail-consulting/issue/PIN-534/wire-debezium-cdc-into-cqrs-for-all-services), PIN-545):** All five services (identity, customer, notification, product, shopping-cart) get MongoDB read models, kept current by projectors that consume the events Debezium publishes ([ADR-0004](0004-change-data-capture.md)). This restores the "all services" scope of the Decision below.
+
+- **Serve reads from MongoDB:** customer, product, shopping-cart and notification serve their read endpoints from their read models. Customer's profile reads move off PostgreSQL and the Redis profile cache.
+- **Identity gets a users read model.** Its other reads stay where they are, each for its own reason:
+
+  | Read | Stays in | Why |
+  |------|----------|-----|
+  | JWKS | Memory | The signing keys are loaded at startup, not stored as data that changes |
+  | Email verification | PostgreSQL | It changes state, so it is a command, not a query |
+  | Password-reset token check | PostgreSQL | It must be current: a stale read could accept a used or expired token |
+  | Device list | Redis | Redis is the system of record for device trusts, so a projection would only copy it |
+
+- **Layout:** every service uses the shared `acme_query` database (customer's today) and owns its own collections. A service reads and writes only its own collections.
+- **Read-your-writes.** Projections lag writes slightly, so a screen that reads right after a change can show stale data (the cart, stock availability during cart stock checks, a profile just edited). Each service handles this, for example by returning the new state from the command.
+
 ## Context
 
 The query side of our CQRS architecture requires a database optimized for:

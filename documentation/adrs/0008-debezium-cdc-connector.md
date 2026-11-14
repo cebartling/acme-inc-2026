@@ -2,9 +2,16 @@
 
 ## Status
 
-Accepted
+Accepted, amended in [PIN-534](https://linear.app/pintail-consulting/issue/PIN-534/wire-debezium-cdc-into-cqrs-for-all-services)
 
-**Current state (2026-10-21, PIN-386):** One Debezium connector config exists, `docker/debezium/connectors/postgres-connector.json`, and it is not registered automatically (`docker/debezium/connectors/README.md` gives the manual `curl` command). It differs from the example below: it is named `acme-postgres-connector`, captures only the `acme_orders` database with `topic.prefix` `acme`, connects as `postgres` with a plain-text password (no Vault reference), and uses `JsonConverter` rather than Avro with Schema Registry. There is no connector per service database. Services publish through outbox pollers or straight to Kafka instead (see ADR-0004's status note, [ADR-0041](0041-per-service-persistence-model.md) and [ADR-0042](0042-best-effort-event-publishing.md)).
+**Amended 2026-11-14 ([PIN-534](https://linear.app/pintail-consulting/issue/PIN-534/wire-debezium-cdc-into-cqrs-for-all-services), PIN-545):**
+
+- **JSON, not Avro.** Connectors use `JsonConverter`. There is no Schema Registry, and the original "Enable Schema Registry for Avro serialization" principle no longer applies. Topic names, keys and payloads stay as they are today, and all Kafka serializers are already JSON strings.
+- **One connector per service database:** `acme_identity`, `acme_customers`, `acme_notifications`, `acme_products` and `acme_carts`. The `acme_orders` connector (`acme-postgres-connector`) is removed.
+- **Registered automatically.** The local stack registers every connector when it starts, so nobody has to POST a config to the Connect REST API by hand.
+- **Outbox event router.** Identity, customer, notification and shopping-cart connectors capture their `outbox` table and route rows with Debezium's outbox event router ([ADR-0004](0004-change-data-capture.md), [ADR-0022](0022-transactional-outbox-pattern.md)). The product connector captures the catalog tables directly.
+
+**Before PIN-534 (2026-10-21, PIN-386):** One Debezium connector config exists, `docker/debezium/connectors/postgres-connector.json`, and it is not registered automatically (`docker/debezium/connectors/README.md` gives the manual `curl` command). It differs from the example below: it is named `acme-postgres-connector`, captures only the `acme_orders` database with `topic.prefix` `acme`, connects as `postgres` with a plain-text password (no Vault reference), and uses `JsonConverter` rather than Avro with Schema Registry. There is no connector per service database. Services publish through outbox pollers or straight to Kafka instead (see ADR-0004's status note, [ADR-0041](0041-per-service-persistence-model.md) and [ADR-0042](0042-best-effort-event-publishing.md)).
 
 ## Context
 
@@ -37,16 +44,16 @@ flowchart LR
     end
 
     KC --> Kafka[(Kafka)]
-    KC --> SR[(Schema<br/>Registry)]
 ```
 
-Connector configuration principles:
+Connector configuration principles (amended 2026-11-14, PIN-534):
 - One connector per service database for isolation
 - Use `pgoutput` logical decoding plugin (built into PostgreSQL)
-- Enable Schema Registry for Avro serialization
-- Configure transforms to extract relevant payload fields
+- Serialize as JSON. No Schema Registry.
+- Outbox connectors capture only the `outbox` table and route it with the outbox event router, so topics, keys and payloads match what consumers already read
+- Register connectors automatically when the local stack starts
 
-Example connector configuration:
+Example connector configuration for an outbox service (illustrative: the column names follow customer's outbox table, and the real configs live in `docker/debezium/connectors/`):
 ```json
 {
   "name": "identity-service-connector",
@@ -56,13 +63,22 @@ Example connector configuration:
     "database.port": "5432",
     "database.user": "debezium",
     "database.password": "${vault:secret/debezium:password}",
-    "database.dbname": "identity",
+    "database.dbname": "acme_identity",
     "topic.prefix": "identity",
     "plugin.name": "pgoutput",
     "slot.name": "identity_slot",
     "publication.name": "identity_publication",
-    "key.converter": "io.confluent.connect.avro.AvroConverter",
-    "value.converter": "io.confluent.connect.avro.AvroConverter"
+    "table.include.list": "public.outbox",
+    "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "false",
+    "transforms": "outbox",
+    "transforms.outbox.type": "io.debezium.transforms.outbox.EventRouter",
+    "transforms.outbox.table.field.event.id": "event_id",
+    "transforms.outbox.table.field.event.key": "message_key",
+    "transforms.outbox.table.field.event.payload": "payload",
+    "transforms.outbox.route.by.field": "topic",
+    "transforms.outbox.route.topic.replacement": "${routedByValue}"
   }
 }
 ```
