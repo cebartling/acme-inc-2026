@@ -18,12 +18,12 @@ An Architecture Decision Record documents a significant architectural decision, 
 | [ADR-0001](0001-microservices-architecture.md) | Microservices Architecture | Accepted |
 | [ADR-0002](0002-cqrs-pattern.md) | Command Query Responsibility Segregation (CQRS) | Accepted |
 | [ADR-0003](0003-event-sourcing.md) | Event Sourcing | Accepted |
-| [ADR-0004](0004-change-data-capture.md) | Change Data Capture (CDC) | Accepted |
+| [ADR-0004](0004-change-data-capture.md) | Change Data Capture (CDC) | Accepted, amended in PIN-534 |
 | [ADR-0018](0018-idempotent-event-processing.md) | Idempotent Event Processing Pattern | Accepted |
-| [ADR-0022](0022-transactional-outbox-pattern.md) | Transactional Outbox Pattern for Event Publishing | Accepted |
+| [ADR-0022](0022-transactional-outbox-pattern.md) | Transactional Outbox Pattern for Event Publishing | Accepted, amended in PIN-534 |
 | [ADR-0023](0023-kafka-consumer-group-patterns.md) | Kafka Consumer Group Patterns for Multi-Event Topics | Accepted |
 | [ADR-0024](0024-synchronous-customer-lookup-for-notifications.md) | Synchronous Customer Lookup for Welcome Notifications | Accepted |
-| [ADR-0041](0041-per-service-persistence-model.md) | Per-Service Persistence Model | Accepted |
+| [ADR-0041](0041-per-service-persistence-model.md) | Per-Service Persistence Model | Accepted, amended in PIN-534 |
 | [ADR-0042](0042-best-effort-event-publishing.md) | Best-Effort Event Publishing in Cart and Product | Superseded for the cart by [ADR-0060](0060-cart-events-through-outbox.md) |
 | [ADR-0044](0044-forward-customer-credentials-between-services.md) | Service-to-Service Calls Carry the Customer's Credentials | Accepted, amended by [ADR-0061](0061-order-service-token-for-cart-calls.md) |
 | [ADR-0045](0045-cart-product-calls-fail-closed.md) | Cart Calls the Product Service Synchronously and Fails Closed | Accepted |
@@ -55,9 +55,9 @@ An Architecture Decision Record documents a significant architectural decision, 
 | ADR | Title | Status |
 |-----|-------|--------|
 | [ADR-0005](0005-postgresql-command-store.md) | PostgreSQL as Command Store | Accepted |
-| [ADR-0006](0006-mongodb-query-store.md) | MongoDB as Query Store | Accepted |
+| [ADR-0006](0006-mongodb-query-store.md) | MongoDB as Query Store | Accepted, amended in PIN-534 |
 | [ADR-0007](0007-apache-kafka-event-streaming.md) | Apache Kafka for Event Streaming | Accepted |
-| [ADR-0008](0008-debezium-cdc-connector.md) | Debezium for Change Data Capture | Accepted |
+| [ADR-0008](0008-debezium-cdc-connector.md) | Debezium for Change Data Capture | Accepted, amended in PIN-534 |
 | [ADR-0009](0009-hashicorp-vault-secrets.md) | HashiCorp Vault for Secrets Management | Accepted |
 | [ADR-0010](0010-kotlin-spring-boot-backend.md) | Kotlin with Spring Boot for Backend Services | Accepted |
 | [ADR-0017](0017-sendgrid-transactional-email.md) | SendGrid for Transactional Email | Accepted |
