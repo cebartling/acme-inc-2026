@@ -221,6 +221,19 @@ apps_up() {
     cd "$PROJECT_ROOT"
     docker compose -f "$APPS_COMPOSE" up --build --force-recreate -d "$@"
 
+    # up -d doesn't wait for the one-shot connector registration, so a rejected
+    # config would otherwise go unnoticed.
+    if [[ $# -eq 0 || " $* " == *" debezium-connector-init "* ]]; then
+        print_info "Waiting for Debezium connector registration..."
+        local init_exit
+        init_exit=$(docker wait acme-debezium-connector-init)
+        if [[ "$init_exit" != "0" ]]; then
+            print_error "Debezium connector registration failed (exit ${init_exit}):"
+            docker logs acme-debezium-connector-init
+            exit 1
+        fi
+    fi
+
     print_success "Application services started"
     print_info "Run './scripts/docker-manage.sh apps-status' to check service health"
 }
