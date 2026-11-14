@@ -773,8 +773,10 @@ their orders back (PIN-367) and cancel a submitted one (PIN-429).
   `orders (user_id, status, created_at DESC, id DESC)` for the order history (PIN-367).
   `open-in-view` is off. `acme_orders` and its
   `acme_app` user come from `docker/postgres/init`, which also gives it a
-  `dbz_publication FOR ALL TABLES`: it is the database the Debezium connector captures (once
-  registered), and an UPDATE or DELETE fails on any of its tables without a primary key.
+  `dbz_publication FOR ALL TABLES`: no connector captures it today (a connector config added to
+  `docker/debezium/connectors/` is registered by the `debezium-connector-init` container when the
+  application stack starts, PIN-546), and an UPDATE or DELETE fails on any of its tables without a
+  primary key.
 - **Events** go through a transactional outbox (ADR-0022, PIN-368), as the cart's do
   (PIN-384), so an order is never committed without its event.
   - **Writing:** `OutboxWriter.write(event)` saves the event to `outbox` inside the caller's
