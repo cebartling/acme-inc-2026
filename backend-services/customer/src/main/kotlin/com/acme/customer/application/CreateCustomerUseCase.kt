@@ -14,7 +14,6 @@ import com.acme.customer.infrastructure.persistence.CustomerNumberSequenceReposi
 import com.acme.customer.infrastructure.persistence.CustomerPreferencesRepository
 import com.acme.customer.infrastructure.persistence.CustomerRepository
 import com.acme.customer.infrastructure.persistence.EventStoreRepository
-import com.acme.customer.infrastructure.projection.CustomerReadModelProjector
 import com.acme.customer.infrastructure.security.CustomerIdGenerator
 import io.micrometer.core.instrument.Counter
 import io.micrometer.core.instrument.MeterRegistry
@@ -52,7 +51,6 @@ class CreateCustomerUseCase(
     private val customerNumberSequenceRepository: CustomerNumberSequenceRepository,
     private val eventStoreRepository: EventStoreRepository,
     private val customerIdGenerator: CustomerIdGenerator,
-    private val customerReadModelProjector: CustomerReadModelProjector,
     private val outboxWriter: OutboxWriter,
     meterRegistry: MeterRegistry
 ) {
@@ -171,14 +169,6 @@ class CreateCustomerUseCase(
                     customerNumber,
                     userId
                 )
-
-                // Project to MongoDB and write to outbox
-                // Wait for projection to complete, then write to outbox
-                // This ensures consistency between write model (PostgreSQL) and read model (MongoDB)
-                val projectionFuture = customerReadModelProjector.projectCustomer(customer, preferences)
-
-                // Wait for projection to complete before writing to outbox
-                projectionFuture.join()
 
                 // Write to outbox within the transaction
                 // Debezium will publish asynchronously, decoupled from this transaction

@@ -8,7 +8,6 @@ import com.acme.customer.infrastructure.persistence.CustomerNumberSequenceReposi
 import com.acme.customer.infrastructure.persistence.CustomerPreferencesRepository
 import com.acme.customer.infrastructure.persistence.CustomerRepository
 import com.acme.customer.infrastructure.persistence.EventStoreRepository
-import com.acme.customer.infrastructure.projection.CustomerReadModelProjector
 import com.acme.customer.infrastructure.security.CustomerIdGenerator
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import io.mockk.*
@@ -30,7 +29,6 @@ class CreateCustomerUseCaseTest {
     private lateinit var customerNumberSequenceRepository: CustomerNumberSequenceRepository
     private lateinit var eventStoreRepository: EventStoreRepository
     private lateinit var customerIdGenerator: CustomerIdGenerator
-    private lateinit var customerReadModelProjector: CustomerReadModelProjector
     private lateinit var outboxWriter: OutboxWriter
     private lateinit var useCase: CreateCustomerUseCase
 
@@ -41,7 +39,6 @@ class CreateCustomerUseCaseTest {
         customerNumberSequenceRepository = mockk()
         eventStoreRepository = mockk()
         customerIdGenerator = mockk()
-        customerReadModelProjector = mockk()
         outboxWriter = mockk()
 
         useCase = CreateCustomerUseCase(
@@ -50,7 +47,6 @@ class CreateCustomerUseCaseTest {
             customerNumberSequenceRepository = customerNumberSequenceRepository,
             eventStoreRepository = eventStoreRepository,
             customerIdGenerator = customerIdGenerator,
-            customerReadModelProjector = customerReadModelProjector,
             outboxWriter = outboxWriter,
             meterRegistry = SimpleMeterRegistry()
         )
@@ -75,7 +71,6 @@ class CreateCustomerUseCaseTest {
         every { eventStoreRepository.append(any()) } just Runs
         every { customerRepository.save(any()) } answers { firstArg() }
         every { customerPreferencesRepository.save(any()) } answers { firstArg() }
-        every { customerReadModelProjector.projectCustomer(any(), any()) } returns CompletableFuture.completedFuture(null)
         every { outboxWriter.write(any(), any()) } just Runs
 
         // When
@@ -106,7 +101,6 @@ class CreateCustomerUseCaseTest {
         verify { eventStoreRepository.append(any()) }
         verify { customerRepository.save(any()) }
         verify { customerPreferencesRepository.save(any()) }
-        verify { customerReadModelProjector.projectCustomer(any(), any()) }
         verify { outboxWriter.write(any(), any()) }
     }
 
@@ -162,7 +156,6 @@ class CreateCustomerUseCaseTest {
         every { eventStoreRepository.append(any()) } just Runs
         every { customerRepository.save(any()) } answers { firstArg() }
         every { customerPreferencesRepository.save(capture(preferencesSlot)) } answers { firstArg() }
-        every { customerReadModelProjector.projectCustomer(any(), any()) } returns CompletableFuture.completedFuture(null)
         every { outboxWriter.write(any(), any()) } just Runs
 
         // When - with marketingOptIn = false
@@ -196,7 +189,6 @@ class CreateCustomerUseCaseTest {
         every { eventStoreRepository.append(any()) } just Runs
         every { customerRepository.save(capture(customerSlot)) } answers { firstArg() }
         every { customerPreferencesRepository.save(any()) } answers { firstArg() }
-        every { customerReadModelProjector.projectCustomer(any(), any()) } returns CompletableFuture.completedFuture(null)
         every { outboxWriter.write(any(), any()) } just Runs
 
         // When
@@ -247,53 +239,6 @@ class CreateCustomerUseCaseTest {
     }
 
     @Test
-    fun `execute should return Failure when MongoDB projection fails`() {
-        // Given
-        val userId = UUID.randomUUID()
-        val customerId = UUID.randomUUID()
-        val email = "test@example.com"
-        val firstName = "Jane"
-        val lastName = "Doe"
-        val marketingOptIn = true
-        val registeredAt = Instant.now()
-        val correlationId = UUID.randomUUID()
-        val causationId = UUID.randomUUID()
-
-        every { customerRepository.findByUserId(userId) } returns null
-        every { customerIdGenerator.generate() } returns customerId
-        every { customerNumberSequenceRepository.nextSequence(any()) } returns 1
-        every { eventStoreRepository.append(any()) } just Runs
-        every { customerRepository.save(any()) } answers { firstArg() }
-        every { customerPreferencesRepository.save(any()) } answers { firstArg() }
-
-        // MongoDB projection fails
-        every { customerReadModelProjector.projectCustomer(any(), any()) } returns
-            CompletableFuture.failedFuture(RuntimeException("MongoDB connection failed"))
-
-        // When
-        val result = useCase.execute(
-            userId = userId,
-            email = email,
-            firstName = firstName,
-            lastName = lastName,
-            marketingOptIn = marketingOptIn,
-            registeredAt = registeredAt,
-            correlationId = correlationId,
-            causationId = causationId
-        )
-
-        // Then - transaction should fail and return Failure result
-        assertTrue(result.isLeft())
-        result.fold(
-            ifLeft = { error ->
-                assertIs<CreateCustomerError.Failure>(error)
-                assertTrue(error.message.contains("MongoDB connection failed"))
-            },
-            ifRight = { fail("Expected error but got success") }
-        )
-    }
-
-    @Test
     fun `execute should return Failure when outbox write fails`() {
         // Given
         val userId = UUID.randomUUID()
@@ -312,7 +257,6 @@ class CreateCustomerUseCaseTest {
         every { eventStoreRepository.append(any()) } just Runs
         every { customerRepository.save(any()) } answers { firstArg() }
         every { customerPreferencesRepository.save(any()) } answers { firstArg() }
-        every { customerReadModelProjector.projectCustomer(any(), any()) } returns CompletableFuture.completedFuture(null)
 
         // Outbox write fails
         every { outboxWriter.write(any(), any()) } throws RuntimeException("Database constraint violation")

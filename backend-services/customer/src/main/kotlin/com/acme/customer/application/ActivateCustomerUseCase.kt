@@ -4,10 +4,8 @@ import arrow.core.left
 import arrow.core.right
 import com.acme.customer.domain.events.CustomerActivated
 import com.acme.customer.infrastructure.messaging.OutboxWriter
-import com.acme.customer.infrastructure.persistence.CustomerPreferencesRepository
 import com.acme.customer.infrastructure.persistence.CustomerRepository
 import com.acme.customer.infrastructure.persistence.EventStoreRepository
-import com.acme.customer.infrastructure.projection.CustomerReadModelProjector
 import io.micrometer.core.instrument.Counter
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.Timer
@@ -38,9 +36,7 @@ import java.util.UUID
 @Service
 class ActivateCustomerUseCase(
     private val customerRepository: CustomerRepository,
-    private val customerPreferencesRepository: CustomerPreferencesRepository,
     private val eventStoreRepository: EventStoreRepository,
-    private val customerReadModelProjector: CustomerReadModelProjector,
     private val outboxWriter: OutboxWriter,
     private val profileCompletionService: ProfileCompletionService,
     meterRegistry: MeterRegistry
@@ -126,17 +122,6 @@ class ActivateCustomerUseCase(
                     customer.id,
                     userId
                 )
-
-                // Get preferences for read model projection
-                val preferences = customerPreferencesRepository.findById(customer.id)
-                    .orElseThrow { IllegalStateException("Customer preferences not found for ${customer.id}") }
-
-                // Project to MongoDB and write to outbox
-                // Wait for projection to complete, then write to outbox
-                val projectionFuture = customerReadModelProjector.projectCustomer(customer, preferences)
-
-                // Wait for projection to complete before writing to outbox
-                projectionFuture.join()
 
                 // Write to outbox within the transaction
                 // Debezium will publish asynchronously, decoupled from this transaction

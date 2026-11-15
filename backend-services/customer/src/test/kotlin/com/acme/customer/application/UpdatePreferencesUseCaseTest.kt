@@ -29,7 +29,6 @@ class UpdatePreferencesUseCaseTest {
     private lateinit var preferencesRepository: CustomerPreferencesRepository
     private lateinit var changeLogRepository: PreferenceChangeLogRepository
     private lateinit var outboxWriter: OutboxWriter
-    private lateinit var customerCacheService: com.acme.customer.infrastructure.cache.CustomerCacheService
     private lateinit var useCase: UpdatePreferencesUseCase
 
     private val customerId = UUID.randomUUID()
@@ -42,14 +41,12 @@ class UpdatePreferencesUseCaseTest {
         preferencesRepository = mockk()
         changeLogRepository = mockk()
         outboxWriter = mockk()
-        customerCacheService = mockk()
 
         useCase = UpdatePreferencesUseCase(
             customerRepository = customerRepository,
             preferencesRepository = preferencesRepository,
             changeLogRepository = changeLogRepository,
             outboxWriter = outboxWriter,
-            customerCacheService = customerCacheService,
             meterRegistry = SimpleMeterRegistry()
         )
         // Initialize metrics (normally done by @PostConstruct)
@@ -206,7 +203,6 @@ class UpdatePreferencesUseCaseTest {
         every { preferencesRepository.findById(customerId) } returns Optional.of(preferences)
         every { changeLogRepository.save(any()) } answers { firstArg() }
         every { preferencesRepository.save(any()) } answers { firstArg() }
-        every { customerCacheService.invalidate(userId) } just Runs
         every { outboxWriter.write(any<com.acme.customer.domain.events.PreferencesUpdated>(), "customer.events") } just Runs
 
         // When
@@ -219,7 +215,6 @@ class UpdatePreferencesUseCaseTest {
         assertTrue(success.changedPreferences.containsKey("communication.email"))
 
         verify { changeLogRepository.save(any()) }
-        verify { customerCacheService.invalidate(userId) }
         verify { outboxWriter.write(any<com.acme.customer.domain.events.PreferencesUpdated>(), "customer.events") }
     }
 
@@ -248,7 +243,6 @@ class UpdatePreferencesUseCaseTest {
         every { preferencesRepository.findById(customerId) } returns Optional.of(preferences)
         every { changeLogRepository.save(any()) } answers { firstArg() }
         every { preferencesRepository.save(any()) } answers { firstArg() }
-        every { customerCacheService.invalidate(userId) } just Runs
         every { outboxWriter.write(any<com.acme.customer.domain.events.PreferencesUpdated>(), "customer.events") } just Runs
 
         // When
@@ -269,7 +263,6 @@ class UpdatePreferencesUseCaseTest {
         // Verify all changes are logged
         assertEquals(7, success.changedPreferences.size)
         verify(exactly = 7) { changeLogRepository.save(any()) }
-        verify { customerCacheService.invalidate(userId) }
     }
 
     @Test
@@ -311,7 +304,6 @@ class UpdatePreferencesUseCaseTest {
         every { preferencesRepository.findById(customerId) } returns Optional.of(preferences)
         every { changeLogRepository.save(capture(capturedLog)) } answers { firstArg() }
         every { preferencesRepository.save(any()) } answers { firstArg() }
-        every { customerCacheService.invalidate(userId) } just Runs
         every { outboxWriter.write(any<com.acme.customer.domain.events.PreferencesUpdated>(), "customer.events") } just Runs
 
         // When

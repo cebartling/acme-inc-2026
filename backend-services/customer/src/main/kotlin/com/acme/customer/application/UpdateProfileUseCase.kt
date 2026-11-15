@@ -3,10 +3,8 @@ package com.acme.customer.application
 import com.acme.customer.api.v1.dto.UpdateProfileRequest
 import com.acme.customer.domain.events.ProfileUpdated
 import com.acme.customer.infrastructure.messaging.OutboxWriter
-import com.acme.customer.infrastructure.persistence.CustomerPreferencesRepository
 import com.acme.customer.infrastructure.persistence.CustomerRepository
 import com.acme.customer.infrastructure.persistence.EventStoreRepository
-import com.acme.customer.infrastructure.projection.CustomerReadModelProjector
 import com.acme.customer.infrastructure.validation.PhoneNumberValidator
 import com.acme.customer.infrastructure.validation.PhoneValidationResult
 import io.micrometer.core.instrument.Counter
@@ -35,13 +33,10 @@ import java.util.UUID
 @Service
 class UpdateProfileUseCase(
     private val customerRepository: CustomerRepository,
-    private val customerPreferencesRepository: CustomerPreferencesRepository,
     private val eventStoreRepository: EventStoreRepository,
-    private val customerReadModelProjector: CustomerReadModelProjector,
     private val outboxWriter: OutboxWriter,
     private val phoneNumberValidator: PhoneNumberValidator,
     private val profileCompletionService: ProfileCompletionService,
-    private val customerCacheService: com.acme.customer.infrastructure.cache.CustomerCacheService,
     meterRegistry: MeterRegistry
 ) {
     private val logger = LoggerFactory.getLogger(UpdateProfileUseCase::class.java)
@@ -166,21 +161,11 @@ class UpdateProfileUseCase(
                 // Save customer
                 customerRepository.save(customer)
 
-                // Invalidate cache to ensure fresh data on next request
-                customerCacheService.invalidate(customer.userId)
-
                 logger.info(
                     "Updated profile for customer {}, changed fields: {}",
                     customerId,
                     changedFields
                 )
-
-                // Project to MongoDB and write to outbox
-                val preferences = customerPreferencesRepository.findById(customerId).orElse(null)
-                if (preferences != null) {
-                    val projectionFuture = customerReadModelProjector.projectCustomer(customer, preferences)
-                    projectionFuture.join()
-                }
 
                 // Write to outbox within the transaction
                 outboxWriter.write(event, ProfileUpdated.TOPIC)

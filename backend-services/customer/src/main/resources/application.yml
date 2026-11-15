@@ -26,13 +26,6 @@ spring:
     port: ${MONGODB_PORT:27017}
     database: ${MONGODB_DB:acme_query}
 
-  data:
-    redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
-      timeout: 2000ms
-      password: ${REDIS_PASSWORD:}
-
   security:
     oauth2:
       resourceserver:
