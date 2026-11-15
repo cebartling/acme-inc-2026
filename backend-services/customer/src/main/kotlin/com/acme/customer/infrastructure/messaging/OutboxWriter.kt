@@ -5,9 +5,12 @@ import com.acme.customer.infrastructure.persistence.OutboxMessage
 import com.acme.customer.infrastructure.persistence.OutboxRepository
 import com.acme.customer.infrastructure.projection.CustomerSnapshotFactory
 import com.acme.customer.infrastructure.projection.CustomerSnapshotMessage
+import com.acme.customer.infrastructure.projection.ReadAfter
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
+import org.springframework.web.context.request.RequestContextHolder
+import org.springframework.web.context.request.ServletRequestAttributes
 import java.util.UUID
 
 /**
@@ -20,6 +23,9 @@ import java.util.UUID
  * Each event produces two rows: the event itself, and a snapshot of the customer's full state
  * for the read model's projector. The snapshot goes to its own topic because it holds PII that
  * consumers of `customer.events` must not receive.
+ *
+ * When called while handling a web request, it also puts the event's id in the response's
+ * [ReadAfter.HEADER], so the client can ask a later read to wait for this write.
  *
  * This implements the write side of the Transactional Outbox pattern.
  */
@@ -73,6 +79,8 @@ class OutboxWriter(
             )
         )
 
+        tellClientToReadAfter(event.eventId)
+
         logger.debug(
             "Wrote {} event {} for aggregate {} to outbox for topic {}, with a snapshot for {}",
             event.eventType,
@@ -81,5 +89,15 @@ class OutboxWriter(
             topic,
             CustomerSnapshotMessage.TOPIC
         )
+    }
+
+    /**
+     * Sets the response header on the current web request. The response is not committed yet: this
+     * runs inside the use case, before the controller returns. A later event in the same request
+     * replaces the header, because its snapshot includes the earlier changes.
+     */
+    private fun tellClientToReadAfter(eventId: UUID) {
+        val response = (RequestContextHolder.getRequestAttributes() as? ServletRequestAttributes)?.response ?: return
+        response.setHeader(ReadAfter.HEADER, eventId.toString())
     }
 }

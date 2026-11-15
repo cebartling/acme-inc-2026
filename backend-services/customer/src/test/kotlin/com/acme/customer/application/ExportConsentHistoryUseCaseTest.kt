@@ -3,18 +3,18 @@ package com.acme.customer.application
 import com.acme.customer.domain.ConsentRecord
 import com.acme.customer.domain.ConsentSource
 import com.acme.customer.domain.ConsentType
-import com.acme.customer.domain.Customer
-import com.acme.customer.domain.CustomerStatus
-import com.acme.customer.domain.CustomerType
-import com.acme.customer.infrastructure.persistence.ConsentRecordRepository
-import com.acme.customer.infrastructure.persistence.CustomerRepository
+import com.acme.customer.infrastructure.projection.CustomerReadModelQueries
+import com.acme.customer.infrastructure.projection.CustomerSnapshot
+import com.acme.customer.infrastructure.projection.ReadModelBehindException
+import com.acme.customer.infrastructure.projection.SnapshotFixtures
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import java.time.Instant
-import java.util.Optional
 import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -22,8 +22,7 @@ import kotlin.test.assertTrue
 
 class ExportConsentHistoryUseCaseTest {
 
-    private lateinit var customerRepository: CustomerRepository
-    private lateinit var consentRecordRepository: ConsentRecordRepository
+    private lateinit var readModel: CustomerReadModelQueries
     private lateinit var useCase: ExportConsentHistoryUseCase
 
     private val customerId = UUID.randomUUID()
@@ -31,38 +30,25 @@ class ExportConsentHistoryUseCaseTest {
 
     @BeforeEach
     fun setUp() {
-        customerRepository = mockk()
-        consentRecordRepository = mockk()
+        readModel = mockk()
 
         useCase = ExportConsentHistoryUseCase(
-            customerRepository = customerRepository,
-            consentRecordRepository = consentRecordRepository,
+            readModel = readModel,
             meterRegistry = SimpleMeterRegistry()
         )
         useCase.initMetrics()
     }
 
-    private fun createCustomer(): Customer {
-        val now = Instant.now()
-        return Customer(
-            id = customerId,
-            userId = userId,
-            customerNumber = "ACME-202601-000001",
-            email = "test@example.com",
-            firstName = "John",
-            lastName = "Doe",
-            displayName = "John Doe",
-            status = CustomerStatus.ACTIVE,
-            type = CustomerType.INDIVIDUAL,
-            registeredAt = now,
-            lastActivityAt = now
+    private fun snapshotWith(vararg records: ConsentRecord): CustomerSnapshot =
+        SnapshotFixtures.snapshot(
+            customer = SnapshotFixtures.customer(customerId, userId),
+            consents = records.toList()
         )
-    }
 
     @Test
     fun `execute should return CustomerNotFound when customer does not exist`() {
         // Given
-        every { customerRepository.findById(customerId) } returns Optional.empty()
+        every { readModel.findById(customerId, null) } returns null
 
         // When
         val result = useCase.execute(customerId, userId)
@@ -76,7 +62,7 @@ class ExportConsentHistoryUseCaseTest {
     fun `execute should return Unauthorized when user does not own customer`() {
         // Given
         val otherUserId = UUID.randomUUID()
-        every { customerRepository.findById(customerId) } returns Optional.of(createCustomer())
+        every { readModel.findById(customerId, null) } returns snapshotWith()
 
         // When
         val result = useCase.execute(customerId, otherUserId)
@@ -88,8 +74,7 @@ class ExportConsentHistoryUseCaseTest {
     @Test
     fun `execute should return empty history when no records exist`() {
         // Given
-        every { customerRepository.findById(customerId) } returns Optional.of(createCustomer())
-        every { consentRecordRepository.findByCustomerId(customerId) } returns emptyList()
+        every { readModel.findById(customerId, null) } returns snapshotWith()
 
         // When
         val result = useCase.execute(customerId, userId)
@@ -137,8 +122,7 @@ class ExportConsentHistoryUseCaseTest {
             version = 2
         )
 
-        every { customerRepository.findById(customerId) } returns Optional.of(createCustomer())
-        every { consentRecordRepository.findByCustomerId(customerId) } returns listOf(record1, record2, record3)
+        every { readModel.findById(customerId, null) } returns snapshotWith(record1, record2, record3)
 
         // When
         val result = useCase.execute(customerId, userId)
@@ -180,8 +164,7 @@ class ExportConsentHistoryUseCaseTest {
             version = 1
         )
 
-        every { customerRepository.findById(customerId) } returns Optional.of(createCustomer())
-        every { consentRecordRepository.findByCustomerId(customerId) } returns listOf(record)
+        every { readModel.findById(customerId, null) } returns snapshotWith(record)
 
         // When
         val result = useCase.execute(customerId, userId)
@@ -200,5 +183,23 @@ class ExportConsentHistoryUseCaseTest {
         assertNotNull(entry.ipAddress)
         // userAgent may be null, but should be present if captured
         assertNotNull(entry.userAgent)
+    }
+
+    @Test
+    fun `execute should wait for the event the caller read after`() {
+        val readAfter = UUID.randomUUID()
+        every { readModel.findById(customerId, readAfter) } returns snapshotWith()
+
+        useCase.execute(customerId, userId, readAfter)
+
+        verify(exactly = 1) { readModel.findById(customerId, readAfter) }
+    }
+
+    @Test
+    fun `execute should let ReadModelBehindException through rather than report a failure`() {
+        val readAfter = UUID.randomUUID()
+        every { readModel.findById(customerId, readAfter) } throws ReadModelBehindException(readAfter)
+
+        assertThrows<ReadModelBehindException> { useCase.execute(customerId, userId, readAfter) }
     }
 }

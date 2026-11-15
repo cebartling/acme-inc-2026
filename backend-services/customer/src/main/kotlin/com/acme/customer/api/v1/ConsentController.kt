@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
+import com.acme.customer.infrastructure.projection.ReadAfter
 import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
@@ -151,7 +152,8 @@ class ConsentController(
     @GetMapping("/{customerId}/consents")
     fun getConsents(
         @PathVariable customerId: String,
-        @AuthenticationPrincipal(expression = "subject") userId: String
+        @AuthenticationPrincipal(expression = "subject") userId: String,
+        @RequestHeader(ReadAfter.HEADER, required = false) readAfter: UUID? = null
     ): ResponseEntity<Any> {
         logger.debug("Getting consents for customer: {}", customerId)
 
@@ -169,7 +171,8 @@ class ConsentController(
 
         return when (val result = getConsentsUseCase.execute(
             customerId = parsedCustomerId,
-            userId = parsedUserId
+            userId = parsedUserId,
+            readAfter = readAfter
         )) {
             is GetConsentsResult.Success -> {
                 val response = ConsentsListResponse(
@@ -205,7 +208,8 @@ class ConsentController(
     fun exportConsentHistory(
         @PathVariable customerId: String,
         @AuthenticationPrincipal(expression = "subject") userId: String,
-        @RequestParam(required = false, defaultValue = "json") format: String
+        @RequestParam(required = false, defaultValue = "json") format: String,
+        @RequestHeader(ReadAfter.HEADER, required = false) readAfter: UUID? = null
     ): ResponseEntity<Any> {
         logger.debug("Exporting consent history for customer: {} (format={})", customerId, format)
 
@@ -232,7 +236,8 @@ class ConsentController(
 
         return when (val result = exportConsentHistoryUseCase.execute(
             customerId = parsedCustomerId,
-            userId = parsedUserId
+            userId = parsedUserId,
+            readAfter = readAfter
         )) {
             is ExportConsentHistoryResult.Success -> {
                 ResponseEntity.ok(ConsentHistoryExportResponse.fromDomain(result.export))

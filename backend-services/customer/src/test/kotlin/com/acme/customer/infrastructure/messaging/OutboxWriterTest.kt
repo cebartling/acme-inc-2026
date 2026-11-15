@@ -7,6 +7,12 @@ import com.acme.customer.infrastructure.projection.CustomerSnapshot
 import com.acme.customer.infrastructure.projection.CustomerSnapshotFactory
 import com.acme.customer.infrastructure.projection.SnapshotFixtures
 import com.acme.customer.api.v1.dto.CustomerResponse
+import com.acme.customer.infrastructure.projection.ReadAfter
+import org.junit.jupiter.api.AfterEach
+import org.springframework.mock.web.MockHttpServletRequest
+import org.springframework.mock.web.MockHttpServletResponse
+import org.springframework.web.context.request.RequestContextHolder
+import org.springframework.web.context.request.ServletRequestAttributes
 import com.acme.customer.api.v1.dto.ProfileCompletenessResponse
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
@@ -105,5 +111,48 @@ class OutboxWriterTest {
             outboxRepository.save(match { it.topic == "customer.events" })
             outboxRepository.save(match { it.topic == "customer.read-model" })
         }
+    }
+
+    @AfterEach
+    fun clearRequest() {
+        RequestContextHolder.resetRequestAttributes()
+    }
+
+    @Test
+    fun `write tells the client which event to read after, in the response header`() {
+        val customerId = UUID.randomUUID()
+        val event = event(customerId)
+        every { snapshotFactory.build(customerId) } returns snapshotOf(customerId)
+        val response = MockHttpServletResponse()
+        RequestContextHolder.setRequestAttributes(ServletRequestAttributes(MockHttpServletRequest(), response))
+
+        writer.write(event, PreferencesUpdated.TOPIC)
+
+        assertEquals(event.eventId.toString(), response.getHeader(ReadAfter.HEADER))
+    }
+
+    @Test
+    fun `write in one request keeps the last event as the one to read after`() {
+        val customerId = UUID.randomUUID()
+        val first = event(customerId)
+        val last = event(customerId)
+        every { snapshotFactory.build(customerId) } returns snapshotOf(customerId)
+        val response = MockHttpServletResponse()
+        RequestContextHolder.setRequestAttributes(ServletRequestAttributes(MockHttpServletRequest(), response))
+
+        writer.write(first, PreferencesUpdated.TOPIC)
+        writer.write(last, PreferencesUpdated.TOPIC)
+
+        assertEquals(listOf(last.eventId.toString()), response.getHeaders(ReadAfter.HEADER))
+    }
+
+    @Test
+    fun `write outside a web request, such as a Kafka consumer, sets no header and does not fail`() {
+        val customerId = UUID.randomUUID()
+        every { snapshotFactory.build(customerId) } returns snapshotOf(customerId)
+
+        writer.write(event(customerId), PreferencesUpdated.TOPIC)
+
+        assertEquals(2, saved.size)
     }
 }

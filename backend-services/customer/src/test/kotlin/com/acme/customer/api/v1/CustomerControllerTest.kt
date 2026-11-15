@@ -2,7 +2,6 @@ package com.acme.customer.api.v1
 
 import com.acme.customer.api.v1.dto.PhoneRequest
 import com.acme.customer.api.v1.dto.UpdateProfileRequest
-import com.acme.customer.application.ProfileCompletenessCalculator
 import com.acme.customer.application.UpdateProfileResult
 import com.acme.customer.application.UpdateProfileUseCase
 import com.acme.customer.domain.Customer
@@ -10,10 +9,10 @@ import com.acme.customer.domain.CustomerPreferences
 import com.acme.customer.domain.CustomerStatus
 import com.acme.customer.domain.CustomerType
 import com.acme.customer.domain.NotificationFrequency
-import com.acme.customer.domain.ProfileCompleteness
-import com.acme.customer.domain.SectionCompleteness
-import com.acme.customer.infrastructure.persistence.CustomerPreferencesRepository
-import com.acme.customer.infrastructure.persistence.CustomerRepository
+import com.acme.customer.infrastructure.projection.CustomerReadModelQueries
+import com.acme.customer.infrastructure.projection.CustomerSnapshot
+import com.acme.customer.infrastructure.projection.SnapshotFixtures
+import com.acme.customer.infrastructure.tracking.CustomerActivityTracker
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -24,18 +23,15 @@ import org.springframework.http.HttpStatus
 import org.springframework.security.oauth2.jwt.Jwt
 import java.time.Instant
 import java.time.LocalDate
-import java.util.Optional
 import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 
 class CustomerControllerTest {
 
-    private lateinit var customerRepository: CustomerRepository
-    private lateinit var customerPreferencesRepository: CustomerPreferencesRepository
+    private lateinit var readModel: CustomerReadModelQueries
     private lateinit var updateProfileUseCase: UpdateProfileUseCase
-    private lateinit var profileCompletenessCalculator: ProfileCompletenessCalculator
-    private lateinit var getCustomerProfileUseCase: com.acme.customer.application.GetCustomerProfileUseCase
+    private lateinit var activityTracker: CustomerActivityTracker
     private lateinit var controller: CustomerController
 
     private val customerId = UUID.randomUUID()
@@ -43,18 +39,14 @@ class CustomerControllerTest {
 
     @BeforeEach
     fun setUp() {
-        customerRepository = mockk()
-        customerPreferencesRepository = mockk()
+        readModel = mockk()
         updateProfileUseCase = mockk()
-        profileCompletenessCalculator = mockk()
-        getCustomerProfileUseCase = mockk()
+        activityTracker = mockk(relaxed = true)
 
         controller = CustomerController(
-            customerRepository = customerRepository,
-            customerPreferencesRepository = customerPreferencesRepository,
+            readModel = readModel,
             updateProfileUseCase = updateProfileUseCase,
-            profileCompletenessCalculator = profileCompletenessCalculator,
-            getCustomerProfileUseCase = getCustomerProfileUseCase
+            activityTracker = activityTracker
         )
     }
 
@@ -95,23 +87,7 @@ class CustomerControllerTest {
         )
     }
 
-    private fun createProfileCompleteness(): ProfileCompleteness {
-        return ProfileCompleteness(
-            customerId = customerId,
-            overallScore = 40,
-            sections = listOf(
-                SectionCompleteness(
-                    name = "basicInfo",
-                    displayName = "Basic Info",
-                    weight = 25,
-                    score = 100,
-                    isComplete = true,
-                    items = emptyList()
-                )
-            ),
-            nextAction = null
-        )
-    }
+    private fun snapshot(): CustomerSnapshot = SnapshotFixtures.snapshot(createCustomer(), createPreferences())
 
     @Nested
     inner class GetCustomer {
@@ -125,7 +101,7 @@ class CustomerControllerTest {
 
         @Test
         fun `should return 404 when customer not found`() {
-            every { customerRepository.findById(customerId) } returns Optional.empty()
+            every { readModel.findById(customerId, null) } returns null
 
             val response = controller.getCustomer(customerId.toString())
 
@@ -133,19 +109,8 @@ class CustomerControllerTest {
         }
 
         @Test
-        fun `should return 500 when preferences not found`() {
-            every { customerRepository.findById(customerId) } returns Optional.of(createCustomer())
-            every { customerPreferencesRepository.findById(customerId) } returns Optional.empty()
-
-            val response = controller.getCustomer(customerId.toString())
-
-            assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.statusCode)
-        }
-
-        @Test
         fun `should return 200 with customer on success`() {
-            every { customerRepository.findById(customerId) } returns Optional.of(createCustomer())
-            every { customerPreferencesRepository.findById(customerId) } returns Optional.of(createPreferences())
+            every { readModel.findById(customerId, null) } returns snapshot()
 
             val response = controller.getCustomer(customerId.toString())
 
@@ -153,6 +118,17 @@ class CustomerControllerTest {
             assertNotNull(response.body)
             assertEquals(customerId.toString(), response.body!!.customerId)
             assertEquals("John", response.body!!.name.firstName)
+        }
+
+        @Test
+        fun `should wait for the event the caller read after`() {
+            val readAfter = UUID.randomUUID()
+            every { readModel.findById(customerId, readAfter) } returns snapshot()
+
+            val response = controller.getCustomer(customerId.toString(), readAfter)
+
+            assertEquals(HttpStatus.OK, response.statusCode)
+            verify(exactly = 1) { readModel.findById(customerId, readAfter) }
         }
     }
 
@@ -168,7 +144,7 @@ class CustomerControllerTest {
 
         @Test
         fun `should return 404 when customer not found for user`() {
-            every { customerRepository.findByUserId(userId) } returns null
+            every { readModel.findByUserId(userId, null) } returns null
 
             val response = controller.getCustomerByUserId(userId.toString())
 
@@ -176,21 +152,8 @@ class CustomerControllerTest {
         }
 
         @Test
-        fun `should return 500 when preferences not found`() {
-            val customer = createCustomer()
-            every { customerRepository.findByUserId(userId) } returns customer
-            every { customerPreferencesRepository.findById(customerId) } returns Optional.empty()
-
-            val response = controller.getCustomerByUserId(userId.toString())
-
-            assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.statusCode)
-        }
-
-        @Test
         fun `should return 200 with customer on success`() {
-            val customer = createCustomer()
-            every { customerRepository.findByUserId(userId) } returns customer
-            every { customerPreferencesRepository.findById(customerId) } returns Optional.of(createPreferences())
+            every { readModel.findByUserId(userId, null) } returns snapshot()
 
             val response = controller.getCustomerByUserId(userId.toString())
 
@@ -207,7 +170,7 @@ class CustomerControllerTest {
 
         @Test
         fun `should return 404 when customer not found`() {
-            every { customerRepository.findByCustomerNumber(customerNumber) } returns null
+            every { readModel.findByCustomerNumber(customerNumber, null) } returns null
 
             val response = controller.getCustomerByNumber(customerNumber)
 
@@ -215,21 +178,8 @@ class CustomerControllerTest {
         }
 
         @Test
-        fun `should return 500 when preferences not found`() {
-            val customer = createCustomer()
-            every { customerRepository.findByCustomerNumber(customerNumber) } returns customer
-            every { customerPreferencesRepository.findById(customerId) } returns Optional.empty()
-
-            val response = controller.getCustomerByNumber(customerNumber)
-
-            assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.statusCode)
-        }
-
-        @Test
         fun `should return 200 with customer on success`() {
-            val customer = createCustomer()
-            every { customerRepository.findByCustomerNumber(customerNumber) } returns customer
-            every { customerPreferencesRepository.findById(customerId) } returns Optional.of(createPreferences())
+            every { readModel.findByCustomerNumber(customerNumber, null) } returns snapshot()
 
             val response = controller.getCustomerByNumber(customerNumber)
 
@@ -246,7 +196,7 @@ class CustomerControllerTest {
 
         @Test
         fun `should return 404 when customer not found`() {
-            every { customerRepository.findByEmail(email) } returns null
+            every { readModel.findByEmail(email, null) } returns null
 
             val response = controller.getCustomerByEmail(email)
 
@@ -254,21 +204,8 @@ class CustomerControllerTest {
         }
 
         @Test
-        fun `should return 500 when preferences not found`() {
-            val customer = createCustomer()
-            every { customerRepository.findByEmail(email) } returns customer
-            every { customerPreferencesRepository.findById(customerId) } returns Optional.empty()
-
-            val response = controller.getCustomerByEmail(email)
-
-            assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.statusCode)
-        }
-
-        @Test
         fun `should return 200 with customer on success`() {
-            val customer = createCustomer()
-            every { customerRepository.findByEmail(email) } returns customer
-            every { customerPreferencesRepository.findById(customerId) } returns Optional.of(createPreferences())
+            every { readModel.findByEmail(email, null) } returns snapshot()
 
             val response = controller.getCustomerByEmail(email)
 
@@ -498,7 +435,7 @@ class CustomerControllerTest {
 
         @Test
         fun `should return 404 when customer not found`() {
-            every { customerRepository.findById(customerId) } returns Optional.empty()
+            every { readModel.findById(customerId, null) } returns null
 
             val response = controller.getProfileCompleteness(customerId.toString(), userId.toString())
 
@@ -506,33 +443,24 @@ class CustomerControllerTest {
         }
 
         @Test
-        fun `should return 200 with completeness on success`() {
-            val customer = createCustomer()
-            val completeness = createProfileCompleteness()
-            every { customerRepository.findById(customerId) } returns Optional.of(customer)
-            every { profileCompletenessCalculator.calculate(customer) } returns completeness
+        fun `should return 404 when the customer belongs to another user`() {
+            every { readModel.findById(customerId, null) } returns snapshot()
+
+            val response = controller.getProfileCompleteness(customerId.toString(), UUID.randomUUID().toString())
+
+            assertEquals(HttpStatus.NOT_FOUND, response.statusCode)
+        }
+
+        @Test
+        fun `should return 200 with the completeness from the snapshot`() {
+            every { readModel.findById(customerId, null) } returns snapshot()
 
             val response = controller.getProfileCompleteness(customerId.toString(), userId.toString())
 
             assertEquals(HttpStatus.OK, response.statusCode)
             assertNotNull(response.body)
             assertEquals(customerId.toString(), response.body!!.customerId)
-            assertEquals(40, response.body!!.overallScore)
-        }
-
-        @Test
-        fun `should include section breakdown in response`() {
-            val customer = createCustomer()
-            val completeness = createProfileCompleteness()
-            every { customerRepository.findById(customerId) } returns Optional.of(customer)
-            every { profileCompletenessCalculator.calculate(customer) } returns completeness
-
-            val response = controller.getProfileCompleteness(customerId.toString(), userId.toString())
-
-            assertEquals(HttpStatus.OK, response.statusCode)
-            assertNotNull(response.body)
-            assertEquals(1, response.body!!.sections.size)
-            assertEquals("basicInfo", response.body!!.sections[0].name)
+            assertEquals(25, response.body!!.overallScore)
         }
     }
 
@@ -543,48 +471,21 @@ class CustomerControllerTest {
             Jwt.withTokenValue("token").header("alg", "RS256").subject(userId.toString()).build()
 
         @Test
-        fun `should return 404 when customer not found`() {
-            // Given
-            every {
-                getCustomerProfileUseCase.execute(userId)
-            } returns com.acme.customer.application.GetCustomerProfileResult.NotFound(userId)
+        fun `should return 404 when customer not found, and not record activity`() {
+            every { readModel.findByUserId(userId, null) } returns null
 
-            // When
             val response = controller.getCurrentCustomer(accessToken())
 
-            // Then
             assertEquals(HttpStatus.NOT_FOUND, response.statusCode)
+            verify(exactly = 0) { activityTracker.trackAsync(any()) }
         }
 
         @Test
-        fun `should return 500 when preferences not found`() {
-            // Given
-            every {
-                getCustomerProfileUseCase.execute(userId)
-            } returns com.acme.customer.application.GetCustomerProfileResult.PreferencesNotFound(customerId)
+        fun `should return 200 with customer profile and record activity`() {
+            every { readModel.findByUserId(userId, null) } returns snapshot()
 
-            // When
             val response = controller.getCurrentCustomer(accessToken())
 
-            // Then
-            assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.statusCode)
-        }
-
-        @Test
-        fun `should return 200 with customer profile on success`() {
-            // Given
-            val customer = createCustomer()
-            val preferences = createPreferences()
-            val profileResponse = com.acme.customer.api.v1.dto.CustomerResponse.fromDomain(customer, preferences)
-
-            every {
-                getCustomerProfileUseCase.execute(userId)
-            } returns com.acme.customer.application.GetCustomerProfileResult.Success(profileResponse)
-
-            // When
-            val response = controller.getCurrentCustomer(accessToken())
-
-            // Then
             assertEquals(HttpStatus.OK, response.statusCode)
             assertNotNull(response.body)
             assertEquals(customerId.toString(), response.body!!.customerId)
@@ -592,66 +493,39 @@ class CustomerControllerTest {
             assertEquals("John", response.body!!.name.firstName)
             assertEquals("Doe", response.body!!.name.lastName)
             assertEquals("test@example.com", response.body!!.email.address)
-        }
-
-        @Test
-        fun `should call use case with correct user ID`() {
-            // Given
-            val customer = createCustomer()
-            val preferences = createPreferences()
-            val profileResponse = com.acme.customer.api.v1.dto.CustomerResponse.fromDomain(customer, preferences)
-
-            every {
-                getCustomerProfileUseCase.execute(userId)
-            } returns com.acme.customer.application.GetCustomerProfileResult.Success(profileResponse)
-
-            // When
-            controller.getCurrentCustomer(accessToken())
-
-            // Then
-            verify(exactly = 1) { getCustomerProfileUseCase.execute(userId) }
+            verify(exactly = 1) { activityTracker.trackAsync(userId) }
         }
 
         @Test
         fun `should include preferences in response`() {
-            // Given
-            val customer = createCustomer()
-            val preferences = createPreferences()
-            val profileResponse = com.acme.customer.api.v1.dto.CustomerResponse.fromDomain(customer, preferences)
+            every { readModel.findByUserId(userId, null) } returns snapshot()
 
-            every {
-                getCustomerProfileUseCase.execute(userId)
-            } returns com.acme.customer.application.GetCustomerProfileResult.Success(profileResponse)
-
-            // When
             val response = controller.getCurrentCustomer(accessToken())
 
-            // Then
             assertEquals(HttpStatus.OK, response.statusCode)
-            assertNotNull(response.body)
-            assertNotNull(response.body!!.preferences)
             assertEquals(true, response.body!!.preferences.communication.email)
             assertEquals("en-US", response.body!!.preferences.display.language)
         }
 
         @Test
         fun `should include profile completeness in response`() {
-            // Given
-            val customer = createCustomer()
-            val preferences = createPreferences()
-            val profileResponse = com.acme.customer.api.v1.dto.CustomerResponse.fromDomain(customer, preferences)
+            every { readModel.findByUserId(userId, null) } returns snapshot()
 
-            every {
-                getCustomerProfileUseCase.execute(userId)
-            } returns com.acme.customer.application.GetCustomerProfileResult.Success(profileResponse)
-
-            // When
             val response = controller.getCurrentCustomer(accessToken())
 
-            // Then
             assertEquals(HttpStatus.OK, response.statusCode)
-            assertNotNull(response.body)
             assertEquals(25, response.body!!.profileCompleteness)
+        }
+
+        @Test
+        fun `should wait for the event the caller read after`() {
+            val readAfter = UUID.randomUUID()
+            every { readModel.findByUserId(userId, readAfter) } returns snapshot()
+
+            val response = controller.getCurrentCustomer(accessToken(), readAfter)
+
+            assertEquals(HttpStatus.OK, response.statusCode)
+            verify(exactly = 1) { readModel.findByUserId(userId, readAfter) }
         }
     }
 }

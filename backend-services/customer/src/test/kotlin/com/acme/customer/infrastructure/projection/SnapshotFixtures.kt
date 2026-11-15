@@ -8,6 +8,9 @@ import com.acme.customer.domain.ConsentType
 import com.acme.customer.domain.Customer
 import com.acme.customer.domain.CustomerPreferences
 import com.acme.customer.domain.ProfileCompleteness
+import com.acme.customer.api.v1.dto.AddressResponse
+import com.acme.customer.api.v1.dto.CustomerResponse
+import com.acme.customer.api.v1.dto.ProfileCompletenessResponse
 import java.time.Instant
 import java.util.UUID
 
@@ -15,9 +18,9 @@ import java.util.UUID
 object SnapshotFixtures {
     val now: Instant = Instant.parse("2026-11-15T12:00:00Z")
 
-    fun customer(id: UUID = UUID.randomUUID()) = Customer(
+    fun customer(id: UUID = UUID.randomUUID(), userId: UUID = UUID.randomUUID()) = Customer(
         id = id,
-        userId = UUID.randomUUID(),
+        userId = userId,
         customerNumber = "CUST-000001",
         firstName = "Ada",
         lastName = "Lovelace",
@@ -58,5 +61,19 @@ object SnapshotFixtures {
         sections = emptyList(),
         nextAction = null,
         updatedAt = now
+    )
+
+    /** A snapshot of [customer], as the projector would store it. */
+    fun snapshot(
+        customer: Customer = customer(),
+        preferences: CustomerPreferences = preferences(customer.id),
+        addresses: List<Address> = emptyList(),
+        consents: List<ConsentRecord> = emptyList()
+    ) = CustomerSnapshot(
+        customer = CustomerResponse.fromDomain(customer, preferences),
+        preferencesUpdatedAt = preferences.updatedAt,
+        addresses = addresses.map { AddressResponse.fromEntity(it) },
+        consents = consents.map { ConsentRecordSnapshot.fromDomain(it) },
+        completeness = ProfileCompletenessResponse.fromDomain(completeness(customer.id))
     )
 }

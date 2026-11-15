@@ -1,14 +1,11 @@
 package com.acme.customer.application
 
-import com.acme.customer.domain.ConsentRecord
-import com.acme.customer.infrastructure.persistence.ConsentRecordRepository
-import com.acme.customer.infrastructure.persistence.CustomerRepository
+import com.acme.customer.infrastructure.projection.CustomerReadModelQueries
 import io.micrometer.core.instrument.Counter
 import io.micrometer.core.instrument.MeterRegistry
 import jakarta.annotation.PostConstruct
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
-import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 import java.util.UUID
 
@@ -76,8 +73,7 @@ sealed class ExportConsentHistoryResult {
  */
 @Service
 class ExportConsentHistoryUseCase(
-    private val customerRepository: CustomerRepository,
-    private val consentRecordRepository: ConsentRecordRepository,
+    private val readModel: CustomerReadModelQueries,
     private val meterRegistry: MeterRegistry
 ) {
     private val logger = LoggerFactory.getLogger(ExportConsentHistoryUseCase::class.java)
@@ -98,22 +94,22 @@ class ExportConsentHistoryUseCase(
      * @param userId The user ID (for authorization).
      * @return The result containing the consent history export.
      */
-    @Transactional(readOnly = true)
     fun execute(
         customerId: UUID,
-        userId: UUID
+        userId: UUID,
+        readAfter: UUID? = null
     ): ExportConsentHistoryResult {
         logger.debug("Exporting consent history for customer: {}", customerId)
 
-        // Find customer
-        val customer = customerRepository.findById(customerId).orElse(null)
+        // Find customer. A read model that is behind must surface as an error, not as a failure result.
+        val snapshot = readModel.findById(customerId, readAfter)
             ?: run {
                 logger.debug("Customer not found: {}", customerId)
                 return ExportConsentHistoryResult.CustomerNotFound(customerId)
             }
 
         // Authorization check
-        if (customer.userId != userId) {
+        if (snapshot.customer.userId != userId.toString()) {
             logger.warn(
                 "User {} not authorized to export consent history for customer {}",
                 userId,
@@ -124,16 +120,16 @@ class ExportConsentHistoryUseCase(
 
         return try {
             // Get all consent records in chronological order
-            val consentRecords = consentRecordRepository.findByCustomerId(customerId)
+            val consentRecords = snapshot.consents.sortedBy { it.createdAt }
 
             // Convert to history entries
             val historyEntries = consentRecords.map { record ->
                 ConsentHistoryEntry(
-                    consentId = record.id,
-                    consentType = record.consentType.name,
+                    consentId = UUID.fromString(record.consentId),
+                    consentType = record.consentType,
                     granted = record.granted,
                     timestamp = record.createdAt,
-                    source = record.source.name,
+                    source = record.source,
                     ipAddress = record.ipAddress,
                     userAgent = record.userAgent
                 )

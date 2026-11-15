@@ -5,8 +5,8 @@ import com.acme.customer.api.v1.dto.UpdatePreferencesRequest
 import com.acme.customer.application.PreferenceUpdateContext
 import com.acme.customer.application.UpdatePreferencesResult
 import com.acme.customer.application.UpdatePreferencesUseCase
-import com.acme.customer.infrastructure.persistence.CustomerPreferencesRepository
-import com.acme.customer.infrastructure.persistence.CustomerRepository
+import com.acme.customer.infrastructure.projection.CustomerReadModelQueries
+import com.acme.customer.infrastructure.projection.ReadAfter
 import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
@@ -27,23 +27,24 @@ import java.util.UUID
 @RestController
 @RequestMapping("/api/v1/customers")
 class PreferencesController(
-    private val customerRepository: CustomerRepository,
-    private val preferencesRepository: CustomerPreferencesRepository,
+    private val readModel: CustomerReadModelQueries,
     private val updatePreferencesUseCase: UpdatePreferencesUseCase
 ) {
     private val logger = LoggerFactory.getLogger(PreferencesController::class.java)
 
     /**
-     * Gets a customer's preferences.
+     * Gets a customer's preferences, from the read model.
      *
      * @param id The customer ID (UUID).
      * @param userId The user ID from the Authorization header (for authorization).
+     * @param readAfter The `X-Read-After` a write returned, to wait until that write is visible.
      * @return The customer's preferences or appropriate error response.
      */
     @GetMapping("/{id}/preferences")
     fun getPreferences(
         @PathVariable id: String,
-        @AuthenticationPrincipal(expression = "subject") userId: String
+        @AuthenticationPrincipal(expression = "subject") userId: String,
+        @RequestHeader(ReadAfter.HEADER, required = false) readAfter: UUID? = null
     ): ResponseEntity<Any> {
         logger.debug("Getting preferences for customer: {}", id)
 
@@ -59,27 +60,26 @@ class PreferencesController(
                 .body(mapOf("error" to "Invalid user ID format"))
         }
 
-        val customer = customerRepository.findById(customerId).orElse(null)
+        val snapshot = readModel.findById(customerId, readAfter)
             ?: run {
                 logger.debug("Customer not found: {}", id)
                 return ResponseEntity.notFound().build()
             }
 
         // Authorization check
-        if (customer.userId != parsedUserId) {
+        if (snapshot.customer.userId != parsedUserId.toString()) {
             logger.warn("User {} not authorized to view preferences for customer {}", userId, id)
             return ResponseEntity.status(403)
                 .body(mapOf("error" to "You are not authorized to view these preferences"))
         }
 
-        val preferences = preferencesRepository.findById(customerId).orElse(null)
-            ?: run {
-                logger.error("Preferences not found for customer: {}", id)
-                return ResponseEntity.internalServerError()
-                    .body(mapOf("error" to "Preferences not found"))
-            }
-
-        return ResponseEntity.ok(CustomerPreferencesResponse.fromDomain(preferences))
+        return ResponseEntity.ok(
+            CustomerPreferencesResponse(
+                customerId = snapshot.customer.customerId,
+                preferences = snapshot.customer.preferences,
+                updatedAt = snapshot.preferencesUpdatedAt.toString()
+            )
+        )
     }
 
     /**

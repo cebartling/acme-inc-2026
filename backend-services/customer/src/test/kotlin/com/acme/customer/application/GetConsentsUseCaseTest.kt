@@ -3,17 +3,17 @@ package com.acme.customer.application
 import com.acme.customer.domain.ConsentRecord
 import com.acme.customer.domain.ConsentSource
 import com.acme.customer.domain.ConsentType
-import com.acme.customer.domain.Customer
-import com.acme.customer.domain.CustomerStatus
-import com.acme.customer.domain.CustomerType
-import com.acme.customer.infrastructure.persistence.ConsentRecordRepository
-import com.acme.customer.infrastructure.persistence.CustomerRepository
+import com.acme.customer.infrastructure.projection.CustomerReadModelQueries
+import com.acme.customer.infrastructure.projection.CustomerSnapshot
+import com.acme.customer.infrastructure.projection.ReadModelBehindException
+import com.acme.customer.infrastructure.projection.SnapshotFixtures
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import java.time.Instant
-import java.util.Optional
 import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -21,8 +21,7 @@ import kotlin.test.assertTrue
 
 class GetConsentsUseCaseTest {
 
-    private lateinit var customerRepository: CustomerRepository
-    private lateinit var consentRecordRepository: ConsentRecordRepository
+    private lateinit var readModel: CustomerReadModelQueries
     private lateinit var useCase: GetConsentsUseCase
 
     private val customerId = UUID.randomUUID()
@@ -30,127 +29,106 @@ class GetConsentsUseCaseTest {
 
     @BeforeEach
     fun setUp() {
-        customerRepository = mockk()
-        consentRecordRepository = mockk()
-
-        useCase = GetConsentsUseCase(
-            customerRepository = customerRepository,
-            consentRecordRepository = consentRecordRepository
-        )
+        readModel = mockk()
+        useCase = GetConsentsUseCase(readModel)
     }
 
-    private fun createCustomer(): Customer {
-        val now = Instant.now()
-        return Customer(
-            id = customerId,
-            userId = userId,
-            customerNumber = "ACME-202601-000001",
-            email = "test@example.com",
-            firstName = "John",
-            lastName = "Doe",
-            displayName = "John Doe",
-            status = CustomerStatus.ACTIVE,
-            type = CustomerType.INDIVIDUAL,
-            registeredAt = now,
-            lastActivityAt = now
+    private fun snapshotWith(vararg records: ConsentRecord): CustomerSnapshot =
+        SnapshotFixtures.snapshot(
+            customer = SnapshotFixtures.customer(customerId, userId),
+            consents = records.toList()
         )
-    }
+
+    private fun record(
+        type: ConsentType,
+        granted: Boolean,
+        createdAt: Instant,
+        version: Int = 1,
+        source: ConsentSource = ConsentSource.REGISTRATION
+    ) = ConsentRecord(
+        id = UUID.randomUUID(),
+        customerId = customerId,
+        consentType = type,
+        granted = granted,
+        source = source,
+        ipAddress = "192.168.1.1",
+        createdAt = createdAt,
+        version = version
+    )
 
     @Test
     fun `execute should return CustomerNotFound when customer does not exist`() {
-        // Given
-        every { customerRepository.findById(customerId) } returns Optional.empty()
+        every { readModel.findById(customerId, null) } returns null
 
-        // When
         val result = useCase.execute(customerId, userId)
 
-        // Then
         assertTrue(result is GetConsentsResult.CustomerNotFound)
-        assertEquals(customerId, (result as GetConsentsResult.CustomerNotFound).customerId)
+        assertEquals(customerId, result.customerId)
     }
 
     @Test
     fun `execute should return Unauthorized when user does not own customer`() {
-        // Given
-        val otherUserId = UUID.randomUUID()
-        every { customerRepository.findById(customerId) } returns Optional.of(createCustomer())
+        every { readModel.findById(customerId, null) } returns snapshotWith()
 
-        // When
-        val result = useCase.execute(customerId, otherUserId)
+        val result = useCase.execute(customerId, UUID.randomUUID())
 
-        // Then
         assertTrue(result is GetConsentsResult.Unauthorized)
     }
 
     @Test
     fun `execute should return all consent types with statuses`() {
-        // Given
-        val marketingRecord = ConsentRecord.create(
-            id = UUID.randomUUID(),
-            customerId = customerId,
-            consentType = ConsentType.MARKETING,
-            granted = true,
-            source = ConsentSource.PROFILE_WIZARD,
-            ipAddress = "192.168.1.1",
-            version = 1
-        )
-        val dataProcessingRecord = ConsentRecord.create(
-            id = UUID.randomUUID(),
-            customerId = customerId,
-            consentType = ConsentType.DATA_PROCESSING,
-            granted = true,
-            source = ConsentSource.REGISTRATION,
-            ipAddress = "192.168.1.1",
-            version = 1
+        val now = Instant.now()
+        every { readModel.findById(customerId, null) } returns snapshotWith(
+            record(ConsentType.MARKETING, true, now, source = ConsentSource.PROFILE_WIZARD),
+            record(ConsentType.DATA_PROCESSING, true, now)
         )
 
-        every { customerRepository.findById(customerId) } returns Optional.of(createCustomer())
-        every { consentRecordRepository.findCurrentConsentsByCustomerId(customerId) } returns listOf(
-            marketingRecord,
-            dataProcessingRecord
-        )
-
-        // When
         val result = useCase.execute(customerId, userId)
 
-        // Then
         assertTrue(result is GetConsentsResult.Success)
-        val success = result as GetConsentsResult.Success
-        assertEquals(customerId, success.customerId)
-        assertEquals(ConsentType.entries.size, success.consents.size)
+        assertEquals(customerId, result.customerId)
+        assertEquals(ConsentType.entries.size, result.consents.size)
 
-        // Check MARKETING consent
-        val marketingConsent = success.consents.find { it.consentType == ConsentType.MARKETING }!!
-        assertTrue(marketingConsent.currentStatus)
-        assertFalse(marketingConsent.required)
+        val marketing = result.consents.single { it.consentType == ConsentType.MARKETING }
+        assertTrue(marketing.currentStatus)
+        assertFalse(marketing.required)
+        assertEquals("PROFILE_WIZARD", marketing.source)
 
-        // Check DATA_PROCESSING consent
-        val dataProcessingConsent = success.consents.find { it.consentType == ConsentType.DATA_PROCESSING }!!
-        assertTrue(dataProcessingConsent.currentStatus)
-        assertTrue(dataProcessingConsent.required)
+        val dataProcessing = result.consents.single { it.consentType == ConsentType.DATA_PROCESSING }
+        assertTrue(dataProcessing.currentStatus)
+        assertTrue(dataProcessing.required)
 
-        // Check ANALYTICS consent (not in records, should be false)
-        val analyticsConsent = success.consents.find { it.consentType == ConsentType.ANALYTICS }!!
-        assertFalse(analyticsConsent.currentStatus)
-        assertEquals(0, analyticsConsent.version)
+        // ANALYTICS has no record, so it is not granted
+        val analytics = result.consents.single { it.consentType == ConsentType.ANALYTICS }
+        assertFalse(analytics.currentStatus)
+        assertEquals(0, analytics.version)
+        assertEquals("NONE", analytics.source)
     }
 
     @Test
-    fun `execute should return empty consents when no records exist`() {
-        // Given
-        every { customerRepository.findById(customerId) } returns Optional.of(createCustomer())
-        every { consentRecordRepository.findCurrentConsentsByCustomerId(customerId) } returns emptyList()
+    fun `execute should use the latest record of a type as its current status`() {
+        val now = Instant.now()
+        every { readModel.findById(customerId, null) } returns snapshotWith(
+            record(ConsentType.MARKETING, granted = true, createdAt = now.minusSeconds(60), version = 1),
+            record(ConsentType.MARKETING, granted = false, createdAt = now, version = 2)
+        )
 
-        // When
+        val result = useCase.execute(customerId, userId) as GetConsentsResult.Success
+
+        val marketing = result.consents.single { it.consentType == ConsentType.MARKETING }
+        assertFalse(marketing.currentStatus)
+        assertEquals(2, marketing.version)
+    }
+
+    @Test
+    fun `execute should return all types not granted when no records exist`() {
+        every { readModel.findById(customerId, null) } returns snapshotWith()
+
         val result = useCase.execute(customerId, userId)
 
-        // Then
         assertTrue(result is GetConsentsResult.Success)
-        val success = result as GetConsentsResult.Success
-        assertEquals(ConsentType.entries.size, success.consents.size)
-
-        // All should be false (not granted)
-        success.consents.forEach { consent ->
+        assertEquals(ConsentType.entries.size, result.consents.size)
+        result.consents.forEach { consent ->
             assertFalse(consent.currentStatus)
             assertEquals(0, consent.version)
         }
@@ -158,19 +136,29 @@ class GetConsentsUseCaseTest {
 
     @Test
     fun `execute should correctly identify required consents`() {
-        // Given
-        every { customerRepository.findById(customerId) } returns Optional.of(createCustomer())
-        every { consentRecordRepository.findCurrentConsentsByCustomerId(customerId) } returns emptyList()
+        every { readModel.findById(customerId, null) } returns snapshotWith()
 
-        // When
-        val result = useCase.execute(customerId, userId)
+        val result = useCase.execute(customerId, userId) as GetConsentsResult.Success
 
-        // Then
-        assertTrue(result is GetConsentsResult.Success)
-        val success = result as GetConsentsResult.Success
+        val required = result.consents.filter { it.required }
+        assertEquals(listOf(ConsentType.DATA_PROCESSING), required.map { it.consentType })
+    }
 
-        val requiredConsents = success.consents.filter { it.required }
-        assertEquals(1, requiredConsents.size)
-        assertEquals(ConsentType.DATA_PROCESSING, requiredConsents.first().consentType)
+    @Test
+    fun `execute should wait for the event the caller read after`() {
+        val readAfter = UUID.randomUUID()
+        every { readModel.findById(customerId, readAfter) } returns snapshotWith()
+
+        useCase.execute(customerId, userId, readAfter)
+
+        verify(exactly = 1) { readModel.findById(customerId, readAfter) }
+    }
+
+    @Test
+    fun `execute should let ReadModelBehindException through rather than report a failure`() {
+        val readAfter = UUID.randomUUID()
+        every { readModel.findById(customerId, readAfter) } throws ReadModelBehindException(readAfter)
+
+        assertThrows<ReadModelBehindException> { useCase.execute(customerId, userId, readAfter) }
     }
 }

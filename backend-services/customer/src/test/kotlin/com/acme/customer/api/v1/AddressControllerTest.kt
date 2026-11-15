@@ -15,8 +15,8 @@ import com.acme.customer.domain.AddressType
 import com.acme.customer.domain.Customer
 import com.acme.customer.domain.CustomerStatus
 import com.acme.customer.domain.CustomerType
-import com.acme.customer.infrastructure.persistence.AddressRepository
-import com.acme.customer.infrastructure.persistence.CustomerRepository
+import com.acme.customer.infrastructure.projection.CustomerReadModelQueries
+import com.acme.customer.infrastructure.projection.SnapshotFixtures
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -25,7 +25,6 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
 import java.time.Instant
-import java.util.Optional
 import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -33,8 +32,7 @@ import kotlin.test.assertTrue
 
 class AddressControllerTest {
 
-    private lateinit var customerRepository: CustomerRepository
-    private lateinit var addressRepository: AddressRepository
+    private lateinit var readModel: CustomerReadModelQueries
     private lateinit var addAddressUseCase: AddAddressUseCase
     private lateinit var updateAddressUseCase: UpdateAddressUseCase
     private lateinit var removeAddressUseCase: RemoveAddressUseCase
@@ -46,15 +44,13 @@ class AddressControllerTest {
 
     @BeforeEach
     fun setUp() {
-        customerRepository = mockk()
-        addressRepository = mockk()
+        readModel = mockk()
         addAddressUseCase = mockk()
         updateAddressUseCase = mockk()
         removeAddressUseCase = mockk()
 
         controller = AddressController(
-            customerRepository = customerRepository,
-            addressRepository = addressRepository,
+            readModel = readModel,
             addAddressUseCase = addAddressUseCase,
             updateAddressUseCase = updateAddressUseCase,
             removeAddressUseCase = removeAddressUseCase
@@ -99,6 +95,10 @@ class AddressControllerTest {
         )
     }
 
+    /** The customer's read model snapshot, holding [addresses]. */
+    private fun snapshot(vararg addresses: Address) =
+        SnapshotFixtures.snapshot(createCustomer(), addresses = addresses.toList())
+
     @Nested
     inner class ListAddresses {
 
@@ -132,7 +132,7 @@ class AddressControllerTest {
 
         @Test
         fun `should return 404 when customer not found`() {
-            every { customerRepository.findById(customerId) } returns Optional.empty()
+            every { readModel.findById(customerId, null) } returns null
 
             val response = controller.listAddresses(
                 customerId = customerId.toString(),
@@ -146,7 +146,7 @@ class AddressControllerTest {
         @Test
         fun `should return 403 when not authorized`() {
             val otherUserId = UUID.randomUUID()
-            every { customerRepository.findById(customerId) } returns Optional.of(createCustomer())
+            every { readModel.findById(customerId, null) } returns snapshot()
 
             val response = controller.listAddresses(
                 customerId = customerId.toString(),
@@ -162,7 +162,7 @@ class AddressControllerTest {
 
         @Test
         fun `should return 400 for invalid address type`() {
-            every { customerRepository.findById(customerId) } returns Optional.of(createCustomer())
+            every { readModel.findById(customerId, null) } returns snapshot()
 
             val response = controller.listAddresses(
                 customerId = customerId.toString(),
@@ -178,8 +178,7 @@ class AddressControllerTest {
 
         @Test
         fun `should return 200 with all addresses when no type filter`() {
-            every { customerRepository.findById(customerId) } returns Optional.of(createCustomer())
-            every { addressRepository.findByCustomerId(customerId) } returns listOf(createAddress())
+            every { readModel.findById(customerId, null) } returns snapshot(createAddress())
 
             val response = controller.listAddresses(
                 customerId = customerId.toString(),
@@ -196,8 +195,17 @@ class AddressControllerTest {
 
         @Test
         fun `should return 200 with filtered addresses when type specified`() {
-            every { customerRepository.findById(customerId) } returns Optional.of(createCustomer())
-            every { addressRepository.findByCustomerIdAndType(customerId, AddressType.SHIPPING) } returns listOf(createAddress())
+            val billing = Address(
+                id = UUID.randomUUID(),
+                customerId = customerId,
+                type = AddressType.BILLING,
+                streetLine1 = "456 Oak Ave",
+                city = "Los Angeles",
+                state = "CA",
+                postalCode = "90001",
+                country = "US"
+            )
+            every { readModel.findById(customerId, null) } returns snapshot(createAddress(), billing)
 
             val response = controller.listAddresses(
                 customerId = customerId.toString(),
@@ -206,7 +214,25 @@ class AddressControllerTest {
             )
 
             assertEquals(HttpStatus.OK, response.statusCode)
-            verify { addressRepository.findByCustomerIdAndType(customerId, AddressType.SHIPPING) }
+            @Suppress("UNCHECKED_CAST")
+            val addresses = response.body as List<com.acme.customer.api.v1.dto.AddressResponse>
+            assertEquals(listOf(addressId.toString()), addresses.map { it.addressId })
+        }
+
+        @Test
+        fun `should wait for the event the caller read after`() {
+            val readAfter = UUID.randomUUID()
+            every { readModel.findById(customerId, readAfter) } returns snapshot(createAddress())
+
+            val response = controller.listAddresses(
+                customerId = customerId.toString(),
+                userId = userId.toString(),
+                type = null,
+                readAfter = readAfter
+            )
+
+            assertEquals(HttpStatus.OK, response.statusCode)
+            verify(exactly = 1) { readModel.findById(customerId, readAfter) }
         }
     }
 
@@ -248,7 +274,7 @@ class AddressControllerTest {
 
         @Test
         fun `should return 404 when customer not found`() {
-            every { customerRepository.findById(customerId) } returns Optional.empty()
+            every { readModel.findById(customerId, null) } returns null
 
             val response = controller.getAddress(
                 customerId = customerId.toString(),
@@ -262,7 +288,7 @@ class AddressControllerTest {
         @Test
         fun `should return 403 when not authorized`() {
             val otherUserId = UUID.randomUUID()
-            every { customerRepository.findById(customerId) } returns Optional.of(createCustomer())
+            every { readModel.findById(customerId, null) } returns snapshot()
 
             val response = controller.getAddress(
                 customerId = customerId.toString(),
@@ -275,32 +301,7 @@ class AddressControllerTest {
 
         @Test
         fun `should return 404 when address not found`() {
-            every { customerRepository.findById(customerId) } returns Optional.of(createCustomer())
-            every { addressRepository.findById(addressId) } returns Optional.empty()
-
-            val response = controller.getAddress(
-                customerId = customerId.toString(),
-                addressId = addressId.toString(),
-                userId = userId.toString()
-            )
-
-            assertEquals(HttpStatus.NOT_FOUND, response.statusCode)
-        }
-
-        @Test
-        fun `should return 404 when address belongs to different customer`() {
-            val otherCustomerAddress = Address(
-                id = addressId,
-                customerId = UUID.randomUUID(), // Different customer
-                type = AddressType.SHIPPING,
-                streetLine1 = "123 Main St",
-                city = "New York",
-                state = "NY",
-                postalCode = "10001",
-                country = "US"
-            )
-            every { customerRepository.findById(customerId) } returns Optional.of(createCustomer())
-            every { addressRepository.findById(addressId) } returns Optional.of(otherCustomerAddress)
+            every { readModel.findById(customerId, null) } returns snapshot()
 
             val response = controller.getAddress(
                 customerId = customerId.toString(),
@@ -313,8 +314,7 @@ class AddressControllerTest {
 
         @Test
         fun `should return 200 with address on success`() {
-            every { customerRepository.findById(customerId) } returns Optional.of(createCustomer())
-            every { addressRepository.findById(addressId) } returns Optional.of(createAddress())
+            every { readModel.findById(customerId, null) } returns snapshot(createAddress())
 
             val response = controller.getAddress(
                 customerId = customerId.toString(),
@@ -882,7 +882,7 @@ class AddressControllerTest {
 
         @Test
         fun `should return 404 when customer not found`() {
-            every { customerRepository.findById(customerId) } returns Optional.empty()
+            every { readModel.findById(customerId, null) } returns null
 
             val response = controller.getDefaultAddress(
                 customerId = customerId.toString(),
@@ -896,7 +896,7 @@ class AddressControllerTest {
         @Test
         fun `should return 403 when not authorized`() {
             val otherUserId = UUID.randomUUID()
-            every { customerRepository.findById(customerId) } returns Optional.of(createCustomer())
+            every { readModel.findById(customerId, null) } returns snapshot()
 
             val response = controller.getDefaultAddress(
                 customerId = customerId.toString(),
@@ -909,8 +909,8 @@ class AddressControllerTest {
 
         @Test
         fun `should return 404 when no default address exists`() {
-            every { customerRepository.findById(customerId) } returns Optional.of(createCustomer())
-            every { addressRepository.findByCustomerIdAndTypeAndIsDefaultTrue(customerId, AddressType.SHIPPING) } returns null
+            val notDefault = createAddress().apply { isDefault = false }
+            every { readModel.findById(customerId, null) } returns snapshot(notDefault)
 
             val response = controller.getDefaultAddress(
                 customerId = customerId.toString(),
@@ -923,8 +923,7 @@ class AddressControllerTest {
 
         @Test
         fun `should return 200 with default shipping address on success`() {
-            every { customerRepository.findById(customerId) } returns Optional.of(createCustomer())
-            every { addressRepository.findByCustomerIdAndTypeAndIsDefaultTrue(customerId, AddressType.SHIPPING) } returns createAddress()
+            every { readModel.findById(customerId, null) } returns snapshot(createAddress())
 
             val response = controller.getDefaultAddress(
                 customerId = customerId.toString(),
@@ -949,8 +948,7 @@ class AddressControllerTest {
                 country = "US",
                 isDefault = true
             )
-            every { customerRepository.findById(customerId) } returns Optional.of(createCustomer())
-            every { addressRepository.findByCustomerIdAndTypeAndIsDefaultTrue(customerId, AddressType.BILLING) } returns billingAddress
+            every { readModel.findById(customerId, null) } returns snapshot(createAddress(), billingAddress)
 
             val response = controller.getDefaultAddress(
                 customerId = customerId.toString(),

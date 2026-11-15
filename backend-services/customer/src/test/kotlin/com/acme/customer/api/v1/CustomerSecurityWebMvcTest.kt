@@ -1,16 +1,17 @@
 package com.acme.customer.api.v1
 
-import com.acme.customer.application.GetCustomerProfileResult
-import com.acme.customer.application.GetCustomerProfileUseCase
-import com.acme.customer.application.ProfileCompletenessCalculator
 import com.acme.customer.application.UpdateProfileUseCase
 import com.acme.customer.config.SecurityConfig
 import com.acme.customer.config.ServiceCredentials
-import com.acme.customer.domain.Customer
-import com.acme.customer.infrastructure.persistence.CustomerPreferencesRepository
-import com.acme.customer.infrastructure.persistence.CustomerRepository
+import com.acme.customer.infrastructure.projection.CustomerReadModelQueries
+import com.acme.customer.infrastructure.projection.ReadAfter
+import com.acme.customer.infrastructure.projection.ReadModelBehindException
+import com.acme.customer.infrastructure.projection.SnapshotFixtures
+import com.acme.customer.infrastructure.tracking.CustomerActivityTracker
 import io.mockk.clearMocks
+import io.mockk.Runs
 import io.mockk.every
+import io.mockk.just
 import io.mockk.mockk
 import io.mockk.verify
 import jakarta.servlet.http.Cookie
@@ -32,7 +33,6 @@ import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.options
 import java.net.URI
-import java.util.Optional
 import java.util.UUID
 
 /**
@@ -44,8 +44,7 @@ import java.util.UUID
 @Import(SecurityConfig::class, ServiceCredentials::class)
 class CustomerSecurityWebMvcTest(
     @Autowired private val mockMvc: MockMvc,
-    @Autowired private val getProfile: GetCustomerProfileUseCase,
-    @Autowired private val customerRepository: CustomerRepository,
+    @Autowired private val readModel: CustomerReadModelQueries,
     @Autowired private val jwtDecoder: JwtDecoder,
     @Autowired private val accessTokenValidator: OAuth2TokenValidator<Jwt>
 ) {
@@ -53,19 +52,13 @@ class CustomerSecurityWebMvcTest(
     @TestConfiguration
     class Beans {
         @Bean
-        fun customerRepository(): CustomerRepository = mockk()
-
-        @Bean
-        fun customerPreferencesRepository(): CustomerPreferencesRepository = mockk()
+        fun customerReadModelQueries(): CustomerReadModelQueries = mockk { every { ensureIndexes() } just Runs }
 
         @Bean
         fun updateProfileUseCase(): UpdateProfileUseCase = mockk()
 
         @Bean
-        fun profileCompletenessCalculator(): ProfileCompletenessCalculator = mockk()
-
-        @Bean
-        fun getCustomerProfileUseCase(): GetCustomerProfileUseCase = mockk()
+        fun customerActivityTracker(): CustomerActivityTracker = mockk(relaxed = true)
 
         /** Stands in for the JWKS-backed decoder; tests decide what a token decodes to. */
         @Bean
@@ -77,9 +70,9 @@ class CustomerSecurityWebMvcTest(
 
     @BeforeEach
     fun setUp() {
-        clearMocks(getProfile, jwtDecoder, customerRepository)
+        clearMocks(readModel, jwtDecoder)
         every { jwtDecoder.decode("good-token") } returns jwt(subject = userId.toString())
-        every { getProfile.execute(any()) } returns GetCustomerProfileResult.NotFound(userId)
+        every { readModel.findByUserId(any(), any()) } returns null
     }
 
     private fun jwt(subject: String, tokenUse: String = SecurityConfig.TOKEN_USE_ACCESS): Jwt =
@@ -100,7 +93,7 @@ class CustomerSecurityWebMvcTest(
     fun `a customer with no profile is a 404 for the token's subject`() {
         mockMvc.get(path) { cookie(accessToken()) }.andExpect { status { isNotFound() } }
 
-        verify(exactly = 1) { getProfile.execute(userId) }
+        verify(exactly = 1) { readModel.findByUserId(userId, null) }
     }
 
     @Test
@@ -110,7 +103,7 @@ class CustomerSecurityWebMvcTest(
             header("X-User-Id", UUID.randomUUID().toString())
         }.andExpect { status { isNotFound() } }
 
-        verify(exactly = 1) { getProfile.execute(userId) }
+        verify(exactly = 1) { readModel.findByUserId(userId, null) }
     }
 
     @Test
@@ -120,7 +113,7 @@ class CustomerSecurityWebMvcTest(
             jsonPath("$.code") { value("SIGN_IN_REQUIRED") }
         }
 
-        verify(exactly = 0) { getProfile.execute(any()) }
+        verify(exactly = 0) { readModel.findByUserId(any(), any()) }
     }
 
     @Test
@@ -185,8 +178,8 @@ class CustomerSecurityWebMvcTest(
     fun `an X-User-Id header doesn't reach a customer the token doesn't own`() {
         val id = UUID.randomUUID()
         val otherUser = UUID.randomUUID()
-        val customer = mockk<Customer> { every { this@mockk.userId } returns otherUser }
-        every { customerRepository.findById(id) } returns Optional.of(customer)
+        every { readModel.findById(id, null) } returns
+            SnapshotFixtures.snapshot(SnapshotFixtures.customer(id, userId = otherUser))
 
         mockMvc.get("/api/v1/customers/$id/profile/completeness") {
             cookie(accessToken())
@@ -222,7 +215,7 @@ class CustomerSecurityWebMvcTest(
 
     @Test
     fun `a service can look a customer up`() {
-        every { customerRepository.findByEmail("a@example.com") } returns null
+        every { readModel.findByEmail("a@example.com", null) } returns null
 
         mockMvc.get("/api/v1/customers/by-email/a@example.com") {
             header(ServiceCredentials.HEADER, SERVICE_TOKEN)
@@ -231,13 +224,64 @@ class CustomerSecurityWebMvcTest(
 
     @Test
     fun `an email with a percent sign reaches the lookup`() {
-        every { customerRepository.findByEmail("a%b@example.com") } returns null
+        every { readModel.findByEmail("a%b@example.com", null) } returns null
 
         mockMvc.get(URI("/api/v1/customers/by-email/a%25b%40example.com")) {
             header(ServiceCredentials.HEADER, SERVICE_TOKEN)
         }.andExpect { status { isNotFound() } }
 
-        verify(exactly = 1) { customerRepository.findByEmail("a%b@example.com") }
+        verify(exactly = 1) { readModel.findByEmail("a%b@example.com", null) }
+    }
+
+    @Test
+    fun `X-Read-After reaches the read model as the event id to wait for`() {
+        val readAfter = UUID.randomUUID()
+
+        mockMvc.get(path) {
+            cookie(accessToken())
+            header(ReadAfter.HEADER, readAfter.toString())
+        }.andExpect { status { isNotFound() } }
+
+        verify(exactly = 1) { readModel.findByUserId(userId, readAfter) }
+    }
+
+    @Test
+    fun `an X-Read-After that is not an event id is a 400`() {
+        mockMvc.get(path) {
+            cookie(accessToken())
+            header(ReadAfter.HEADER, "not-a-uuid")
+        }.andExpect { status { isBadRequest() } }
+    }
+
+    @Test
+    fun `a read model that has not caught up is a 503 the client can retry`() {
+        val readAfter = UUID.randomUUID()
+        every { readModel.findByUserId(userId, readAfter) } throws ReadModelBehindException(readAfter)
+
+        mockMvc.get(path) {
+            cookie(accessToken())
+            header(ReadAfter.HEADER, readAfter.toString())
+        }.andExpect {
+            status { isServiceUnavailable() }
+            header { string("Retry-After", "1") }
+        }
+    }
+
+    @Test
+    fun `the customer app can read X-Read-After from a response`() {
+        mockMvc.options(path) {
+            header("Origin", "http://localhost:7600")
+            header("Access-Control-Request-Method", "GET")
+        }.andExpect {
+            status { isOk() }
+        }
+        // Exposed headers are sent on the actual response, not the preflight.
+        mockMvc.get(path) {
+            header("Origin", "http://localhost:7600")
+            cookie(accessToken())
+        }.andExpect {
+            header { string("Access-Control-Expose-Headers", ReadAfter.HEADER) }
+        }
     }
 
     private companion object {
