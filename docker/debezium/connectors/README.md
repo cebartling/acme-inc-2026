@@ -7,7 +7,9 @@ This directory contains Debezium connector configurations for Change Data Captur
 Every `*.json` file here is registered automatically when the application stack starts. The
 `debezium-connector-init` container (`docker-compose.apps.yml`) waits for Debezium Connect, then runs
 `PUT /connectors/{name}/config` for each file. The call creates or updates, so restarts are idempotent and
-edited configs are applied. A rejected config fails the container; read the file name and Connect's error with:
+edited configs are applied. To re-apply after an edit, run
+`scripts/docker-manage.sh apps-up debezium-connector-init`. A rejected config fails the container and `apps-up`;
+read the file name and Connect's error with:
 
 ```bash
 docker logs acme-debezium-connector-init

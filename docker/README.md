@@ -86,12 +86,17 @@ the one-shot `debezium-connector-init` container waits for Debezium Connect, the
 `docker/debezium/connectors/*.json` with `PUT /connectors/{name}/config`. Restarting the stack updates the
 connectors from the files instead of failing or duplicating them.
 
-A rejected config fails the container with the file name and Connect's error message:
+A rejected config fails the container with the file name and Connect's error message, and `apps-up` exits 1
+and prints that log:
 
 ```bash
 docker logs acme-debezium-connector-init
 curl http://localhost:8083/connectors?expand=status
 ```
+
+To re-apply edited configs without restarting the apps, run
+`scripts/docker-manage.sh apps-up debezium-connector-init`. `apps-up <service>` for other services
+does not re-register connectors.
 
 Each file has a top-level `name` and a `config` object. See `docker/debezium/connectors/README.md`.
 
