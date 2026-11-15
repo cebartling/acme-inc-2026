@@ -7,7 +7,7 @@ import com.acme.customer.domain.NotificationFrequency
 import com.acme.customer.domain.PreferenceChange
 import com.acme.customer.domain.PreferenceChangeLog
 import com.acme.customer.domain.events.PreferencesUpdated
-import com.acme.customer.infrastructure.messaging.CustomerEventPublisher
+import com.acme.customer.infrastructure.messaging.OutboxWriter
 import com.acme.customer.infrastructure.persistence.CustomerPreferencesRepository
 import com.acme.customer.infrastructure.persistence.CustomerRepository
 import com.acme.customer.infrastructure.persistence.PreferenceChangeLogRepository
@@ -86,7 +86,7 @@ class UpdatePreferencesUseCase(
     private val customerRepository: CustomerRepository,
     private val preferencesRepository: CustomerPreferencesRepository,
     private val changeLogRepository: PreferenceChangeLogRepository,
-    private val eventPublisher: CustomerEventPublisher,
+    private val outboxWriter: OutboxWriter,
     private val customerCacheService: com.acme.customer.infrastructure.cache.CustomerCacheService,
     private val meterRegistry: MeterRegistry
 ) {
@@ -245,7 +245,7 @@ class UpdatePreferencesUseCase(
                 changedPreferences = changes,
                 correlationId = correlationId
             )
-            eventPublisher.publish(event)
+            outboxWriter.write(event, PreferencesUpdated.TOPIC)
 
             // Update metrics
             preferencesUpdatedCounter.increment()

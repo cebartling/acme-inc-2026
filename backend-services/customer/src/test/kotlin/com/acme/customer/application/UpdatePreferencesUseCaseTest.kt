@@ -9,7 +9,7 @@ import com.acme.customer.domain.CustomerPreferences
 import com.acme.customer.domain.CustomerStatus
 import com.acme.customer.domain.CustomerType
 import com.acme.customer.domain.NotificationFrequency
-import com.acme.customer.infrastructure.messaging.CustomerEventPublisher
+import com.acme.customer.infrastructure.messaging.OutboxWriter
 import com.acme.customer.infrastructure.persistence.CustomerPreferencesRepository
 import com.acme.customer.infrastructure.persistence.CustomerRepository
 import com.acme.customer.infrastructure.persistence.PreferenceChangeLogRepository
@@ -28,7 +28,7 @@ class UpdatePreferencesUseCaseTest {
     private lateinit var customerRepository: CustomerRepository
     private lateinit var preferencesRepository: CustomerPreferencesRepository
     private lateinit var changeLogRepository: PreferenceChangeLogRepository
-    private lateinit var eventPublisher: CustomerEventPublisher
+    private lateinit var outboxWriter: OutboxWriter
     private lateinit var customerCacheService: com.acme.customer.infrastructure.cache.CustomerCacheService
     private lateinit var useCase: UpdatePreferencesUseCase
 
@@ -41,14 +41,14 @@ class UpdatePreferencesUseCaseTest {
         customerRepository = mockk()
         preferencesRepository = mockk()
         changeLogRepository = mockk()
-        eventPublisher = mockk()
+        outboxWriter = mockk()
         customerCacheService = mockk()
 
         useCase = UpdatePreferencesUseCase(
             customerRepository = customerRepository,
             preferencesRepository = preferencesRepository,
             changeLogRepository = changeLogRepository,
-            eventPublisher = eventPublisher,
+            outboxWriter = outboxWriter,
             customerCacheService = customerCacheService,
             meterRegistry = SimpleMeterRegistry()
         )
@@ -207,7 +207,7 @@ class UpdatePreferencesUseCaseTest {
         every { changeLogRepository.save(any()) } answers { firstArg() }
         every { preferencesRepository.save(any()) } answers { firstArg() }
         every { customerCacheService.invalidate(userId) } just Runs
-        every { eventPublisher.publish(any<com.acme.customer.domain.events.PreferencesUpdated>()) } just Runs
+        every { outboxWriter.write(any<com.acme.customer.domain.events.PreferencesUpdated>(), "customer.events") } just Runs
 
         // When
         val result = useCase.execute(customerId, userId, request, correlationId)
@@ -220,7 +220,7 @@ class UpdatePreferencesUseCaseTest {
 
         verify { changeLogRepository.save(any()) }
         verify { customerCacheService.invalidate(userId) }
-        verify { eventPublisher.publish(any<com.acme.customer.domain.events.PreferencesUpdated>()) }
+        verify { outboxWriter.write(any<com.acme.customer.domain.events.PreferencesUpdated>(), "customer.events") }
     }
 
     @Test
@@ -249,7 +249,7 @@ class UpdatePreferencesUseCaseTest {
         every { changeLogRepository.save(any()) } answers { firstArg() }
         every { preferencesRepository.save(any()) } answers { firstArg() }
         every { customerCacheService.invalidate(userId) } just Runs
-        every { eventPublisher.publish(any<com.acme.customer.domain.events.PreferencesUpdated>()) } just Runs
+        every { outboxWriter.write(any<com.acme.customer.domain.events.PreferencesUpdated>(), "customer.events") } just Runs
 
         // When
         val result = useCase.execute(customerId, userId, request, correlationId)
@@ -312,7 +312,7 @@ class UpdatePreferencesUseCaseTest {
         every { changeLogRepository.save(capture(capturedLog)) } answers { firstArg() }
         every { preferencesRepository.save(any()) } answers { firstArg() }
         every { customerCacheService.invalidate(userId) } just Runs
-        every { eventPublisher.publish(any<com.acme.customer.domain.events.PreferencesUpdated>()) } just Runs
+        every { outboxWriter.write(any<com.acme.customer.domain.events.PreferencesUpdated>(), "customer.events") } just Runs
 
         // When
         val result = useCase.execute(customerId, userId, request, correlationId, context)
