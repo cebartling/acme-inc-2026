@@ -32,7 +32,7 @@ import java.util.UUID
  *
  * The projection operation runs asynchronously but is awaited before the transaction
  * commits. The event is written to the outbox table within the same transaction,
- * and will be published to Kafka asynchronously by the OutboxRelay. This implements
+ * and will be published to Kafka asynchronously by Debezium. This implements
  * the Transactional Outbox pattern to decouple Kafka availability from transaction success.
  */
 @Service
@@ -139,7 +139,7 @@ class ActivateCustomerUseCase(
                 projectionFuture.join()
 
                 // Write to outbox within the transaction
-                // The OutboxRelay will publish asynchronously, decoupled from this transaction
+                // Debezium will publish asynchronously, decoupled from this transaction
                 outboxWriter.write(event, CustomerActivated.TOPIC)
 
                 // Check for profile completion (email verified is part of basic info)

@@ -10,8 +10,8 @@ import java.util.UUID
  * Outbox message entity for the Transactional Outbox pattern.
  *
  * Messages are written to this table within the same transaction as
- * the domain state changes. A separate relay process polls for
- * unpublished messages and publishes them to Kafka asynchronously.
+ * the domain state changes. Debezium reads them from the write-ahead log
+ * and publishes them to Kafka asynchronously.
  *
  * This decouples Kafka availability from database transaction success,
  * ensuring reliable event publishing without distributed transactions.
