@@ -48,6 +48,7 @@ class OutboxWriterTest {
         val customer = SnapshotFixtures.customer(customerId)
         return CustomerSnapshot(
             customer = CustomerResponse.fromDomain(customer, SnapshotFixtures.preferences(customerId)),
+            preferencesUpdatedAt = SnapshotFixtures.now,
             addresses = emptyList(),
             consents = emptyList(),
             completeness = ProfileCompletenessResponse.fromDomain(SnapshotFixtures.completeness(customerId))

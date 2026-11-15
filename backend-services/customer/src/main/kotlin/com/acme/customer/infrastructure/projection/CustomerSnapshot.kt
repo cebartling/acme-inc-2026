@@ -17,6 +17,8 @@ import java.util.UUID
  */
 data class CustomerSnapshot(
     val customer: CustomerResponse,
+    /** When the preferences last changed; `GET /{id}/preferences` returns it. */
+    val preferencesUpdatedAt: Instant,
     val addresses: List<AddressResponse>,
     val consents: List<ConsentRecordSnapshot>,
     val completeness: ProfileCompletenessResponse

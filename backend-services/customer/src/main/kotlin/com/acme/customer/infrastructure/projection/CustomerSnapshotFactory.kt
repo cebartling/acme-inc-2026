@@ -34,6 +34,7 @@ class CustomerSnapshotFactory(
 
         return CustomerSnapshot(
             customer = CustomerResponse.fromDomain(customer, preferences),
+            preferencesUpdatedAt = preferences.updatedAt,
             addresses = addressRepository.findByCustomerId(customerId).map { AddressResponse.fromEntity(it) },
             consents = consentRecordRepository.findByCustomerId(customerId).map { ConsentRecordSnapshot.fromDomain(it) },
             completeness = ProfileCompletenessResponse.fromDomain(completenessCalculator.calculate(customer))

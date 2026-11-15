@@ -54,6 +54,7 @@ class CustomerSnapshotProjectorIntegrationTest {
         val customer = SnapshotFixtures.customer(customerId)
         val snapshot = CustomerSnapshot(
             customer = CustomerResponse.fromDomain(customer, SnapshotFixtures.preferences(customerId)),
+            preferencesUpdatedAt = SnapshotFixtures.now,
             addresses = if (withAddress) {
                 listOf(AddressResponse.fromEntity(SnapshotFixtures.address(customerId)))
             } else {
