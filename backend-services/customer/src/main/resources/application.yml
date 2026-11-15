@@ -90,6 +90,8 @@ customer:
   events:
     input-topic: identity.user.events
     output-topic: customer.events
+    # Full customer state for the read model's projector only; it holds PII, so it is not customer.events.
+    read-model-topic: customer.read-model
     publish:
       timeout-seconds: 10
   retry:
