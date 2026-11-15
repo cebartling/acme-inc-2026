@@ -81,13 +81,24 @@ docker/
 
 ## Registering Debezium Connectors
 
-After the infrastructure is running, register the PostgreSQL connector:
+Connectors register automatically. When the application stack starts (`scripts/docker-manage.sh apps-up` or `start`),
+the one-shot `debezium-connector-init` container waits for Debezium Connect, then registers every
+`docker/debezium/connectors/*.json` with `PUT /connectors/{name}/config`. Restarting the stack updates the
+connectors from the files instead of failing or duplicating them.
+
+A rejected config fails the container with the file name and Connect's error message, and `apps-up` exits 1
+and prints that log:
 
 ```bash
-curl -X POST -H "Content-Type: application/json" \
-  --data @docker/debezium/connectors/postgres-connector.json \
-  http://localhost:8083/connectors
+docker logs acme-debezium-connector-init
+curl http://localhost:8083/connectors?expand=status
 ```
+
+To re-apply edited configs without restarting the apps, run
+`scripts/docker-manage.sh apps-up debezium-connector-init`. `apps-up <service>` for other services
+does not re-register connectors.
+
+Each file has a top-level `name` and a `config` object. See `docker/debezium/connectors/README.md`.
 
 ## OpenTelemetry Integration
 

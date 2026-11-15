@@ -244,7 +244,7 @@ sequenceDiagram
   DELETE per cart that re-checks it is still final and old enough, so a cart that is no
   longer final is kept. `CartPurged` is published only for carts it deleted (counted as
   `cart.purged`). ACTIVE and CHECKOUT carts are never deleted. `acme.cart.purge.enabled=false` turns the
-  job off. Debezium only captures `acme_orders`, so these deletes emit no change events.
+  job off. No Debezium connector captures this database, so these deletes emit no change events.
   The scheduler has four threads (`spring.task.scheduling.pool.size`), one per job (expiry,
   purge, checkout unlock, outbox relay), so a slow run, e.g. the relay blocked on Kafka,
   never holds up the others.
@@ -773,8 +773,10 @@ their orders back (PIN-367) and cancel a submitted one (PIN-429).
   `orders (user_id, status, created_at DESC, id DESC)` for the order history (PIN-367).
   `open-in-view` is off. `acme_orders` and its
   `acme_app` user come from `docker/postgres/init`, which also gives it a
-  `dbz_publication FOR ALL TABLES`: it is the database the Debezium connector captures (once
-  registered), and an UPDATE or DELETE fails on any of its tables without a primary key.
+  `dbz_publication FOR ALL TABLES`: no connector captures it today (a connector config added to
+  `docker/debezium/connectors/` is registered by the `debezium-connector-init` container when the
+  application stack starts, PIN-546), and an UPDATE or DELETE fails on any of its tables without a
+  primary key.
 - **Events** go through a transactional outbox (ADR-0022, PIN-368), as the cart's do
   (PIN-384), so an order is never committed without its event.
   - **Writing:** `OutboxWriter.write(event)` saves the event to `outbox` inside the caller's

@@ -588,6 +588,82 @@ services:
       - "com.acme.type=frontend"
 
   # =============================================================================
+  # DEBEZIUM CONNECTOR REGISTRATION
+  # =============================================================================
+
+  # Registers every docker/debezium/connectors/*.json with Debezium Connect.
+  # PUT /connectors/{name}/config creates or updates, so restarts are idempotent.
+  # Uses the Connect image because it ships curl and python3 (no jq).
+  debezium-connector-init:
+    image: quay.io/debezium/connect:3.6.3.Final
+    container_name: acme-debezium-connector-init
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        set -e
+
+        # Bounded readiness probe: 60 retries x 2s (~120s), as in the *-db-init containers.
+        # acme-network is external, so we can't depends_on debezium-connect here.
+        MAX_RETRIES=60
+        i=0
+        until curl -sf http://debezium-connect:8083/connectors >/dev/null 2>&1; do
+          i=$$((i + 1))
+          if [ $$i -ge $$MAX_RETRIES ]; then
+            echo "Timed out waiting for Debezium Connect after $$MAX_RETRIES attempts" >&2
+            exit 1
+          fi
+          echo "Waiting for Debezium Connect..."
+          sleep 2
+        done
+
+        found=0
+        failed=0
+        for f in /connectors/*.json; do
+          [ -e "$$f" ] || continue
+          found=1
+          if ! name=$$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["name"])' "$$f") ||
+             ! python3 -c 'import json,sys; print(json.dumps(json.load(open(sys.argv[1]))["config"]))' "$$f" > /tmp/config.json; then
+            echo "ERROR $$f: not valid JSON with 'name' and 'config'" >&2
+            failed=1
+            continue
+          fi
+          # The name goes into the URL unencoded, so keep it to URL-safe characters.
+          case "$$name" in
+            ''|*[!A-Za-z0-9._-]*)
+              echo "ERROR $$f: connector name '$$name' must match [A-Za-z0-9._-]+" >&2
+              failed=1
+              continue ;;
+          esac
+          # Connect answers 409 (or 5xx) while it rebalances right after startup, and curl
+          # reports 000 if the connection drops; retry those.
+          attempt=1
+          while :; do
+            : > /tmp/response.json
+            code=$$(curl -sS -o /tmp/response.json -w '%{http_code}' -X PUT \
+              -H 'Content-Type: application/json' --data @/tmp/config.json \
+              "http://debezium-connect:8083/connectors/$$name/config" 2>/tmp/curl-error.txt) || {
+              code=000
+              cat /tmp/curl-error.txt > /tmp/response.json
+            }
+            case "$$code" in 000|409|5??) [ $$attempt -lt 5 ] || break ;; *) break ;; esac
+            attempt=$$((attempt + 1))
+            echo "Connect returned HTTP $$code for $$name, retrying ($$attempt/5)..."
+            sleep 2
+          done
+          case "$$code" in
+            200|201) echo "Registered connector $$name from $$f (HTTP $$code)" ;;
+            *) echo "ERROR $$f: connector $$name rejected, HTTP $$code: $$(cat /tmp/response.json)" >&2
+               failed=1 ;;
+          esac
+        done
+        [ $$found -eq 1 ] || echo "No connector configs in /connectors"
+        exit $$failed
+    volumes:
+      - ./docker/debezium/connectors:/connectors:ro
+    networks:
+      - acme-network
+
+  # =============================================================================
   # ADMIN FRONTEND (placeholder for future)
   # =============================================================================
 

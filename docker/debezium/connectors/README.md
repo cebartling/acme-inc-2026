@@ -2,30 +2,32 @@
 
 This directory contains Debezium connector configurations for Change Data Capture (CDC).
 
-## Registering Connectors
+## Registration
 
-After the infrastructure is running, register connectors using the Kafka Connect REST API:
+Every `*.json` file here is registered automatically when the application stack starts. The
+`debezium-connector-init` container (`docker-compose.apps.yml`) waits for Debezium Connect, then runs
+`PUT /connectors/{name}/config` for each file. The call creates or updates, so restarts are idempotent and
+edited configs are applied. To re-apply after an edit, run
+`scripts/docker-manage.sh apps-up debezium-connector-init`. A rejected config fails the container and `apps-up`;
+read the file name and Connect's error with:
 
 ```bash
-# Register the PostgreSQL connector
-curl -X POST -H "Content-Type: application/json" \
-  --data @postgres-connector.json \
-  http://localhost:8083/connectors
-
-# List all connectors
-curl http://localhost:8083/connectors
-
-# Check connector status
-curl http://localhost:8083/connectors/acme-postgres-connector/status
-
-# Delete a connector
-curl -X DELETE http://localhost:8083/connectors/acme-postgres-connector
+docker logs acme-debezium-connector-init
 ```
 
-## Adding More Connectors
+Useful Kafka Connect REST calls:
 
-To add CDC for additional databases, create new JSON files following the same pattern
-as `postgres-connector.json`, adjusting:
+```bash
+# List connectors with their status
+curl "http://localhost:8083/connectors?expand=status"
+
+# Delete a connector (a removed file does not delete its connector)
+curl -X DELETE http://localhost:8083/connectors/<name>
+```
+
+## Adding a Connector
+
+Create a JSON file with a top-level `name` and a `config` object, adjusting:
 
 - `name`: Unique connector name
 - `database.dbname`: Target database name
