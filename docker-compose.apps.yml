@@ -627,13 +627,18 @@ services:
             failed=1
             continue
           fi
-          # Connect answers 409 (or 5xx) while it rebalances right after startup; retry those.
+          # Connect answers 409 (or 5xx) while it rebalances right after startup, and curl
+          # reports 000 if the connection drops; retry those.
           attempt=1
           while :; do
-            code=$$(curl -s -o /tmp/response.json -w '%{http_code}' -X PUT \
+            : > /tmp/response.json
+            code=$$(curl -sS -o /tmp/response.json -w '%{http_code}' -X PUT \
               -H 'Content-Type: application/json' --data @/tmp/config.json \
-              "http://debezium-connect:8083/connectors/$$name/config")
-            case "$$code" in 409|5??) [ $$attempt -lt 5 ] || break ;; *) break ;; esac
+              "http://debezium-connect:8083/connectors/$$name/config" 2>/tmp/curl-error.txt) || {
+              code=000
+              cat /tmp/curl-error.txt > /tmp/response.json
+            }
+            case "$$code" in 000|409|5??) [ $$attempt -lt 5 ] || break ;; *) break ;; esac
             attempt=$$((attempt + 1))
             echo "Connect returned HTTP $$code for $$name, retrying ($$attempt/5)..."
             sleep 2
