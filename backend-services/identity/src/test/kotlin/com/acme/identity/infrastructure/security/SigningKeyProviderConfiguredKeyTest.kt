@@ -13,6 +13,7 @@ import java.security.interfaces.RSAPublicKey
 import java.util.Base64
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
@@ -84,6 +85,18 @@ class SigningKeyProviderConfiguredKeyTest {
         provider.autoRotateKey()
 
         assertEquals(before, provider.getCurrentKey())
+    }
+
+    @Test
+    fun `a blank key still auto-rotates once the period has elapsed`() {
+        // Guards the no-key path: the configured-key early return must not switch off nightly rotation.
+        val provider = providerWith("", keyRotationPeriodDays = 0)
+        val before = provider.getCurrentKey()
+
+        provider.autoRotateKey()
+
+        assertNotEquals(before.keyId, provider.getCurrentKey().keyId)
+        assertNotNull(provider.getKey(before.keyId))
     }
 
     @Test
