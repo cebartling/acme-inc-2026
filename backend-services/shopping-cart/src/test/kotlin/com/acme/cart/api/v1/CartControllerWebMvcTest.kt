@@ -38,6 +38,9 @@ import com.acme.cart.domain.UnavailableLine
 import com.acme.cart.domain.AvailabilityIssue
 import com.acme.cart.domain.VariantPricing
 import com.acme.cart.infrastructure.persistence.CartRepository
+import com.acme.cart.infrastructure.projection.CartReadModelQueries
+import com.acme.cart.infrastructure.projection.ReadAfter
+import com.acme.cart.infrastructure.projection.ReadModelBehindException
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.mockk.clearMocks
@@ -80,6 +83,7 @@ class CartControllerWebMvcTest(
     @Autowired private val removeUseCase: RemoveCartItemUseCase,
     @Autowired private val clearUseCase: ClearCartUseCase,
     @Autowired private val cartRepository: CartRepository,
+    @Autowired private val queries: CartReadModelQueries,
     @Autowired private val mergeUseCase: MergeCartsUseCase,
     @Autowired private val checkoutUseCase: StartCheckoutUseCase,
     @Autowired private val abandonUseCase: AbandonCheckoutUseCase,
@@ -117,6 +121,10 @@ class CartControllerWebMvcTest(
         fun cartRepository(): CartRepository = mockk()
 
         @Bean
+        // Spring calls the real class's @PostConstruct (ensureIndexes) on the mock; findCurrent stays strict
+        fun cartReadModelQueries(): CartReadModelQueries = mockk(relaxUnitFun = true)
+
+        @Bean
         fun objectMapper(): ObjectMapper = jacksonObjectMapper()
 
         /** Stands in for the JWKS-backed decoder; tests decide what a token decodes to. */
@@ -136,7 +144,7 @@ class CartControllerWebMvcTest(
 
     @BeforeEach
     fun setUp() {
-        clearMocks(useCase, updateUseCase, removeUseCase, clearUseCase, cartRepository, jwtDecoder, mergeUseCase, checkoutUseCase, abandonUseCase, convertUseCase)
+        clearMocks(useCase, updateUseCase, removeUseCase, clearUseCase, cartRepository, queries, jwtDecoder, mergeUseCase, checkoutUseCase, abandonUseCase, convertUseCase)
         command.clear()
         every { cartRepository.touchGuestCart(any(), any(), any()) } returns 0
         every { useCase.execute(capture(command), any()) } answers {
@@ -299,6 +307,10 @@ class CartControllerWebMvcTest(
         assertTrue("Max-Age=2592000" in setCookie, setCookie)
     }
 
+    /** What the read model stores for a cart: the response body, served as it is. */
+    private fun cartJson() =
+        """{"id":"$cartId","status":"ACTIVE","items":[],"summary":{"itemCount":2,"subtotal":139.98,"currency":"USD"}}"""
+
     private fun cartFor(session: String): Cart {
         val cart = Cart(id = cartId, sessionId = session)
         cart.addItem(variantId, 2, VariantPricing(BigDecimal("69.99")), """{"productId":"${UUID.randomUUID()}","name":"Mouse","sku":"SKU","variantName":"Black","imageUrl":null}""", 10)
@@ -312,7 +324,7 @@ class CartControllerWebMvcTest(
 
     @Test
     fun `current cart is 204 when the session has no cart yet`() {
-        every { cartRepository.findBySessionIdAndStatusIn(sessionId, CartStatus.CURRENT) } returns null
+        every { queries.findCurrent(CartOwner.Guest(sessionId), null) } returns null
 
         val result = mockMvc.get("/api/v1/carts/current") { cookie(Cookie(CartController.SESSION_COOKIE, sessionId)) }
             .andExpect { status { isNoContent() } }.andReturn()
@@ -322,7 +334,7 @@ class CartControllerWebMvcTest(
 
     @Test
     fun `reading the cart re-issues the session cookie`() {
-        every { cartRepository.findBySessionIdAndStatusIn(sessionId, CartStatus.CURRENT) } returns cartFor(sessionId)
+        every { queries.findCurrent(CartOwner.Guest(sessionId), null) } returns cartJson()
 
         val result = mockMvc.get("/api/v1/carts/current") { cookie(Cookie(CartController.SESSION_COOKIE, sessionId)) }
             .andExpect { status { isOk() } }.andReturn()
@@ -332,7 +344,7 @@ class CartControllerWebMvcTest(
 
     @Test
     fun `every guest view records activity, leaving the once-a-day throttle to the query`() {
-        every { cartRepository.findBySessionIdAndStatusIn(sessionId, CartStatus.CURRENT) } returns cartFor(sessionId)
+        every { queries.findCurrent(CartOwner.Guest(sessionId), null) } returns cartJson()
 
         mockMvc.get("/api/v1/carts/current") { cookie(Cookie(CartController.SESSION_COOKIE, sessionId)) }
             .andExpect { status { isOk() } }
@@ -343,7 +355,7 @@ class CartControllerWebMvcTest(
     @Test
     fun `a signed-in caller viewing the cart does not touch the guest cart`() {
         signedIn()
-        every { cartRepository.findByUserIdAndStatusIn(userId, CartStatus.CURRENT) } returns newCartFor(CartOwner.Customer(userId))
+        every { queries.findCurrent(CartOwner.Customer(userId), null) } returns cartJson()
 
         mockMvc.get("/api/v1/carts/current") {
             cookie(accessToken(), Cookie(CartController.SESSION_COOKIE, sessionId))
@@ -504,7 +516,7 @@ class CartControllerWebMvcTest(
 
     @Test
     fun `current cart returns the session's cart`() {
-        every { cartRepository.findBySessionIdAndStatusIn(sessionId, CartStatus.CURRENT) } returns cartFor(sessionId)
+        every { queries.findCurrent(CartOwner.Guest(sessionId), null) } returns cartJson()
 
         mockMvc.get("/api/v1/carts/current") { cookie(Cookie(CartController.SESSION_COOKIE, sessionId)) }
             .andExpect {
@@ -512,6 +524,59 @@ class CartControllerWebMvcTest(
                 jsonPath("$.id") { value(cartId.toString()) }
                 jsonPath("$.summary.itemCount") { value(2) }
             }
+    }
+
+    @Test
+    fun `current cart is served from the read model as JSON, not read from PostgreSQL`() {
+        every { queries.findCurrent(CartOwner.Guest(sessionId), null) } returns cartJson()
+
+        mockMvc.get("/api/v1/carts/current") { cookie(Cookie(CartController.SESSION_COOKIE, sessionId)) }
+            .andExpect {
+                status { isOk() }
+                content { contentTypeCompatibleWith(MediaType.APPLICATION_JSON) }
+                jsonPath("$.summary.subtotal") { value(139.98) }
+            }
+
+        verify(exactly = 0) { cartRepository.findBySessionIdAndStatusIn(any(), any()) }
+        verify(exactly = 0) { cartRepository.findByUserIdAndStatusIn(any(), any()) }
+    }
+
+    @Test
+    fun `current cart passes X-Read-After to the read model so the shopper sees their own change`() {
+        val readAfter = UUID.randomUUID()
+        every { queries.findCurrent(CartOwner.Guest(sessionId), readAfter) } returns cartJson()
+
+        mockMvc.get("/api/v1/carts/current") {
+            cookie(Cookie(CartController.SESSION_COOKIE, sessionId))
+            header(ReadAfter.HEADER, readAfter.toString())
+        }.andExpect { status { isOk() } }
+
+        verify { queries.findCurrent(CartOwner.Guest(sessionId), readAfter) }
+    }
+
+    @Test
+    fun `current cart is 503 with Retry-After when the read model has not caught up with the change`() {
+        val readAfter = UUID.randomUUID()
+        every { queries.findCurrent(any(), readAfter) } throws ReadModelBehindException(readAfter)
+
+        mockMvc.get("/api/v1/carts/current") {
+            cookie(Cookie(CartController.SESSION_COOKIE, sessionId))
+            header(ReadAfter.HEADER, readAfter.toString())
+        }.andExpect {
+            status { isServiceUnavailable() }
+            header { string(HttpHeaders.RETRY_AFTER, "1") }
+            jsonPath("$.code") { value("READ_MODEL_BEHIND") }
+        }
+    }
+
+    @Test
+    fun `an X-Read-After that is not an event id is a 400, not a 500`() {
+        mockMvc.get("/api/v1/carts/current") {
+            cookie(Cookie(CartController.SESSION_COOKIE, sessionId))
+            header(ReadAfter.HEADER, "not-a-uuid")
+        }.andExpect { status { isBadRequest() } }
+
+        verify(exactly = 0) { queries.findCurrent(any(), any()) }
     }
 
     @Test
@@ -788,7 +853,7 @@ class CartControllerWebMvcTest(
     @Test
     fun `current cart for a signed-in caller is the user's cart`() {
         signedIn()
-        every { cartRepository.findByUserIdAndStatusIn(userId, CartStatus.CURRENT) } returns newCartFor(CartOwner.Customer(userId))
+        every { queries.findCurrent(CartOwner.Customer(userId), null) } returns cartJson()
 
         val result = mockMvc.get("/api/v1/carts/current") {
             cookie(accessToken(), Cookie(CartController.SESSION_COOKIE, sessionId))
@@ -1042,9 +1107,8 @@ class CartControllerWebMvcTest(
 
     @Test
     fun `the current cart shows that it is locked for checkout`() {
-        val cart = cartFor(sessionId)
-        cart.startCheckout(java.time.Duration.ofMinutes(30))
-        every { cartRepository.findBySessionIdAndStatusIn(sessionId, CartStatus.CURRENT) } returns cart
+        every { queries.findCurrent(CartOwner.Guest(sessionId), null) } returns
+            cartJson().replace("\"ACTIVE\"", "\"CHECKOUT\"")
 
         mockMvc.get("/api/v1/carts/current") {
             cookie(Cookie(CartController.SESSION_COOKIE, sessionId))

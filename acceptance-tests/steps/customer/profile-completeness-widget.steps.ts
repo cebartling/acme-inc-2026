@@ -6,6 +6,20 @@ import { accessCookieFor, accessTokenFor } from '../../support/access-token.js';
 import { config } from '../../playwright.config.js';
 
 /**
+ * The customer service reads from a read model that trails a write by a moment. The API client
+ * sends the last write's X-Read-After on this GET, so it waits for the projection (which is
+ * ordered per customer, so earlier writes are in too). The browser's own request can't carry that
+ * header, so without this wait the dashboard can read a missing customer or a stale score.
+ */
+async function waitForReadModel(world: CustomWorld): Promise<void> {
+  const customerId = world.getTestData<string>('customerId');
+  const userId = world.getTestData<string>('userId');
+  await world.customerApiClient.get(`/api/v1/customers/${customerId}/profile/completeness`, {
+    headers: { Cookie: await accessCookieFor(world, userId!) },
+  });
+}
+
+/**
  * Sets up mock auth state in localStorage for frontend routes that require authentication.
  * Also creates a test customer in the backend via the test helper API.
  */
@@ -37,6 +51,8 @@ async function setupAuthenticatedCustomer(world: CustomWorld): Promise<void> {
       }
     }
   }
+
+  await waitForReadModel(world);
 
   // The widget reads the customer service as the signed-in customer
   await world.context.addCookies([
@@ -151,6 +167,7 @@ Given('I am logged in as an authenticated customer', async function (this: Custo
 // ============================================================================
 
 When('I navigate to the dashboard', async function (this: CustomWorld) {
+  await waitForReadModel(this);
   const dashboardPage = new DashboardPage(this.page);
   await dashboardPage.goto();
   // Wait for widget to finish loading (success or error)

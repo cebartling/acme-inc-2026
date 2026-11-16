@@ -25,6 +25,8 @@ dependencies {
     // Spring Boot starters
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
+    // The cart read model (PIN-551), in the shared acme_query database
+    implementation("org.springframework.boot:spring-boot-starter-data-mongodb")
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     // Verifies identity's access tokens (the access_token cookie) against its JWKS
@@ -71,6 +73,8 @@ dependencies {
     testImplementation("org.springframework.security:spring-security-test")
     testImplementation("org.testcontainers:testcontainers-junit-jupiter:2.0.5")
     testImplementation("org.testcontainers:testcontainers-postgresql:2.0.5")
+    testImplementation("org.testcontainers:testcontainers-mongodb:2.0.5")
+    testImplementation("org.testcontainers:testcontainers-kafka:2.0.5")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 

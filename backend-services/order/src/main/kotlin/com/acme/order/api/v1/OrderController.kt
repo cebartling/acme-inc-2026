@@ -111,7 +111,13 @@ class OrderController(
             idempotencyKey = key
         )
         return when (val result = placeOrder.execute(command)) {
-            is PlaceOrderResult.Placed -> ResponseEntity.status(HttpStatus.CREATED).body(PlaceOrderResponse.from(result.order))
+            is PlaceOrderResult.Placed -> {
+                val response = ResponseEntity.status(HttpStatus.CREATED)
+                // The cart's read model trails its changes: the client sends this id as X-Read-After
+                // on its next cart read, to see the cart converted (PIN-551)
+                result.cartReadAfter?.let { response.header(CART_READ_AFTER_HEADER, it) }
+                response.body(PlaceOrderResponse.from(result.order))
+            }
             is PlaceOrderResult.Refused -> error(result.status, result.message, result.code)
             PlaceOrderResult.CartUnavailable -> error(
                 HttpStatus.SERVICE_UNAVAILABLE,
@@ -222,6 +228,9 @@ class OrderController(
 
     companion object {
         const val IDEMPOTENCY_KEY_HEADER = "Idempotency-Key"
+
+        /** Answers a placed order with the cart's id for its conversion, to send back as the cart's `X-Read-After`. */
+        const val CART_READ_AFTER_HEADER = "X-Cart-Read-After"
         const val MAX_IDEMPOTENCY_KEY_LENGTH = 255
         const val IDEMPOTENCY_KEY_REQUIRED = "IDEMPOTENCY_KEY_REQUIRED"
         const val INVALID_REQUEST = "INVALID_REQUEST"

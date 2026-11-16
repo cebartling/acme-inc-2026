@@ -32,6 +32,7 @@ An Architecture Decision Record documents a significant architectural decision, 
 | [ADR-0062](0062-cancel-abandoned-orders.md) | Abandoned Orders Are Cancelled, Unless the Cart Converted for Them, and Then They Are Submitted | Accepted |
 | [ADR-0063](0063-customer-order-cancellation.md) | Customers Can Cancel Submitted Orders, and Those Orders Stay Visible | Accepted |
 | [ADR-0065](0065-customer-read-model-from-snapshots.md) | The Customer Read Model Is Built from State Snapshots, and Reads Wait for Their Own Writes | Accepted |
+| [ADR-0066](0066-cart-read-model-from-snapshots.md) | The Cart Read Model Follows ADR-0065, and the Order Service Hands the Browser the Cart's Read-After | Accepted |
 
 ### Shopping Cart
 

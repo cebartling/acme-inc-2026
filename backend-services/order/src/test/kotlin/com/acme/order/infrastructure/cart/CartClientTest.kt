@@ -114,6 +114,23 @@ class CartClientTest {
     }
 
     @Test
+    fun `the conversion carries the X-Read-After the cart answered with, so a cart read can wait for it (PIN-551)`() {
+        server.expect(requestTo(convertUrl)).andRespond(
+            withSuccess(
+                """{"cartId":"$cartId","status":"CONVERTED","orderId":"$orderId","convertedAt":"2026-10-22T12:00:00Z"}""",
+                MediaType.APPLICATION_JSON
+            ).header("X-Read-After", "event-1")
+        )
+
+        val result = client.convert(cartId, orderId, sessionId, "the-token")
+
+        assertEquals(
+            CartResult.Ok(CartConversion(cartId, orderId, Instant.parse("2026-10-22T12:00:00Z"), readAfter = "event-1")),
+            result
+        )
+    }
+
+    @Test
     fun `a cart already converted for another order is refused`() {
         server.expect(requestTo(convertUrl)).andRespond(
             errorBody(HttpStatus.CONFLICT, """{"error":"Cart already converted","code":"CART_ALREADY_CONVERTED"}""")

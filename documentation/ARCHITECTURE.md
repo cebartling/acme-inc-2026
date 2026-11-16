@@ -29,9 +29,11 @@
 ### CQRS
 
 In practice ([ADR-0041](adrs/0041-per-service-persistence-model.md)), each service's source
-of truth is its JPA state in PostgreSQL. Only customer has a separate read model (MongoDB,
-built from Kafka; see [Customer Service](#customer-service) and
-[ADR-0065](adrs/0065-customer-read-model-from-snapshots.md)). The `event_store` tables in customer
+of truth is its JPA state in PostgreSQL. Only customer and shopping-cart have a separate read
+model (MongoDB, built from Kafka; see [Customer Service](#customer-service),
+[Shopping Cart Service](#shopping-cart-service),
+[ADR-0065](adrs/0065-customer-read-model-from-snapshots.md) and
+[ADR-0066](adrs/0066-cart-read-model-from-snapshots.md)). The `event_store` tables in customer
 and identity are an audit history: nothing rebuilds state from them. The lists below and
 in the next section describe the pattern as a target.
 
@@ -229,6 +231,44 @@ Kafka container, so the default runs skip it: `npm run test:kafka-outage`.
 `backend-services/shopping-cart` (port 10304, database `acme_carts`) owns shopping carts
 (Epic 009, US-0004-06 onward).
 
+**Events and reads** (PIN-551, [ADR-0066](adrs/0066-cart-read-model-from-snapshots.md)): the
+second service on the CDC pattern, built like the customer's
+([ADR-0065](adrs/0065-customer-read-model-from-snapshots.md)). Every cart event, including those of
+the expiry, purge and checkout-unlock jobs, is written to the `outbox` table by `OutboxWriter` in
+the cart's own transaction, with a second row holding a snapshot of the cart's state. The Debezium
+connector `cart-outbox` publishes the rows: events to `cart.events` (same keys and payloads as
+before), snapshots to `cart.read-model`. Nothing in the service sends to Kafka.
+
+```mermaid
+flowchart LR
+    UC[Use case or job] -->|one transaction| PG[(PostgreSQL<br/>carts + outbox)]
+    PG -->|WAL| DBZ[Debezium<br/>cart-outbox]
+    DBZ -->|event| EV[[cart.events]]
+    DBZ -->|snapshot| RM[[cart.read-model]]
+    RM --> PJ[CartSnapshotProjector]
+    PJ -->|replace| MG[(MongoDB<br/>cart_read_models)]
+    MG --> Q[GET /api/v1/carts/current]
+```
+
+- **Reading your own write**: a change's response carries `X-Read-After: <event id>`, and a
+  `GET /carts/current` that sends it back waits (up to 5 s) until the projector has applied that
+  event, or answers `503` with `Retry-After: 1`. A malformed header is `400`. The customer app
+  remembers the id from every cart response and sends it on cart reads for 30 seconds
+  (`cartRequest` in `frontend-apps/customer/src/services/api.ts`).
+- **The order service converts the cart**, so the cart's id for that change reaches the browser
+  on the order's response, as `X-Cart-Read-After` (`POST /api/v1/orders`). `orderApi.place` feeds
+  it to the same window.
+- **Cart changes without their own event** get a snapshot from `OutboxWriter.writeSnapshot`: the
+  guest cart a merge absorbs becomes `MERGED` this way. A purged cart's snapshot deletes its
+  document.
+- **No initial snapshot**: the connector uses `snapshot.mode: no_data`. Start the service once with
+  `ACME_CART_READ_MODEL_BACKFILL_ON_STARTUP=true` to give carts that predate it a document, before
+  traffic or when it is quiet.
+- The checkout-session, conversion and mutating endpoints still read PostgreSQL: only
+  `GET /carts/current` is served from MongoDB.
+- **Acceptance tests**: `features/api/cart-read-model-api.feature`. The `@kafka-outage` scenario stops
+  the shared Kafka container, so the default runs skip it (`npm run test:kafka-outage`).
+
 - **Cart identity** ([ADR-0046](adrs/0046-guest-cart-identity-and-merge.md)): a cart belongs to exactly one owner — a guest session
   (`carts.session_id`) or a signed-in user (`carts.user_id`, the access token's `sub`).
   Only the owner's *current* cart is resolved: `ACTIVE`, or `CHECKOUT` while locked for
@@ -266,7 +306,7 @@ sequenceDiagram
     PS-->>CS: price + tier pricing
     CS->>CS: get or create cart, merge line, save
     CS-->>FE: 201 cart (+ Set-Cookie: a new session, or the guest's re-issued)
-    CS->>K: OutboxRelay, after commit: CartCreated (new cart), ItemAddedToCart
+    CS->>K: Debezium, after commit: CartCreated (new cart), ItemAddedToCart
 ```
 
 - **Session cookie**: the cart service, not the browser, mints the session ID and returns
@@ -385,10 +425,10 @@ sequenceDiagram
   nothing about stock, so its `summary`, and the header `CartBadge`, still count them.
 - **Events go through a transactional outbox** ([ADR-0060](adrs/0060-cart-events-through-outbox.md), PIN-384), as the order service's do.
   Every cart use case and job writes its events with `OutboxWriter` in the transaction that
-  makes the change (V10 `outbox`), and `OutboxRelay` sends them to `cart.events` after commit,
-  configured by `acme.cart.outbox.*`. So a Kafka failure or outage never fails or slows a cart
-  request, and no event is lost while its change is kept. Sending, failures, at-least-once
-  delivery and the single-relay limit work as in the order service (below).
+  makes the change (V10 `outbox`), and the Debezium connector `cart-outbox` publishes them to
+  `cart.events` from the WAL (PIN-551, [ADR-0066](adrs/0066-cart-read-model-from-snapshots.md);
+  the polling `OutboxRelay` it replaced is gone). So a Kafka failure or outage never fails or slows
+  a cart request, and no event is lost while its change is kept.
 
 **Reading and changing the cart** (US-0004-07):
 
@@ -430,7 +470,7 @@ sequenceDiagram
         CS->>PS: GET /api/v1/prices/{variantId} for each guest variant
         CS->>CS: sum lines per variant, cap at max, reprice, guest → MERGED (one transaction)
         CS-->>FE: merged user cart + mergeResult
-        CS->>K: OutboxRelay, after commit: CartCreated (if the user had no cart), CartMerged
+        CS->>K: Debezium, after commit: CartCreated (if the user had no cart), CartMerged
     end
 ```
 

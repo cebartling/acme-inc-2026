@@ -29,8 +29,14 @@ data class PlaceOrderCommand(
 
 /** How placing an order ended (ADR-0020). */
 sealed interface PlaceOrderResult {
-    /** The order is SUBMITTED: newly, or by an earlier request with the same key. */
-    data class Placed(val order: Order) : PlaceOrderResult
+    /**
+     * The order is SUBMITTED: newly, or by an earlier request with the same key.
+     *
+     * [cartReadAfter] is the cart's id for the conversion this request made, for the client's next
+     * read of the cart (PIN-551). Null when this request made none, as when it finds an order an
+     * earlier request already submitted.
+     */
+    data class Placed(val order: Order, val cartReadAfter: String? = null) : PlaceOrderResult
 
     /** The order can't be placed; `code` is answered in the `{error, code}` body. */
     data class Refused(val status: HttpStatus, val code: String, val message: String) : PlaceOrderResult
@@ -113,7 +119,7 @@ class PlaceOrderUseCase(
 
     private fun convertAndSubmit(order: Order, command: PlaceOrderCommand): PlaceOrderResult =
         when (val conversion = cartClient.convert(order.cartId, order.id, order.checkoutSessionId, command.accessToken)) {
-            is CartResult.Ok -> submit(order)
+            is CartResult.Ok -> submit(order, conversion.value.readAfter)
             is CartResult.Refused -> cancel(order, conversion.code, command)
             is CartResult.Unauthorized -> unauthorized(conversion.code)
             CartResult.Unavailable -> {
@@ -122,9 +128,9 @@ class PlaceOrderUseCase(
             }
         }
 
-    private fun submit(order: Order): PlaceOrderResult =
+    private fun submit(order: Order, cartReadAfter: String?): PlaceOrderResult =
         when (val result = submitter.submit(order)) {
-            is SubmitResult.Submitted, is SubmitResult.AlreadySubmitted -> PlaceOrderResult.Placed(result.order)
+            is SubmitResult.Submitted, is SubmitResult.AlreadySubmitted -> PlaceOrderResult.Placed(result.order, cartReadAfter)
             // A racing request cancelled it first; the submitter has logged that. Answer what the order is
             is SubmitResult.Cancelled ->
                 refused(result.order.cancelCode ?: CHECKOUT_SESSION_NOT_FOUND, "The order was not placed")

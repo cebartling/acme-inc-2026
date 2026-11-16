@@ -1329,6 +1329,84 @@ export interface MergeResult {
 export type MergeCartResponse = Cart & { mergeResult: MergeResult | null };
 
 /**
+ * How long a write's event id is sent back on cart reads. The read model has applied it long
+ * before this; the service keeps only a cart's last 50 events, so an old id would never be found.
+ */
+const READ_AFTER_TTL_MS = 30_000;
+
+/**
+ * Where the last change's event id is kept. It has to outlive the page: a reload, a navigation
+ * that loads the app afresh and a new tab all read the cart right after a change, with no memory
+ * of it. `localStorage` is shared by every tab, and the TTL keeps it from lingering.
+ */
+const LAST_CART_WRITE_KEY = "acme.cart.lastWrite";
+
+interface CartWrite {
+  eventId: string;
+  at: number;
+}
+
+/** Used when storage is unavailable (private mode, blocked): the id then lasts until a reload. */
+let lastCartWriteInMemory: CartWrite | null = null;
+
+function loadLastCartWrite(): CartWrite | null {
+  try {
+    const stored = localStorage.getItem(LAST_CART_WRITE_KEY);
+    if (stored === null) return lastCartWriteInMemory;
+    const write: unknown = JSON.parse(stored);
+    const { eventId, at } = (write ?? {}) as Partial<CartWrite>;
+    return typeof eventId === "string" && typeof at === "number"
+      ? { eventId, at }
+      : null;
+  } catch {
+    // Storage is unavailable or holds something unreadable: read without waiting, as before
+    return lastCartWriteInMemory;
+  }
+}
+
+/**
+ * The cart service answers a change with the id of its event in `X-Read-After`. The cart is
+ * read from a read model that trails the change by a moment, so a read that sends the id back
+ * waits for the change instead of showing the cart without it (PIN-551). A failed change has no
+ * event to wait for, so only a successful response is remembered.
+ */
+function rememberReadAfter(response: Response) {
+  if (!response.ok) return;
+  rememberCartEvent(response.headers.get(READ_AFTER_HEADER));
+}
+
+function rememberCartEvent(eventId: string | null) {
+  if (!eventId) return;
+  const write: CartWrite = { eventId, at: Date.now() };
+  lastCartWriteInMemory = write;
+  try {
+    localStorage.setItem(LAST_CART_WRITE_KEY, JSON.stringify(write));
+  } catch {
+    // Storage is unavailable: the in-memory copy still serves this page
+  }
+}
+
+/**
+ * The order service converts the cart when an order is placed, so the cart's event for that change
+ * reaches the browser on the order's response, in this header, not on a cart response.
+ */
+const CART_READ_AFTER_HEADER = "X-Cart-Read-After";
+
+function readAfterHeader(): Record<string, string> {
+  const write = loadLastCartWrite();
+  if (!write || Date.now() - write.at > READ_AFTER_TTL_MS) return {};
+  return { [READ_AFTER_HEADER]: write.eventId };
+}
+
+/** Every call to the cart service, remembering the `X-Read-After` its changes return. */
+function cartRequest<T>(
+  url: string,
+  options: RefreshAwareRequestInit = {},
+): Promise<T> {
+  return apiRequest<T>(url, { ...options, onResponse: rememberReadAfter });
+}
+
+/**
  * Shopping cart service (US-0004-06).
  *
  * The guest session lives in the service's HttpOnly `acme_session_id` cookie, which the
@@ -1337,7 +1415,7 @@ export type MergeCartResponse = Cart & { mergeResult: MergeResult | null };
  */
 export const cartApi = {
   async addItem(request: AddToCartRequest): Promise<Cart> {
-    return apiRequest<Cart>(`${CART_SERVICE_URL}/api/v1/carts/items`, {
+    return cartRequest<Cart>(`${CART_SERVICE_URL}/api/v1/carts/items`, {
       method: "POST",
       credentials: "include",
       body: JSON.stringify(request),
@@ -1346,10 +1424,14 @@ export const cartApi = {
 
   /** The session's cart, or `null` when there is none yet (the service answers 204). */
   async getCurrent(): Promise<Cart | null> {
-    return apiRequest<Cart | null>(`${CART_SERVICE_URL}/api/v1/carts/current`, {
-      method: "GET",
-      credentials: "include",
-    });
+    return cartRequest<Cart | null>(
+      `${CART_SERVICE_URL}/api/v1/carts/current`,
+      {
+        method: "GET",
+        credentials: "include",
+        headers: readAfterHeader(),
+      },
+    );
   },
 
   /**
@@ -1361,7 +1443,7 @@ export const cartApi = {
     itemId: string,
     quantity: number,
   ): Promise<Cart> {
-    return apiRequest<Cart>(
+    return cartRequest<Cart>(
       `${CART_SERVICE_URL}/api/v1/carts/${encodeURIComponent(cartId)}/items/${encodeURIComponent(itemId)}`,
       {
         method: "PATCH",
@@ -1377,14 +1459,14 @@ export const cartApi = {
    * cart (the service answers 204).
    */
   async merge(): Promise<MergeCartResponse | null> {
-    return apiRequest<MergeCartResponse | null>(
+    return cartRequest<MergeCartResponse | null>(
       `${CART_SERVICE_URL}/api/v1/carts/merge`,
       { method: "POST", credentials: "include" },
     );
   },
 
   async removeItem(cartId: string, itemId: string): Promise<Cart> {
-    return apiRequest<Cart>(
+    return cartRequest<Cart>(
       `${CART_SERVICE_URL}/api/v1/carts/${encodeURIComponent(cartId)}/items/${encodeURIComponent(itemId)}`,
       { method: "DELETE", credentials: "include" },
     );
@@ -1392,7 +1474,7 @@ export const cartApi = {
 
   /** Removes every line; the service returns the empty cart (PIN-294). */
   async clearCart(cartId: string): Promise<Cart> {
-    return apiRequest<Cart>(
+    return cartRequest<Cart>(
       `${CART_SERVICE_URL}/api/v1/carts/${encodeURIComponent(cartId)}/items`,
       { method: "DELETE", credentials: "include" },
     );
@@ -1403,7 +1485,7 @@ export const cartApi = {
    * it, with the same session ID; a lapsed session is replaced by a new one (PIN-330).
    */
   async startCheckout(cartId: string): Promise<CheckoutSession> {
-    return apiRequest<CheckoutSession>(
+    return cartRequest<CheckoutSession>(
       `${CART_SERVICE_URL}/api/v1/carts/${encodeURIComponent(cartId)}/checkout`,
       { method: "POST", credentials: "include" },
     );
@@ -1411,7 +1493,7 @@ export const cartApi = {
 
   /** Unlocks the cart (PIN-330). A cart that isn't in checkout comes back unchanged. */
   async leaveCheckout(cartId: string): Promise<Cart> {
-    return apiRequest<Cart>(
+    return cartRequest<Cart>(
       `${CART_SERVICE_URL}/api/v1/carts/${encodeURIComponent(cartId)}/checkout`,
       { method: "DELETE", credentials: "include" },
     );
@@ -1503,6 +1585,9 @@ export const orderApi = {
       body: JSON.stringify({ checkoutSessionId }),
       // CheckoutPage sends a customer who can't be refreshed to sign-in, back to the cart
       refreshOnSignInRequired: true,
+      // The next cart read waits for the conversion, so the cart that was just ordered is gone
+      onResponse: (response) =>
+        rememberCartEvent(response.headers.get(CART_READ_AFTER_HEADER)),
     });
   },
 

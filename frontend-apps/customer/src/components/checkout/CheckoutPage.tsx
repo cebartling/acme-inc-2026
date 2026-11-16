@@ -113,6 +113,24 @@ export function CheckoutPage() {
     retry: false,
   });
 
+  // The cart is read from a read model that trails a change by about a second. The cart read
+  // sends the id of the customer's last change, but an order whose answer was lost has none, so
+  // a cart that still shows its lines may only not have heard of the conversion yet. Recovery
+  // starts once the cart is empty, so while an attempt is unanswered, look again a few times
+  // (PIN-551).
+  useEffect(() => {
+    if (!placing || !hasLines || place.isPending) return;
+    let looks = 0;
+    const timer = setInterval(() => {
+      if (++looks > CART_RECHECKS) {
+        clearInterval(timer);
+        return;
+      }
+      void queryClient.invalidateQueries({ queryKey: CART_QUERY_KEY });
+    }, CART_RECHECK_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [placing, hasLines, place.isPending, queryClient]);
+
   const recovered = recovery.data;
   const recoveryError = recovery.error;
   useEffect(() => {
@@ -375,6 +393,10 @@ function confirmationOf(order: PlacedOrder) {
 }
 
 const ORDER_RECOVERY_KEY = ["orderRecovery"] as const;
+
+/** How often, and how many times, an unanswered order attempt re-reads a cart that still shows lines. */
+const CART_RECHECK_INTERVAL_MS = 1000;
+const CART_RECHECKS = 5;
 
 const storageKeyFor = (sessionId: string) => `acme.checkout.${sessionId}.key`;
 

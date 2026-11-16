@@ -22,6 +22,7 @@ import io.mockk.runs
 import io.mockk.slot
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.springframework.dao.DataIntegrityViolationException
@@ -129,6 +130,24 @@ class PlaceOrderUseCaseTest {
         assertEquals(BigDecimal("159.98"), payload.total.amount)
         assertEquals(3, payload.itemCount)
         assertEquals(sessionId, event.captured.correlationId)
+    }
+
+    @Test
+    fun `a placed order carries the cart's read-after, so the customer's next cart read waits for the conversion (PIN-551)`() {
+        sessionReads(CartResult.Ok(session))
+        convertAnswers(CartResult.Ok(CartConversion(cartId, UUID.randomUUID(), Instant.now(), readAfter = "event-9")))
+
+        val result = useCase.execute(command)
+
+        assertEquals("event-9", (result as PlaceOrderResult.Placed).cartReadAfter)
+    }
+
+    @Test
+    fun `a placed order has no read-after when the cart sent none`() {
+        sessionReads(CartResult.Ok(session))
+        convertAnswers(converted())
+
+        assertNull((useCase.execute(command) as PlaceOrderResult.Placed).cartReadAfter)
     }
 
     @Test

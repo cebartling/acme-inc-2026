@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Lock
 import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.domain.Pageable
+import org.springframework.data.domain.Slice
 import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 import java.util.UUID
@@ -48,6 +49,10 @@ interface CartRepository : JpaRepository<Cart, UUID> {
     /** The session's cart with this ID in any status, including a final one (PIN-331). */
     @EntityGraph(attributePaths = ["items"])
     fun findByIdAndSessionId(id: UUID, sessionId: String): Cart?
+
+    /** The IDs of the carts in any of [statuses], by ID, a page at a time (PIN-551's read model backfill). */
+    @Query("SELECT c.id FROM Cart c WHERE c.status IN :statuses ORDER BY c.id")
+    fun findIdsByStatusIn(statuses: Collection<CartStatus>, pageable: Pageable): Slice<UUID>
 
     /** The user's cart with this ID in any status; see [findByIdAndSessionId]. */
     @EntityGraph(attributePaths = ["items"])

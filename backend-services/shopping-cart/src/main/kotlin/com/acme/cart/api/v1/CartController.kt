@@ -22,10 +22,14 @@ import com.acme.cart.domain.CartError
 import com.acme.cart.domain.CartOwner
 import com.acme.cart.domain.ProductSnapshot
 import com.acme.cart.infrastructure.persistence.CartRepository
+import com.acme.cart.infrastructure.projection.CartReadModelQueries
+import com.acme.cart.infrastructure.projection.ReadAfter
+import com.acme.cart.infrastructure.projection.ReadModelBehindException
 import com.fasterxml.jackson.databind.ObjectMapper
 import jakarta.validation.Valid
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpHeaders
+import org.springframework.http.MediaType
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.http.converter.HttpMessageNotReadableException
@@ -61,6 +65,7 @@ class CartController(
     private val abandonCheckoutUseCase: AbandonCheckoutUseCase,
     private val convertCartUseCase: ConvertCartUseCase,
     private val cartRepository: CartRepository,
+    private val cartReadModelQueries: CartReadModelQueries,
     private val objectMapper: ObjectMapper,
     private val guestSessionCookies: GuestSessionCookies,
     private val serviceCredentials: ServiceCredentials
@@ -109,15 +114,28 @@ class CartController(
      * The caller's cart (US-0004-07, AC-02/03/10): the user cart when signed in, else the
      * session's. 204 when there is no owner or no current cart yet, so a first-time
      * visitor's page load is not an error.
+     *
+     * Served from the MongoDB read model (PIN-551). A write's response carries [ReadAfter.HEADER];
+     * sending it back makes this read wait for that write, or answer 503 (never a stale cart).
      */
     @GetMapping("/current")
     fun getCurrent(
         @AuthenticationPrincipal jwt: Jwt?,
-        @CookieValue(SESSION_COOKIE, required = false) sessionCookie: String?
+        @CookieValue(SESSION_COOKIE, required = false) sessionCookie: String?,
+        @RequestHeader(ReadAfter.HEADER, required = false) readAfter: UUID?
     ): ResponseEntity<Any> {
-        val cart = ownerOf(jwt, sessionCookie)?.let(cartRepository::findActiveCart)
+        val cartJson = ownerOf(jwt, sessionCookie)?.let { cartReadModelQueries.findCurrent(it, readAfter) }
             ?: return ResponseEntity.noContent().build()
-        return ResponseEntity.ok(toResponse(cart))
+        return ResponseEntity.ok().contentType(MediaType.APPLICATION_JSON).body(cartJson)
+    }
+
+    /** The shopper asked to read after a change the read model has not applied within the wait. */
+    @ExceptionHandler(ReadModelBehindException::class)
+    fun readModelBehind(behind: ReadModelBehindException): ResponseEntity<Any> {
+        logger.warn("Read model behind: {}", behind.message)
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+            .header(HttpHeaders.RETRY_AFTER, "1")
+            .body(mapOf("error" to "Your change is saved but not visible yet. Retry shortly.", "code" to READ_MODEL_BEHIND))
     }
 
     /** Sets a line's quantity (AC-0004-07-04, AC-08). Only the caller's own cart is reachable. */
@@ -387,6 +405,9 @@ class CartController(
 
     companion object {
         const val SESSION_COOKIE = "acme_session_id"
+
+        /** The error code for a 503 from a read that asked for a change the read model lacks (PIN-551). */
+        const val READ_MODEL_BEHIND = "READ_MODEL_BEHIND"
 
         /** The error code for a 409 from a concurrent change (PIN-278). */
         const val CART_CONFLICT = "CART_CONFLICT"

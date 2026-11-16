@@ -71,6 +71,22 @@ class MergeCartsUseCaseTest {
         every { cartRepository.save(any()) } answers { firstArg() }
         every { pricingClient.getPricing(variantId) } returns pricing.right()
         every { outboxWriter.write(capture(published)) } returns Unit
+        every { outboxWriter.writeSnapshot(any()) } returns Unit
+    }
+
+    @Test
+    fun `the merged-away guest cart gets a fresh snapshot, so the read model shows it MERGED (PIN-551)`() {
+        val guest = guestWith(2)
+        givenCarts(guest = guest, user = null)
+
+        useCase.execute(MergeCartsCommand(userId, "sess-1")).getOrNull()!!
+
+        // CartMerged is written for the target cart, so the guest cart has no event of its own.
+        // Its snapshot must come after the guest's state changed to MERGED.
+        verifyOrder {
+            outboxWriter.write(match { it is CartMerged })
+            outboxWriter.writeSnapshot(guest.id)
+        }
     }
 
     @Test

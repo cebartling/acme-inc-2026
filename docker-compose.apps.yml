@@ -407,6 +407,13 @@ services:
 
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
 
+      # The cart read model (PIN-551)
+      MONGODB_HOST: mongodb
+      MONGODB_PORT: 27017
+      MONGODB_DB: acme_query
+      # Set to true for one start to give carts that predate the read model a MongoDB document
+      ACME_CART_READ_MODEL_BACKFILL_ON_STARTUP: ${ACME_CART_READ_MODEL_BACKFILL_ON_STARTUP:-false}
+
       # Authoritative prices come from the product service
       PRODUCT_SERVICE_URL: http://product-service:10303
 
@@ -456,6 +463,9 @@ services:
         done
         echo "Creating database acme_carts if it doesn't exist..."
         psql -h postgres -U $${POSTGRES_USER:-postgres} -tc "SELECT 1 FROM pg_database WHERE datname = 'acme_carts'" | grep -q 1 || psql -h postgres -U $${POSTGRES_USER:-postgres} -c "CREATE DATABASE acme_carts"
+        # The cart-outbox Debezium connector reads this publication (PIN-551); it does not create it
+        echo "Creating publication dbz_publication on acme_carts if it doesn't exist..."
+        psql -h postgres -U $${POSTGRES_USER:-postgres} -d acme_carts -tc "SELECT 1 FROM pg_publication WHERE pubname = 'dbz_publication'" | grep -q 1 || psql -h postgres -U $${POSTGRES_USER:-postgres} -d acme_carts -c "CREATE PUBLICATION dbz_publication FOR ALL TABLES"
         echo 'Database initialization complete'
     networks:
       - acme-network
@@ -660,6 +670,10 @@ services:
       - ./docker/debezium/connectors:/connectors:ro
     networks:
       - acme-network
+    # The cart-outbox connector needs acme_carts and its publication, which this creates (PIN-551)
+    depends_on:
+      shopping-cart-db-init:
+        condition: service_completed_successfully
 
   # =============================================================================
   # ADMIN FRONTEND (placeholder for future)

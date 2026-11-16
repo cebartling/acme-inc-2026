@@ -2072,3 +2072,176 @@ describe("checkout and orders (PIN-426)", () => {
     );
   });
 });
+
+describe("cartApi X-Read-After (PIN-551)", () => {
+  const mockFetch = vi.fn();
+  const originalFetch = global.fetch;
+  // The remembered event id is module state, so each test starts long after the last one's
+  let now = Date.parse("2026-11-15T12:00:00Z");
+
+  beforeEach(() => {
+    global.fetch = mockFetch;
+    mockFetch.mockReset();
+    now += 10 * 60_000;
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(now);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    global.fetch = originalFetch;
+  });
+
+  const cart = {
+    id: "cart-1",
+    items: [],
+    summary: { itemCount: 0, subtotal: 0, currency: "USD" },
+  };
+
+  const cartResponse = (readAfter?: string) => ({
+    ok: true,
+    status: 200,
+    headers: new Headers({
+      "content-type": "application/json",
+      ...(readAfter ? { "x-read-after": readAfter } : {}),
+    }),
+    json: () => Promise.resolve(cart),
+  });
+
+  /** The X-Read-After the latest fetch carried, or undefined. */
+  const sentReadAfter = () =>
+    (mockFetch.mock.calls.at(-1)?.[1].headers as Record<string, string>)[
+      "X-Read-After"
+    ];
+
+  it("sends no X-Read-After when no write has returned one", async () => {
+    mockFetch.mockResolvedValueOnce(cartResponse());
+
+    await cartApi.getCurrent();
+
+    expect(sentReadAfter()).toBeUndefined();
+  });
+
+  it("sends back the event id a write returned, so the read sees that write", async () => {
+    mockFetch.mockResolvedValueOnce(cartResponse("event-1"));
+    await cartApi.updateItem("cart-1", "line-1", 3);
+    mockFetch.mockResolvedValueOnce(cartResponse());
+
+    await cartApi.getCurrent();
+
+    expect(sentReadAfter()).toBe("event-1");
+  });
+
+  it("remembers the event id of any cart write, such as a removal or a merge", async () => {
+    mockFetch.mockResolvedValueOnce(cartResponse("event-remove"));
+    await cartApi.removeItem("cart-1", "line-1");
+    mockFetch.mockResolvedValueOnce(cartResponse());
+    await cartApi.getCurrent();
+    expect(sentReadAfter()).toBe("event-remove");
+
+    mockFetch.mockResolvedValueOnce(cartResponse("event-clear"));
+    await cartApi.clearCart("cart-1");
+    mockFetch.mockResolvedValueOnce(cartResponse());
+    await cartApi.getCurrent();
+    expect(sentReadAfter()).toBe("event-clear");
+  });
+
+  it("uses the latest write's event id, because its snapshot includes the earlier changes", async () => {
+    mockFetch.mockResolvedValueOnce(cartResponse("event-1"));
+    await cartApi.updateItem("cart-1", "line-1", 2);
+    mockFetch.mockResolvedValueOnce(cartResponse("event-2"));
+    await cartApi.updateItem("cart-1", "line-1", 3);
+    mockFetch.mockResolvedValueOnce(cartResponse());
+
+    await cartApi.getCurrent();
+
+    expect(sentReadAfter()).toBe("event-2");
+  });
+
+  it("does not remember an event id from a failed write, which has no event to wait for", async () => {
+    mockFetch.mockResolvedValueOnce(cartResponse("event-1"));
+    await cartApi.updateItem("cart-1", "line-1", 2);
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 409,
+      headers: new Headers({
+        "content-type": "application/json",
+        "x-read-after": "event-never-committed",
+      }),
+      json: () => Promise.resolve({ error: "CART_CONFLICT" }),
+    });
+    await expect(
+      cartApi.updateItem("cart-1", "line-1", 3),
+    ).rejects.toMatchObject({
+      status: 409,
+    });
+    mockFetch.mockResolvedValueOnce(cartResponse());
+
+    await cartApi.getCurrent();
+
+    expect(sentReadAfter()).toBe("event-1");
+  });
+
+  it("stops sending it after 30 seconds, when the read model has long applied it", async () => {
+    mockFetch.mockResolvedValueOnce(cartResponse("event-1"));
+    await cartApi.updateItem("cart-1", "line-1", 3);
+    vi.setSystemTime(now + 31_000);
+    mockFetch.mockResolvedValueOnce(cartResponse());
+
+    await cartApi.getCurrent();
+
+    expect(sentReadAfter()).toBeUndefined();
+  });
+
+  it("remembers the cart event id an order placement returns, so the next cart read sees the conversion", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 201,
+      headers: new Headers({
+        "content-type": "application/json",
+        "x-cart-read-after": "event-convert",
+      }),
+      json: () => Promise.resolve({ orderId: "order-1" }),
+    });
+    await orderApi.place("session-1", "key-1");
+    mockFetch.mockResolvedValueOnce(cartResponse());
+
+    await cartApi.getCurrent();
+
+    expect(sentReadAfter()).toBe("event-convert");
+  });
+
+  it("survives a page reload or a new tab, which start with no module state", async () => {
+    mockFetch.mockResolvedValueOnce(cartResponse("event-1"));
+    await cartApi.updateItem("cart-1", "line-1", 3);
+
+    // A reload loads api.ts again; the id must come from storage, not from memory
+    vi.resetModules();
+    const reloaded = await import("./api");
+    mockFetch.mockResolvedValueOnce(cartResponse());
+    await reloaded.cartApi.getCurrent();
+
+    expect(sentReadAfter()).toBe("event-1");
+  });
+
+  it("ignores stored data it cannot read, and still reads the cart", async () => {
+    localStorage.setItem("acme.cart.lastWrite", "{not json");
+    mockFetch.mockResolvedValueOnce(cartResponse());
+
+    await expect(cartApi.getCurrent()).resolves.toEqual(cart);
+
+    expect(sentReadAfter()).toBeUndefined();
+  });
+
+  it("keeps sending it for reads right after the write, not only the first", async () => {
+    mockFetch.mockResolvedValueOnce(cartResponse("event-1"));
+    await cartApi.updateItem("cart-1", "line-1", 3);
+    mockFetch.mockResolvedValue(cartResponse());
+
+    await cartApi.getCurrent();
+    vi.setSystemTime(now + 5_000);
+    await cartApi.getCurrent();
+
+    expect(sentReadAfter()).toBe("event-1");
+  });
+});

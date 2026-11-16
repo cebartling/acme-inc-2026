@@ -1,5 +1,6 @@
 package com.acme.cart.config
 
+import com.acme.cart.infrastructure.projection.ReadAfter
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Configuration
 import org.springframework.web.servlet.config.annotation.CorsRegistry
@@ -25,6 +26,9 @@ class CorsConfig(
             )
             .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
             .allowedHeaders("*")
+            // A browser reads a response header only if it is exposed: the client sends this one
+            // back on its next cart read, so the read sees the change (PIN-551)
+            .exposedHeaders(ReadAfter.HEADER)
             .allowCredentials(true)
             .maxAge(3600)
     }
