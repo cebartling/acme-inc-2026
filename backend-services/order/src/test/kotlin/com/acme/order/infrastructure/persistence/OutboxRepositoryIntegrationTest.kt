@@ -26,7 +26,7 @@ import kotlin.test.assertEquals
 
 /**
  * The outbox against real Postgres (PIN-368): that an event commits or rolls back with the
- * caller's transaction. Tests manage their own transactions.
+ * caller's transaction, and the retention delete (PIN-552). Tests manage their own transactions.
  */
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -74,6 +74,31 @@ class OutboxRepositoryIntegrationTest {
     @AfterEach
     fun cleanUp() {
         outbox.deleteAll()
+    }
+
+    private fun message(createdAt: Instant) = OutboxMessage(
+        aggregateId = UUID.randomUUID(),
+        aggregateType = "Order",
+        eventType = "TestEvent",
+        eventId = UUID.randomUUID(),
+        topic = "order.events",
+        messageKey = UUID.randomUUID().toString(),
+        payload = """{"eventType":"TestEvent"}""",
+        createdAt = createdAt
+    )
+
+    @Test
+    fun `deleteCreatedBefore deletes only the messages written before the cutoff`() {
+        val cutoff = Instant.parse("2026-11-09T12:00:00Z")
+        val old = message(cutoff.minusSeconds(1))
+        val atCutoff = message(cutoff)
+        val recent = message(cutoff.plusSeconds(1))
+        listOf(old, atCutoff, recent).forEach { outbox.saveAndFlush(it) }
+
+        // The use case supplies the transaction in production; these tests manage their own
+        assertEquals(1, TransactionTemplate(transactionManager).execute { outbox.deleteCreatedBefore(cutoff) })
+
+        assertEquals(setOf(atCutoff.id, recent.id), outbox.findAll().map { it.id }.toSet())
     }
 
     @Test

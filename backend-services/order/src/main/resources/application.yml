@@ -58,6 +58,14 @@ acme:
     # (PIN-382). No default: the service won't start without it.
     service-token: ${ACME_ORDER_SERVICE_TOKEN:}
   order:
+    # Outbox rows are deleted after max-age (PIN-552, PIN-433); Debezium has published them
+    # long before. ISO-8601 durations.
+    outbox:
+      retention:
+        enabled: ${ACME_ORDER_OUTBOX_RETENTION_ENABLED:true}
+        max-age: ${ACME_ORDER_OUTBOX_RETENTION_MAX_AGE:P7D}
+        initial-delay: ${ACME_ORDER_OUTBOX_RETENTION_INITIAL_DELAY:PT5M}
+        interval: ${ACME_ORDER_OUTBOX_RETENTION_INTERVAL:P1D}
     abandoned:
       # The job that settles orders left PENDING (PIN-427, PIN-491): it submits one whose cart
       # converted for it and cancels the rest; ISO-8601 durations. max-age must be
