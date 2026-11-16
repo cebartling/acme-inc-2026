@@ -15,10 +15,7 @@ const POLL_INTERVAL_MS = 1_000;
 function valueAt(body: unknown, path: string): unknown {
   return path
     .split('.')
-    .reduce<unknown>(
-      (value, key) => (value as Record<string, unknown> | undefined)?.[key],
-      body
-    );
+    .reduce<unknown>((value, key) => (value as Record<string, unknown> | undefined)?.[key], body);
 }
 
 async function getCustomerRecord(
@@ -72,7 +69,7 @@ Then(
   'the response should have header {string} set to {string}',
   async function (this: CustomWorld, header: string, expected: string) {
     const response = this.getTestData<ApiResponse<unknown>>('lastResponse');
-    expect(response.headers[header.toLowerCase()]).toBe(expected);
+    expect(response?.headers[header.toLowerCase()]).toBe(expected);
   }
 );
 

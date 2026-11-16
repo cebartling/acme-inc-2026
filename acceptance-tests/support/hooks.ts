@@ -59,7 +59,9 @@ Before({ tags: '@admin' }, async function (this: CustomWorld) {
 // every scenario after it would fail too. Starting a running container does nothing.
 After({ tags: '@kafka-outage', timeout: 30000 }, async function () {
   try {
-    execFileSync('docker', ['start', process.env.KAFKA_CONTAINER ?? 'acme-kafka'], { stdio: 'pipe' });
+    execFileSync('docker', ['start', process.env.KAFKA_CONTAINER ?? 'acme-kafka'], {
+      stdio: 'pipe',
+    });
   } catch (error) {
     console.warn('⚠️  Failed to restart Kafka after the outage scenario:', error);
   }
