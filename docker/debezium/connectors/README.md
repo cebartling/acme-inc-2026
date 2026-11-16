@@ -36,8 +36,9 @@ Create a JSON file with a top-level `name` and a `config` object, adjusting:
 
 ## Outbox Connectors
 
-`customer-outbox.json` routes the customer service's `outbox` table to the topic named in each row's `topic`
-column, using Debezium's `EventRouter`. Consumers get the row's `message_key` as the key and its `payload` as a
+`customer-outbox.json` and `cart-outbox.json` route a service's `outbox` table to the topic named in each row's
+`topic` column, using Debezium's `EventRouter`. The cart's `dbz_publication` is created by `shopping-cart-db-init`,
+because `acme_carts` is not in `docker/postgres/init`; the connector does not create publications. Consumers get the row's `message_key` as the key and its `payload` as a
 plain JSON value, and the row's `event_id` in the `id` header.
 
 `snapshot.mode` is `no_data`, so only rows written after the connector starts are published. The default
