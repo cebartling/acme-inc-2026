@@ -1329,6 +1329,39 @@ export interface MergeResult {
 export type MergeCartResponse = Cart & { mergeResult: MergeResult | null };
 
 /**
+ * How long a write's event id is sent back on cart reads. The read model has applied it long
+ * before this; the service keeps only a cart's last 50 events, so an old id would never be found.
+ */
+const READ_AFTER_TTL_MS = 30_000;
+
+let lastCartWrite: { eventId: string; at: number } | null = null;
+
+/**
+ * The cart service answers a change with the id of its event in `X-Read-After`. The cart is
+ * read from a read model that trails the change by a moment, so a read that sends the id back
+ * waits for the change instead of showing the cart without it (PIN-551).
+ */
+function rememberReadAfter(response: Response) {
+  const eventId = response.headers.get(READ_AFTER_HEADER);
+  if (eventId) lastCartWrite = { eventId, at: Date.now() };
+}
+
+function readAfterHeader(): Record<string, string> {
+  if (!lastCartWrite || Date.now() - lastCartWrite.at > READ_AFTER_TTL_MS) {
+    return {};
+  }
+  return { [READ_AFTER_HEADER]: lastCartWrite.eventId };
+}
+
+/** Every call to the cart service, remembering the `X-Read-After` its changes return. */
+function cartRequest<T>(
+  url: string,
+  options: RefreshAwareRequestInit = {},
+): Promise<T> {
+  return apiRequest<T>(url, { ...options, onResponse: rememberReadAfter });
+}
+
+/**
  * Shopping cart service (US-0004-06).
  *
  * The guest session lives in the service's HttpOnly `acme_session_id` cookie, which the
@@ -1337,7 +1370,7 @@ export type MergeCartResponse = Cart & { mergeResult: MergeResult | null };
  */
 export const cartApi = {
   async addItem(request: AddToCartRequest): Promise<Cart> {
-    return apiRequest<Cart>(`${CART_SERVICE_URL}/api/v1/carts/items`, {
+    return cartRequest<Cart>(`${CART_SERVICE_URL}/api/v1/carts/items`, {
       method: "POST",
       credentials: "include",
       body: JSON.stringify(request),
@@ -1346,10 +1379,14 @@ export const cartApi = {
 
   /** The session's cart, or `null` when there is none yet (the service answers 204). */
   async getCurrent(): Promise<Cart | null> {
-    return apiRequest<Cart | null>(`${CART_SERVICE_URL}/api/v1/carts/current`, {
-      method: "GET",
-      credentials: "include",
-    });
+    return cartRequest<Cart | null>(
+      `${CART_SERVICE_URL}/api/v1/carts/current`,
+      {
+        method: "GET",
+        credentials: "include",
+        headers: readAfterHeader(),
+      },
+    );
   },
 
   /**
@@ -1361,7 +1398,7 @@ export const cartApi = {
     itemId: string,
     quantity: number,
   ): Promise<Cart> {
-    return apiRequest<Cart>(
+    return cartRequest<Cart>(
       `${CART_SERVICE_URL}/api/v1/carts/${encodeURIComponent(cartId)}/items/${encodeURIComponent(itemId)}`,
       {
         method: "PATCH",
@@ -1377,14 +1414,14 @@ export const cartApi = {
    * cart (the service answers 204).
    */
   async merge(): Promise<MergeCartResponse | null> {
-    return apiRequest<MergeCartResponse | null>(
+    return cartRequest<MergeCartResponse | null>(
       `${CART_SERVICE_URL}/api/v1/carts/merge`,
       { method: "POST", credentials: "include" },
     );
   },
 
   async removeItem(cartId: string, itemId: string): Promise<Cart> {
-    return apiRequest<Cart>(
+    return cartRequest<Cart>(
       `${CART_SERVICE_URL}/api/v1/carts/${encodeURIComponent(cartId)}/items/${encodeURIComponent(itemId)}`,
       { method: "DELETE", credentials: "include" },
     );
@@ -1392,7 +1429,7 @@ export const cartApi = {
 
   /** Removes every line; the service returns the empty cart (PIN-294). */
   async clearCart(cartId: string): Promise<Cart> {
-    return apiRequest<Cart>(
+    return cartRequest<Cart>(
       `${CART_SERVICE_URL}/api/v1/carts/${encodeURIComponent(cartId)}/items`,
       { method: "DELETE", credentials: "include" },
     );
@@ -1403,7 +1440,7 @@ export const cartApi = {
    * it, with the same session ID; a lapsed session is replaced by a new one (PIN-330).
    */
   async startCheckout(cartId: string): Promise<CheckoutSession> {
-    return apiRequest<CheckoutSession>(
+    return cartRequest<CheckoutSession>(
       `${CART_SERVICE_URL}/api/v1/carts/${encodeURIComponent(cartId)}/checkout`,
       { method: "POST", credentials: "include" },
     );
@@ -1411,7 +1448,7 @@ export const cartApi = {
 
   /** Unlocks the cart (PIN-330). A cart that isn't in checkout comes back unchanged. */
   async leaveCheckout(cartId: string): Promise<Cart> {
-    return apiRequest<Cart>(
+    return cartRequest<Cart>(
       `${CART_SERVICE_URL}/api/v1/carts/${encodeURIComponent(cartId)}/checkout`,
       { method: "DELETE", credentials: "include" },
     );
