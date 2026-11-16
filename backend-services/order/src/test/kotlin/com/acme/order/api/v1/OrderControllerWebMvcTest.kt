@@ -132,6 +132,36 @@ class OrderControllerWebMvcTest(
     }
 
     @Test
+    fun `a placed order passes on the cart's read-after in X-Cart-Read-After (PIN-551)`() {
+        every { useCase.execute(any()) } returns PlaceOrderResult.Placed(order, cartReadAfter = "event-9")
+
+        mockMvc.post("/api/v1/orders") {
+            cookie(accessToken())
+            header("Idempotency-Key", "key-1")
+            contentType = MediaType.APPLICATION_JSON
+            content = body
+        }.andExpect {
+            status { isCreated() }
+            header { string("X-Cart-Read-After", "event-9") }
+        }
+    }
+
+    @Test
+    fun `a placed order sends no X-Cart-Read-After when it has none`() {
+        every { useCase.execute(any()) } returns PlaceOrderResult.Placed(order)
+
+        mockMvc.post("/api/v1/orders") {
+            cookie(accessToken())
+            header("Idempotency-Key", "key-1")
+            contentType = MediaType.APPLICATION_JSON
+            content = body
+        }.andExpect {
+            status { isCreated() }
+            header { doesNotExist("X-Cart-Read-After") }
+        }
+    }
+
+    @Test
     fun `no access token is a 401 SIGN_IN_REQUIRED`() {
         mockMvc.post("/api/v1/orders") {
             header("Idempotency-Key", "key-1")

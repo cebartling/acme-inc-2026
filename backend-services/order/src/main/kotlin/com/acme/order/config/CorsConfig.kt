@@ -1,5 +1,6 @@
 package com.acme.order.config
 
+import com.acme.order.api.v1.OrderController
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Configuration
 import org.springframework.web.servlet.config.annotation.CorsRegistry
@@ -25,6 +26,9 @@ class CorsConfig(
             )
             .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
             .allowedHeaders("*")
+            // A browser reads a response header only if it is exposed. The customer app sends this
+            // one back to the cart service, so the cart it reads shows the order's conversion (PIN-551)
+            .exposedHeaders(OrderController.CART_READ_AFTER_HEADER)
             .allowCredentials(true)
             .maxAge(3600)
     }

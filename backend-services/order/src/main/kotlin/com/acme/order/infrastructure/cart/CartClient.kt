@@ -45,8 +45,15 @@ data class CheckoutItem(
 
 data class CheckoutSummary(val itemCount: Int, val subtotal: BigDecimal, val currency: String)
 
-/** The cart's `CartConversionResponse` (PIN-331). */
-data class CartConversion(val cartId: UUID, val orderId: UUID, val convertedAt: Instant)
+/**
+ * The cart's `CartConversionResponse` (PIN-331).
+ *
+ * [readAfter] is not in the body: it is the cart's `X-Read-After` header, the id of the conversion's
+ * event. The cart serves reads from a read model that trails its changes, so a client that reads
+ * the cart after placing the order sends this id to see the conversion (PIN-551). Null when the
+ * cart sent none, as when it answers a repeat of a conversion it already made.
+ */
+data class CartConversion(val cartId: UUID, val orderId: UUID, val convertedAt: Instant, val readAfter: String? = null)
 
 private data class ConvertRequest(val orderId: UUID, val checkoutSessionId: UUID)
 
@@ -93,7 +100,8 @@ class CartClient(
                 .header(SERVICE_TOKEN_HEADER, serviceToken)
                 .body(ConvertRequest(orderId, checkoutSessionId))
                 .retrieve()
-                .body(CartConversion::class.java)
+                .toEntity(CartConversion::class.java)
+                .let { it.body?.copy(readAfter = it.headers.getFirst(READ_AFTER_HEADER)) }
         }
 
     /**
@@ -156,6 +164,9 @@ class CartClient(
         const val ACCESS_TOKEN_COOKIE = "access_token"
         const val SERVICE_TOKEN_HEADER = "X-Service-Token"
         const val SERVICE_CREDENTIALS_REQUIRED = "SERVICE_CREDENTIALS_REQUIRED"
+
+        /** The header the cart answers a change with: the id of the change's event (PIN-551). */
+        const val READ_AFTER_HEADER = "X-Read-After"
 
         /** The answer to [getConversion] when the cart didn't convert for that order. */
         const val CART_NOT_CONVERTED = "CART_NOT_CONVERTED"
