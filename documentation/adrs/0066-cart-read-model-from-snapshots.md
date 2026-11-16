@@ -50,7 +50,7 @@ Three things differ from the customer:
    shows it `ACTIVE`.
 4. **The projector replaces the document.** `CartSnapshotProjector` upserts `cart_read_models`
    (database `acme_query`) by cart ID with the owner (`userId` or `sessionId`), the status, the
-   response body as JSON text (`cartJson`, served as it is, so money keeps its scale) and the last
+   response body as JSON text (`cartJson`, served as it is) and the last
    50 `sourceEventId`s. A snapshot with no cart deletes the document.
 5. **Reads wait for their own writes.** A change's response carries `X-Read-After: <event id>`. A
    `GET /carts/current` that sends it back waits (polling, 5 s) until any document has applied that

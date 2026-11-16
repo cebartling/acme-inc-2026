@@ -6,7 +6,7 @@ package com.acme.cart.infrastructure.projection
  *
  * ```
  * { _id: cartId, userId, sessionId, status,          // the lookups `GET /carts/current` uses
- *   cartJson: "<the CartResponse body>",              // returned as is, so money keeps its scale
+ *   cartJson: "<the CartResponse body>",              // returned as is
  *   appliedEventIds: [ ...the last MAX_APPLIED_EVENT_IDS source events ] }
  * ```
  */
