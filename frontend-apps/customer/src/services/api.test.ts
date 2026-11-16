@@ -2158,6 +2158,30 @@ describe("cartApi X-Read-After (PIN-551)", () => {
     expect(sentReadAfter()).toBe("event-2");
   });
 
+  it("does not remember an event id from a failed write, which has no event to wait for", async () => {
+    mockFetch.mockResolvedValueOnce(cartResponse("event-1"));
+    await cartApi.updateItem("cart-1", "line-1", 2);
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 409,
+      headers: new Headers({
+        "content-type": "application/json",
+        "x-read-after": "event-never-committed",
+      }),
+      json: () => Promise.resolve({ error: "CART_CONFLICT" }),
+    });
+    await expect(
+      cartApi.updateItem("cart-1", "line-1", 3),
+    ).rejects.toMatchObject({
+      status: 409,
+    });
+    mockFetch.mockResolvedValueOnce(cartResponse());
+
+    await cartApi.getCurrent();
+
+    expect(sentReadAfter()).toBe("event-1");
+  });
+
   it("stops sending it after 30 seconds, when the read model has long applied it", async () => {
     mockFetch.mockResolvedValueOnce(cartResponse("event-1"));
     await cartApi.updateItem("cart-1", "line-1", 3);

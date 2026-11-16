@@ -1367,9 +1367,11 @@ function loadLastCartWrite(): CartWrite | null {
 /**
  * The cart service answers a change with the id of its event in `X-Read-After`. The cart is
  * read from a read model that trails the change by a moment, so a read that sends the id back
- * waits for the change instead of showing the cart without it (PIN-551).
+ * waits for the change instead of showing the cart without it (PIN-551). A failed change has no
+ * event to wait for, so only a successful response is remembered.
  */
 function rememberReadAfter(response: Response) {
+  if (!response.ok) return;
   rememberCartEvent(response.headers.get(READ_AFTER_HEADER));
 }
 
