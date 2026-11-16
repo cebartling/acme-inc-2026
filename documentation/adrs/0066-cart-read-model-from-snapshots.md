@@ -91,6 +91,11 @@ Three things differ from the customer:
   `204`, as if they had no cart. A cart changed between the backfill reading its state and writing
   its row is overwritten with the older state until it changes again, so run it before traffic or
   when it is quiet.
+- **Redelivery can briefly serve older state.** The projector replaces the document without
+  comparing versions. After a connector or consumer restart that replays older snapshots, the
+  document goes back in time until the replay reaches the newest one, though the newer event id
+  stays in `appliedEventIds` and a waiting read returns at once. A version in the snapshot, with a
+  conditional upsert, would close the gap; it is not worth the change for a local demo.
 - **A snapshot that fails five times is skipped**, and the cart stays out of date until its next
   change, which writes a full snapshot.
 - **Snapshots of two carts are ordered only within a partition.** A merge writes the target's

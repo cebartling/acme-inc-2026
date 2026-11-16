@@ -15,10 +15,12 @@ import org.springframework.stereotype.Component
  * Keeps the MongoDB read model current by applying the snapshots Debezium publishes to
  * `cart.read-model` (PIN-551).
  *
- * Each message holds the cart's full state, so applying it replaces the document. That makes
- * redelivery harmless: Kafka redelivers from the last acknowledged offset in order, so the last
- * snapshot always wins. A snapshot with no cart means the cart was purged, and deletes it. A
- * message that fails is not acknowledged and is retried by the container.
+ * Each message holds the cart's full state, so applying it replaces the document. Redelivery
+ * is safe once it catches up: Kafka redelivers from the last acknowledged offset in order, so
+ * the last snapshot wins in the end. Until then an older snapshot can overwrite a newer one while
+ * the newer event id is still in `appliedEventIds`, so a read can briefly see older state.
+ * A snapshot with no cart means the cart was purged, and deletes it. A message that fails is not
+ * acknowledged and is retried by the container.
  */
 @Component
 class CartSnapshotProjector(
