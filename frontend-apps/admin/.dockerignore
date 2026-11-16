@@ -17,8 +17,9 @@ coverage/
 *.spec.*
 
 # Git
+# .gitignore stays in the context: Tailwind reads it to skip build output when
+# scanning for classes, which keeps the SSR and client CSS hashes in sync.
 .git/
-.gitignore
 
 # Documentation
 *.md
