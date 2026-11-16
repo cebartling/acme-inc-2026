@@ -72,8 +72,11 @@ Three things did not follow from the pattern:
   new list field there needs a default too.
 - **Existing customers have no document.** The connector uses `snapshot.mode: no_data`, so only
   customers written after it started are projected. Customers that predate it return 404 until
-  they change. A backfill that calls `writeSnapshot` for each customer is needed before this
-  reaches an environment with data.
+  they change. `CustomerReadModelBackfill` writes a snapshot for each of them. It runs at startup
+  when `customer.read-model.backfill-on-startup` is true, so each environment needs one deliberate
+  run when this arrives. A customer's own change that commits between the backfill reading their
+  state and writing its row is overwritten with the older state until they change again, so run it
+  before traffic or when it is quiet.
 - **A snapshot that fails five times is skipped**, and the customer stays out of date until their
   next change, which writes a full snapshot.
 - **`lastActivityAt` goes stale.** `/me` updates it in PostgreSQL without an event, so MongoDB
@@ -82,7 +85,7 @@ Three things did not follow from the pattern:
   written, before the commit. The read then answers 503 instead of the old value, which is safe.
 - **After a restart, reads that carry the header can answer 503 for a few seconds**, while the
   projector's consumer rejoins its group.
-- **Clients must send the header.** The acceptance tests' `ApiClient` does. The frontends don't
-  yet, and get eventual consistency until they do.
+- **Clients must send the header.** The customer app and the acceptance tests' `ApiClient` do. Any
+  other client gets eventual consistency.
 - The outbox columns `published_at`, `retry_count` and `last_error` are unused. Dropping them is a
   separate migration.

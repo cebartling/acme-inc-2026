@@ -176,8 +176,13 @@ flowchart LR
   publishes them once Kafka is back, and the read model catches up (about 4 s in the acceptance
   scenario).
 - **No initial snapshot**: the connector uses `snapshot.mode: no_data`, so a customer is in
-  MongoDB only after their first change since it started. A backfill is needed for customers that
-  predate it (`OutboxWriter.writeSnapshot`).
+  MongoDB only after their first change since it started. `CustomerReadModelBackfill` covers the
+  customers that predate it: start the service once with
+  `CUSTOMER_READ_MODEL_BACKFILL_ON_STARTUP=true` and it writes a snapshot row for each customer
+  (3,089 customers took about 14 s locally). It is off by default and safe to repeat. Run it
+  before traffic or when it is quiet: a customer's own change that commits in the instant between
+  the backfill reading their state and writing its row is overwritten with the older state, until
+  they change again.
 
 **Reading your own write.** A write response carries `X-Read-After: <event id>`. A read that sends
 it back waits for the projector to apply that event:
@@ -204,8 +209,9 @@ sequenceDiagram
 
 - **Not applied in time**: `503` with `Retry-After: 1`, never stale data or a false 404. A header
   that isn't a UUID is `400`. A read without the header is eventually consistent.
-- **Browsers** can read `X-Read-After` because CORS exposes it. The frontends don't send it back
-  yet.
+- **The customer app** reads `X-Read-After` (CORS exposes it) from a customer service write and
+  sends it on the next read (`customerRequest` in `frontend-apps/customer/src/services/api.ts`).
+  A 503 keeps it, so the retry waits too. The admin app doesn't call the customer service.
 - **Notification** passes the ID of the event it is handling on its customer lookup
   ([ADR-0024](adrs/0024-synchronous-customer-lookup-for-notifications.md)), because a
   `CustomerActivated` event and the snapshot behind it are published a moment apart.
