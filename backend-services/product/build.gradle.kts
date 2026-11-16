@@ -54,6 +54,8 @@ dependencies {
     implementation("org.springframework.kafka:spring-kafka")
 
     // Observability
+    // Exports the actuator metrics at /actuator/prometheus for Prometheus to scrape (PIN-537)
+    runtimeOnly("io.micrometer:micrometer-registry-prometheus")
     implementation("org.springframework.boot:spring-boot-starter-opentelemetry")
 
     // Testing - JUnit 6
