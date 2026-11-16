@@ -122,6 +122,9 @@ class MergeCartsUseCase(
         cartRepository.save(guest)
         val saved = cartRepository.save(target)
         writeEvents(Merged(saved, guest, result, isNewCart = userCart == null), correlationId)
+        // CartMerged is the target's event; the guest cart is now MERGED with no event of its own,
+        // and the snapshot written when it left checkout still shows it ACTIVE (PIN-551).
+        outboxWriter.writeSnapshot(guest.id)
         return MergeOutcome(saved, result).right()
     }
 

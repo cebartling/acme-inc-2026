@@ -16,6 +16,7 @@ import org.springframework.web.context.request.ServletRequestAttributes
 import java.util.UUID
 
 internal const val CART_EVENTS_TOPIC = "cart.events"
+private const val CART_AGGREGATE_TYPE = "Cart"
 
 /**
  * Writes a cart event to the transactional outbox (PIN-384, ADR-0022), for Debezium
@@ -49,25 +50,35 @@ class OutboxWriter(
                 payload = objectMapper.writeValueAsString(event)
             )
         )
-        writeSnapshot(event)
-        logger.debug("Wrote {} event {} to the outbox for topic {}", event.eventType, event.eventId, CART_EVENTS_TOPIC)
-    }
-
-    private fun writeSnapshot(event: DomainEvent) {
-        outboxRepository.save(
-            OutboxMessage(
-                aggregateId = event.aggregateId,
-                aggregateType = event.aggregateType,
-                eventType = CartSnapshotMessage.EVENT_TYPE,
-                eventId = UUID.randomUUID(),
-                topic = CartSnapshotMessage.TOPIC,
-                messageKey = event.aggregateId.toString(),
-                payload = objectMapper.writeValueAsString(snapshotFactory.build(event.aggregateId, event.eventId))
-            )
-        )
+        saveSnapshot(event.aggregateId, event.eventId)
         // The response isn't committed yet: this runs inside the use case. A later event in the
         // same request replaces the header, because its snapshot includes the earlier changes.
         val response = (RequestContextHolder.getRequestAttributes() as? ServletRequestAttributes)?.response
         response?.setHeader(ReadAfter.HEADER, event.eventId.toString())
+        logger.debug("Wrote {} event {} to the outbox for topic {}", event.eventType, event.eventId, CART_EVENTS_TOPIC)
+    }
+
+    /**
+     * Writes a snapshot of a cart that changed without an event of its own, such as a guest cart
+     * a merge moved into the user's. Call it after the change. It leaves [ReadAfter.HEADER]
+     * alone: no client waits for a snapshot with no event.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    fun writeSnapshot(cartId: UUID) {
+        saveSnapshot(cartId, sourceEventId = UUID.randomUUID())
+    }
+
+    private fun saveSnapshot(cartId: UUID, sourceEventId: UUID) {
+        outboxRepository.save(
+            OutboxMessage(
+                aggregateId = cartId,
+                aggregateType = CART_AGGREGATE_TYPE,
+                eventType = CartSnapshotMessage.EVENT_TYPE,
+                eventId = UUID.randomUUID(),
+                topic = CartSnapshotMessage.TOPIC,
+                messageKey = cartId.toString(),
+                payload = objectMapper.writeValueAsString(snapshotFactory.build(cartId, sourceEventId))
+            )
+        )
     }
 }

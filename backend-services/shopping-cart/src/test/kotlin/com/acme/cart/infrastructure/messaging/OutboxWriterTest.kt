@@ -134,6 +134,25 @@ class OutboxWriterTest {
     }
 
     @Test
+    fun `writeSnapshot writes only a snapshot row and leaves the read-after header alone`() {
+        val cartId = UUID.randomUUID()
+        every { outboxRepository.save(capture(saved)) } answers { firstArg() }
+        every { snapshotFactory.build(cartId, any()) } answers {
+            CartSnapshotMessage(secondArg(), cartId, userId = null, sessionId = "guest", cart = null)
+        }
+        val response = MockHttpServletResponse()
+        response.setHeader(ReadAfter.HEADER, "the-event-the-request-already-wrote")
+        RequestContextHolder.setRequestAttributes(ServletRequestAttributes(MockHttpServletRequest(), response))
+
+        writer.writeSnapshot(cartId)
+
+        assertEquals(1, saved.size)
+        assertEquals(CartSnapshotMessage.TOPIC, saved.single().topic)
+        assertEquals(cartId.toString(), saved.single().messageKey)
+        assertEquals("the-event-the-request-already-wrote", response.getHeader(ReadAfter.HEADER))
+    }
+
+    @Test
     fun `writes without a web request set no header and do not fail`() {
         val event = TestEvent(aggregateId = UUID.randomUUID(), correlationId = UUID.randomUUID())
         givenOutboxSavesAreCaptured(event)
