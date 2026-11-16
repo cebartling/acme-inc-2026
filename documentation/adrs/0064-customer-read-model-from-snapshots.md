@@ -87,5 +87,8 @@ Three things did not follow from the pattern:
   projector's consumer rejoins its group.
 - **Clients must send the header.** The customer app and the acceptance tests' `ApiClient` do. Any
   other client gets eventual consistency.
-- The outbox columns `published_at`, `retry_count` and `last_error` are unused. Dropping them is a
-  separate migration.
+- **The outbox columns the relay used are gone** (`published_at`, `retry_count`, `last_error`, and
+  their partial indexes), dropped in `V11__drop_outbox_relay_columns.sql`. Nothing marks a row as
+  sent: Debezium tracks its position in the WAL. An instance of the old code still running during a
+  rolling deploy would fail to insert outbox rows once V11 has run, so stop old instances first.
+  The outbox keeps every row until a purge job exists (PIN-395).

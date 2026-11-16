@@ -45,14 +45,5 @@ class OutboxMessage(
     val payload: String,
 
     @Column(name = "created_at", nullable = false)
-    val createdAt: Instant = Instant.now(),
-
-    @Column(name = "published_at")
-    var publishedAt: Instant? = null,
-
-    @Column(name = "retry_count", nullable = false)
-    var retryCount: Int = 0,
-
-    @Column(name = "last_error", columnDefinition = "TEXT")
-    var lastError: String? = null
+    val createdAt: Instant = Instant.now()
 )

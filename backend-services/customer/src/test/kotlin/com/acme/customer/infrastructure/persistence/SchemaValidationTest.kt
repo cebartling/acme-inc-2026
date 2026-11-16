@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase
+import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.testcontainers.junit.jupiter.Container
@@ -83,6 +84,29 @@ class SchemaValidationTest {
 
     @Autowired
     private lateinit var processedEvents: ProcessedEventRepository
+
+    @Autowired
+    private lateinit var jdbcTemplate: JdbcTemplate
+
+    /**
+     * Debezium reads the outbox from the WAL, so nothing tracks whether a row was sent. The columns
+     * the polling relay used (`published_at`, `retry_count`, `last_error`) were dropped in V11.
+     */
+    @Test
+    fun `the outbox table has only the columns Debezium's router and the writer use`() {
+        val columns = jdbcTemplate.queryForList(
+            "SELECT column_name FROM information_schema.columns WHERE table_name = 'outbox'",
+            String::class.java
+        )
+
+        assertEquals(
+            setOf(
+                "id", "aggregate_id", "aggregate_type", "event_type", "event_id",
+                "topic", "message_key", "payload", "created_at"
+            ),
+            columns.toSet()
+        )
+    }
 
     @Test
     fun `every entity validates against the Flyway-migrated schema`() {
