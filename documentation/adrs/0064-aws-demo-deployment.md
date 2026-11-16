@@ -49,8 +49,8 @@ awkward to recreate:
   repositories, the Route 53 hosted zone, ACM certificates, third-party secrets (SendGrid,
   Twilio), the Managed Grafana and Managed Prometheus workspaces, and an AWS Budgets alert.
 - **Demo environment (per demo):** the VPC with a NAT gateway, the ECS cluster and services, the
-  load balancer, RDS, DocumentDB, ElastiCache, MSK, MSK Connect, and per-deploy secrets
-  (database passwords, the test API key).
+  load balancer, RDS, DocumentDB, ElastiCache, MSK, MSK Connect (unless the open Debezium
+  hosting decision changes it), and per-deploy secrets (database passwords, the test API key).
 
 The demo stack must be fully destroyable: no deletion protection, and no final snapshots for
 RDS or DocumentDB.
@@ -124,7 +124,7 @@ every service receives it with no code change.
 
 The environment is created before each demo and destroyed afterwards, so it costs almost
 nothing between demos. Left running, it would cost roughly $350–500 a month with the smallest
-MSK brokers, plus roughly $80 a month for each MSK Connect connector.
+MSK brokers, plus roughly $80 a month for each MSK Connect connector, if MSK Connect is kept.
 
 **Rejected:**
 
