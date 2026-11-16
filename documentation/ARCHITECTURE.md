@@ -731,7 +731,7 @@ their orders back (PIN-367) and cancel a submitted one (PIN-429).
     real receiver in `docker/alertmanager/config/alertmanager.yml`. Alertmanager's host port
     is 9095 because 9093 is Kafka's controller port. Memory alerts split by runtime in the same file:
     `HighMemoryUsage` watches JVM heap (`jvm_memory_used_bytes`, live data above 512MB for 5
-    minutes, since the order service has no container limit to take a share of), and
+    minutes, since the backend services have no container limit to take a share of), and
     `HighProcessMemoryUsage` keeps the resident-memory rule for the jobs that emit no JVM
     metrics (Prometheus, Grafana, Loki, Tempo).
     `docker/prometheus/tests/alerts.test.yml` tests the rules with `promtool test rules`, and the
@@ -908,6 +908,8 @@ their orders back (PIN-367) and cancel a submitted one (PIN-429).
 - Expose business metrics alongside technical metrics
 - Support dimensional metrics with tags for flexible aggregation
 - Enable real-time dashboards for operational visibility
+- Every backend service serves `/actuator/prometheus` (`micrometer-registry-prometheus`), and
+  local Prometheus scrapes each one as a `<name>-service` job (PIN-493, PIN-537; ADR-0011)
 
 ### Logging
 
