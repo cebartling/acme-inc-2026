@@ -103,6 +103,14 @@ class SigningKeyProviderConfiguredKeyTest {
     }
 
     @Test
+    fun `a key under 2048 bits fails fast instead of failing every signing later`() {
+        val error = assertFailsWith<IllegalStateException> { providerWith(newPkcs8Pem(bits = 1024)) }
+
+        assertTrue(error.message!!.contains("JWT_SIGNING_KEY"), error.message)
+        assertTrue(error.cause!!.message!!.contains("at least 2048 bits"), error.cause!!.message)
+    }
+
+    @Test
     fun `a blank key keeps generating an in-memory key`() {
         val first = providerWith("").getCurrentKey()
         val second = providerWith("").getCurrentKey()
@@ -116,8 +124,8 @@ class SigningKeyProviderConfiguredKeyTest {
             JWTClaimsSet.Builder().subject("user-1").build()
         ).also { it.sign(RSASSASigner(key.privateKey)) }
 
-    private fun newPkcs8Pem(): String {
-        val generator = KeyPairGenerator.getInstance("RSA").apply { initialize(2048) }
+    private fun newPkcs8Pem(bits: Int = 2048): String {
+        val generator = KeyPairGenerator.getInstance("RSA").apply { initialize(bits) }
         val body = Base64.getMimeEncoder(64, "\n".toByteArray())
             .encodeToString(generator.generateKeyPair().private.encoded)
         return "-----BEGIN PRIVATE KEY-----\n$body\n-----END PRIVATE KEY-----\n"

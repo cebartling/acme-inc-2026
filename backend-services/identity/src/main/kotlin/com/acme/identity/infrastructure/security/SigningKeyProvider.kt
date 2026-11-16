@@ -80,6 +80,9 @@ class SigningKeyProvider(
          * token survives ~PREVIOUS_KEY_CAPACITY rotations.
          */
         const val PREVIOUS_KEY_CAPACITY = 3
+
+        /** Smallest RSA key Nimbus will sign with; a configured key below this is rejected at startup. */
+        private const val MIN_KEY_BITS = 2048
     }
 
     init {
@@ -220,6 +223,10 @@ class SigningKeyProvider(
             )
             val privateKey = KeyFactory.getInstance("RSA").generatePrivate(PKCS8EncodedKeySpec(der))
             check(privateKey is RSAPrivateCrtKey) { "not an RSA private key with CRT parameters" }
+            // Nimbus refuses to sign with a smaller key, which would otherwise surface as a 500 on every sign-in.
+            check(privateKey.modulus.bitLength() >= MIN_KEY_BITS) {
+                "RSA key must be at least $MIN_KEY_BITS bits, was ${privateKey.modulus.bitLength()}"
+            }
             val publicKey: PublicKey = KeyFactory.getInstance("RSA")
                 .generatePublic(RSAPublicKeySpec(privateKey.modulus, privateKey.publicExponent))
             return SigningKey(
