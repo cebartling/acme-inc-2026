@@ -19,8 +19,9 @@ data class CustomerSnapshot(
     val customer: CustomerResponse,
     /** When the preferences last changed; `GET /{id}/preferences` returns it. */
     val preferencesUpdatedAt: Instant,
-    val addresses: List<AddressResponse>,
-    val consents: List<ConsentRecordSnapshot>,
+    // Default to empty: Debezium's outbox router drops empty arrays, so they may be absent in Kafka.
+    val addresses: List<AddressResponse> = emptyList(),
+    val consents: List<ConsentRecordSnapshot> = emptyList(),
     val completeness: ProfileCompletenessResponse
 )
 
