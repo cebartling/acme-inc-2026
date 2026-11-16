@@ -33,8 +33,8 @@ spring:
       accept-float-as-int: false
   # The cart read model (PIN-551), in the database shared with the other services' read models
   mongodb:
-    host: ${MONGODB_HOST:localhost}
-    port: ${MONGODB_PORT:27017}
+    # On AWS the URI carries the DocumentDB credentials and tls=true (PIN-538, ADR-0064)
+    uri: ${MONGODB_URI:mongodb://localhost:27017}
     database: ${MONGODB_DB:acme_query}
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}

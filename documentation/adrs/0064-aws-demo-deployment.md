@@ -90,10 +90,25 @@ and DocumentDB can be destroyed along with the demo.
 ### 4. MongoDB: Amazon DocumentDB
 
 MongoDB read models move to DocumentDB 8.0, inside the VPC and from the same vendor as the rest
-of the environment. Today only customer has a read model, and it only saves and removes
-documents, so the compatibility risk is low. PIN-534 adds read models and queries to four more
-services ([ADR-0006](0006-mongodb-query-store.md)), and each needs the same connection change
-(PIN-538) and a DocumentDB compatibility check.
+of the environment. Customer (PIN-547) and shopping-cart (PIN-551) have read models today, and
+DocumentDB 8.0 supports every operation they use (checked for PIN-538 against
+[Supported MongoDB APIs](https://docs.aws.amazon.com/documentdb/latest/developerguide/mongo-apis.html)):
+`$set`, `$push` with `$each` and `$slice`, `$and`, `$in`, upsert, find, delete, and single-field,
+multikey and unique indexes. PIN-534 adds read models to identity, notification and product
+([ADR-0006](0006-mongodb-query-store.md)), and each needs the same check.
+
+The services take their connection from `MONGODB_URI` and keep TLS on (PIN-538). Each image
+carries Amazon's RDS CA bundle at `/app/certs/rds-global-bundle.pem`, and the ECS tasks set:
+
+- `MONGODB_URI=mongodb://<user>:<password>@<cluster endpoint>:27017/?tls=true&replicaSet=rs0`
+- `SPRING_SSL_BUNDLE_PEM_DOCDB_TRUSTSTORE_CERTIFICATE=file:/app/certs/rds-global-bundle.pem`
+- `SPRING_MONGODB_SSL_BUNDLE=docdb`
+
+Reads stay on the primary (the default read preference): an `X-Read-After` wait checks that a
+write has landed and then reads it, and two secondaries can lag by different amounts.
+`retryWrites=false` isn't needed, since DocumentDB supports retryable writes from 8.0.2.
+DocumentDB builds one index per collection at a time, so if two tasks of a service start
+together against an empty database, one task's startup index creation can fail.
 
 **Rejected:**
 
@@ -219,9 +234,9 @@ These are still open, on PIN-533 unless noted. This ADR doesn't decide them.
   - **Metrics** (PIN-537). Only order has the Prometheus registry
     ([ADR-0011](0011-prometheus-metrics.md)). The other five services need it, and product and
     shopping-cart don't expose the Prometheus endpoint.
-  - **DocumentDB connection** (PIN-538). The customer service connects to MongoDB with only a
-    host, port and database name. DocumentDB needs credentials, TLS and the AWS certificate
-    bundle in the image.
+  - **DocumentDB connection** (PIN-538). Customer and shopping-cart connected to MongoDB with
+    only a host, port and database name. DocumentDB needs credentials, TLS and the AWS
+    certificate bundle in the image; see decision 4 for the variables the tasks set.
   - **Admin frontend** (PIN-539). It needs a container image and a health route.
 - Some configuration breaks the demo if it's missed, with no code change to catch it:
   - The customer frontend's backend URLs are baked in at build time and must point at the API
