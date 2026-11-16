@@ -214,8 +214,9 @@ These are still open, on PIN-533 unless noted. This ADR doesn't decide them.
     ([ADR-0035](0035-jwt-token-implementation.md)), so a second identity task can't verify the
     first task's tokens, and every restart signs everyone out. The keys come from Secrets
     Manager instead. Local Docker Compose development must keep working.
-  - **Metrics** (PIN-537). No service has the Prometheus registry, and product and
-    shopping-cart don't expose the metrics endpoint.
+  - **Metrics** (PIN-537). Only order has the Prometheus registry
+    ([ADR-0011](0011-prometheus-metrics.md)). The other five services need it, and product and
+    shopping-cart don't expose the Prometheus endpoint.
   - **DocumentDB connection** (PIN-538). The customer service connects to MongoDB with only a
     host, port and database name. DocumentDB needs credentials, TLS and the AWS certificate
     bundle in the image.
