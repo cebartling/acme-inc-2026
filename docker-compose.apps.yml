@@ -166,8 +166,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
 
       # MongoDB configuration
-      MONGODB_HOST: mongodb
-      MONGODB_PORT: 27017
+      MONGODB_URI: mongodb://mongodb:27017
       MONGODB_DB: acme_query
 
       # Kafka configuration
@@ -408,8 +407,7 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
 
       # The cart read model (PIN-551)
-      MONGODB_HOST: mongodb
-      MONGODB_PORT: 27017
+      MONGODB_URI: mongodb://mongodb:27017
       MONGODB_DB: acme_query
       # Set to true for one start to give carts that predate the read model a MongoDB document
       ACME_CART_READ_MODEL_BACKFILL_ON_STARTUP: ${ACME_CART_READ_MODEL_BACKFILL_ON_STARTUP:-false}
