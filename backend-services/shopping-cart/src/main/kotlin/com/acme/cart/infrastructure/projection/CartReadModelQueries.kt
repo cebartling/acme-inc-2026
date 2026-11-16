@@ -60,10 +60,18 @@ class CartReadModelQueries(
             is CartOwner.Guest -> Criteria.where(CartReadModelDocument.SESSION_ID).`is`(owner.sessionId)
         }
         val current = Criteria.where(CartReadModelDocument.STATUS).`in`(CartStatus.CURRENT.map { it.name })
-        return mongoTemplate
-            .findOne(Query(Criteria().andOperator(ownerCriteria, current)), Document::class.java, CartReadModelDocument.COLLECTION)
+        // An owner can briefly have two current documents: a converted cart whose snapshot has not
+        // landed yet, and the new cart. The one that applied the awaited event is the right one.
+        val appliedTheAwaitedEvent = readAfter?.let {
+            findOne(ownerCriteria, current, Criteria.where(CartReadModelDocument.APPLIED_EVENT_IDS).`is`(it.toString()))
+        }
+        return (appliedTheAwaitedEvent ?: findOne(ownerCriteria, current))
             ?.getString(CartReadModelDocument.CART_JSON)
     }
+
+    private fun findOne(vararg criteria: Criteria): Document? = mongoTemplate.findOne(
+        Query(Criteria().andOperator(*criteria)), Document::class.java, CartReadModelDocument.COLLECTION
+    )
 
     /**
      * Waits for any cart document to carry [eventId]. The change may have ended the owner's cart

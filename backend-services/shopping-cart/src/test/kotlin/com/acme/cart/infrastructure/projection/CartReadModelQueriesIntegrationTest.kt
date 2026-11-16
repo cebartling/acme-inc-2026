@@ -127,6 +127,17 @@ class CartReadModelQueriesIntegrationTest {
     }
 
     @Test
+    fun `with two current carts, a read gives the one that applied the change it waited for`() {
+        val userId = UUID.randomUUID()
+        // The converted cart's snapshot has not landed, so it still looks current
+        project(userId = userId, status = CartStatus.CHECKOUT)
+        val newCartEvent = UUID.randomUUID()
+        val newCart = project(userId = userId, sourceEventId = newCartEvent)
+
+        assertEquals(newCart, idOf(queries.findCurrent(CartOwner.Customer(userId), readAfter = newCartEvent)))
+    }
+
+    @Test
     fun `a read for a change that never arrives is behind, not stale`() {
         project(sessionId = "guest-1")
         val missing = UUID.randomUUID()

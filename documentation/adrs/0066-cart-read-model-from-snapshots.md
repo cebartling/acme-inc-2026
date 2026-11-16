@@ -96,7 +96,9 @@ Three things differ from the customer:
 - **Snapshots of two carts are ordered only within a partition.** A merge writes the target's
   snapshot and the guest cart's, with different keys. Locally the topic has one partition, so they
   apply in commit order. With more, the old guest session could read the merged cart for a moment
-  after the signed-in customer sees the merge.
+  after the signed-in customer sees the merge. The same goes for a conversion followed by a new
+  cart: both documents can look current for a moment. A read that waited for an event prefers the
+  current document that applied it; one that sent nothing may get either.
 - **A client that is not the customer app** gets an eventually consistent read unless it sends the
   header. The acceptance tests' `ApiClient` does for any service.
 - **The order service now depends on the cart's header.** If the cart stopped sending it,
