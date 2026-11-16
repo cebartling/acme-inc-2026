@@ -89,9 +89,11 @@ and DocumentDB can be destroyed along with the demo.
 
 ### 4. MongoDB: Amazon DocumentDB
 
-The customer read model moves to DocumentDB 8.0, inside the VPC and from the same vendor as the
-rest of the environment. The compatibility risk is low, because the read model only saves and
-removes documents.
+MongoDB read models move to DocumentDB 8.0, inside the VPC and from the same vendor as the rest
+of the environment. Today only customer has a read model, and it only saves and removes
+documents, so the compatibility risk is low. PIN-534 adds read models and queries to four more
+services ([ADR-0006](0006-mongodb-query-store.md)), and each needs the same connection change
+(PIN-538) and a DocumentDB compatibility check.
 
 **Rejected:**
 
@@ -250,6 +252,7 @@ These are still open, on PIN-533 unless noted. This ADR doesn't decide them.
   this ADR.
 - [ADR-0004](0004-change-data-capture.md) and [ADR-0008](0008-debezium-cdc-connector.md): change
   data capture and Debezium.
+- [ADR-0006](0006-mongodb-query-store.md): MongoDB as query store.
 - [ADR-0009](0009-hashicorp-vault-secrets.md): HashiCorp Vault for secrets management.
 - [ADR-0011](0011-prometheus-metrics.md), [ADR-0012](0012-grafana-dashboards.md),
   [ADR-0013](0013-loki-log-aggregation.md), [ADR-0014](0014-tempo-distributed-tracing.md): the
