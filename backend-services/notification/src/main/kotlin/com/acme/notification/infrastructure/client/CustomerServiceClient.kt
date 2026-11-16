@@ -111,10 +111,15 @@ class CustomerServiceClient(
     /**
      * Fetches customer details by customer ID.
      *
+     * The customer service serves customers from a read model fed by Kafka. A caller that acts on a
+     * customer event passes its id as [readAfter], so the lookup waits until the read model has applied
+     * that event, instead of answering 404 for a customer it has not caught up on yet.
+     *
      * @param customerId The customer's unique identifier.
+     * @param readAfter The id of the customer event being handled, if any.
      * @return The customer query result.
      */
-    fun getCustomerById(customerId: UUID): CustomerQueryResult {
+    fun getCustomerById(customerId: UUID, readAfter: UUID? = null): CustomerQueryResult {
         return requestTimer.record<CustomerQueryResult> {
             try {
                 logger.debug("Fetching customer details for ID: {}", customerId)
@@ -127,6 +132,7 @@ class CustomerServiceClient(
                     try {
                         val response = client.get()
                             .uri("/api/v1/customers/{id}", customerId.toString())
+                            .headers { headers -> readAfter?.let { headers.set("X-Read-After", it.toString()) } }
                             .retrieve()
                             .toEntity(CustomerDto::class.java)
 

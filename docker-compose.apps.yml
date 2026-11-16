@@ -170,11 +170,6 @@ services:
       MONGODB_PORT: 27017
       MONGODB_DB: acme_query
 
-      # Redis configuration
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
-
       # Kafka configuration
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       SCHEMA_REGISTRY_URL: http://schema-registry:8081
@@ -184,6 +179,9 @@ services:
 
       # Only a service that sends this secret may look a customer up
       ACME_CUSTOMER_SERVICE_TOKEN: ${ACME_CUSTOMER_SERVICE_TOKEN:-local-dev-customer-service-token}
+
+      # Set to true for one start to give customers that predate the read model a MongoDB document
+      CUSTOMER_READ_MODEL_BACKFILL_ON_STARTUP: ${CUSTOMER_READ_MODEL_BACKFILL_ON_STARTUP:-false}
 
       # Observability
       OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318

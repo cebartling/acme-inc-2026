@@ -1,5 +1,6 @@
 package com.acme.customer.config
 
+import com.acme.customer.infrastructure.projection.ReadAfter
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Configuration
 import org.springframework.web.servlet.config.annotation.CorsRegistry
@@ -31,6 +32,7 @@ class CorsConfig(
             )
             .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
             .allowedHeaders("*")
+            .exposedHeaders(ReadAfter.HEADER)
             .allowCredentials(true)
             .maxAge(3600)
     }

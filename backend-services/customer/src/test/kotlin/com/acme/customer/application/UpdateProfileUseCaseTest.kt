@@ -5,10 +5,8 @@ import com.acme.customer.api.v1.dto.UpdateProfileRequest
 import com.acme.customer.domain.Customer
 import com.acme.customer.domain.CustomerPreferences
 import com.acme.customer.infrastructure.messaging.OutboxWriter
-import com.acme.customer.infrastructure.persistence.CustomerPreferencesRepository
 import com.acme.customer.infrastructure.persistence.CustomerRepository
 import com.acme.customer.infrastructure.persistence.EventStoreRepository
-import com.acme.customer.infrastructure.projection.CustomerReadModelProjector
 import com.acme.customer.infrastructure.validation.PhoneNumberValidator
 import com.acme.customer.infrastructure.validation.PhoneValidationResult
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
@@ -26,38 +24,28 @@ import kotlin.test.assertTrue
 class UpdateProfileUseCaseTest {
 
     private lateinit var customerRepository: CustomerRepository
-    private lateinit var customerPreferencesRepository: CustomerPreferencesRepository
     private lateinit var eventStoreRepository: EventStoreRepository
-    private lateinit var customerReadModelProjector: CustomerReadModelProjector
     private lateinit var outboxWriter: OutboxWriter
     private lateinit var phoneNumberValidator: PhoneNumberValidator
     private lateinit var profileCompletionService: ProfileCompletionService
-    private lateinit var customerCacheService: com.acme.customer.infrastructure.cache.CustomerCacheService
     private lateinit var useCase: UpdateProfileUseCase
 
     @BeforeEach
     fun setUp() {
         customerRepository = mockk()
-        customerPreferencesRepository = mockk()
         eventStoreRepository = mockk()
-        customerReadModelProjector = mockk()
         outboxWriter = mockk()
         phoneNumberValidator = mockk()
         profileCompletionService = mockk()
-        customerCacheService = mockk()
 
         every { profileCompletionService.checkAndUpdateCompletion(any(), any(), any(), any()) } returns null
-        every { customerCacheService.invalidate(any()) } just Runs
 
         useCase = UpdateProfileUseCase(
             customerRepository = customerRepository,
-            customerPreferencesRepository = customerPreferencesRepository,
             eventStoreRepository = eventStoreRepository,
-            customerReadModelProjector = customerReadModelProjector,
             outboxWriter = outboxWriter,
             phoneNumberValidator = phoneNumberValidator,
             profileCompletionService = profileCompletionService,
-            customerCacheService = customerCacheService,
             meterRegistry = SimpleMeterRegistry()
         )
     }
@@ -83,8 +71,6 @@ class UpdateProfileUseCaseTest {
         )
         every { eventStoreRepository.append(any()) } just Runs
         every { customerRepository.save(any()) } answers { firstArg() }
-        every { customerPreferencesRepository.findById(customerId) } returns Optional.of(preferences)
-        every { customerReadModelProjector.projectCustomer(any(), any()) } returns CompletableFuture.completedFuture(null)
         every { outboxWriter.write(any(), any()) } just Runs
 
         // When
@@ -117,8 +103,6 @@ class UpdateProfileUseCaseTest {
         every { customerRepository.findById(customerId) } returns Optional.of(customer)
         every { eventStoreRepository.append(any()) } just Runs
         every { customerRepository.save(any()) } answers { firstArg() }
-        every { customerPreferencesRepository.findById(customerId) } returns Optional.of(preferences)
-        every { customerReadModelProjector.projectCustomer(any(), any()) } returns CompletableFuture.completedFuture(null)
         every { outboxWriter.write(any(), any()) } just Runs
 
         // When
@@ -149,8 +133,6 @@ class UpdateProfileUseCaseTest {
         every { customerRepository.findById(customerId) } returns Optional.of(customer)
         every { eventStoreRepository.append(any()) } just Runs
         every { customerRepository.save(any()) } answers { firstArg() }
-        every { customerPreferencesRepository.findById(customerId) } returns Optional.of(preferences)
-        every { customerReadModelProjector.projectCustomer(any(), any()) } returns CompletableFuture.completedFuture(null)
         every { outboxWriter.write(any(), any()) } just Runs
 
         // When
@@ -359,8 +341,6 @@ class UpdateProfileUseCaseTest {
         )
         every { eventStoreRepository.append(any()) } just Runs
         every { customerRepository.save(any()) } answers { firstArg() }
-        every { customerPreferencesRepository.findById(customerId) } returns Optional.of(preferences)
-        every { customerReadModelProjector.projectCustomer(any(), any()) } returns CompletableFuture.completedFuture(null)
         every { outboxWriter.write(any(), any()) } just Runs
 
         // When

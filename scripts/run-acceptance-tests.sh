@@ -273,10 +273,15 @@ run_tests() {
     # Note: @rate-limiting tests require RATE_LIMITING_ENABLED=true on Identity Service
     # They are excluded by default since acceptance tests typically run with rate limiting disabled
     # Note: @wip tests require additional infrastructure (database access) and are excluded by default
+    # Note: @kafka-outage tests stop the shared Kafka container, so they run only when asked for
+    local excluded="not @rate-limiting and not @wip"
+    if [[ "$TAGS" != *@kafka-outage* ]]; then
+        excluded+=" and not @kafka-outage"
+    fi
     if [[ -n "$TAGS" ]]; then
-        cmd_array+=("--tags" "$TAGS and not @rate-limiting and not @wip")
+        cmd_array+=("--tags" "$TAGS and $excluded")
     else
-        cmd_array+=("--tags" "not @rate-limiting and not @wip")
+        cmd_array+=("--tags" "$excluded")
     fi
 
     # Add extra arguments

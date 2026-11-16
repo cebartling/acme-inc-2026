@@ -96,6 +96,7 @@ function refreshingAlone<T>(refresh: () => Promise<T>): Promise<T> {
 export function __resetRefreshStateForTests(): void {
   isRefreshing = false;
   refreshWaiters = [];
+  readAfter = null;
 }
 
 interface RefreshAwareRequestInit extends RequestInit {
@@ -116,6 +117,8 @@ interface RefreshAwareRequestInit extends RequestInit {
    * waiting on the browser's default.
    */
   timeoutMs?: number;
+  /** Called with every response as soon as it arrives, before its body is read. */
+  onResponse?: (response: Response) => void;
 }
 
 /**
@@ -283,6 +286,7 @@ async function apiRequest<T>(
     __skipRefresh,
     refreshOnSignInRequired,
     timeoutMs,
+    onResponse,
     ...fetchOptions
   } = options;
   const headers: HeadersInit = {
@@ -295,6 +299,8 @@ async function apiRequest<T>(
     { ...fetchOptions, headers },
     timeoutMs,
   );
+
+  onResponse?.(response);
 
   const contentType = response.headers.get("content-type");
   const isJson = contentType?.includes("application/json");
@@ -390,6 +396,43 @@ async function apiRequest<T>(
 }
 
 /**
+ * The customer service answers reads from a read model that trails its writes by a moment. A
+ * write returns the id of its change in `X-Read-After`. The next read sends it back and the
+ * service waits for that change, so the customer sees what they just did (ADR-0065).
+ */
+const READ_AFTER_HEADER = "X-Read-After";
+
+/** The id the last customer service write returned, until a read has used it. */
+let readAfter: string | null = null;
+
+async function customerRequest<T>(
+  path: string,
+  options: RefreshAwareRequestInit,
+): Promise<T> {
+  const isRead = options.method === "GET";
+  const waitFor = isRead ? readAfter : null;
+  try {
+    const result = await apiRequest<T>(`${CUSTOMER_SERVICE_URL}${path}`, {
+      ...options,
+      headers: waitFor
+        ? { ...options.headers, [READ_AFTER_HEADER]: waitFor }
+        : options.headers,
+      onResponse: (response) => {
+        const written = response.headers.get(READ_AFTER_HEADER);
+        if (!isRead && written) readAfter = written;
+      },
+    });
+    if (waitFor && readAfter === waitFor) readAfter = null;
+    return result;
+  } catch (error) {
+    // 503 means the read model hasn't caught up yet, so the retry must still wait for the change
+    const behind = error instanceof ApiError && error.status === 503;
+    if (waitFor && !behind && readAfter === waitFor) readAfter = null;
+    throw error;
+  }
+}
+
+/**
  * Customer Service API client.
  */
 export const customerApi = {
@@ -397,8 +440,8 @@ export const customerApi = {
    * Gets a customer's preferences.
    */
   async getPreferences(customerId: string): Promise<PreferencesResponse> {
-    return apiRequest<PreferencesResponse>(
-      `${CUSTOMER_SERVICE_URL}/api/v1/customers/${customerId}/preferences`,
+    return customerRequest<PreferencesResponse>(
+      `/api/v1/customers/${customerId}/preferences`,
       {
         method: "GET",
         credentials: "include",
@@ -413,8 +456,8 @@ export const customerApi = {
     customerId: string,
     preferences: UpdatePreferencesRequest,
   ): Promise<PreferencesResponse> {
-    return apiRequest<PreferencesResponse>(
-      `${CUSTOMER_SERVICE_URL}/api/v1/customers/${customerId}/preferences`,
+    return customerRequest<PreferencesResponse>(
+      `/api/v1/customers/${customerId}/preferences`,
       {
         method: "PUT",
         credentials: "include",
@@ -429,8 +472,8 @@ export const customerApi = {
   async getProfileCompleteness(
     customerId: string,
   ): Promise<ProfileCompletenessResponse> {
-    return apiRequest<ProfileCompletenessResponse>(
-      `${CUSTOMER_SERVICE_URL}/api/v1/customers/${customerId}/profile/completeness`,
+    return customerRequest<ProfileCompletenessResponse>(
+      `/api/v1/customers/${customerId}/profile/completeness`,
       {
         method: "GET",
         credentials: "include",
@@ -442,19 +485,16 @@ export const customerApi = {
    * Gets the current authenticated customer's profile.
    *
    * This is called after signin to load the customer profile into the frontend.
-   * The backend caches this in Redis with a 5-minute TTL for performance.
+   * The backend serves it from its MongoDB read model.
    *
    * @returns The customer profile with all fields.
    * @throws ApiError on failure (401 if not authenticated, 404 if customer not found).
    */
   async getCurrentCustomer(): Promise<CustomerProfile> {
-    return apiRequest<CustomerProfile>(
-      `${CUSTOMER_SERVICE_URL}/api/v1/customers/me`,
-      {
-        method: "GET",
-        credentials: "include", // Include cookies for authentication
-      },
-    );
+    return customerRequest<CustomerProfile>(`/api/v1/customers/me`, {
+      method: "GET",
+      credentials: "include", // Include cookies for authentication
+    });
   },
 };
 

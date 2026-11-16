@@ -8,7 +8,7 @@ import com.acme.customer.domain.CustomerStatus
 import com.acme.customer.domain.CustomerType
 import com.acme.customer.domain.events.ConsentGranted
 import com.acme.customer.domain.events.ConsentRevoked
-import com.acme.customer.infrastructure.messaging.CustomerEventPublisher
+import com.acme.customer.infrastructure.messaging.OutboxWriter
 import com.acme.customer.infrastructure.persistence.ConsentRecordRepository
 import com.acme.customer.infrastructure.persistence.CustomerRepository
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
@@ -26,7 +26,7 @@ class GrantConsentUseCaseTest {
 
     private lateinit var customerRepository: CustomerRepository
     private lateinit var consentRecordRepository: ConsentRecordRepository
-    private lateinit var eventPublisher: CustomerEventPublisher
+    private lateinit var outboxWriter: OutboxWriter
     private lateinit var profileCompletionService: ProfileCompletionService
     private lateinit var useCase: GrantConsentUseCase
 
@@ -39,7 +39,7 @@ class GrantConsentUseCaseTest {
     fun setUp() {
         customerRepository = mockk()
         consentRecordRepository = mockk()
-        eventPublisher = mockk()
+        outboxWriter = mockk()
         profileCompletionService = mockk()
 
         every { profileCompletionService.checkAndUpdateCompletion(any(), any(), any(), any()) } returns null
@@ -47,7 +47,7 @@ class GrantConsentUseCaseTest {
         useCase = GrantConsentUseCase(
             customerRepository = customerRepository,
             consentRecordRepository = consentRecordRepository,
-            eventPublisher = eventPublisher,
+            outboxWriter = outboxWriter,
             profileCompletionService = profileCompletionService,
             meterRegistry = SimpleMeterRegistry()
         )
@@ -206,7 +206,7 @@ class GrantConsentUseCaseTest {
         every { customerRepository.findById(customerId) } returns Optional.of(createCustomer())
         every { consentRecordRepository.findLatestByCustomerIdAndConsentType(customerId, ConsentType.MARKETING) } returns null
         every { consentRecordRepository.save(any()) } answers { firstArg() }
-        every { eventPublisher.publish(any<ConsentGranted>()) } just Runs
+        every { outboxWriter.write(any<ConsentGranted>(), "customer.events") } just Runs
 
         // When
         val result = useCase.execute(
@@ -228,7 +228,7 @@ class GrantConsentUseCaseTest {
         assertNotNull(success.consentRecord.expiresAt)
 
         verify { consentRecordRepository.save(any()) }
-        verify { eventPublisher.publish(any<ConsentGranted>()) }
+        verify { outboxWriter.write(any<ConsentGranted>(), "customer.events") }
     }
 
     @Test
@@ -247,7 +247,7 @@ class GrantConsentUseCaseTest {
         every { customerRepository.findById(customerId) } returns Optional.of(createCustomer())
         every { consentRecordRepository.findLatestByCustomerIdAndConsentType(customerId, ConsentType.MARKETING) } returns existingRecord
         every { consentRecordRepository.save(any()) } answers { firstArg() }
-        every { eventPublisher.publish(any<ConsentRevoked>()) } just Runs
+        every { outboxWriter.write(any<ConsentRevoked>(), "customer.events") } just Runs
 
         // When
         val result = useCase.execute(
@@ -268,7 +268,7 @@ class GrantConsentUseCaseTest {
         assertEquals(2, success.consentRecord.version)
 
         verify { consentRecordRepository.save(any()) }
-        verify { eventPublisher.publish(any<ConsentRevoked>()) }
+        verify { outboxWriter.write(any<ConsentRevoked>(), "customer.events") }
     }
 
     @Test
@@ -288,7 +288,7 @@ class GrantConsentUseCaseTest {
         every { customerRepository.findById(customerId) } returns Optional.of(createCustomer())
         every { consentRecordRepository.findLatestByCustomerIdAndConsentType(customerId, ConsentType.ANALYTICS) } returns existingRecord
         every { consentRecordRepository.save(capture(savedRecord)) } answers { firstArg() }
-        every { eventPublisher.publish(any<ConsentGranted>()) } just Runs
+        every { outboxWriter.write(any<ConsentGranted>(), "customer.events") } just Runs
 
         // When
         val result = useCase.execute(
@@ -314,7 +314,7 @@ class GrantConsentUseCaseTest {
         every { customerRepository.findById(customerId) } returns Optional.of(createCustomer())
         every { consentRecordRepository.findLatestByCustomerIdAndConsentType(customerId, ConsentType.PERSONALIZATION) } returns null
         every { consentRecordRepository.save(capture(savedRecord)) } answers { firstArg() }
-        every { eventPublisher.publish(any<ConsentGranted>()) } just Runs
+        every { outboxWriter.write(any<ConsentGranted>(), "customer.events") } just Runs
 
         // When
         val result = useCase.execute(

@@ -1,12 +1,9 @@
 package com.acme.customer.application
 
-import com.acme.customer.domain.ConsentRecord
 import com.acme.customer.domain.ConsentType
-import com.acme.customer.infrastructure.persistence.ConsentRecordRepository
-import com.acme.customer.infrastructure.persistence.CustomerRepository
+import com.acme.customer.infrastructure.projection.CustomerReadModelQueries
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
-import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 import java.util.UUID
 
@@ -74,8 +71,7 @@ sealed class GetConsentsResult {
  */
 @Service
 class GetConsentsUseCase(
-    private val customerRepository: CustomerRepository,
-    private val consentRecordRepository: ConsentRecordRepository
+    private val readModel: CustomerReadModelQueries
 ) {
     private val logger = LoggerFactory.getLogger(GetConsentsUseCase::class.java)
 
@@ -84,24 +80,26 @@ class GetConsentsUseCase(
      *
      * @param customerId The customer ID.
      * @param userId The user ID (for authorization).
+     * @param readAfter The `X-Read-After` a write returned, to wait until that write is visible.
      * @return The result containing current consent statuses.
+     * @throws com.acme.customer.infrastructure.projection.ReadModelBehindException if the read model has not caught up.
      */
-    @Transactional(readOnly = true)
     fun execute(
         customerId: UUID,
-        userId: UUID
+        userId: UUID,
+        readAfter: UUID? = null
     ): GetConsentsResult {
         logger.debug("Getting consents for customer: {}", customerId)
 
-        // Find customer
-        val customer = customerRepository.findById(customerId).orElse(null)
+        // Find customer. A read model that is behind must surface as an error, not as a failure result.
+        val snapshot = readModel.findById(customerId, readAfter)
             ?: run {
                 logger.debug("Customer not found: {}", customerId)
                 return GetConsentsResult.CustomerNotFound(customerId)
             }
 
         // Authorization check
-        if (customer.userId != userId) {
+        if (snapshot.customer.userId != userId.toString()) {
             logger.warn(
                 "User {} not authorized to view consents for customer {}",
                 userId,
@@ -111,12 +109,14 @@ class GetConsentsUseCase(
         }
 
         return try {
-            // Get current consent records
-            val currentRecords = consentRecordRepository.findCurrentConsentsByCustomerId(customerId)
+            // The current record for a type is its latest one
+            val currentRecords = snapshot.consents
+                .groupBy { it.consentType }
+                .mapValues { (_, records) -> records.maxBy { it.createdAt } }
 
             // Build consent status list, including all consent types
             val consentStatuses = ConsentType.entries.map { consentType ->
-                val record = currentRecords.find { it.consentType == consentType }
+                val record = currentRecords[consentType.name]
 
                 if (record != null) {
                     CurrentConsentStatus(
@@ -124,7 +124,7 @@ class GetConsentsUseCase(
                         currentStatus = record.granted,
                         grantedAt = if (record.granted) record.createdAt else null,
                         expiresAt = record.expiresAt,
-                        source = record.source.name,
+                        source = record.source,
                         required = consentType.required,
                         version = record.version
                     )

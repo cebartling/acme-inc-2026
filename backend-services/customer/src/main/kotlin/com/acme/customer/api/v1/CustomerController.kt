@@ -5,12 +5,11 @@ import com.acme.customer.api.v1.dto.ProfileCompletenessResponse
 import com.acme.customer.api.v1.dto.ProfileResponse
 import com.acme.customer.api.v1.dto.UpdateProfileRequest
 import com.acme.customer.api.v1.dto.UpdateProfileResponse
-import com.acme.customer.application.GetCustomerProfileResult
-import com.acme.customer.application.ProfileCompletenessCalculator
 import com.acme.customer.application.UpdateProfileResult
 import com.acme.customer.application.UpdateProfileUseCase
-import com.acme.customer.infrastructure.persistence.CustomerPreferencesRepository
-import com.acme.customer.infrastructure.persistence.CustomerRepository
+import com.acme.customer.infrastructure.projection.CustomerReadModelQueries
+import com.acme.customer.infrastructure.projection.ReadAfter
+import com.acme.customer.infrastructure.tracking.CustomerActivityTracker
 import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
@@ -33,22 +32,25 @@ import java.util.UUID
 @RestController
 @RequestMapping("/api/v1/customers")
 class CustomerController(
-    private val customerRepository: CustomerRepository,
-    private val customerPreferencesRepository: CustomerPreferencesRepository,
+    private val readModel: CustomerReadModelQueries,
     private val updateProfileUseCase: UpdateProfileUseCase,
-    private val profileCompletenessCalculator: ProfileCompletenessCalculator,
-    private val getCustomerProfileUseCase: com.acme.customer.application.GetCustomerProfileUseCase
+    private val activityTracker: CustomerActivityTracker
 ) {
     private val logger = LoggerFactory.getLogger(CustomerController::class.java)
 
     /**
-     * Gets a customer profile by customer ID.
+     * Gets a customer by ID from the read model.
+     *
+     * Send `X-Read-After` with the value a write returned to wait until that write is visible.
      *
      * @param id The customer ID (UUID).
-     * @return The customer profile or 404 if not found.
+     * @return The customer, 404 if not found, or 503 if the read model has not caught up.
      */
     @GetMapping("/{id:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}}")
-    fun getCustomer(@PathVariable id: String): ResponseEntity<CustomerResponse> {
+    fun getCustomer(
+        @PathVariable id: String,
+        @RequestHeader(ReadAfter.HEADER, required = false) readAfter: UUID? = null
+    ): ResponseEntity<CustomerResponse> {
         logger.debug("Getting customer by ID: {}", id)
 
         val customerId = try {
@@ -58,29 +60,26 @@ class CustomerController(
             return ResponseEntity.badRequest().build()
         }
 
-        val customer = customerRepository.findById(customerId).orElse(null)
+        val snapshot = readModel.findById(customerId, readAfter)
             ?: run {
                 logger.debug("Customer not found: {}", id)
                 return ResponseEntity.notFound().build()
             }
 
-        val preferences = customerPreferencesRepository.findById(customerId).orElse(null)
-            ?: run {
-                logger.error("Preferences not found for customer: {}", id)
-                return ResponseEntity.internalServerError().build()
-            }
-
-        return ResponseEntity.ok(CustomerResponse.fromDomain(customer, preferences))
+        return ResponseEntity.ok(snapshot.customer)
     }
 
     /**
-     * Gets a customer profile by user ID.
+     * Gets a customer by the identity user ID, from the read model.
      *
-     * @param userId The user ID from Identity Service (UUID).
-     * @return The customer profile or 404 if not found.
+     * @param userId The identity user ID (UUID).
+     * @return The customer, 404 if not found, or 503 if the read model has not caught up.
      */
     @GetMapping("/by-user/{userId}")
-    fun getCustomerByUserId(@PathVariable userId: String): ResponseEntity<CustomerResponse> {
+    fun getCustomerByUserId(
+        @PathVariable userId: String,
+        @RequestHeader(ReadAfter.HEADER, required = false) readAfter: UUID? = null
+    ): ResponseEntity<CustomerResponse> {
         logger.debug("Getting customer by user ID: {}", userId)
 
         val parsedUserId = try {
@@ -90,98 +89,83 @@ class CustomerController(
             return ResponseEntity.badRequest().build()
         }
 
-        val customer = customerRepository.findByUserId(parsedUserId)
+        val snapshot = readModel.findByUserId(parsedUserId, readAfter)
             ?: run {
                 logger.debug("Customer not found for user: {}", userId)
                 return ResponseEntity.notFound().build()
             }
 
-        val preferences = customerPreferencesRepository.findById(customer.id).orElse(null)
-            ?: run {
-                logger.error("Preferences not found for customer: {}", customer.id)
-                return ResponseEntity.internalServerError().build()
-            }
-
-        return ResponseEntity.ok(CustomerResponse.fromDomain(customer, preferences))
+        return ResponseEntity.ok(snapshot.customer)
     }
 
     /**
-     * Gets a customer profile by customer number.
+     * Gets a customer by customer number, from the read model.
      *
-     * @param customerNumber The human-readable customer number (ACME-YYYYMM-NNNNNN).
-     * @return The customer profile or 404 if not found.
+     * @param customerNumber The customer number (e.g. ACME-202601-000001).
+     * @return The customer, 404 if not found, or 503 if the read model has not caught up.
      */
     @GetMapping("/by-number/{customerNumber}")
-    fun getCustomerByNumber(@PathVariable customerNumber: String): ResponseEntity<CustomerResponse> {
+    fun getCustomerByNumber(
+        @PathVariable customerNumber: String,
+        @RequestHeader(ReadAfter.HEADER, required = false) readAfter: UUID? = null
+    ): ResponseEntity<CustomerResponse> {
         logger.debug("Getting customer by number: {}", customerNumber)
 
-        val customer = customerRepository.findByCustomerNumber(customerNumber)
+        val snapshot = readModel.findByCustomerNumber(customerNumber, readAfter)
             ?: run {
                 logger.debug("Customer not found with number: {}", customerNumber)
                 return ResponseEntity.notFound().build()
             }
 
-        val preferences = customerPreferencesRepository.findById(customer.id).orElse(null)
-            ?: run {
-                logger.error("Preferences not found for customer: {}", customer.id)
-                return ResponseEntity.internalServerError().build()
-            }
-
-        return ResponseEntity.ok(CustomerResponse.fromDomain(customer, preferences))
+        return ResponseEntity.ok(snapshot.customer)
     }
 
     /**
-     * Gets a customer profile by email address.
+     * Gets a customer by email address, from the read model.
      *
-     * @param email The email address to search for.
-     * @return The customer profile or 404 if not found.
+     * @param email The email address.
+     * @return The customer, 404 if not found, or 503 if the read model has not caught up.
      */
     @GetMapping("/by-email/{email}")
-    fun getCustomerByEmail(@PathVariable email: String): ResponseEntity<CustomerResponse> {
+    fun getCustomerByEmail(
+        @PathVariable email: String,
+        @RequestHeader(ReadAfter.HEADER, required = false) readAfter: UUID? = null
+    ): ResponseEntity<CustomerResponse> {
         logger.debug("Getting customer by email: {}", email)
 
-        val customer = customerRepository.findByEmail(email)
+        val snapshot = readModel.findByEmail(email, readAfter)
             ?: run {
                 logger.debug("Customer not found with email: {}", email)
                 return ResponseEntity.notFound().build()
             }
 
-        val preferences = customerPreferencesRepository.findById(customer.id).orElse(null)
-            ?: run {
-                logger.error("Preferences not found for customer: {}", customer.id)
-                return ResponseEntity.internalServerError().build()
-            }
-
-        return ResponseEntity.ok(CustomerResponse.fromDomain(customer, preferences))
+        return ResponseEntity.ok(snapshot.customer)
     }
 
     /**
-     * Gets the current authenticated customer's profile.
+     * Gets the current user's customer profile, from the read model.
      *
-     * This endpoint is used after signin to load the customer profile into the frontend.
-     * The profile is cached in Redis with a 5-minute TTL for performance.
+     * The user comes from the JWT subject. A successful read also records the user's activity.
      *
-     * @param jwt The verified `access_token` cookie (see SecurityConfig). Its subject is a user ID.
-     * @return The customer profile or appropriate error response.
+     * @param jwt The authenticated user's access token.
+     * @return The customer, 404 if not found, or 503 if the read model has not caught up.
      */
     @GetMapping("/me")
-    fun getCurrentCustomer(@AuthenticationPrincipal jwt: Jwt): ResponseEntity<CustomerResponse> {
+    fun getCurrentCustomer(
+        @AuthenticationPrincipal jwt: Jwt,
+        @RequestHeader(ReadAfter.HEADER, required = false) readAfter: UUID? = null
+    ): ResponseEntity<CustomerResponse> {
         val userId = UUID.fromString(jwt.subject)
         logger.debug("Getting current customer for user: {}", userId)
 
-        return when (val result = getCustomerProfileUseCase.execute(userId)) {
-            is GetCustomerProfileResult.Success -> {
-                ResponseEntity.ok(result.profile)
-            }
-            is GetCustomerProfileResult.NotFound -> {
+        val snapshot = readModel.findByUserId(userId, readAfter)
+            ?: run {
                 logger.debug("Customer not found for user: {}", userId)
-                ResponseEntity.notFound().build()
+                return ResponseEntity.notFound().build()
             }
-            is GetCustomerProfileResult.PreferencesNotFound -> {
-                logger.error("Preferences not found for customer: {}", result.customerId)
-                ResponseEntity.internalServerError().build()
-            }
-        }
+
+        activityTracker.trackAsync(userId)
+        return ResponseEntity.ok(snapshot.customer)
     }
 
     /**
@@ -285,7 +269,8 @@ class CustomerController(
     @GetMapping("/{id}/profile/completeness")
     fun getProfileCompleteness(
         @PathVariable id: String,
-        @AuthenticationPrincipal(expression = "subject") userId: String
+        @AuthenticationPrincipal(expression = "subject") userId: String,
+        @RequestHeader(ReadAfter.HEADER, required = false) readAfter: UUID? = null
     ): ResponseEntity<ProfileCompletenessResponse> {
         logger.debug("Getting profile completeness for customer: {}", id)
 
@@ -296,19 +281,17 @@ class CustomerController(
             return ResponseEntity.badRequest().build()
         }
 
-        val customer = customerRepository.findById(customerId).orElse(null)
+        val snapshot = readModel.findById(customerId, readAfter)
             ?: run {
                 logger.debug("Customer not found: {}", id)
                 return ResponseEntity.notFound().build()
             }
 
-        if (customer.userId != UUID.fromString(userId)) {
+        if (snapshot.customer.userId != userId) {
             logger.debug("User {} not authorized to access customer {}", userId, id)
             return ResponseEntity.notFound().build()
         }
 
-        val completeness = profileCompletenessCalculator.calculate(customer)
-
-        return ResponseEntity.ok(ProfileCompletenessResponse.fromDomain(completeness))
+        return ResponseEntity.ok(snapshot.completeness)
     }
 }

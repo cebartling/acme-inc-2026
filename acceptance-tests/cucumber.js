@@ -17,6 +17,7 @@ const common = {
     'steps/api/address-api.steps.ts',
     'steps/api/authentication-api.steps.ts',
     'steps/api/consent-api.steps.ts',
+    'steps/api/customer-read-model.steps.ts',
     'steps/api/customer-activation.steps.ts',
     'steps/api/customer-profile.steps.ts',
     'steps/api/email-verification.steps.ts',
@@ -42,18 +43,19 @@ export default {
   default: {
     ...common,
     paths: ['features/**/*.feature'],
-    // Exclude @rate-limiting tests by default since rate limiting is disabled in local dev
-    tags: 'not @rate-limiting',
+    // Exclude @rate-limiting tests by default since rate limiting is disabled in local dev, and
+    // @kafka-outage tests because they stop the shared Kafka container (npm run test:kafka-outage)
+    tags: 'not @rate-limiting and not @kafka-outage',
   },
   smoke: {
     ...common,
     paths: ['features/**/*.feature'],
-    tags: '@smoke and not @rate-limiting',
+    tags: '@smoke and not @rate-limiting and not @kafka-outage',
   },
   regression: {
     ...common,
     paths: ['features/**/*.feature'],
-    tags: '@regression and not @rate-limiting',
+    tags: '@regression and not @rate-limiting and not @kafka-outage',
   },
   customer: {
     ...common,

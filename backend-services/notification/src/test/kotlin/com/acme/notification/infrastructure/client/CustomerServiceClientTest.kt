@@ -61,6 +61,37 @@ class CustomerServiceClientTest {
     }
 
     @Test
+    fun `the lookup asks the customer service to wait for the event the caller is handling`() {
+        val seen = mutableListOf<String?>()
+        val capturingServer = HttpServer.create(InetSocketAddress("localhost", 0), 0).apply {
+            createContext("/") { exchange ->
+                seen.add(exchange.requestHeaders.getFirst("X-Read-After"))
+                exchange.sendResponseHeaders(404, -1)
+                exchange.close()
+            }
+            start()
+        }
+        try {
+            val client = CustomerServiceClient(
+                baseUrl = "http://localhost:${capturingServer.address.port}",
+                serviceToken = "test-token",
+                timeoutMs = 5000,
+                restClientBuilder = RestClient.builder(),
+                meterRegistry = SimpleMeterRegistry(),
+                circuitBreakerRegistry = CircuitBreakerRegistry.ofDefaults()
+            )
+            val eventId = UUID.randomUUID()
+
+            client.getCustomerById(UUID.randomUUID(), readAfter = eventId)
+            client.getCustomerById(UUID.randomUUID())
+
+            assertEquals(listOf<String?>(eventId.toString(), null), seen)
+        } finally {
+            capturingServer.stop(0)
+        }
+    }
+
+    @Test
     fun `a customer service that never answers fails the call at the configured timeout`() {
         // Held open until the test ends, so stopping the server doesn't wait for the handler.
         val release = CountDownLatch(1)

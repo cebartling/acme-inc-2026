@@ -5,10 +5,8 @@ import com.acme.customer.domain.Customer
 import com.acme.customer.domain.CustomerPreferences
 import com.acme.customer.domain.CustomerStatus
 import com.acme.customer.infrastructure.messaging.OutboxWriter
-import com.acme.customer.infrastructure.persistence.CustomerPreferencesRepository
 import com.acme.customer.infrastructure.persistence.CustomerRepository
 import com.acme.customer.infrastructure.persistence.EventStoreRepository
-import com.acme.customer.infrastructure.projection.CustomerReadModelProjector
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import io.mockk.*
 import org.junit.jupiter.api.BeforeEach
@@ -25,9 +23,7 @@ import kotlin.test.fail
 class ActivateCustomerUseCaseTest {
 
     private lateinit var customerRepository: CustomerRepository
-    private lateinit var customerPreferencesRepository: CustomerPreferencesRepository
     private lateinit var eventStoreRepository: EventStoreRepository
-    private lateinit var customerReadModelProjector: CustomerReadModelProjector
     private lateinit var outboxWriter: OutboxWriter
     private lateinit var profileCompletionService: ProfileCompletionService
     private lateinit var useCase: ActivateCustomerUseCase
@@ -35,9 +31,7 @@ class ActivateCustomerUseCaseTest {
     @BeforeEach
     fun setUp() {
         customerRepository = mockk()
-        customerPreferencesRepository = mockk()
         eventStoreRepository = mockk()
-        customerReadModelProjector = mockk()
         outboxWriter = mockk()
         profileCompletionService = mockk()
 
@@ -45,9 +39,7 @@ class ActivateCustomerUseCaseTest {
 
         useCase = ActivateCustomerUseCase(
             customerRepository = customerRepository,
-            customerPreferencesRepository = customerPreferencesRepository,
             eventStoreRepository = eventStoreRepository,
-            customerReadModelProjector = customerReadModelProjector,
             outboxWriter = outboxWriter,
             profileCompletionService = profileCompletionService,
             meterRegistry = SimpleMeterRegistry()
@@ -81,8 +73,6 @@ class ActivateCustomerUseCaseTest {
         every { customerRepository.findByUserId(userId) } returns customer
         every { eventStoreRepository.append(any()) } just Runs
         every { customerRepository.save(any()) } answers { firstArg() }
-        every { customerPreferencesRepository.findById(customerId) } returns Optional.of(preferences)
-        every { customerReadModelProjector.projectCustomer(any(), any()) } returns CompletableFuture.completedFuture(null)
         every { outboxWriter.write(any(), any()) } just Runs
 
         // When
@@ -103,7 +93,6 @@ class ActivateCustomerUseCaseTest {
         // Verify interactions
         verify { eventStoreRepository.append(any()) }
         verify { customerRepository.save(any()) }
-        verify { customerReadModelProjector.projectCustomer(any(), any()) }
         verify { outboxWriter.write(any(), any()) }
     }
 
@@ -184,54 +173,6 @@ class ActivateCustomerUseCaseTest {
     }
 
     @Test
-    fun `execute should return Failure when MongoDB projection fails`() {
-        // Given
-        val userId = UUID.randomUUID()
-        val customerId = UUID.randomUUID()
-        val activatedAt = Instant.now()
-
-        val customer = Customer.createFromRegistration(
-            id = customerId,
-            userId = userId,
-            customerNumber = "ACME-202601-000003",
-            email = "test@example.com",
-            firstName = "Jane",
-            lastName = "Doe",
-            registeredAt = Instant.now().minusSeconds(3600)
-        )
-
-        val preferences = CustomerPreferences.createDefault(
-            customerId = customerId,
-            marketingOptIn = false
-        )
-
-        every { customerRepository.findByUserId(userId) } returns customer
-        every { eventStoreRepository.append(any()) } just Runs
-        every { customerRepository.save(any()) } answers { firstArg() }
-        every { customerPreferencesRepository.findById(customerId) } returns Optional.of(preferences)
-        every { customerReadModelProjector.projectCustomer(any(), any()) } returns
-            CompletableFuture.failedFuture(RuntimeException("MongoDB connection failed"))
-
-        // When
-        val result = useCase.execute(
-            userId = userId,
-            activatedAt = activatedAt,
-            correlationId = UUID.randomUUID(),
-            causationId = UUID.randomUUID()
-        )
-
-        // Then
-        assertTrue(result.isLeft())
-        result.fold(
-            ifLeft = { error ->
-                assertIs<ActivateCustomerError.Failure>(error)
-                assertTrue(error.message.contains("MongoDB connection failed"))
-            },
-            ifRight = { fail("Expected error but got success") }
-        )
-    }
-
-    @Test
     fun `execute should return Failure when outbox write fails`() {
         // Given
         val userId = UUID.randomUUID()
@@ -256,8 +197,6 @@ class ActivateCustomerUseCaseTest {
         every { customerRepository.findByUserId(userId) } returns customer
         every { eventStoreRepository.append(any()) } just Runs
         every { customerRepository.save(any()) } answers { firstArg() }
-        every { customerPreferencesRepository.findById(customerId) } returns Optional.of(preferences)
-        every { customerReadModelProjector.projectCustomer(any(), any()) } returns CompletableFuture.completedFuture(null)
         every { outboxWriter.write(any(), any()) } throws
             RuntimeException("Database constraint violation")
 
@@ -306,8 +245,6 @@ class ActivateCustomerUseCaseTest {
         every { customerRepository.findByUserId(userId) } returns customer
         every { eventStoreRepository.append(any()) } just Runs
         every { customerRepository.save(capture(customerSlot)) } answers { firstArg() }
-        every { customerPreferencesRepository.findById(customerId) } returns Optional.of(preferences)
-        every { customerReadModelProjector.projectCustomer(any(), any()) } returns CompletableFuture.completedFuture(null)
         every { outboxWriter.write(any(), any()) } just Runs
 
         // When
@@ -322,52 +259,4 @@ class ActivateCustomerUseCaseTest {
         assertEquals(activatedAt, customerSlot.captured.lastActivityAt)
     }
 
-    @Test
-    fun `execute should return Failure when customer preferences are not found`() {
-        // Given
-        val userId = UUID.randomUUID()
-        val customerId = UUID.randomUUID()
-        val activatedAt = Instant.now()
-
-        val customer = Customer.createFromRegistration(
-            id = customerId,
-            userId = userId,
-            customerNumber = "ACME-202601-000006",
-            email = "test@example.com",
-            firstName = "Jane",
-            lastName = "Doe",
-            registeredAt = Instant.now().minusSeconds(3600)
-        )
-
-        every { customerRepository.findByUserId(userId) } returns customer
-        every { eventStoreRepository.append(any()) } just Runs
-        every { customerRepository.save(any()) } answers { firstArg() }
-        every { customerPreferencesRepository.findById(customerId) } returns Optional.empty()
-
-        // When
-        val result = useCase.execute(
-            userId = userId,
-            activatedAt = activatedAt,
-            correlationId = UUID.randomUUID(),
-            causationId = UUID.randomUUID()
-        )
-
-        // Then
-        assertTrue(result.isLeft())
-        result.fold(
-            ifLeft = { error ->
-                assertIs<ActivateCustomerError.Failure>(error)
-                assertTrue(error.message.contains("Cannot activate customer"))
-                assertTrue(error.message.contains("Customer preferences not found for $customerId"))
-            },
-            ifRight = { fail("Expected error but got success") }
-        )
-
-        // Verify that event and customer were saved before preferences check
-        verify { eventStoreRepository.append(any()) }
-        verify { customerRepository.save(any()) }
-        // Verify projection and publish were not called due to exception
-        verify(exactly = 0) { customerReadModelProjector.projectCustomer(any(), any()) }
-        verify(exactly = 0) { outboxWriter.write(any(), any()) }
-    }
 }

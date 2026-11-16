@@ -5,7 +5,7 @@ import com.acme.customer.domain.ConsentSource
 import com.acme.customer.domain.ConsentType
 import com.acme.customer.domain.events.ConsentGranted
 import com.acme.customer.domain.events.ConsentRevoked
-import com.acme.customer.infrastructure.messaging.CustomerEventPublisher
+import com.acme.customer.infrastructure.messaging.OutboxWriter
 import com.acme.customer.infrastructure.persistence.ConsentRecordRepository
 import com.acme.customer.infrastructure.persistence.CustomerRepository
 import io.micrometer.core.instrument.Counter
@@ -96,7 +96,7 @@ data class ConsentUpdateContext(
 class GrantConsentUseCase(
     private val customerRepository: CustomerRepository,
     private val consentRecordRepository: ConsentRecordRepository,
-    private val eventPublisher: CustomerEventPublisher,
+    private val outboxWriter: OutboxWriter,
     private val profileCompletionService: ProfileCompletionService,
     private val meterRegistry: MeterRegistry
 ) {
@@ -249,7 +249,7 @@ class GrantConsentUseCase(
                     version = consentRecord.version,
                     correlationId = correlationId
                 )
-                eventPublisher.publish(event)
+                outboxWriter.write(event, ConsentGranted.TOPIC)
                 consentGrantedCounter.increment()
             } else {
                 val event = ConsentRevoked.create(
@@ -261,7 +261,7 @@ class GrantConsentUseCase(
                     version = consentRecord.version,
                     correlationId = correlationId
                 )
-                eventPublisher.publish(event)
+                outboxWriter.write(event, ConsentRevoked.TOPIC)
                 consentRevokedCounter.increment()
             }
 

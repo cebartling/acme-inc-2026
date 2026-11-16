@@ -26,13 +26,6 @@ spring:
     port: ${MONGODB_PORT:27017}
     database: ${MONGODB_DB:acme_query}
 
-  data:
-    redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
-      timeout: 2000ms
-      password: ${REDIS_PASSWORD:}
-
   security:
     oauth2:
       resourceserver:
@@ -90,6 +83,8 @@ customer:
   events:
     input-topic: identity.user.events
     output-topic: customer.events
+    # Full customer state for the read model's projector only; it holds PII, so it is not customer.events.
+    read-model-topic: customer.read-model
     publish:
       timeout-seconds: 10
   retry:
@@ -97,11 +92,6 @@ customer:
     initial-interval-ms: 1000
     multiplier: 2.0
     max-interval-ms: 16000
-  outbox:
-    poll-delay-ms: 1000
-    publish:
-      timeout-seconds: 10
-    max-retry-count: 5
 
 logging:
   level:

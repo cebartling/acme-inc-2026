@@ -14,7 +14,6 @@ import com.acme.customer.infrastructure.persistence.CustomerNumberSequenceReposi
 import com.acme.customer.infrastructure.persistence.CustomerPreferencesRepository
 import com.acme.customer.infrastructure.persistence.CustomerRepository
 import com.acme.customer.infrastructure.persistence.EventStoreRepository
-import com.acme.customer.infrastructure.projection.CustomerReadModelProjector
 import com.acme.customer.infrastructure.security.CustomerIdGenerator
 import io.micrometer.core.instrument.Counter
 import io.micrometer.core.instrument.MeterRegistry
@@ -42,7 +41,7 @@ import java.util.UUID
  *
  * The projection operation runs asynchronously but is awaited before the transaction
  * commits. The event is written to the outbox table within the same transaction,
- * and will be published to Kafka asynchronously by the OutboxRelay. This implements
+ * and will be published to Kafka asynchronously by Debezium. This implements
  * the Transactional Outbox pattern to decouple Kafka availability from transaction success.
  */
 @Service
@@ -52,7 +51,6 @@ class CreateCustomerUseCase(
     private val customerNumberSequenceRepository: CustomerNumberSequenceRepository,
     private val eventStoreRepository: EventStoreRepository,
     private val customerIdGenerator: CustomerIdGenerator,
-    private val customerReadModelProjector: CustomerReadModelProjector,
     private val outboxWriter: OutboxWriter,
     meterRegistry: MeterRegistry
 ) {
@@ -172,16 +170,8 @@ class CreateCustomerUseCase(
                     userId
                 )
 
-                // Project to MongoDB and write to outbox
-                // Wait for projection to complete, then write to outbox
-                // This ensures consistency between write model (PostgreSQL) and read model (MongoDB)
-                val projectionFuture = customerReadModelProjector.projectCustomer(customer, preferences)
-
-                // Wait for projection to complete before writing to outbox
-                projectionFuture.join()
-
                 // Write to outbox within the transaction
-                // The OutboxRelay will publish asynchronously, decoupled from this transaction
+                // Debezium will publish asynchronously, decoupled from this transaction
                 outboxWriter.write(event, CustomerRegistered.TOPIC)
 
                 customerCreatedCounter.increment()

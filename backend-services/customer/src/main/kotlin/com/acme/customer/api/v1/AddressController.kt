@@ -11,8 +11,8 @@ import com.acme.customer.application.UpdateAddressResult
 import com.acme.customer.application.UpdateAddressUseCase
 import com.acme.customer.domain.Address
 import com.acme.customer.domain.AddressType
-import com.acme.customer.infrastructure.persistence.AddressRepository
-import com.acme.customer.infrastructure.persistence.CustomerRepository
+import com.acme.customer.infrastructure.projection.CustomerReadModelQueries
+import com.acme.customer.infrastructure.projection.ReadAfter
 import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
@@ -29,8 +29,7 @@ import java.util.UUID
 @RestController
 @RequestMapping("/api/v1/customers/{customerId}/addresses")
 class AddressController(
-    private val customerRepository: CustomerRepository,
-    private val addressRepository: AddressRepository,
+    private val readModel: CustomerReadModelQueries,
     private val addAddressUseCase: AddAddressUseCase,
     private val updateAddressUseCase: UpdateAddressUseCase,
     private val removeAddressUseCase: RemoveAddressUseCase
@@ -49,7 +48,8 @@ class AddressController(
     fun listAddresses(
         @PathVariable customerId: String,
         @AuthenticationPrincipal(expression = "subject") userId: String,
-        @RequestParam(required = false) type: String?
+        @RequestParam(required = false) type: String?,
+        @RequestHeader(ReadAfter.HEADER, required = false) readAfter: UUID? = null
     ): ResponseEntity<Any> {
         logger.debug("Listing addresses for customer: {}", customerId)
 
@@ -57,10 +57,10 @@ class AddressController(
         val parsedUserId = parseUUID(userId, "user ID") ?: return invalidIdResponse("user ID")
 
         // Find customer and verify authorization
-        val customer = customerRepository.findById(parsedCustomerId).orElse(null)
+        val snapshot = readModel.findById(parsedCustomerId, readAfter)
             ?: return ResponseEntity.notFound().build()
 
-        if (customer.userId != parsedUserId) {
+        if (snapshot.customer.userId != parsedUserId.toString()) {
             return ResponseEntity.status(403)
                 .body(mapOf("error" to "You are not authorized to view these addresses"))
         }
@@ -72,13 +72,12 @@ class AddressController(
                 return ResponseEntity.badRequest()
                     .body(mapOf("error" to "Invalid address type. Allowed values: SHIPPING, BILLING"))
             }
-            addressRepository.findByCustomerIdAndType(parsedCustomerId, addressType)
+            snapshot.addresses.filter { it.type == addressType.name }
         } else {
-            addressRepository.findByCustomerId(parsedCustomerId)
+            snapshot.addresses
         }
 
-        val responseList = addresses.map { AddressResponse.fromEntity(it) }
-        return ResponseEntity.ok(responseList)
+        return ResponseEntity.ok(addresses)
     }
 
     /**
@@ -93,7 +92,8 @@ class AddressController(
     fun getAddress(
         @PathVariable customerId: String,
         @PathVariable addressId: String,
-        @AuthenticationPrincipal(expression = "subject") userId: String
+        @AuthenticationPrincipal(expression = "subject") userId: String,
+        @RequestHeader(ReadAfter.HEADER, required = false) readAfter: UUID? = null
     ): ResponseEntity<Any> {
         logger.debug("Getting address {} for customer {}", addressId, customerId)
 
@@ -102,24 +102,19 @@ class AddressController(
         val parsedUserId = parseUUID(userId, "user ID") ?: return invalidIdResponse("user ID")
 
         // Find customer and verify authorization
-        val customer = customerRepository.findById(parsedCustomerId).orElse(null)
+        val snapshot = readModel.findById(parsedCustomerId, readAfter)
             ?: return ResponseEntity.notFound().build()
 
-        if (customer.userId != parsedUserId) {
+        if (snapshot.customer.userId != parsedUserId.toString()) {
             return ResponseEntity.status(403)
                 .body(mapOf("error" to "You are not authorized to view this address"))
         }
 
-        // Find address
-        val address = addressRepository.findById(parsedAddressId).orElse(null)
+        // An address that is not in the customer's snapshot is not theirs, or does not exist
+        val address = snapshot.addresses.find { it.addressId == parsedAddressId.toString() }
             ?: return ResponseEntity.notFound().build()
 
-        // Verify address belongs to customer
-        if (address.customerId != parsedCustomerId) {
-            return ResponseEntity.notFound().build()
-        }
-
-        return ResponseEntity.ok(AddressResponse.fromEntity(address))
+        return ResponseEntity.ok(address)
     }
 
     /**
@@ -320,7 +315,8 @@ class AddressController(
     fun getDefaultAddress(
         @PathVariable customerId: String,
         @PathVariable type: String,
-        @AuthenticationPrincipal(expression = "subject") userId: String
+        @AuthenticationPrincipal(expression = "subject") userId: String,
+        @RequestHeader(ReadAfter.HEADER, required = false) readAfter: UUID? = null
     ): ResponseEntity<Any> {
         logger.debug("Getting default {} address for customer {}", type, customerId)
 
@@ -335,18 +331,18 @@ class AddressController(
         }
 
         // Find customer and verify authorization
-        val customer = customerRepository.findById(parsedCustomerId).orElse(null)
+        val snapshot = readModel.findById(parsedCustomerId, readAfter)
             ?: return ResponseEntity.notFound().build()
 
-        if (customer.userId != parsedUserId) {
+        if (snapshot.customer.userId != parsedUserId.toString()) {
             return ResponseEntity.status(403)
                 .body(mapOf("error" to "You are not authorized to view this address"))
         }
 
-        val address = addressRepository.findByCustomerIdAndTypeAndIsDefaultTrue(parsedCustomerId, addressType)
+        val address = snapshot.addresses.find { it.type == addressType.name && it.isDefault }
             ?: return ResponseEntity.notFound().build()
 
-        return ResponseEntity.ok(AddressResponse.fromEntity(address))
+        return ResponseEntity.ok(address)
     }
 
     // Helper methods

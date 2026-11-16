@@ -10,8 +10,9 @@ import com.acme.customer.domain.CustomerStatus
 import com.acme.customer.domain.CustomerType
 import com.acme.customer.domain.NotificationFrequency
 import com.acme.customer.domain.PreferenceChange
-import com.acme.customer.infrastructure.persistence.CustomerPreferencesRepository
-import com.acme.customer.infrastructure.persistence.CustomerRepository
+import com.acme.customer.api.v1.dto.CustomerPreferencesResponse
+import com.acme.customer.infrastructure.projection.CustomerReadModelQueries
+import com.acme.customer.infrastructure.projection.SnapshotFixtures
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -20,7 +21,6 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
 import java.time.Instant
-import java.util.Optional
 import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -28,8 +28,7 @@ import kotlin.test.assertTrue
 
 class PreferencesControllerTest {
 
-    private lateinit var customerRepository: CustomerRepository
-    private lateinit var preferencesRepository: CustomerPreferencesRepository
+    private lateinit var readModel: CustomerReadModelQueries
     private lateinit var updatePreferencesUseCase: UpdatePreferencesUseCase
     private lateinit var controller: PreferencesController
 
@@ -38,13 +37,11 @@ class PreferencesControllerTest {
 
     @BeforeEach
     fun setUp() {
-        customerRepository = mockk()
-        preferencesRepository = mockk()
+        readModel = mockk()
         updatePreferencesUseCase = mockk()
 
         controller = PreferencesController(
-            customerRepository = customerRepository,
-            preferencesRepository = preferencesRepository,
+            readModel = readModel,
             updatePreferencesUseCase = updatePreferencesUseCase
         )
     }
@@ -84,6 +81,8 @@ class PreferencesControllerTest {
         )
     }
 
+    private fun snapshot() = SnapshotFixtures.snapshot(createCustomer(), createPreferences())
+
     @Nested
     inner class GetPreferences {
 
@@ -109,7 +108,7 @@ class PreferencesControllerTest {
 
         @Test
         fun `should return 404 when customer not found`() {
-            every { customerRepository.findById(customerId) } returns Optional.empty()
+            every { readModel.findById(customerId, null) } returns null
 
             val response = controller.getPreferences(customerId.toString(), userId.toString())
 
@@ -119,7 +118,7 @@ class PreferencesControllerTest {
         @Test
         fun `should return 403 when user is not authorized`() {
             val otherUserId = UUID.randomUUID()
-            every { customerRepository.findById(customerId) } returns Optional.of(createCustomer())
+            every { readModel.findById(customerId, null) } returns snapshot()
 
             val response = controller.getPreferences(customerId.toString(), otherUserId.toString())
 
@@ -130,28 +129,29 @@ class PreferencesControllerTest {
         }
 
         @Test
-        fun `should return 500 when preferences not found`() {
-            every { customerRepository.findById(customerId) } returns Optional.of(createCustomer())
-            every { preferencesRepository.findById(customerId) } returns Optional.empty()
-
-            val response = controller.getPreferences(customerId.toString(), userId.toString())
-
-            assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.statusCode)
-            @Suppress("UNCHECKED_CAST")
-            val body = response.body as Map<String, Any>
-            assertEquals("Preferences not found", body["error"])
-        }
-
-        @Test
         fun `should return 200 with preferences on success`() {
             val preferences = createPreferences()
-            every { customerRepository.findById(customerId) } returns Optional.of(createCustomer())
-            every { preferencesRepository.findById(customerId) } returns Optional.of(preferences)
+            every { readModel.findById(customerId, null) } returns SnapshotFixtures.snapshot(createCustomer(), preferences)
 
             val response = controller.getPreferences(customerId.toString(), userId.toString())
 
             assertEquals(HttpStatus.OK, response.statusCode)
-            assertNotNull(response.body)
+            val body = response.body as CustomerPreferencesResponse
+            assertEquals(customerId.toString(), body.customerId)
+            assertEquals(true, body.preferences.communication.email)
+            assertEquals("IMMEDIATE", body.preferences.communication.frequency)
+            assertEquals(preferences.updatedAt.toString(), body.updatedAt)
+        }
+
+        @Test
+        fun `should wait for the event the caller read after`() {
+            val readAfter = UUID.randomUUID()
+            every { readModel.findById(customerId, readAfter) } returns snapshot()
+
+            val response = controller.getPreferences(customerId.toString(), userId.toString(), readAfter)
+
+            assertEquals(HttpStatus.OK, response.statusCode)
+            verify(exactly = 1) { readModel.findById(customerId, readAfter) }
         }
     }
 

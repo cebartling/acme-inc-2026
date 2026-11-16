@@ -7,9 +7,10 @@ import com.acme.customer.application.RemoveAddressUseCase
 import com.acme.customer.application.UpdateAddressUseCase
 import com.acme.customer.config.SecurityConfig
 import com.acme.customer.config.ServiceCredentials
-import com.acme.customer.infrastructure.persistence.AddressRepository
-import com.acme.customer.infrastructure.persistence.CustomerRepository
+import com.acme.customer.infrastructure.projection.CustomerReadModelQueries
+import io.mockk.Runs
 import io.mockk.every
+import io.mockk.just
 import io.mockk.mockk
 import io.mockk.slot
 import org.junit.jupiter.api.Test
@@ -43,10 +44,7 @@ class AddressControllerWebMvcTest(
     @TestConfiguration
     class MockBeans {
         @Bean
-        fun customerRepository(): CustomerRepository = mockk()
-
-        @Bean
-        fun addressRepository(): AddressRepository = mockk()
+        fun customerReadModelQueries(): CustomerReadModelQueries = mockk { every { ensureIndexes() } just Runs }
 
         @Bean
         fun addAddressUseCase(): AddAddressUseCase = mockk()
