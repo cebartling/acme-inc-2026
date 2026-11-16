@@ -14,6 +14,9 @@ import java.time.Duration
  * @property accessTokenExpiryMinutes Access token expiry duration in minutes.
  * @property refreshTokenExpiryDays Refresh token expiry duration in days.
  * @property keyRotationPeriodDays Key rotation period in days.
+ * @property signingKey Optional PEM-encoded PKCS#8 RSA private key (env `JWT_SIGNING_KEY`). When set,
+ *   every identity instance signs and verifies with it and the nightly rotation is disabled. When blank,
+ *   each instance generates its own in-memory key.
  */
 @Configuration
 @ConfigurationProperties(prefix = "identity.jwt")
@@ -22,7 +25,8 @@ data class JwtConfig(
     var audience: String = "https://api.acme.com",
     var accessTokenExpiryMinutes: Long = 15,
     var refreshTokenExpiryDays: Long = 7,
-    var keyRotationPeriodDays: Long = 30
+    var keyRotationPeriodDays: Long = 30,
+    var signingKey: String = ""
 ) {
     /**
      * Gets the access token expiry duration.

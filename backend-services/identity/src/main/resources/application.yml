@@ -95,6 +95,7 @@ identity:
     access-token-expiry-minutes: 15
     refresh-token-expiry-days: 7
     key-rotation-period-days: 30
+    signing-key: ${JWT_SIGNING_KEY:}  # PEM PKCS#8 RSA private key; blank = generate in memory
   session:
     max-per-user: 5
     ttl-days: 7

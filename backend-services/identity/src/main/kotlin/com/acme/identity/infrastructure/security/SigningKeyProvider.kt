@@ -1,11 +1,19 @@
 package com.acme.identity.infrastructure.security
 
 import com.acme.identity.config.JwtConfig
+import com.nimbusds.jose.jwk.RSAKey
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 import java.security.KeyPairGenerator
+import java.security.PublicKey
 import java.security.SecureRandom
+import java.security.KeyFactory
+import java.security.interfaces.RSAPrivateCrtKey
+import java.security.interfaces.RSAPublicKey
+import java.security.spec.PKCS8EncodedKeySpec
+import java.security.spec.RSAPublicKeySpec
+import java.util.Base64
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
@@ -25,9 +33,16 @@ import java.util.concurrent.TimeUnit
  * - Verification supports multiple keys for seamless rotation
  * - Automatic rotation runs daily based on keyRotationPeriodDays config
  *
- * CRITICAL LIMITATION: Keys are regenerated on service restart, invalidating
- * all existing tokens. For production, integrate with HashiCorp Vault or
- * database persistence to maintain keys across restarts.
+ * Configured key: when `identity.jwt.signing-key` (env `JWT_SIGNING_KEY`) holds a
+ * PEM PKCS#8 RSA private key, that key is the only signing key. Its kid is the RFC 7638
+ * thumbprint of its public half, so every instance given the same key agrees on the kid
+ * and accepts each other's tokens, and a restart keeps tokens valid. Rotation is
+ * disabled, because instances rotating independently would drift apart. Use this for
+ * any deployment with more than one identity instance.
+ *
+ * CRITICAL LIMITATION: without a configured key, keys are regenerated on service
+ * restart, invalidating all existing tokens, and two instances cannot verify each
+ * other's tokens. Set `JWT_SIGNING_KEY` for multi-instance deployments.
  *
  * Future enhancement: Integration with HashiCorp Vault:
  * - Store private keys securely in Vault
@@ -40,6 +55,7 @@ class SigningKeyProvider(
 ) {
 
     private val logger = LoggerFactory.getLogger(javaClass)
+    private val keyConfigured = jwtConfig.signingKey.isNotBlank()
     private val keyPairGenerator: KeyPairGenerator
     @Volatile
     private var currentKey: SigningKey
@@ -72,10 +88,14 @@ class SigningKeyProvider(
             initialize(2048, SecureRandom())
         }
 
-        // Generate initial key
-        currentKey = generateKey()
         lastRotationDate = LocalDate.now()
-        logger.warn("Generated new signing key ${currentKey.keyId} - all existing tokens are now invalid!")
+        if (keyConfigured) {
+            currentKey = loadConfiguredKey(jwtConfig.signingKey)
+            logger.info("Loaded configured signing key {}; key rotation is disabled", currentKey.keyId)
+        } else {
+            currentKey = generateKey()
+            logger.warn("Generated new signing key ${currentKey.keyId} - all existing tokens are now invalid!")
+        }
         logger.info("Initialized signing key provider with key ID: ${currentKey.keyId}")
     }
 
@@ -132,6 +152,10 @@ class SigningKeyProvider(
      * - Maintain previous keys for verification
      */
     fun rotateKey() {
+        check(!keyConfigured) {
+            "Cannot rotate the signing key: it comes from configuration (JWT_SIGNING_KEY). " +
+                "Replace the configured key and redeploy instead."
+        }
         val oldKey = currentKey
         val newKey = generateKey()
         // generateKeyId() includes a randomized hex suffix so two rotations
@@ -167,6 +191,10 @@ class SigningKeyProvider(
      */
     @Scheduled(cron = "0 0 2 * * *") // Daily at 2 AM
     fun autoRotateKey() {
+        if (keyConfigured) {
+            logger.debug("Skipping key rotation: the signing key comes from configuration")
+            return
+        }
         val daysSinceRotation = java.time.temporal.ChronoUnit.DAYS.between(lastRotationDate, LocalDate.now())
 
         if (daysSinceRotation >= jwtConfig.keyRotationPeriodDays) {
@@ -174,6 +202,37 @@ class SigningKeyProvider(
             rotateKey()
         } else {
             logger.debug("Skipping key rotation (days since last rotation: $daysSinceRotation, threshold: ${jwtConfig.keyRotationPeriodDays})")
+        }
+    }
+
+    /**
+     * Builds the signing key from a PEM PKCS#8 RSA private key. The public key is derived
+     * from the private key's modulus and public exponent, and the kid is the public key's
+     * RFC 7638 thumbprint, so it is identical on every instance given the same key.
+     *
+     * @throws IllegalStateException if the value is not a PEM PKCS#8 RSA private key.
+     */
+    private fun loadConfiguredKey(pem: String): SigningKey {
+        try {
+            val der = Base64.getMimeDecoder().decode(
+                pem.replace("-----BEGIN PRIVATE KEY-----", "")
+                    .replace("-----END PRIVATE KEY-----", "")
+            )
+            val privateKey = KeyFactory.getInstance("RSA").generatePrivate(PKCS8EncodedKeySpec(der))
+            check(privateKey is RSAPrivateCrtKey) { "not an RSA private key with CRT parameters" }
+            val publicKey: PublicKey = KeyFactory.getInstance("RSA")
+                .generatePublic(RSAPublicKeySpec(privateKey.modulus, privateKey.publicExponent))
+            return SigningKey(
+                keyId = RSAKey.Builder(publicKey as RSAPublicKey).build().computeThumbprint().toString(),
+                privateKey = privateKey,
+                publicKey = publicKey,
+                algorithm = "RS256"
+            )
+        } catch (e: Exception) {
+            // Never include the key material in the message.
+            throw IllegalStateException(
+                "JWT_SIGNING_KEY is not a valid PEM PKCS#8 RSA private key (${e.javaClass.simpleName})", e
+            )
         }
     }
 

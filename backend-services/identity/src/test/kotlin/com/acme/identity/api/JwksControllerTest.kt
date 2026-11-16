@@ -11,7 +11,9 @@ import com.nimbusds.jose.jwk.JWKSet
 import com.nimbusds.jose.jwk.RSAKey
 import com.nimbusds.jwt.SignedJWT
 import org.junit.jupiter.api.Test
+import java.security.KeyPairGenerator
 import java.time.Instant
+import java.util.Base64
 import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -80,5 +82,22 @@ class JwksControllerTest {
         val kids = publishedSet().keys.map { it.keyID }
         assertTrue(previousKid in kids, "rotated-out key $previousKid should still be published")
         assertEquals(keyProvider.getCurrentKey().keyId, kids.first())
+    }
+
+    @Test
+    fun `publishes the public half of a configured signing key`() {
+        val generated = KeyPairGenerator.getInstance("RSA").apply { initialize(2048) }.generateKeyPair()
+        val pem = "-----BEGIN PRIVATE KEY-----\n" +
+            Base64.getMimeEncoder(64, "\n".toByteArray()).encodeToString(generated.private.encoded) +
+            "\n-----END PRIVATE KEY-----\n"
+        val provider = SigningKeyProvider(jwtConfig.copy(signingKey = pem))
+
+        val keys = JWKSet.parse(JwksController(provider).jwks()).keys
+
+        assertEquals(1, keys.size)
+        val published = keys.single() as RSAKey
+        assertFalse(published.isPrivate)
+        assertEquals(provider.getCurrentKey().keyId, published.keyID)
+        assertEquals(generated.public, published.toRSAPublicKey())
     }
 }
