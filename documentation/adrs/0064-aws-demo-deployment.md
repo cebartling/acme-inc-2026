@@ -13,8 +13,9 @@ gives the demo a public HTTPS URL that works from anywhere.
 The environment is for demos only:
 
 - No high-availability or backup requirements. Data starts fresh with each deploy.
-- It covers all 5 backend services (identity, customer, notification, product, shopping-cart),
-  the customer frontend and the admin frontend.
+- It covers 5 of the 6 backend services (identity, customer, notification, product,
+  shopping-cart), the customer frontend and the admin frontend. The order service isn't covered
+  yet (see Open Decisions).
 - One manual GitHub Actions run creates it from scratch and proves it works. A second run
   destroys it.
 
@@ -107,7 +108,7 @@ Kafka client configuration.
 
 ### 6. Hostnames: one API host with path routing
 
-The domain lives in Route 53. Each frontend gets its own subdomain. All five backends share one
+The domain lives in Route 53. Each frontend gets its own subdomain. The five backends share one
 API hostname (`api.<domain>`), and load balancer path rules send each request to the right
 service. Identity's sign-in cookie only goes back to the host that set it, so with one API host
 every service receives it with no code change.
@@ -171,7 +172,10 @@ environment runs only on AWS, so being AWS-specific costs nothing there.
 
 ## Open Decisions
 
-These are still open on PIN-533. This ADR doesn't decide them.
+These are still open, on PIN-533 unless noted. This ADR doesn't decide them.
+
+- **Order service.** The repo has a sixth backend, order, which the customer frontend's
+  checkout calls. PIN-533 doesn't cover it. Deploy it, or leave checkout out of the demo?
 
 - **Debezium hosting.** MSK Connect bills each connector separately, roughly $80 a month each
   while running. One self-hosted Kafka Connect worker on Fargate could run all five connectors
