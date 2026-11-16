@@ -242,7 +242,7 @@ Kafka container, so the default runs skip it: `npm run test:kafka-outage`.
   An expired token is `401 {"error":"TOKEN_EXPIRED"}`, which the customer app's API client
   answers by refreshing and retrying; any other bad token is `401 INVALID_TOKEN`, which it
   answers the same way, because a 7-day cookie can outlive identity's in-memory signing keys
-  (PIN-443). The refresh then renews the cookies or clears them, so the customer isn't stuck.
+  (PIN-443; not when identity has a configured `JWT_SIGNING_KEY`). The refresh then renews the cookies or clears them, so the customer isn't stuck.
 - **One line per variant**: `cart_items` has a unique `(cart_id, variant_id)`, so adding a
   variant already in the cart increments its quantity rather than adding a line.
 - **Product snapshot**: each line stores the product name, SKU, image and attributes as
@@ -1050,6 +1050,10 @@ Device trust allows users to bypass MFA for 30 days on trusted devices, improvin
   signing keys, keyed by `kid`. Other services verify access tokens locally against it
   instead of calling identity per request. Because keys are regenerated on restart, a
   verifier must re-fetch the set when it meets an unknown `kid`.
+- **Configured signing key (PIN-536)**: when `JWT_SIGNING_KEY` holds a PEM PKCS#8 RSA private key (at least 2048 bits),
+  identity uses it as its only key: the kid is the key's RFC 7638 thumbprint, nothing rotates, tokens survive restarts and
+  every instance verifies every other's tokens. Without it, each instance generates its own in-memory key. Multi-instance
+  deployments, such as the AWS demo, must set it.
 
 ### Email Verification Redirects
 

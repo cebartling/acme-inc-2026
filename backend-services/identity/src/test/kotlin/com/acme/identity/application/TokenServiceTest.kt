@@ -10,7 +10,9 @@ import com.nimbusds.jose.crypto.RSASSASigner
 import com.nimbusds.jwt.SignedJWT
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import java.security.KeyPairGenerator
 import java.time.Instant
+import java.util.Base64
 import java.util.UUID
 import kotlin.test.*
 
@@ -358,6 +360,29 @@ class TokenServiceTest {
         val claims = tokenService.parseRefreshTokenClaims(tokens.accessToken)
 
         assertNull(claims)
+    }
+
+    @Test
+    fun `tokens created by one instance parse on another sharing a configured signing key`() {
+        // Two identity tasks on AWS: each builds its own provider from the same JWT_SIGNING_KEY.
+        val pem = newPkcs8Pem()
+        val config = jwtConfig.copy(signingKey = pem)
+        val taskA = TokenService(SigningKeyProvider(config), config)
+        val taskB = TokenService(SigningKeyProvider(config), config)
+
+        val tokens = taskA.createTokens(createTestUser(), testSessionId, testTokenFamily)
+
+        val access = taskB.parseAccessTokenClaims(tokens.accessToken)
+        val refresh = taskB.parseRefreshTokenClaims(tokens.refreshToken)
+        assertNotNull(access)
+        assertNotNull(refresh)
+        assertEquals(testUserId.toString(), access.subject)
+    }
+
+    private fun newPkcs8Pem(): String {
+        val generated = KeyPairGenerator.getInstance("RSA").apply { initialize(2048) }.generateKeyPair()
+        val body = Base64.getMimeEncoder(64, "\n".toByteArray()).encodeToString(generated.private.encoded)
+        return "-----BEGIN PRIVATE KEY-----\n$body\n-----END PRIVATE KEY-----\n"
     }
 
     private fun createTestUser(): User {

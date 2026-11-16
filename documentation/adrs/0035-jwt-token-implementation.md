@@ -6,6 +6,8 @@ Accepted
 
 **Current state (2026-10-21, PIN-386):** Key management works differently from what this ADR first said, and the Key Management bullets below have been corrected. `SigningKeyProvider` keeps its RSA keys only in memory, so every identity restart generates a new key and invalidates every token issued before it. A scheduled job runs daily at 02:00 and rotates the key once `identity.jwt.key-rotation-period-days` (30) have passed since the last rotation or since startup. It is not a fixed monthly schedule. Kids look like `key-YYYY-MM-xxxxxxxx`, with a random 8-hex suffix so two rotations in one month never collide. The last 3 rotated-out keys are kept for verification, and all retained keys are published at `/.well-known/jwks.json`. Vault integration is still not built (ADR-0009). [ADR-0043](0043-cross-service-jwt-verification.md) covers how other services verify these tokens: JWKS, cookie-borne tokens and key rotation as built.
 
+**Update (2026-11-15, PIN-536):** the above describes the default, with no key configured. When `identity.jwt.signing-key` (env `JWT_SIGNING_KEY`) holds a PEM PKCS#8 RSA private key of at least 2048 bits, that key is the only signing key. Its kid is the RFC 7638 thumbprint of the public key, so every instance and every restart agrees on it. Tokens survive restarts and verify across instances, and rotation is disabled. This is what lets the AWS demo run identity as 2 tasks.
+
 ## Context
 
 After successful authentication (including MFA), the Identity Service needs to issue security tokens that allow customers to access protected resources across the ACME platform. These tokens must be:
@@ -80,9 +82,9 @@ We will implement JWT (JSON Web Token) authentication using the following approa
 
 ### 3. Key Management
 
-- **Current Implementation**: In-memory RSA key pair generation
-- **Key Rotation**: Daily check at 02:00 rotates once `key-rotation-period-days` (default 30) have passed; the 3 most recent previous keys stay valid for verification; keys are regenerated on restart
-- **Key ID (kid)**: Format `key-YYYY-MM-xxxxxxxx` (random 8-hex suffix) for tracking
+- **Current Implementation**: In-memory RSA key pair generation, or one configured key (`JWT_SIGNING_KEY`, PIN-536) shared by every instance
+- **Key Rotation**: Daily check at 02:00 rotates once `key-rotation-period-days` (default 30) have passed; the 3 most recent previous keys stay valid for verification; keys are regenerated on restart. With a configured key none of this applies: it is never rotated or regenerated
+- **Key ID (kid)**: Format `key-YYYY-MM-xxxxxxxx` (random 8-hex suffix) for tracking; the RFC 7638 thumbprint for a configured key
 - **Future Enhancement**: HashiCorp Vault integration for secure key storage
 
 ### 4. Token Delivery

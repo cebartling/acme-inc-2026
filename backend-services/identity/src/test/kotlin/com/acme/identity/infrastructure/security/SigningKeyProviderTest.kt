@@ -16,6 +16,7 @@ class SigningKeyProviderTest {
     fun setUp() {
         jwtConfig = mockk<JwtConfig>()
         every { jwtConfig.keyRotationPeriodDays } returns 30
+        every { jwtConfig.signingKey } returns ""
         signingKeyProvider = SigningKeyProvider(jwtConfig)
     }
 
