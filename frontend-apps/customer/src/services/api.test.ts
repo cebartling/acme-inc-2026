@@ -480,6 +480,105 @@ describe("customerApi", () => {
     });
   });
 
+  describe("reading your own write (X-Read-After)", () => {
+    const customerId = "customer-123";
+    const putPreferences = { communication: { email: false } };
+
+    const respond = (headers: Record<string, string> = {}, status = 200) => ({
+      ok: status < 400,
+      status,
+      headers: new Headers({ "content-type": "application/json", ...headers }),
+      json: () => Promise.resolve(status < 400 ? {} : { error: "behind" }),
+    });
+
+    /** The headers the nth fetch call was made with. */
+    const sentHeaders = (call: number) =>
+      (mockFetch.mock.calls[call][1] as { headers: Record<string, string> })
+        .headers;
+
+    beforeEach(() => {
+      __resetRefreshStateForTests();
+    });
+
+    it("sends nothing on a read when no write came before it", async () => {
+      mockFetch.mockResolvedValueOnce(respond());
+
+      await customerApi.getPreferences(customerId);
+
+      expect(sentHeaders(0)["X-Read-After"]).toBeUndefined();
+    });
+
+    it("sends the id a write returned on the next read, and only on that one", async () => {
+      mockFetch
+        .mockResolvedValueOnce(respond({ "X-Read-After": "event-1" }))
+        .mockResolvedValueOnce(respond())
+        .mockResolvedValueOnce(respond());
+
+      await customerApi.updatePreferences(customerId, putPreferences);
+      await customerApi.getProfileCompleteness(customerId);
+      await customerApi.getProfileCompleteness(customerId);
+
+      expect(sentHeaders(0)["X-Read-After"]).toBeUndefined();
+      expect(sentHeaders(1)["X-Read-After"]).toBe("event-1");
+      expect(sentHeaders(2)["X-Read-After"]).toBeUndefined();
+    });
+
+    it("uses the most recent write's id when there were several", async () => {
+      mockFetch
+        .mockResolvedValueOnce(respond({ "X-Read-After": "event-1" }))
+        .mockResolvedValueOnce(respond({ "X-Read-After": "event-2" }))
+        .mockResolvedValueOnce(respond());
+
+      await customerApi.updatePreferences(customerId, putPreferences);
+      await customerApi.updatePreferences(customerId, putPreferences);
+      await customerApi.getPreferences(customerId);
+
+      expect(sentHeaders(2)["X-Read-After"]).toBe("event-2");
+    });
+
+    it("keeps the id when the read model is behind (503), so the retry waits too", async () => {
+      mockFetch
+        .mockResolvedValueOnce(respond({ "X-Read-After": "event-1" }))
+        .mockResolvedValueOnce(respond({ "Retry-After": "1" }, 503))
+        .mockResolvedValueOnce(respond());
+
+      await customerApi.updatePreferences(customerId, putPreferences);
+      await expect(customerApi.getPreferences(customerId)).rejects.toThrow(
+        ApiError,
+      );
+      await customerApi.getPreferences(customerId);
+
+      expect(sentHeaders(1)["X-Read-After"]).toBe("event-1");
+      expect(sentHeaders(2)["X-Read-After"]).toBe("event-1");
+    });
+
+    it("drops the id when the read fails for another reason", async () => {
+      mockFetch
+        .mockResolvedValueOnce(respond({ "X-Read-After": "event-1" }))
+        .mockResolvedValueOnce(respond({}, 404))
+        .mockResolvedValueOnce(respond());
+
+      await customerApi.updatePreferences(customerId, putPreferences);
+      await expect(customerApi.getPreferences(customerId)).rejects.toThrow(
+        ApiError,
+      );
+      await customerApi.getPreferences(customerId);
+
+      expect(sentHeaders(2)["X-Read-After"]).toBeUndefined();
+    });
+
+    it("does not send the id on a write", async () => {
+      mockFetch
+        .mockResolvedValueOnce(respond({ "X-Read-After": "event-1" }))
+        .mockResolvedValueOnce(respond());
+
+      await customerApi.updatePreferences(customerId, putPreferences);
+      await customerApi.updatePreferences(customerId, putPreferences);
+
+      expect(sentHeaders(1)["X-Read-After"]).toBeUndefined();
+    });
+  });
+
   describe("updatePreferences", () => {
     const customerId = "customer-123";
     const preferences = {
