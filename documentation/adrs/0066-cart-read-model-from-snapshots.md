@@ -104,5 +104,8 @@ Three things differ from the customer:
   as before. The acceptance step asserts the header is there.
 - **Stop old instances before `V11` runs.** An old instance would fail to insert outbox rows once
   the columns are gone. The outbox keeps every row until a purge job exists (PIN-395).
+- **Drain the old relay before `V11` runs.** The connector publishes only rows written after it
+  starts, and `published_at` is the only record of which rows the relay never sent. `V11` fails
+  while any row has `published_at IS NULL`, so none is dropped unsent.
 - **MongoDB is configured by host, port and database**, like the customer. PIN-538 moves both to
   a connection string with credentials and TLS, for DocumentDB.
