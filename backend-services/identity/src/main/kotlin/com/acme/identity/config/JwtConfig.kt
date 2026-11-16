@@ -29,6 +29,15 @@ data class JwtConfig(
     var signingKey: String = ""
 ) {
     /**
+     * The generated toString would print [signingKey], a long-lived private key, into any log
+     * line or test failure that prints this config. Keep this field list in step with the constructor.
+     */
+    override fun toString(): String =
+        "JwtConfig(issuer=$issuer, audience=$audience, accessTokenExpiryMinutes=$accessTokenExpiryMinutes, " +
+            "refreshTokenExpiryDays=$refreshTokenExpiryDays, keyRotationPeriodDays=$keyRotationPeriodDays, " +
+            "signingKey=${if (signingKey.isBlank()) "<none>" else "<redacted>"})"
+
+    /**
      * Gets the access token expiry duration.
      */
     val accessTokenExpiry: Duration
