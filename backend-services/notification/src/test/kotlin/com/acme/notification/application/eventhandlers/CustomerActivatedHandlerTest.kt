@@ -59,7 +59,7 @@ class CustomerActivatedHandlerTest {
         )
 
         every { processedEventRepository.existsByEventId(eventId) } returns false
-        every { customerServiceClient.getCustomerById(customerId) } returns CustomerQueryResult.Success(customer)
+        every { customerServiceClient.getCustomerById(customerId, eventId) } returns CustomerQueryResult.Success(customer)
         every {
             sendWelcomeEmailUseCase.execute(
                 customerId = customerId,
@@ -107,7 +107,7 @@ class CustomerActivatedHandlerTest {
         )
 
         every { processedEventRepository.existsByEventId(eventId) } returns false
-        every { customerServiceClient.getCustomerById(customerId) } returns CustomerQueryResult.Success(customer)
+        every { customerServiceClient.getCustomerById(customerId, eventId) } returns CustomerQueryResult.Success(customer)
         every {
             sendWelcomeEmailUseCase.execute(
                 customerId = customerId,
@@ -151,7 +151,7 @@ class CustomerActivatedHandlerTest {
 
         handler.handle(event)
 
-        verify(exactly = 0) { customerServiceClient.getCustomerById(any()) }
+        verify(exactly = 0) { customerServiceClient.getCustomerById(any(), any()) }
         verify(exactly = 0) { sendWelcomeEmailUseCase.execute(any(), any(), any(), any(), any(), any(), any(), any()) }
     }
 
@@ -162,7 +162,7 @@ class CustomerActivatedHandlerTest {
         val event = createEvent(eventId = eventId, customerId = customerId)
 
         every { processedEventRepository.existsByEventId(eventId) } returns false
-        every { customerServiceClient.getCustomerById(customerId) } returns CustomerQueryResult.NotFound
+        every { customerServiceClient.getCustomerById(customerId, eventId) } returns CustomerQueryResult.NotFound
 
         assertThrows<IllegalStateException> {
             handler.handle(event)
@@ -179,7 +179,7 @@ class CustomerActivatedHandlerTest {
         val event = createEvent(eventId = eventId, customerId = customerId)
 
         every { processedEventRepository.existsByEventId(eventId) } returns false
-        every { customerServiceClient.getCustomerById(customerId) } returns CustomerQueryResult.Error("Connection timeout")
+        every { customerServiceClient.getCustomerById(customerId, eventId) } returns CustomerQueryResult.Error("Connection timeout")
 
         assertThrows<RuntimeException> {
             handler.handle(event)
@@ -204,7 +204,7 @@ class CustomerActivatedHandlerTest {
         val customer = createCustomerDto(customerId = customerId)
 
         every { processedEventRepository.existsByEventId(eventId) } returns false
-        every { customerServiceClient.getCustomerById(customerId) } returns CustomerQueryResult.Success(customer)
+        every { customerServiceClient.getCustomerById(customerId, eventId) } returns CustomerQueryResult.Success(customer)
         every {
             sendWelcomeEmailUseCase.execute(any(), any(), any(), any(), any(), any(), any(), any())
         } returns SendWelcomeEmailResult.Failure("SendGrid error")
@@ -232,7 +232,7 @@ class CustomerActivatedHandlerTest {
         val customer = createCustomerDto(customerId = customerId)
 
         every { processedEventRepository.existsByEventId(eventId) } returns false
-        every { customerServiceClient.getCustomerById(customerId) } returns CustomerQueryResult.Success(customer)
+        every { customerServiceClient.getCustomerById(customerId, eventId) } returns CustomerQueryResult.Success(customer)
         every {
             sendWelcomeEmailUseCase.execute(any(), any(), any(), any(), any(), any(), any(), any())
         } returns SendWelcomeEmailResult.AlreadySent(existingNotificationId)

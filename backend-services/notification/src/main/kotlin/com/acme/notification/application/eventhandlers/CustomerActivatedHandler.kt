@@ -58,7 +58,7 @@ class CustomerActivatedHandler(
 
         // Fetch customer details from Customer Service OUTSIDE of transaction
         // to avoid holding database connections during remote HTTP call
-        val customerResult = customerServiceClient.getCustomerById(event.payload.customerId)
+        val customerResult = customerServiceClient.getCustomerById(event.payload.customerId, readAfter = event.eventId)
 
         when (customerResult) {
             is CustomerQueryResult.Success -> {

@@ -391,7 +391,7 @@ class WelcomeNotificationAcceptanceTest {
             )
 
             every { processedEventRepository.existsByEventId(eventId) } returns false
-            every { customerServiceClient.getCustomerById(customerId) } returns CustomerQueryResult.Success(customer)
+            every { customerServiceClient.getCustomerById(customerId, eventId) } returns CustomerQueryResult.Success(customer)
             every { deliveryRepository.existsByRecipientIdAndNotificationType(customerId, NotificationType.WELCOME) } returns false
             every { deliveryRepository.save(any()) } answers { firstArg() }
             every { emailSender.sendWelcomeEmail(any(), any(), any(), any(), any(), any(), any()) } returns EmailSendResult.Success("msg-123", 202)
@@ -428,7 +428,7 @@ class WelcomeNotificationAcceptanceTest {
             consumer.consume(record, acknowledgment)
 
             // Verify the flow
-            verify { customerServiceClient.getCustomerById(customerId) }
+            verify { customerServiceClient.getCustomerById(customerId, eventId) }
             verify {
                 emailSender.sendWelcomeEmail(
                     recipientEmail = "jane@example.com",
@@ -480,7 +480,7 @@ class WelcomeNotificationAcceptanceTest {
             )
 
             every { processedEventRepository.existsByEventId(eventId) } returns false
-            every { customerServiceClient.getCustomerById(customerId) } returns CustomerQueryResult.Success(customer)
+            every { customerServiceClient.getCustomerById(customerId, eventId) } returns CustomerQueryResult.Success(customer)
             every { deliveryRepository.existsByRecipientIdAndNotificationType(customerId, NotificationType.WELCOME) } returns false
             every { deliveryRepository.save(any()) } answers { firstArg() }
             every { emailSender.sendWelcomeEmail(any(), any(), any(), any(), any(), any(), any()) } returns EmailSendResult.Success("msg-456", 202)
@@ -589,7 +589,7 @@ class WelcomeNotificationAcceptanceTest {
 
             handler.handle(event)
 
-            verify(exactly = 0) { customerServiceClient.getCustomerById(any()) }
+            verify(exactly = 0) { customerServiceClient.getCustomerById(any(), any()) }
             verify(exactly = 0) { emailSender.sendWelcomeEmail(any(), any(), any(), any(), any(), any(), any()) }
         }
     }
