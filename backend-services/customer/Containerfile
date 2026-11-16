@@ -57,6 +57,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf 
 
 WORKDIR /app
 
+# Amazon's RDS CA bundle, for TLS to DocumentDB (PIN-538). Unused unless the environment sets
+# SPRING_SSL_BUNDLE_PEM_DOCDB_TRUSTSTORE_CERTIFICATE=file:/app/certs/rds-global-bundle.pem and
+# SPRING_MONGODB_SSL_BUNDLE=docdb, as the AWS demo does (ADR-0064).
+RUN mkdir -p certs && curl -fsSL -o certs/rds-global-bundle.pem https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem
+
 # Copy the built JAR from builder stage
 COPY --from=builder /app/build/libs/*.jar app.jar
 
