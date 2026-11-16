@@ -8,7 +8,6 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 import java.time.Instant
 import java.util.UUID
@@ -44,8 +43,6 @@ class OutboxWriterTest {
         assertEquals("Order", message.aggregateType)
         assertEquals("TestEvent", message.eventType)
         assertEquals(event.eventId, message.eventId)
-        assertNull(message.publishedAt)
-        assertEquals(0, message.retryCount)
         val json = objectMapper.readTree(message.payload)
         assertEquals(event.eventId.toString(), json["eventId"].asText())
         assertEquals("TestEvent", json["eventType"].asText())

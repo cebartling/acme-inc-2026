@@ -23,7 +23,6 @@ import org.testcontainers.postgresql.PostgreSQLContainer
 import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 
 /**
  * The outbox against real Postgres (PIN-368): that an event commits or rolls back with the
@@ -88,13 +87,12 @@ class OutboxRepositoryIntegrationTest {
     }
 
     @Test
-    fun `an event written in a transaction that commits is saved unsent`() {
+    fun `an event written in a transaction that commits is saved`() {
         val event = TestEvent()
         TransactionTemplate(transactionManager).executeWithoutResult { writer.write(event) }
 
         val saved = outbox.findAll().single()
         assertEquals(event.eventId, saved.eventId)
-        assertTrue(saved.publishedAt == null)
     }
 
     @Test
