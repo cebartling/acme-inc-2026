@@ -242,14 +242,15 @@ When creating new backend services, be aware of these Spring Boot 4 changes:
 
 **MongoDB Configuration:**
 - Property prefix changed from `spring.data.mongodb.*` to `spring.mongodb.*`
-- Example:
+- Example. Take the connection from one URI, so the AWS demo can add DocumentDB credentials and
+  TLS without code changes (PIN-538, ADR-0064 decision 4). `database` overrides the URI's.
   ```yaml
   spring:
     mongodb:
-      host: ${MONGODB_HOST:localhost}
-      port: ${MONGODB_PORT:27017}
+      uri: ${MONGODB_URI:mongodb://localhost:27017}
       database: ${MONGODB_DB:acme_query}
   ```
+- A service with a read model also needs the RDS CA bundle step from customer's `Containerfile`.
 
 **Flyway Migrations:**
 - Spring Boot 4 moved `FlywayAutoConfiguration` into its own module. `flyway-core` on the
