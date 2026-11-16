@@ -1334,7 +1334,35 @@ export type MergeCartResponse = Cart & { mergeResult: MergeResult | null };
  */
 const READ_AFTER_TTL_MS = 30_000;
 
-let lastCartWrite: { eventId: string; at: number } | null = null;
+/**
+ * Where the last change's event id is kept. It has to outlive the page: a reload, a navigation
+ * that loads the app afresh and a new tab all read the cart right after a change, with no memory
+ * of it. `localStorage` is shared by every tab, and the TTL keeps it from lingering.
+ */
+const LAST_CART_WRITE_KEY = "acme.cart.lastWrite";
+
+interface CartWrite {
+  eventId: string;
+  at: number;
+}
+
+/** Used when storage is unavailable (private mode, blocked): the id then lasts until a reload. */
+let lastCartWriteInMemory: CartWrite | null = null;
+
+function loadLastCartWrite(): CartWrite | null {
+  try {
+    const stored = localStorage.getItem(LAST_CART_WRITE_KEY);
+    if (stored === null) return lastCartWriteInMemory;
+    const write: unknown = JSON.parse(stored);
+    const { eventId, at } = (write ?? {}) as Partial<CartWrite>;
+    return typeof eventId === "string" && typeof at === "number"
+      ? { eventId, at }
+      : null;
+  } catch {
+    // Storage is unavailable or holds something unreadable: read without waiting, as before
+    return lastCartWriteInMemory;
+  }
+}
 
 /**
  * The cart service answers a change with the id of its event in `X-Read-After`. The cart is
@@ -1346,7 +1374,14 @@ function rememberReadAfter(response: Response) {
 }
 
 function rememberCartEvent(eventId: string | null) {
-  if (eventId) lastCartWrite = { eventId, at: Date.now() };
+  if (!eventId) return;
+  const write: CartWrite = { eventId, at: Date.now() };
+  lastCartWriteInMemory = write;
+  try {
+    localStorage.setItem(LAST_CART_WRITE_KEY, JSON.stringify(write));
+  } catch {
+    // Storage is unavailable: the in-memory copy still serves this page
+  }
 }
 
 /**
@@ -1356,10 +1391,9 @@ function rememberCartEvent(eventId: string | null) {
 const CART_READ_AFTER_HEADER = "X-Cart-Read-After";
 
 function readAfterHeader(): Record<string, string> {
-  if (!lastCartWrite || Date.now() - lastCartWrite.at > READ_AFTER_TTL_MS) {
-    return {};
-  }
-  return { [READ_AFTER_HEADER]: lastCartWrite.eventId };
+  const write = loadLastCartWrite();
+  if (!write || Date.now() - write.at > READ_AFTER_TTL_MS) return {};
+  return { [READ_AFTER_HEADER]: write.eventId };
 }
 
 /** Every call to the cart service, remembering the `X-Read-After` its changes return. */

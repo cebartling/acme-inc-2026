@@ -2187,6 +2187,28 @@ describe("cartApi X-Read-After (PIN-551)", () => {
     expect(sentReadAfter()).toBe("event-convert");
   });
 
+  it("survives a page reload or a new tab, which start with no module state", async () => {
+    mockFetch.mockResolvedValueOnce(cartResponse("event-1"));
+    await cartApi.updateItem("cart-1", "line-1", 3);
+
+    // A reload loads api.ts again; the id must come from storage, not from memory
+    vi.resetModules();
+    const reloaded = await import("./api");
+    mockFetch.mockResolvedValueOnce(cartResponse());
+    await reloaded.cartApi.getCurrent();
+
+    expect(sentReadAfter()).toBe("event-1");
+  });
+
+  it("ignores stored data it cannot read, and still reads the cart", async () => {
+    localStorage.setItem("acme.cart.lastWrite", "{not json");
+    mockFetch.mockResolvedValueOnce(cartResponse());
+
+    await expect(cartApi.getCurrent()).resolves.toEqual(cart);
+
+    expect(sentReadAfter()).toBeUndefined();
+  });
+
   it("keeps sending it for reads right after the write, not only the first", async () => {
     mockFetch.mockResolvedValueOnce(cartResponse("event-1"));
     await cartApi.updateItem("cart-1", "line-1", 3);
