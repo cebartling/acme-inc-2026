@@ -451,6 +451,30 @@ describe("CheckoutPage (PIN-426)", () => {
       expect(sessionStorage.length).toBe(0);
     });
 
+    it("looks at the cart again while it still shows lines, since the read model trails the conversion (PIN-551)", async () => {
+      mockedPlace.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+      renderPage();
+      await userEvent.click(await screen.findByTestId("placeOrder"));
+      await screen.findByTestId("placeOrderMessage");
+      const [, key] = mockedPlace.mock.calls[0];
+      mockedFind.mockResolvedValueOnce(placed);
+
+      // The order was placed, but the cart read model hasn't applied the conversion yet, and
+      // nothing else asks for the cart again: it has to look on its own
+      mockedGetCurrent.mockResolvedValue(null);
+
+      await waitFor(
+        () =>
+          expect(navigate).toHaveBeenCalledWith({
+            to: "/orders/$orderId/confirmation",
+            params: { orderId: "order-1" },
+            replace: true,
+          }),
+        { timeout: 4000 },
+      );
+      expect(mockedFind).toHaveBeenCalledWith(key);
+    });
+
     it("keeps the next attempt after a lookup found no order", async () => {
       await loseTheAnswerAndReload();
       mockedGetCurrent.mockResolvedValueOnce(null).mockResolvedValue(cart);
