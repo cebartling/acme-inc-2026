@@ -119,6 +119,10 @@ podman build -f Containerfile -t acme-identity-service .
 # Customer Frontend
 cd frontend-apps/customer
 podman build -f Containerfile -t acme-customer-frontend .
+
+# Admin Frontend
+cd frontend-apps/admin
+podman build -f Containerfile -t acme-admin-frontend .
 ```
 
 ## Docker Management Script
