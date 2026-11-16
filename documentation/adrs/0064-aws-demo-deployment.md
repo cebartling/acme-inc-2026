@@ -181,8 +181,8 @@ These are still open, on PIN-533 unless noted. This ADR doesn't decide them.
 
 - **Debezium hosting.** MSK Connect bills each connector separately, roughly $80 a month each
   while running. One self-hosted Kafka Connect worker on Fargate could run all five connectors
-  for much less and keeps the Kafka Connect REST API, but it breaks the "all AWS managed"
-  decision. Keep MSK Connect?
+  ([ADR-0008](0008-debezium-cdc-connector.md); order's is deferred) for much less and keeps the
+  Kafka Connect REST API, but it breaks the "all AWS managed" decision. Keep MSK Connect?
 - **AWS account and region.**
 - **Domain:** which Route 53 domain, and the names of the two frontend subdomains and the API
   host.
