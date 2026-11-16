@@ -19,6 +19,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 @Testcontainers
 class CartReadModelQueriesIntegrationTest {
@@ -135,6 +136,24 @@ class CartReadModelQueriesIntegrationTest {
         }
 
         assertEquals(missing, behind.readAfter)
+    }
+
+    @Test
+    fun `with every wait slot taken, a read for an unseen change is behind at once`() {
+        val template = MongoTemplate(MongoClients.create(mongo.connectionString), "queries_test")
+        val limited = CartReadModelQueries(template, waitTimeoutMs = 600, pollIntervalMs = 10, maxConcurrentWaits = 1)
+        project(sessionId = "guest-1")
+        val waiting = thread { runCatching { limited.findCurrent(CartOwner.Guest("guest-1"), UUID.randomUUID()) } }
+        Thread.sleep(100)
+
+        val startedAt = System.nanoTime()
+        assertFailsWith<ReadModelBehindException> {
+            limited.findCurrent(CartOwner.Guest("guest-1"), readAfter = UUID.randomUUID())
+        }
+        val elapsedMs = (System.nanoTime() - startedAt) / 1_000_000
+
+        waiting.join()
+        assertTrue(elapsedMs < 300, "should not have waited, took ${elapsedMs}ms")
     }
 
     @Test

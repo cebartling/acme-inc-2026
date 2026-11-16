@@ -57,7 +57,9 @@ Three things differ from the customer:
    event, then reads the owner's `ACTIVE` or `CHECKOUT` cart. If the event does not arrive it is a
    `503` with `Retry-After: 1`, never a stale cart or a false 204. A header that is not a UUID is a
    `400`. The wait is on any document, not the owner's current cart, because the change may have
-   ended that cart.
+   ended that cart. The endpoint needs no sign-in, so at most 50 reads wait at once
+   (`acme.cart.read-model.max-concurrent-waits`); with every slot taken, a read for an event not
+   yet applied gets the `503` straight away instead of holding a request thread.
 6. **The customer app sends the id for 30 seconds, not once.** Every cart-service response's
    `X-Read-After` is remembered, and every cart read in the next 30 seconds sends it. Customer's
    client sends it once, but the cart is read from several places at once (the badge, a focus

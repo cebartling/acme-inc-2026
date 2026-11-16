@@ -12,6 +12,7 @@ import org.springframework.data.mongodb.core.query.Criteria
 import org.springframework.data.mongodb.core.query.Query
 import org.springframework.stereotype.Component
 import java.util.UUID
+import java.util.concurrent.Semaphore
 
 /** The read model has not yet applied the change the caller wrote, and did not within the wait. */
 class ReadModelBehindException(val readAfter: UUID) :
@@ -31,8 +32,14 @@ class CartReadModelQueries(
     @Value("\${acme.cart.read-model.wait-timeout-ms:5000}")
     private val waitTimeoutMs: Long,
     @Value("\${acme.cart.read-model.poll-interval-ms:25}")
-    private val pollIntervalMs: Long
+    private val pollIntervalMs: Long,
+    @Value("\${acme.cart.read-model.max-concurrent-waits:50}")
+    maxConcurrentWaits: Int = 50
 ) {
+    // GET /carts/current needs no sign-in, so anyone can send an event id that never arrives.
+    // Capping the waits keeps those requests from using up the request threads.
+    private val waits = Semaphore(maxConcurrentWaits)
+
     @PostConstruct
     fun ensureIndexes() {
         val indexes = mongoTemplate.indexOps(CartReadModelDocument.COLLECTION)
@@ -60,14 +67,21 @@ class CartReadModelQueries(
 
     /**
      * Waits for any cart document to carry [eventId]. The change may have ended the owner's cart
-     * (converted it), so the owner's current cart is not where to look for it.
+     * (converted it), so the owner's current cart is not where to look for it. When the event is
+     * not there yet and every wait slot is taken, it throws [ReadModelBehindException] at once.
      */
     private fun waitUntilApplied(eventId: UUID) {
-        val deadline = System.nanoTime() + waitTimeoutMs * 1_000_000
         val applied = Query(Criteria.where(CartReadModelDocument.APPLIED_EVENT_IDS).`is`(eventId.toString()))
-        while (!mongoTemplate.exists(applied, CartReadModelDocument.COLLECTION)) {
-            if (System.nanoTime() >= deadline) throw ReadModelBehindException(eventId)
-            Thread.sleep(pollIntervalMs)
+        if (mongoTemplate.exists(applied, CartReadModelDocument.COLLECTION)) return
+        if (!waits.tryAcquire()) throw ReadModelBehindException(eventId)
+        try {
+            val deadline = System.nanoTime() + waitTimeoutMs * 1_000_000
+            while (!mongoTemplate.exists(applied, CartReadModelDocument.COLLECTION)) {
+                if (System.nanoTime() >= deadline) throw ReadModelBehindException(eventId)
+                Thread.sleep(pollIntervalMs)
+            }
+        } finally {
+            waits.release()
         }
     }
 }
