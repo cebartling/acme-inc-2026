@@ -149,8 +149,8 @@ yet.
 
 - **Deploy on merge to `main`:** there's no environment to deploy to between demos, and each
   deploy creates MSK and DocumentDB, which takes half an hour or more.
-- **Deploy from a laptop:** it needs long-lived AWS keys on one machine, and ties every deploy
-  to that machine again.
+- **Deploy from a laptop:** ties every deploy to one machine and its credentials again, which
+  is the problem this environment exists to remove.
 
 ### 9. Observability: AWS managed services through ADOT
 
