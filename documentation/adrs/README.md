@@ -107,6 +107,12 @@ An Architecture Decision Record documents a significant architectural decision, 
 | [ADR-0016](0016-docker-compose-development.md) | Docker Compose for Local Development | Accepted |
 | [ADR-0027](0027-acceptance-testing-agentic-development.md) | Acceptance Testing as a Safety Net for Agentic Development | Accepted |
 
+### Deployment
+
+| ADR | Title | Status |
+|-----|-------|--------|
+| [ADR-0064](0064-aws-demo-deployment.md) | AWS Demo Deployment | Accepted |
+
 ### Frontend Patterns
 
 | ADR | Title | Status |
