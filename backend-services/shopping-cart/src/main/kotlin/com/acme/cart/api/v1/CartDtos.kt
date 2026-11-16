@@ -68,7 +68,11 @@ data class CartResponse(
     val id: UUID,
     /** ACTIVE, or CHECKOUT while the cart is locked for checkout (PIN-329). */
     val status: CartStatus,
-    val items: List<CartItemResponse>,
+    /**
+     * Defaults to empty because Debezium drops empty arrays when it expands the outbox payload, so
+     * the read model's snapshot of an emptied cart arrives without this key (PIN-551).
+     */
+    val items: List<CartItemResponse> = emptyList(),
     val summary: CartSummaryResponse
 ) {
     companion object {

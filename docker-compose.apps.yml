@@ -407,6 +407,11 @@ services:
 
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
 
+      # The cart read model (PIN-551)
+      MONGODB_HOST: mongodb
+      MONGODB_PORT: 27017
+      MONGODB_DB: acme_query
+
       # Authoritative prices come from the product service
       PRODUCT_SERVICE_URL: http://product-service:10303
 

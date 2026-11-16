@@ -31,8 +31,22 @@ spring:
       # Boot's RestClient.Builder, PIN-497), so a decimal in the product service's integer
       # fields fails the call too. Not JacksonConfig's Kafka/snapshot mapper.
       accept-float-as-int: false
+  # The cart read model (PIN-551), in the database shared with the other services' read models
+  mongodb:
+    host: ${MONGODB_HOST:localhost}
+    port: ${MONGODB_PORT:27017}
+    database: ${MONGODB_DB:acme_query}
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    # The read model's projector (CartSnapshotProjector) acknowledges each snapshot once applied
+    consumer:
+      group-id: shopping-cart-service
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      properties:
+        isolation.level: read_committed
+    listener:
+      ack-mode: manual
   task:
     scheduling:
       pool:
