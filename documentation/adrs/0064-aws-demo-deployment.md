@@ -214,8 +214,8 @@ These are still open, on PIN-533 unless noted. This ADR doesn't decide them.
     ([ADR-0035](0035-jwt-token-implementation.md)), so a second identity task can't verify the
     first task's tokens, and every restart signs everyone out. The keys come from Secrets
     Manager instead. Local Docker Compose development must keep working.
-  - **Metrics and traces** (PIN-537). No service has the Prometheus registry, product and
-    shopping-cart don't expose the metrics endpoint, and no service configures trace export.
+  - **Metrics** (PIN-537). No service has the Prometheus registry, and product and
+    shopping-cart don't expose the metrics endpoint.
   - **DocumentDB connection** (PIN-538). The customer service connects to MongoDB with only a
     host, port and database name. DocumentDB needs credentials, TLS and the AWS certificate
     bundle in the image.
@@ -232,6 +232,8 @@ These are still open, on PIN-533 unless noted. This ADR doesn't decide them.
     topics are created explicitly).
   - The services connect to Redis without TLS, so ElastiCache runs without in-transit
     encryption (or Redis TLS is turned on through an environment variable).
+  - The services already export OTLP traces ([ADR-0014](0014-tempo-distributed-tracing.md),
+    PIN-370), so `OTEL_EXPORTER_OTLP_ENDPOINT` must point at the ADOT collector.
   - `TEST_API_ENABLED=true` and the test API key are set on the demo environment only.
 - Logs and traces live in different tools on AWS (CloudWatch, X-Ray) than locally (Loki,
   Tempo).
