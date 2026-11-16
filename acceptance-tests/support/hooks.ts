@@ -6,6 +6,7 @@ import {
   Status,
   setDefaultTimeout,
 } from '@cucumber/cucumber';
+import { execFileSync } from 'node:child_process';
 import { config } from '../playwright.config.js';
 import { CustomWorld } from './world.js';
 
@@ -52,6 +53,16 @@ Before({ tags: '@customer and not @registration' }, async function (this: Custom
 // Navigate to admin app for @admin scenarios
 Before({ tags: '@admin' }, async function (this: CustomWorld) {
   await this.page.goto(this.getAdminAppUrl());
+});
+
+// A @kafka-outage scenario stops Kafka. Start it again even when the scenario failed midway, or
+// every scenario after it would fail too. Starting a running container does nothing.
+After({ tags: '@kafka-outage', timeout: 30000 }, async function () {
+  try {
+    execFileSync('docker', ['start', process.env.KAFKA_CONTAINER ?? 'acme-kafka'], { stdio: 'pipe' });
+  } catch (error) {
+    console.warn('⚠️  Failed to restart Kafka after the outage scenario:', error);
+  }
 });
 
 // After hook with reasonable timeout for cleanup

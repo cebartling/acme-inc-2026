@@ -5,7 +5,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "bun ./node_modules/@cucumber/cucumber/bin/cucumber.js --import 'support/world.ts' --import 'support/hooks.ts' --import 'steps/**/*.ts' --tags 'not @rate-limiting' --tags 'not @wip'",
+    "test": "bun ./node_modules/@cucumber/cucumber/bin/cucumber.js --import 'support/world.ts' --import 'support/hooks.ts' --import 'steps/**/*.ts' --tags 'not @rate-limiting' --tags 'not @wip' --tags 'not @kafka-outage'",
+    "test:kafka-outage": "bun ./node_modules/@cucumber/cucumber/bin/cucumber.js --import 'support/world.ts' --import 'support/hooks.ts' --import 'steps/**/*.ts' --tags '@kafka-outage and not @wip'",
     "test:smoke": "bun ./node_modules/@cucumber/cucumber/bin/cucumber.js --import 'support/world.ts' --import 'support/hooks.ts' --import 'steps/**/*.ts' --tags '@smoke and not @wip'",
     "test:regression": "bun ./node_modules/@cucumber/cucumber/bin/cucumber.js --import 'support/world.ts' --import 'support/hooks.ts' --import 'steps/**/*.ts' --tags '@regression and not @wip'",
     "test:customer": "bun ./node_modules/@cucumber/cucumber/bin/cucumber.js --import 'support/world.ts' --import 'support/hooks.ts' --import 'steps/**/*.ts' --tags '@customer and not @wip'",
