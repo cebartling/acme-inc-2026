@@ -103,9 +103,14 @@ Then('it should be the same order', async function (this: CustomWorld) {
 });
 
 Then('my account cart should be converted into the order', async function (this: CustomWorld) {
+  // The order service converted the cart, so this client has no id for that change. The place-order
+  // response passes on the cart's (PIN-551); sending it makes the cart read wait for the conversion.
+  const readAfter = this.getLastResponse()?.headers['x-cart-read-after'];
+  expect(readAfter, 'the place-order response should carry X-Cart-Read-After').toBeDefined();
+
   // A CONVERTED cart is no longer anyone's current cart
   const current = await this.cartApiClient.get('/api/v1/carts/current', {
-    headers: accessTokenCookie(this),
+    headers: { ...accessTokenCookie(this), 'X-Read-After': String(readAfter) },
   });
   expect(current.status).toBe(204);
 });

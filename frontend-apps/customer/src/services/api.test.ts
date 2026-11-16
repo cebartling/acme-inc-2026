@@ -2169,6 +2169,24 @@ describe("cartApi X-Read-After (PIN-551)", () => {
     expect(sentReadAfter()).toBeUndefined();
   });
 
+  it("remembers the cart event id an order placement returns, so the next cart read sees the conversion", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 201,
+      headers: new Headers({
+        "content-type": "application/json",
+        "x-cart-read-after": "event-convert",
+      }),
+      json: () => Promise.resolve({ orderId: "order-1" }),
+    });
+    await orderApi.place("session-1", "key-1");
+    mockFetch.mockResolvedValueOnce(cartResponse());
+
+    await cartApi.getCurrent();
+
+    expect(sentReadAfter()).toBe("event-convert");
+  });
+
   it("keeps sending it for reads right after the write, not only the first", async () => {
     mockFetch.mockResolvedValueOnce(cartResponse("event-1"));
     await cartApi.updateItem("cart-1", "line-1", 3);

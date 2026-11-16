@@ -1342,9 +1342,18 @@ let lastCartWrite: { eventId: string; at: number } | null = null;
  * waits for the change instead of showing the cart without it (PIN-551).
  */
 function rememberReadAfter(response: Response) {
-  const eventId = response.headers.get(READ_AFTER_HEADER);
+  rememberCartEvent(response.headers.get(READ_AFTER_HEADER));
+}
+
+function rememberCartEvent(eventId: string | null) {
   if (eventId) lastCartWrite = { eventId, at: Date.now() };
 }
+
+/**
+ * The order service converts the cart when an order is placed, so the cart's event for that change
+ * reaches the browser on the order's response, in this header, not on a cart response.
+ */
+const CART_READ_AFTER_HEADER = "X-Cart-Read-After";
 
 function readAfterHeader(): Record<string, string> {
   if (!lastCartWrite || Date.now() - lastCartWrite.at > READ_AFTER_TTL_MS) {
@@ -1540,6 +1549,9 @@ export const orderApi = {
       body: JSON.stringify({ checkoutSessionId }),
       // CheckoutPage sends a customer who can't be refreshed to sign-in, back to the cart
       refreshOnSignInRequired: true,
+      // The next cart read waits for the conversion, so the cart that was just ordered is gone
+      onResponse: (response) =>
+        rememberCartEvent(response.headers.get(CART_READ_AFTER_HEADER)),
     });
   },
 
