@@ -21,6 +21,8 @@ describes key IDs as `key-YYYY-MM` and rotation "without invalidating existing t
 code adds a random suffix (`key-YYYY-MM-xxxxxxxx`) so two rotations in a month differ, and a
 restart drops every key.
 
+**Update (2026-11-15, PIN-536):** setting `JWT_SIGNING_KEY` to a PEM PKCS#8 RSA private key makes it identity's only key, with its RFC 7638 thumbprint as the kid. It is never rotated or regenerated, so tokens survive restarts and verify on every identity instance. Without it, everything above still holds. The restart consequences listed under Negative apply only when no key is configured.
+
 ## Decision
 
 Services verify identity's access tokens **locally against a published JWKS**:
@@ -64,8 +66,8 @@ number and email return a whole customer and no page uses them, so they take a s
 
 ### Negative
 
-- Every identity restart invalidates every issued token, in every verifier. Signed-in
-  customers get a 401 in the cart until they sign in again.
+- Every identity restart invalidates every issued token, in every verifier, unless `JWT_SIGNING_KEY`
+  is set (PIN-536). Signed-in customers get a 401 in the cart until they sign in again.
 - Local verification can't see identity's session state. A token stays valid in the cart
   until `exp`, 15 minutes after issue (`access-token-expiry-minutes`), even after sign-out.
 - The checks differ between services. Identity's `TokenService.parseAccessTokenClaims` does not
@@ -77,5 +79,6 @@ number and email return a whole customer and no page uses them, so they take a s
 ### Mitigations
 
 - Keep the restart limitation documented here, in `SigningKeyProvider` and in
-  `ARCHITECTURE.md` (Token Security) until keys are persisted, e.g. in Vault (ADR-0009).
+  `ARCHITECTURE.md` (Token Security) for deployments without `JWT_SIGNING_KEY`. Any deployment
+  with more than one identity instance must set it.
 - The 15-minute access token lifetime bounds how long a signed-out token works.

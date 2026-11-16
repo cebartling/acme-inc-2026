@@ -144,6 +144,7 @@ Features:
 | `POSTGRES_PASSWORD` | Database password | `acme_password` |
 | `KAFKA_BOOTSTRAP_SERVERS` | Kafka broker addresses | `localhost:9092` |
 | `SCHEMA_REGISTRY_URL` | Schema Registry URL | `http://localhost:8081` |
+| `JWT_SIGNING_KEY` | PEM PKCS#8 RSA private key (at least 2048 bits) that every instance signs and verifies with. Blank generates a key in memory, so tokens don't survive a restart and two instances can't verify each other's. Generate one with `openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048` | blank |
 
 ## Project Structure
 
