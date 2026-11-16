@@ -14,6 +14,7 @@ export class CustomWorld extends World<CustomWorldParameters> {
   identityApiClient!: ApiClient;
   customerApiClient!: ApiClient;
   notificationApiClient!: ApiClient;
+  productApiClient!: ApiClient;
   cartApiClient!: ApiClient;
   orderApiClient!: ApiClient;
 
@@ -108,6 +109,7 @@ export class CustomWorld extends World<CustomWorldParameters> {
       'X-Service-Token': config.customerServiceToken,
     });
     this.notificationApiClient = new ApiClient(config.notificationApiUrl);
+    this.productApiClient = new ApiClient(config.productApiUrl);
     this.cartApiClient = new ApiClient(config.cartApiUrl);
     this.orderApiClient = new ApiClient(config.orderApiUrl);
   }

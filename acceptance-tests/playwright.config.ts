@@ -17,6 +17,7 @@ export const config = {
   identityApiUrl: process.env.IDENTITY_API_URL || 'http://localhost:10300',
   customerApiUrl: process.env.CUSTOMER_API_URL || 'http://localhost:10301',
   notificationApiUrl: process.env.NOTIFICATION_API_URL || 'http://localhost:10302',
+  productApiUrl: process.env.PRODUCT_API_URL || 'http://localhost:10303',
   cartApiUrl: process.env.CART_API_URL || 'http://localhost:10304',
   orderApiUrl: process.env.ORDER_API_URL || 'http://localhost:10305',
   // The order service's secret for cart calls (must match ACME_ORDER_SERVICE_TOKEN, PIN-382)

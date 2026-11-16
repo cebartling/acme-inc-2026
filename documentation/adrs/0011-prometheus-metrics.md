@@ -4,7 +4,7 @@
 
 Accepted
 
-**Current state (2026-11-03, PIN-493):** Prometheus runs and collects metrics from one application service, order. Order declares `micrometer-registry-prometheus`, exposes `/actuator/prometheus` without authentication (the actuator is open in `SecurityConfig`), and has an `order-service` job in `docker/prometheus/config/prometheus.yml`. No other service declares the registry, so `/actuator/prometheus` does not exist on them, even though identity, customer and notification list `prometheus` in `management.endpoints.web.exposure.include`. Product and shopping-cart expose only `health,info,metrics`. The other scrape jobs are infrastructure (prometheus, grafana, loki, tempo, kafka, schema-registry and debezium-connect); no other backend service has a job.
+**Current state (2026-11-16, PIN-537):** Prometheus collects metrics from all six backend services. Each declares `micrometer-registry-prometheus` and exposes `/actuator/prometheus` without authentication: customer's, shopping-cart's and order's security chains leave the actuator open, and identity, notification and product have no Spring Security. Each has a `<name>-service` job in `docker/prometheus/config/prometheus.yml` (order since PIN-493, the rest since PIN-537), and `acceptance-tests/features/api/prometheus-metrics-api.feature` checks the endpoint on all six. The other scrape jobs are infrastructure (prometheus, grafana, loki, tempo and alertmanager).
 
 ## Context
 

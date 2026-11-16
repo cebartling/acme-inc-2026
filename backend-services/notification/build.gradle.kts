@@ -75,6 +75,8 @@ dependencies {
     implementation("ognl:ognl:3.3.4")
 
     // Observability
+    // Exports the actuator metrics at /actuator/prometheus for Prometheus to scrape (PIN-537)
+    runtimeOnly("io.micrometer:micrometer-registry-prometheus")
     implementation("org.springframework.boot:spring-boot-starter-opentelemetry")
     implementation("org.springframework.boot:spring-boot-starter-restclient")
 
