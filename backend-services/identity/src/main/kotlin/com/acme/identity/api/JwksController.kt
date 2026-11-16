@@ -14,8 +14,10 @@ import java.security.interfaces.RSAPublicKey
  * services can verify access tokens locally (US-0004-08: the shopping cart service needs
  * to know which customer is calling).
  *
- * Keys are held in memory by [SigningKeyProvider] and regenerated on restart, so verifiers
- * must re-fetch this set when they meet an unknown `kid` rather than caching it forever.
+ * Unless `JWT_SIGNING_KEY` is set, keys are held in memory by [SigningKeyProvider] and
+ * regenerated on restart, so verifiers must re-fetch this set when they meet an unknown
+ * `kid` rather than caching it forever. With `JWT_SIGNING_KEY` set, the set holds that one
+ * stable key.
  */
 @RestController
 class JwksController(private val keyProvider: SigningKeyProvider) {

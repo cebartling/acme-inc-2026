@@ -21,13 +21,13 @@ import java.util.concurrent.TimeUnit
 /**
  * Provides RSA signing keys for JWT token generation.
  *
- * This implementation generates RSA key pairs in-memory and rotates them
+ * By default this generates RSA key pairs in-memory and rotates them
  * based on the configured rotation period. In production, this should be
  * enhanced to integrate with HashiCorp Vault for secure key storage and
- * retrieval.
+ * retrieval. The alternative is a configured key, described below.
  *
- * Key rotation strategy:
- * - Keys are identified by a key ID (kid) in the format "key-YYYY-MM"
+ * Key rotation strategy (generated keys only):
+ * - Keys are identified by a key ID (kid) in the format "key-YYYY-MM-xxxxxxxx"
  * - The current active key is used for signing new tokens
  * - Previously issued tokens remain valid until expiry
  * - Verification supports multiple keys for seamless rotation
@@ -153,6 +153,8 @@ class SigningKeyProvider(
      * - Request a new key version from Vault
      * - Update the current key reference
      * - Maintain previous keys for verification
+     *
+     * @throws IllegalStateException if the signing key comes from configuration (`JWT_SIGNING_KEY`).
      */
     fun rotateKey() {
         check(!keyConfigured) {
