@@ -47,8 +47,34 @@ scrape_configs:
     static_configs:
       - targets: ["alertmanager:9093"]
 
-  # Order service metrics (PIN-493). With only docker-compose.yml running this target does not
-  # exist, so ServiceDown fires for it; that is expected.
+  # Backend service metrics at /actuator/prometheus (order PIN-493, the rest PIN-537). With only
+  # docker-compose.yml running these targets do not exist, so ServiceDown fires for each; that
+  # is expected.
+  - job_name: "identity-service"
+    static_configs:
+      - targets: ["identity-service:10300"]
+    metrics_path: /actuator/prometheus
+
+  - job_name: "customer-service"
+    static_configs:
+      - targets: ["customer-service:10301"]
+    metrics_path: /actuator/prometheus
+
+  - job_name: "notification-service"
+    static_configs:
+      - targets: ["notification-service:10302"]
+    metrics_path: /actuator/prometheus
+
+  - job_name: "product-service"
+    static_configs:
+      - targets: ["product-service:10303"]
+    metrics_path: /actuator/prometheus
+
+  - job_name: "shopping-cart-service"
+    static_configs:
+      - targets: ["shopping-cart-service:10304"]
+    metrics_path: /actuator/prometheus
+
   - job_name: "order-service"
     static_configs:
       - targets: ["order-service:10305"]
