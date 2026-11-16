@@ -59,7 +59,7 @@ RDS or DocumentDB.
 
 - **AWS CDK:** adds a program in a general-purpose language to build, and still deploys through
   CloudFormation.
-- **CloudFormation:** verbose templates, and AWS only.
+- **CloudFormation:** verbose templates.
 - **Pulumi:** adds a general-purpose language and its runtime, and is less widely known than
   Terraform.
 
