@@ -155,4 +155,20 @@ class OutboxWriterTest {
 
         assertEquals(2, saved.size)
     }
+
+    @Test
+    fun `writeSnapshot saves only a snapshot row, and tells the client to read after it`() {
+        val customerId = UUID.randomUUID()
+        every { snapshotFactory.build(customerId) } returns snapshotOf(customerId)
+        val response = MockHttpServletResponse()
+        RequestContextHolder.setRequestAttributes(ServletRequestAttributes(MockHttpServletRequest(), response))
+
+        val sourceEventId = writer.writeSnapshot(customerId, "Customer")
+
+        val row = saved.single()
+        assertEquals("customer.read-model", row.topic)
+        assertEquals(customerId.toString(), row.messageKey)
+        assertEquals(sourceEventId.toString(), objectMapper.readTree(row.payload).get("sourceEventId").asText())
+        assertEquals(sourceEventId.toString(), response.getHeader(ReadAfter.HEADER))
+    }
 }

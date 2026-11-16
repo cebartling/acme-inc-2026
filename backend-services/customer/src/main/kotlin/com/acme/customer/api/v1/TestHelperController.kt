@@ -5,6 +5,7 @@ import com.acme.customer.domain.CustomerPreferences
 import com.acme.customer.domain.CustomerStatus
 import com.acme.customer.domain.CustomerType
 import com.acme.customer.domain.NotificationFrequency
+import com.acme.customer.infrastructure.messaging.OutboxWriter
 import com.acme.customer.infrastructure.persistence.AddressRepository
 import com.acme.customer.infrastructure.persistence.CustomerPreferencesRepository
 import com.acme.customer.infrastructure.persistence.CustomerRepository
@@ -36,9 +37,14 @@ import java.util.UUID
 class TestHelperController(
     private val customerRepository: CustomerRepository,
     private val preferencesRepository: CustomerPreferencesRepository,
-    private val addressRepository: AddressRepository
+    private val addressRepository: AddressRepository,
+    private val outboxWriter: OutboxWriter
 ) {
     private val logger = LoggerFactory.getLogger(TestHelperController::class.java)
+
+    private companion object {
+        const val CUSTOMER_AGGREGATE = "Customer"
+    }
 
     /**
      * Creates a test customer with specified properties.
@@ -100,6 +106,7 @@ class TestHelperController(
         )
 
         preferencesRepository.save(preferences)
+        outboxWriter.writeSnapshot(customerId, CUSTOMER_AGGREGATE)
 
         logger.info("Created test customer: {}", customerId)
         return ResponseEntity.ok(TestCustomerResponse(customerId.toString(), "created"))
@@ -141,6 +148,7 @@ class TestHelperController(
         customerRepository.save(customer)
 
         logger.info("Updated phone verification for customer: {}", customerId)
+        outboxWriter.writeSnapshot(customer.id, CUSTOMER_AGGREGATE)
         return ResponseEntity.ok(mapOf("status" to "updated", "phoneVerified" to request.verified))
     }
 
@@ -181,6 +189,7 @@ class TestHelperController(
         addressRepository.save(address)
 
         logger.info("Validated address {} with status: {}", addressId, request.isValid)
+        outboxWriter.writeSnapshot(address.customerId, CUSTOMER_AGGREGATE)
         return ResponseEntity.ok(mapOf("status" to "validated", "isValid" to request.isValid))
     }
 }

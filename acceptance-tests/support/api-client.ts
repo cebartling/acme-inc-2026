@@ -14,6 +14,8 @@ export interface ApiResponse<T = unknown> {
  */
 const DEFAULT_TIMEOUT_MS = 10000;
 
+const READ_AFTER_HEADER = 'X-Read-After';
+
 export interface RequestOptions {
   headers?: Record<string, string>;
   /** Milliseconds before the request is aborted; defaults to DEFAULT_TIMEOUT_MS. */
@@ -25,6 +27,12 @@ export class ApiClient {
   private baseUrl: string;
   private defaultHeaders: Record<string, string>;
   private authToken: string | null = null;
+  /**
+   * The customer service serves reads from a read model that trails writes. A write returns the
+   * id of its event in X-Read-After; the next GET sends it back, so it waits for that write
+   * instead of reading stale data or a false 404. Sent once, because it names one write.
+   */
+  private readAfter: string | null = null;
 
   constructor(baseUrl: string, defaultHeaders?: Record<string, string>) {
     this.baseUrl = baseUrl.replace(/\/$/, ''); // Remove trailing slash
@@ -100,6 +108,10 @@ export class ApiClient {
   ): Promise<ApiResponse<T>> {
     const url = `${this.baseUrl}${path.startsWith('/') ? path : `/${path}`}`;
     const headers = this.getHeaders(options.headers);
+    if (method === 'GET' && this.readAfter && !headers[READ_AFTER_HEADER]) {
+      headers[READ_AFTER_HEADER] = this.readAfter;
+      this.readAfter = null;
+    }
 
     const timeoutMs = options.timeout || DEFAULT_TIMEOUT_MS;
     const controller = new AbortController();
@@ -141,6 +153,11 @@ export class ApiClient {
           headersObj[key] = value;
         }
       });
+
+      const readAfter = response.headers.get(READ_AFTER_HEADER);
+      if (method !== 'GET' && readAfter) {
+        this.readAfter = readAfter;
+      }
 
       return {
         status: response.status,

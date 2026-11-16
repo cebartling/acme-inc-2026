@@ -62,24 +62,7 @@ class OutboxWriter(
             )
         )
 
-        val snapshotMessage = CustomerSnapshotMessage(
-            sourceEventId = event.eventId,
-            customerId = event.aggregateId,
-            snapshot = snapshotFactory.build(event.aggregateId)
-        )
-        outboxRepository.save(
-            OutboxMessage(
-                aggregateId = event.aggregateId,
-                aggregateType = event.aggregateType,
-                eventType = CustomerSnapshotMessage.EVENT_TYPE,
-                eventId = UUID.randomUUID(),
-                topic = CustomerSnapshotMessage.TOPIC,
-                messageKey = messageKey,
-                payload = objectMapper.writeValueAsString(snapshotMessage)
-            )
-        )
-
-        tellClientToReadAfter(event.eventId)
+        writeSnapshot(event.aggregateId, event.aggregateType, event.eventId)
 
         logger.debug(
             "Wrote {} event {} for aggregate {} to outbox for topic {}, with a snapshot for {}",
@@ -89,6 +72,36 @@ class OutboxWriter(
             topic,
             CustomerSnapshotMessage.TOPIC
         )
+    }
+
+    /**
+     * Writes a snapshot of the customer's current state for the read model, with no event.
+     *
+     * [write] uses it for every event. Changes that have no event, such as the test helper's, and
+     * a backfill of customers that predate the read model, call it directly.
+     *
+     * @param sourceEventId The event the snapshot follows; a read that waits for it sees this snapshot.
+     * @return [sourceEventId], which the response also carries in [ReadAfter.HEADER].
+     */
+    fun writeSnapshot(customerId: UUID, aggregateType: String, sourceEventId: UUID = UUID.randomUUID()): UUID {
+        val snapshotMessage = CustomerSnapshotMessage(
+            sourceEventId = sourceEventId,
+            customerId = customerId,
+            snapshot = snapshotFactory.build(customerId)
+        )
+        outboxRepository.save(
+            OutboxMessage(
+                aggregateId = customerId,
+                aggregateType = aggregateType,
+                eventType = CustomerSnapshotMessage.EVENT_TYPE,
+                eventId = UUID.randomUUID(),
+                topic = CustomerSnapshotMessage.TOPIC,
+                messageKey = customerId.toString(),
+                payload = objectMapper.writeValueAsString(snapshotMessage)
+            )
+        )
+        tellClientToReadAfter(sourceEventId)
+        return sourceEventId
     }
 
     /**
