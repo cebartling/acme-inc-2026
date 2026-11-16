@@ -12,8 +12,8 @@ import org.springframework.transaction.annotation.Transactional
 internal const val ORDER_EVENTS_TOPIC = "order.events"
 
 /**
- * Writes an order event to the transactional outbox (PIN-368, ADR-0022), for `OutboxRelay`
- * to send to `order.events` keyed by aggregate id.
+ * Writes an order event to the transactional outbox (PIN-368, ADR-0022), for Debezium's
+ * outbox event router (PIN-552) to publish to `order.events` keyed by aggregate id.
  *
  * It must run inside the caller's transaction, so the event commits or rolls back with the
  * order change: called outside one, it throws `IllegalTransactionStateException`.

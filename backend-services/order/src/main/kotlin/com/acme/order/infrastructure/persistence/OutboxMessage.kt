@@ -12,8 +12,8 @@ import java.util.UUID
 /**
  * An event waiting in the transactional outbox (PIN-368, ADR-0022).
  *
- * `OutboxWriter` saves it in the same transaction as the order change, and `OutboxRelay`
- * sends it to Kafka afterwards, so an order is never committed without its event.
+ * `OutboxWriter` saves it in the same transaction as the order change, and Debezium
+ * publishes it to Kafka afterwards (PIN-552), so an order is never committed without its event.
  */
 @Entity
 @Table(name = "outbox")
