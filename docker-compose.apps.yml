@@ -411,6 +411,8 @@ services:
       MONGODB_HOST: mongodb
       MONGODB_PORT: 27017
       MONGODB_DB: acme_query
+      # Set to true for one start to give carts that predate the read model a MongoDB document
+      ACME_CART_READ_MODEL_BACKFILL_ON_STARTUP: ${ACME_CART_READ_MODEL_BACKFILL_ON_STARTUP:-false}
 
       # Authoritative prices come from the product service
       PRODUCT_SERVICE_URL: http://product-service:10303
