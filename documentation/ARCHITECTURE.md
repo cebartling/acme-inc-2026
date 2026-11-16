@@ -903,33 +903,28 @@ their orders back (PIN-367) and cancel a submitted one (PIN-429).
   `V2` adds the `outbox` table (PIN-368), and `V3` the `orders`, `order_items` and
   `order_number_sequences` tables (PIN-366), and `V4` an index on
   `orders (user_id, status, created_at DESC, id DESC)` for the order history (PIN-367).
+  `V7` drops the outbox's relay columns and polling index (PIN-552).
   `open-in-view` is off. `acme_orders` and its
   `acme_app` user come from `docker/postgres/init`, which also gives it a
-  `dbz_publication FOR ALL TABLES`: no connector captures it today (a connector config added to
-  `docker/debezium/connectors/` is registered by the `debezium-connector-init` container when the
-  application stack starts, PIN-546), and an UPDATE or DELETE fails on any of its tables without a
-  primary key.
+  `dbz_publication FOR ALL TABLES`, which the `order-outbox` connector reads (the
+  `debezium-connector-init` container registers it when the application stack starts, PIN-546),
+  and an UPDATE or DELETE fails on any of its tables without a primary key.
 - **Events** go through a transactional outbox (ADR-0022, PIN-368), as the cart's do
   (PIN-384), so an order is never committed without its event.
   - **Writing:** `OutboxWriter.write(event)` saves the event to `outbox` inside the caller's
     transaction, and throws if there isn't one. The event uses the same envelope as the cart
     (`eventId`, `eventType`, `eventVersion`, `timestamp`, `aggregateId`, `aggregateType`,
     `correlationId`, a nullable `causationId`, and each event's own `payload`).
-  - **Sending:** `OutboxRelay` polls every `acme.order.outbox.poll-delay-ms` (1000). It sends
-    up to `batch-size` (100) unsent messages to `order.events` in the order they were written
-    (the `sequence_number` identity column, not the JVM clock), keyed by aggregate ID, and
-    marks each one sent.
-  - **Failures:** a failed send records the attempt and `last_error`, then ends the poll. The
-    relay never gives up on a message, so no later event is sent ahead of it and a Kafka
-    outage loses nothing. The cost: one message that keeps failing holds up every event
-    behind it, and from `alert-after-attempts` (5) on each failure is logged as an error. An
-    interrupt (shutdown) is not an attempt, and a failed save after a send is thrown, so the
-    message is sent again.
+  - **Publishing:** Debezium's `order-outbox` connector (`docker/debezium/connectors/order-outbox.json`,
+    PIN-552) reads `outbox` from the write-ahead log and its event router sends each row to
+    `order.events`, keyed by `message_key` (the aggregate ID), with the `payload` as the value.
+    A Kafka or Debezium outage loses nothing: the connector resumes from its replication slot.
   - **Delivery** is at least once, so consumers deduplicate by `eventId` (ADR-0018).
   - `OrderCreated` (PIN-366) and `OrderCancelled` (PIN-429) are the only events so far. The
-    broker creates the topic on first use. `acme.order.events.publish-timeout-seconds`
-    (default 10) bounds a send, including the producer's wait for metadata while Kafka is down.
-  - Sent rows are not purged yet, and only one instance may run the relay.
+    broker creates the topic on first use.
+  - **Retention:** `PurgeOutboxUseCase` deletes rows older than `acme.order.outbox.retention.max-age`
+    (`P7D`) once a day (`interval`, after a 5 minute `initial-delay`); `retention.enabled=false`
+    turns it off (PIN-433).
 
 ## Observability
 
