@@ -31,6 +31,7 @@ An Architecture Decision Record documents a significant architectural decision, 
 | [ADR-0061](0061-order-service-token-for-cart-calls.md) | The Order Service Authenticates to the Cart with a Shared Secret | Accepted, amended in PIN-491 |
 | [ADR-0062](0062-cancel-abandoned-orders.md) | Abandoned Orders Are Cancelled, Unless the Cart Converted for Them, and Then They Are Submitted | Accepted |
 | [ADR-0063](0063-customer-order-cancellation.md) | Customers Can Cancel Submitted Orders, and Those Orders Stay Visible | Accepted |
+| [ADR-0064](0064-customer-read-model-from-snapshots.md) | The Customer Read Model Is Built from State Snapshots, and Reads Wait for Their Own Writes | Accepted |
 
 ### Shopping Cart
 

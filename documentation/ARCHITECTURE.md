@@ -30,7 +30,8 @@
 
 In practice ([ADR-0041](adrs/0041-per-service-persistence-model.md)), each service's source
 of truth is its JPA state in PostgreSQL. Only customer has a separate read model (MongoDB,
-written in-process by `CustomerReadModelProjector`). The `event_store` tables in customer
+built from Kafka; see [Customer Service](#customer-service) and
+[ADR-0064](adrs/0064-customer-read-model-from-snapshots.md)). The `event_store` tables in customer
 and identity are an audit history: nothing rebuilds state from them. The lists below and
 in the next section describe the pattern as a target.
 
@@ -131,6 +132,91 @@ category browsing stays usable when search is degraded.
 closes it if the service responds. Because React Query serves a cached failure for an
 unchanged query key, the banner also carries an explicit retry control — otherwise a
 customer re-submitting the same term would never trigger a probe.
+
+### Customer Service
+
+`backend-services/customer` (port 10301, database `acme_customers`) owns customer profiles,
+addresses, preferences, consents and profile completeness. It is the first service on the
+CDC pattern ([ADR-0004](adrs/0004-change-data-capture.md), PIN-534): writes go to PostgreSQL,
+reads come from a MongoDB read model that Kafka feeds. Decision record:
+[ADR-0064](adrs/0064-customer-read-model-from-snapshots.md).
+
+**Write side.** A use case changes JPA state and calls `OutboxWriter.write(event, topic)` in the
+same transaction. The writer inserts two `outbox` rows: the event, for `customer.events`, and a
+snapshot of the customer's whole state, for `customer.read-model`. Nothing sends to Kafka from
+the service. The Debezium connector `customer-outbox` reads the rows from the WAL and routes
+each to its `topic`, with `message_key` as the key and `event_id` as the event ID.
+
+```mermaid
+flowchart LR
+    UC[Use case] -->|one transaction| PG[(PostgreSQL<br/>state + outbox)]
+    PG -->|WAL| DBZ[Debezium<br/>customer-outbox]
+    DBZ -->|event| EV[[customer.events]]
+    DBZ -->|snapshot with PII| RM[[customer.read-model]]
+    EV --> NS[Notification service]
+    RM --> PJ[Snapshot projector]
+    PJ -->|upsert| MG[(MongoDB<br/>customer_read_models)]
+    MG --> Q[12 read endpoints]
+```
+
+- **Why a second topic** (PIN-547): the events don't carry the state (`ProfileUpdated` lists
+  changed fields, not values), and the state is PII: date of birth, phone, addresses, consent
+  records with IP address and user agent. Putting it on `customer.events` would hand it to every
+  consumer, and the notification service needs none of it. Only the projector reads
+  `customer.read-model`.
+- **Snapshots reuse the API response types** (`CustomerResponse`, `AddressResponse`,
+  `ProfileCompletenessResponse`), so a read is deserialization, with no mapping.
+- **Projector**: `CustomerSnapshotProjector` upserts one document per customer, keyed by customer
+  ID, and keeps the last 50 `sourceEventId`s in `appliedEventIds`. Applying a snapshot twice
+  changes nothing. A snapshot that fails five times is skipped, and the customer's next change
+  writes a full snapshot.
+- **Debezium drops empty arrays** when it expands the payload, so a snapshot without addresses or
+  consents arrives without those keys. `CustomerSnapshot` defaults them to empty.
+- **Kafka down**: a write still commits, because the rows wait in the outbox. The connector
+  publishes them once Kafka is back, and the read model catches up (about 4 s in the acceptance
+  scenario).
+- **No initial snapshot**: the connector uses `snapshot.mode: no_data`, so a customer is in
+  MongoDB only after their first change since it started. A backfill is needed for customers that
+  predate it (`OutboxWriter.writeSnapshot`).
+
+**Reading your own write.** A write response carries `X-Read-After: <event id>`. A read that sends
+it back waits for the projector to apply that event:
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant CS as Customer service
+    participant PG as PostgreSQL
+    participant K as Kafka (via Debezium)
+    participant MG as MongoDB
+
+    C->>CS: PATCH /api/v1/customers/{id}/profile
+    CS->>PG: state + event row + snapshot row, one transaction
+    CS-->>C: 200 + X-Read-After: eventId
+    PG-->>K: outbox rows, from the WAL
+    C->>CS: GET /api/v1/customers/{id} + X-Read-After: eventId
+    loop every 25 ms, up to 5 s
+        CS->>MG: has appliedEventIds got eventId?
+    end
+    K-->>MG: projector applies the snapshot
+    CS-->>C: 200 with the change
+```
+
+- **Not applied in time**: `503` with `Retry-After: 1`, never stale data or a false 404. A header
+  that isn't a UUID is `400`. A read without the header is eventually consistent.
+- **Browsers** can read `X-Read-After` because CORS exposes it. The frontends don't send it back
+  yet.
+- **Notification** passes the ID of the event it is handling on its customer lookup
+  ([ADR-0024](adrs/0024-synchronous-customer-lookup-for-notifications.md)), because a
+  `CustomerActivated` event and the snapshot behind it are published a moment apart.
+- **The Redis profile cache is gone.** Profile reads come from MongoDB, so a second cache only
+  added an invalidation path.
+- **`lastActivityAt` can be stale**: `/me` updates it in PostgreSQL without an event, so MongoDB
+  holds the value from the customer's last change.
+
+**Acceptance tests**: `features/api/customer-read-model-api.feature`. The `ApiClient` sends back
+the `X-Read-After` a write returned, on the next GET. The `@kafka-outage` scenario stops the shared
+Kafka container, so the default runs skip it: `npm run test:kafka-outage`.
 
 ### Shopping Cart Service
 
