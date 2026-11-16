@@ -258,4 +258,5 @@ These are still open, on PIN-533 unless noted. This ADR doesn't decide them.
   [ADR-0013](0013-loki-log-aggregation.md), [ADR-0014](0014-tempo-distributed-tracing.md): the
   local observability stack.
 - [ADR-0016](0016-docker-compose-development.md): Docker Compose for local development.
+- [ADR-0035](0035-jwt-token-implementation.md): JWT token implementation and signing keys.
 - [X-Ray daemon end of support](https://docs.aws.amazon.com/xray/latest/devguide/xray-daemon-eos.html).
