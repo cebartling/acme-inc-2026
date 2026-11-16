@@ -38,15 +38,9 @@ spring:
     database: ${MONGODB_DB:acme_query}
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
-    # The read model's projector (CartSnapshotProjector) acknowledges each snapshot once applied
+    # Read by KafkaConsumerConfig, which sets everything else about the projector's consumer
     consumer:
       group-id: shopping-cart-service
-      auto-offset-reset: earliest
-      enable-auto-commit: false
-      properties:
-        isolation.level: read_committed
-    listener:
-      ack-mode: manual
   task:
     scheduling:
       pool:

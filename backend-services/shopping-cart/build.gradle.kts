@@ -74,6 +74,7 @@ dependencies {
     testImplementation("org.testcontainers:testcontainers-junit-jupiter:2.0.5")
     testImplementation("org.testcontainers:testcontainers-postgresql:2.0.5")
     testImplementation("org.testcontainers:testcontainers-mongodb:2.0.5")
+    testImplementation("org.testcontainers:testcontainers-kafka:2.0.5")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
