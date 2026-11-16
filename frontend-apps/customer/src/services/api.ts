@@ -398,7 +398,7 @@ async function apiRequest<T>(
 /**
  * The customer service answers reads from a read model that trails its writes by a moment. A
  * write returns the id of its change in `X-Read-After`. The next read sends it back and the
- * service waits for that change, so the customer sees what they just did (ADR-0064).
+ * service waits for that change, so the customer sees what they just did (ADR-0065).
  */
 const READ_AFTER_HEADER = "X-Read-After";
 

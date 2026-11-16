@@ -31,7 +31,7 @@
 In practice ([ADR-0041](adrs/0041-per-service-persistence-model.md)), each service's source
 of truth is its JPA state in PostgreSQL. Only customer has a separate read model (MongoDB,
 built from Kafka; see [Customer Service](#customer-service) and
-[ADR-0064](adrs/0064-customer-read-model-from-snapshots.md)). The `event_store` tables in customer
+[ADR-0065](adrs/0065-customer-read-model-from-snapshots.md)). The `event_store` tables in customer
 and identity are an audit history: nothing rebuilds state from them. The lists below and
 in the next section describe the pattern as a target.
 
@@ -139,7 +139,7 @@ customer re-submitting the same term would never trigger a probe.
 addresses, preferences, consents and profile completeness. It is the first service on the
 CDC pattern ([ADR-0004](adrs/0004-change-data-capture.md), PIN-534): writes go to PostgreSQL,
 reads come from a MongoDB read model that Kafka feeds. Decision record:
-[ADR-0064](adrs/0064-customer-read-model-from-snapshots.md).
+[ADR-0065](adrs/0065-customer-read-model-from-snapshots.md).
 
 **Write side.** A use case changes JPA state and calls `OutboxWriter.write(event, topic)` in the
 same transaction. The writer inserts two `outbox` rows: the event, for `customer.events`, and a

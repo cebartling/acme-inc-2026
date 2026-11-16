@@ -1,4 +1,4 @@
-# ADR-0064: The Customer Read Model Is Built from State Snapshots, and Reads Wait for Their Own Writes
+# ADR-0065: The Customer Read Model Is Built from State Snapshots, and Reads Wait for Their Own Writes
 
 ## Status
 

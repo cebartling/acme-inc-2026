@@ -14,7 +14,7 @@ shopping-cart, which all get read models ([ADR-0006](0006-mongodb-query-store.md
 is deferred.
 
 Customer's read model is now fed from Kafka rather than written in-process: see
-[ADR-0064](0064-customer-read-model-from-snapshots.md). The Context below describes the state
+[ADR-0065](0065-customer-read-model-from-snapshots.md). The Context below describes the state
 before PIN-547.
 
 ## Context
