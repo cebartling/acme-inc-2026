@@ -225,7 +225,7 @@ These are still open, on PIN-533 unless noted. This ADR doesn't decide them.
   - The customer frontend's backend URLs are baked in at build time and must point at the API
     host.
   - CORS on the four browser-facing services (identity, customer, product, shopping-cart) must
-    allow the frontend origins.
+    allow the frontend origins, and so must order if it's deployed.
   - Notification's email links and identity's `FRONTEND_BASE_URL` must point at the demo URLs.
   - The services use plaintext Kafka, so MSK must accept plaintext inside the VPC (or the
     services switch to SSL through an environment variable). MSK turns topic auto-creation off
