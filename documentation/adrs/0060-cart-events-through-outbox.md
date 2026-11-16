@@ -7,6 +7,11 @@ Accepted
 Supersedes [ADR-0042](0042-best-effort-event-publishing.md) for the shopping cart service.
 The product service stays best-effort under ADR-0042.
 
+Amended in PIN-551 ([ADR-0066](0066-cart-read-model-from-snapshots.md)): the outbox and its
+transaction stay as decided here, but Debezium publishes it now. The polling `OutboxRelay` this
+record describes, its `acme.cart.outbox.*` settings and the `published_at`, `retry_count` and
+`last_error` columns are gone.
+
 ## Context
 
 Under [ADR-0042](0042-best-effort-event-publishing.md), cart use cases published each event
