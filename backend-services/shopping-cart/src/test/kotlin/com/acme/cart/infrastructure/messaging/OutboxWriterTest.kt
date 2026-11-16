@@ -19,6 +19,8 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
 import org.springframework.mock.web.MockHttpServletRequest
 import org.springframework.mock.web.MockHttpServletResponse
+import org.springframework.transaction.support.TransactionSynchronization
+import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.web.context.request.RequestContextHolder
 import org.springframework.web.context.request.ServletRequestAttributes
 import java.math.BigDecimal
@@ -44,7 +46,12 @@ class OutboxWriterTest {
     private val saved = mutableListOf<OutboxMessage>()
 
     @AfterEach
-    fun clearRequest() = RequestContextHolder.resetRequestAttributes()
+    fun clearRequest() {
+        RequestContextHolder.resetRequestAttributes()
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.clearSynchronization()
+        }
+    }
 
     private fun snapshotOf(event: DomainEvent, userId: UUID? = UUID.randomUUID()) = CartSnapshotMessage(
         sourceEventId = event.eventId,
@@ -122,15 +129,33 @@ class OutboxWriterTest {
     }
 
     @Test
-    fun `tells the client to read after the event when handling a web request`() {
+    fun `tells the client to read after the event once the transaction commits`() {
         val event = TestEvent(aggregateId = UUID.randomUUID(), correlationId = UUID.randomUUID())
         givenOutboxSavesAreCaptured(event)
         val response = MockHttpServletResponse()
         RequestContextHolder.setRequestAttributes(ServletRequestAttributes(MockHttpServletRequest(), response))
+        TransactionSynchronizationManager.initSynchronization()
 
         writer.write(event)
+        assertNull(response.getHeader(ReadAfter.HEADER))
+        TransactionSynchronizationManager.getSynchronizations().forEach { it.afterCommit() }
 
         assertEquals(event.eventId.toString(), response.getHeader(ReadAfter.HEADER))
+    }
+
+    @Test
+    fun `a rolled-back write sets no read-after header`() {
+        val event = TestEvent(aggregateId = UUID.randomUUID(), correlationId = UUID.randomUUID())
+        givenOutboxSavesAreCaptured(event)
+        val response = MockHttpServletResponse()
+        RequestContextHolder.setRequestAttributes(ServletRequestAttributes(MockHttpServletRequest(), response))
+        TransactionSynchronizationManager.initSynchronization()
+
+        writer.write(event)
+        TransactionSynchronizationManager.getSynchronizations()
+            .forEach { it.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK) }
+
+        assertNull(response.getHeader(ReadAfter.HEADER))
     }
 
     @Test

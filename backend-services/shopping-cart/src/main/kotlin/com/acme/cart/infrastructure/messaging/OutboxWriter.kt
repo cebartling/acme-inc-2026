@@ -11,6 +11,8 @@ import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
+import org.springframework.transaction.support.TransactionSynchronization
+import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.web.context.request.RequestContextHolder
 import org.springframework.web.context.request.ServletRequestAttributes
 import java.util.UUID
@@ -24,7 +26,8 @@ private const val CART_AGGREGATE_TYPE = "Cart"
  *
  * Each event also produces a snapshot of the cart's full state, for the read model's
  * projector on `cart.read-model` (PIN-551). While handling a web request, it sets
- * [ReadAfter.HEADER] to the event's id, so a later read can wait for this write.
+ * [ReadAfter.HEADER] to the event's id once the transaction commits, so a later read can wait
+ * for this write.
  *
  * It must run inside the caller's transaction, so the event commits or rolls back with the
  * cart change: called outside one, it throws `IllegalTransactionStateException`.
@@ -51,10 +54,16 @@ class OutboxWriter(
             )
         )
         saveSnapshot(event.aggregateId, event.eventId)
-        // The response isn't committed yet: this runs inside the use case. A later event in the
-        // same request replaces the header, because its snapshot includes the earlier changes.
+        // Set after the commit, so a rolled-back write never tells the client to wait for an event
+        // that doesn't exist. The response isn't committed yet: the commit ends the use case. A
+        // later event in the same request replaces the header, because its snapshot includes the
+        // earlier changes.
         val response = (RequestContextHolder.getRequestAttributes() as? ServletRequestAttributes)?.response
-        response?.setHeader(ReadAfter.HEADER, event.eventId.toString())
+        if (response != null) {
+            TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
+                override fun afterCommit() = response.setHeader(ReadAfter.HEADER, event.eventId.toString())
+            })
+        }
         logger.debug("Wrote {} event {} to the outbox for topic {}", event.eventType, event.eventId, CART_EVENTS_TOPIC)
     }
 
