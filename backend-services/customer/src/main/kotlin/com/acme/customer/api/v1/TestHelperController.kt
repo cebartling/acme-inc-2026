@@ -63,6 +63,8 @@ class TestHelperController(
         // Check if customer already exists
         if (customerRepository.existsById(customerId)) {
             logger.info("Test customer already exists: {}", customerId)
+            // It may predate the read model, which the snapshot brings up to date
+            outboxWriter.writeSnapshot(customerId, CUSTOMER_AGGREGATE)
             return ResponseEntity.ok(TestCustomerResponse(customerId.toString(), "already_exists"))
         }
 
