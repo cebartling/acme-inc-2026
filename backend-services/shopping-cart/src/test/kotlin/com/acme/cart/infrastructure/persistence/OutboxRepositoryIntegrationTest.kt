@@ -11,7 +11,6 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase
 import org.springframework.context.annotation.Import
-import org.springframework.data.domain.PageRequest
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.springframework.transaction.IllegalTransactionStateException
@@ -69,6 +68,9 @@ class OutboxRepositoryIntegrationTest {
     private lateinit var outbox: OutboxRepository
 
     @Autowired
+    private lateinit var entityManager: jakarta.persistence.EntityManager
+
+    @Autowired
     private lateinit var writer: OutboxWriter
 
     @Autowired
@@ -79,34 +81,14 @@ class OutboxRepositoryIntegrationTest {
         outbox.deleteAll()
     }
 
-    private fun message(createdAt: Instant, publishedAt: Instant? = null, retryCount: Int = 0) = OutboxMessage(
-        aggregateId = UUID.randomUUID(),
-        aggregateType = "Cart",
-        eventType = "TestEvent",
-        eventId = UUID.randomUUID(),
-        topic = "cart.events",
-        messageKey = UUID.randomUUID().toString(),
-        payload = """{"eventType":"TestEvent"}""",
-        createdAt = createdAt,
-        publishedAt = publishedAt,
-        retryCount = retryCount
-    )
-
     @Test
-    fun `findUnsent returns unsent messages in the order they were written, however often they failed`() {
-        // created_at runs backwards, as with clock skew: the database sequence decides
-        val base = Instant.parse("2026-10-21T12:00:00Z")
-        val first = message(base.plusSeconds(3), retryCount = 50)
-        val sent = message(base.plusSeconds(2), publishedAt = base)
-        val second = message(base.plusSeconds(1))
-        val third = message(base)
-        listOf(first, sent, second, third).forEach { outbox.saveAndFlush(it) }
+    fun `the outbox has none of the columns the polling relay used`() {
+        val columns = entityManager.createNativeQuery(
+            "SELECT column_name FROM information_schema.columns WHERE table_name = 'outbox'"
+        ).resultList.map { it.toString() }
 
-        assertEquals(listOf(first.id, second.id), outbox.findUnsent(PageRequest.of(0, 2)).map { it.id })
-        assertEquals(
-            listOf(first.id, second.id, third.id),
-            outbox.findUnsent(PageRequest.of(0, 10)).map { it.id }
-        )
+        assertTrue(columns.containsAll(listOf("event_id", "topic", "message_key", "payload", "sequence_number")))
+        assertEquals(emptyList<String>(), columns.filter { it in listOf("published_at", "retry_count", "last_error") })
     }
 
     @Test
@@ -128,7 +110,6 @@ class OutboxRepositoryIntegrationTest {
         assertEquals(2, rows.size, "the event and its read-model snapshot")
         val saved = rows.single { it.topic == "cart.events" }
         assertEquals(event.eventId, saved.eventId)
-        assertTrue(saved.publishedAt == null)
         assertEquals(1, rows.count { it.topic == "cart.read-model" })
     }
 

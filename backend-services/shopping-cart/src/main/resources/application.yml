@@ -36,10 +36,9 @@ spring:
   task:
     scheduling:
       pool:
-        # One thread per job (cart expiry, cart purge, checkout unlock, outbox relay), so a slow
-        # run, e.g. the relay blocked on Kafka, never holds up the others. The default is a
-        # single shared thread.
-        size: 4
+        # One thread per job (cart expiry, cart purge, checkout unlock), so a slow run never
+        # holds up the others. The default is a single shared thread.
+        size: 3
   security:
     oauth2:
       resourceserver:
@@ -63,14 +62,6 @@ acme:
   cart:
     # Upper bound on a single variant's quantity in one cart (AC-0004-06-05)
     max-order-quantity: 10
-    events:
-      publish-timeout-seconds: 10
-    # OutboxRelay (PIN-384): how often it polls, after how many failed sends of one message
-    # it logs errors (it never gives up), and how many messages one poll sends
-    outbox:
-      poll-delay-ms: 1000
-      alert-after-attempts: 5
-      batch-size: 100
     cookie:
       # Browsers accept Secure cookies from http://localhost, so this stays on locally
       secure: ${ACME_CART_COOKIE_SECURE:true}

@@ -78,8 +78,6 @@ class OutboxWriterTest {
         assertEquals("Cart", message.aggregateType)
         assertEquals("TestEvent", message.eventType)
         assertEquals(event.eventId, message.eventId)
-        assertNull(message.publishedAt)
-        assertEquals(0, message.retryCount)
         val json = objectMapper.readTree(message.payload)
         assertEquals(event.eventId.toString(), json["eventId"].asText())
         assertEquals("TestEvent", json["eventType"].asText())
