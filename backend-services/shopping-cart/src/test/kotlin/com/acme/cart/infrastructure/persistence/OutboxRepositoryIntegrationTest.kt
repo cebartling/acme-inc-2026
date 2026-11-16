@@ -3,6 +3,7 @@ package com.acme.cart.infrastructure.persistence
 import com.acme.cart.config.JacksonConfig
 import com.acme.cart.domain.events.DomainEvent
 import com.acme.cart.infrastructure.messaging.OutboxWriter
+import com.acme.cart.infrastructure.projection.CartSnapshotFactory
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
@@ -33,7 +34,7 @@ import kotlin.test.assertTrue
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Testcontainers
-@Import(OutboxWriter::class, JacksonConfig::class)
+@Import(OutboxWriter::class, CartSnapshotFactory::class, JacksonConfig::class)
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class OutboxRepositoryIntegrationTest {
 
@@ -123,9 +124,12 @@ class OutboxRepositoryIntegrationTest {
         val event = TestEvent()
         TransactionTemplate(transactionManager).executeWithoutResult { writer.write(event) }
 
-        val saved = outbox.findAll().single()
+        val rows = outbox.findAll()
+        assertEquals(2, rows.size, "the event and its read-model snapshot")
+        val saved = rows.single { it.topic == "cart.events" }
         assertEquals(event.eventId, saved.eventId)
         assertTrue(saved.publishedAt == null)
+        assertEquals(1, rows.count { it.topic == "cart.read-model" })
     }
 
     @Test
