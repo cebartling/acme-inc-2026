@@ -126,7 +126,8 @@ function readTopic(topic: string): { key: string; value: string }[] {
       '--property',
       'print.key=true',
     ],
-    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }
+    // The topic grows with every run, and the default 1 MB buffer overflows (ENOBUFS)
+    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 64 * 1024 * 1024 }
   );
   return output
     .split('\n')
