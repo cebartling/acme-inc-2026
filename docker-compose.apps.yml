@@ -254,6 +254,10 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
 
+      # MongoDB configuration (the notification deliveries read model, PIN-549)
+      MONGODB_URI: mongodb://mongodb:27017
+      MONGODB_DB: acme_query
+
       # Kafka configuration
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
 
