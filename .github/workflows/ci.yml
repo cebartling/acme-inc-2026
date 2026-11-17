@@ -224,3 +224,29 @@ jobs:
         run: |
           docker run --rm --entrypoint amtool -v "$PWD/docker/alertmanager:/a:ro" prom/alertmanager:v0.32.0 \
             check-config /a/config/alertmanager.yml
+
+  # Static checks for the AWS demo Terraform (PIN-540). There's no AWS access:
+  # init skips the S3 backend, so this only proves the code is formatted and
+  # valid. The version matches required_version in
+  # infrastructure/foundation/versions.tf.
+  terraform:
+    name: Terraform · foundation
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infrastructure/foundation
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.17.2
+
+      - name: Format
+        run: terraform fmt -check -recursive ..
+
+      - name: Init
+        run: terraform init -backend=false -input=false
+
+      - name: Validate
+        run: terraform validate
