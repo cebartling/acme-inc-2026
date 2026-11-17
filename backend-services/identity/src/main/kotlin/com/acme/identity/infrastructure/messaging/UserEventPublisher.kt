@@ -32,23 +32,27 @@ import org.springframework.stereotype.Component
  * state in Redis and are written outside any transaction, so they are saved in their own and are
  * not atomic with the Redis change. A failed write throws: the event is never silently dropped.
  * The method names are the ones callers already use; "publish" now means "hand to the outbox".
+ *
+ * The events that change what the users read model holds (registration, email verification,
+ * activation, lock and unlock) also write a snapshot of the user, so call them after the change
+ * is saved.
  */
 @Component
 class UserEventPublisher(private val outboxWriter: OutboxWriter) {
 
-    fun publish(event: UserRegistered) = outboxWriter.write(event, UserRegistered.TOPIC)
+    fun publish(event: UserRegistered) = outboxWriter.writeWithSnapshot(event, UserRegistered.TOPIC)
 
-    fun publishEmailVerified(event: EmailVerified) = outboxWriter.write(event, EmailVerified.TOPIC)
+    fun publishEmailVerified(event: EmailVerified) = outboxWriter.writeWithSnapshot(event, EmailVerified.TOPIC)
 
-    fun publishUserActivated(event: UserActivated) = outboxWriter.write(event, UserActivated.TOPIC)
+    fun publishUserActivated(event: UserActivated) = outboxWriter.writeWithSnapshot(event, UserActivated.TOPIC)
 
     fun publishAuthenticationFailed(event: AuthenticationFailed) = outboxWriter.write(event, AuthenticationFailed.TOPIC)
 
     fun publishAuthenticationSucceeded(event: AuthenticationSucceeded) = outboxWriter.write(event, AuthenticationSucceeded.TOPIC)
 
-    fun publishAccountLocked(event: AccountLocked) = outboxWriter.write(event, AccountLocked.TOPIC)
+    fun publishAccountLocked(event: AccountLocked) = outboxWriter.writeWithSnapshot(event, AccountLocked.TOPIC)
 
-    fun publishAccountUnlocked(event: AccountUnlocked) = outboxWriter.write(event, AccountUnlocked.TOPIC)
+    fun publishAccountUnlocked(event: AccountUnlocked) = outboxWriter.writeWithSnapshot(event, AccountUnlocked.TOPIC)
 
     fun publishMFAChallengeInitiated(event: MFAChallengeInitiated) = outboxWriter.write(event, MFAChallengeInitiated.TOPIC)
 

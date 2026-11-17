@@ -21,7 +21,8 @@ import java.util.UUID
 
 /**
  * Identity's events go to the outbox, not straight to Kafka (PIN-548). One event per topic checks
- * that each `publish*` method writes its own event to its own topic.
+ * that each `publish*` method writes its own event to its own topic. Events that change a user's
+ * state also write a snapshot for the read model; the others do not.
  */
 class UserEventPublisherTest {
 
@@ -35,16 +36,20 @@ class UserEventPublisherTest {
         every { outboxWriter.write(event, topic) } just Runs
     }
 
+    private fun expectWriteWithSnapshot(event: DomainEvent, topic: String) {
+        every { outboxWriter.writeWithSnapshot(event, topic) } just Runs
+    }
+
     @Test
     fun `UserRegistered goes to identity user events`() {
         val event = UserRegistered.create(
             userId, "new@example.com", "New", "User", later, false, RegistrationSource.WEB, "token"
         )
-        expectWrite(event, "identity.user.events")
+        expectWriteWithSnapshot(event, "identity.user.events")
 
         publisher.publish(event)
 
-        verify(exactly = 1) { outboxWriter.write(event, "identity.user.events") }
+        verify(exactly = 1) { outboxWriter.writeWithSnapshot(event, "identity.user.events") }
     }
 
     @Test
@@ -52,11 +57,11 @@ class UserEventPublisherTest {
         val event = AccountLocked.create(
             userId, "locked@example.com", AccountLockReason.EXCESSIVE_FAILED_ATTEMPTS, 5, later, "127.0.0.1", "agent"
         )
-        expectWrite(event, "identity.account.events")
+        expectWriteWithSnapshot(event, "identity.account.events")
 
         publisher.publishAccountLocked(event)
 
-        verify(exactly = 1) { outboxWriter.write(event, "identity.account.events") }
+        verify(exactly = 1) { outboxWriter.writeWithSnapshot(event, "identity.account.events") }
     }
 
     @Test
