@@ -17,7 +17,8 @@ passwords or MFA codes for them.
 
 - IAM Identity Center turned on in `us-east-2`, as an organization instance
   ([`foundation/README.md`](foundation/README.md), prerequisite 3).
-- AWS CLI v2 (`aws --version`). `aws configure sso` needs an interactive terminal, so an agent's
+- AWS CLI v2.22.0 or later (`aws --version`), the first version with `aws sso login
+  --use-device-code`. `aws configure sso` needs an interactive terminal, so an agent's
   shell can't run it. Part 2 writes the same configuration by hand.
 - Two values from the console, which aren't committed because this repository is public:
   - the **access portal URL**, from the Identity Center dashboard (`https://d-xxxxxxxxxx.awsapps.com/start`);
