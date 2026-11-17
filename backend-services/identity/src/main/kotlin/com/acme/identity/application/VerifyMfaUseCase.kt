@@ -102,14 +102,14 @@ data class MfaVerificationContext(
  * - Single-use code enforcement (replay prevention)
  * - Attempt tracking and lockout
  * - Event store persistence
- * - Kafka event publishing
+ * - Event publishing through the outbox
  * - Metrics collection
  *
  * @property mfaChallengeRepository Repository for MFA challenges.
  * @property usedTotpCodeRepository Repository for used TOTP codes.
  * @property userRepository Repository for user persistence.
  * @property eventStoreRepository Repository for event sourcing.
- * @property userEventPublisher Kafka event publisher.
+ * @property userEventPublisher Writes events to the outbox, which Debezium publishes to Kafka.
  * @property totpService TOTP code verification service.
  * @property meterRegistry Micrometer metrics registry.
  */

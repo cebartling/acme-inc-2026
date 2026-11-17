@@ -69,7 +69,7 @@ data class ResendSuccess(
  * @property verificationTokenRepository Repository for verification tokens.
  * @property resendRequestRepository Repository for rate limit tracking.
  * @property eventStoreRepository Repository for event sourcing.
- * @property userEventPublisher Kafka event publisher.
+ * @property userEventPublisher Writes events to the outbox, which Debezium publishes to Kafka.
  * @property verificationTokenGenerator Token generator.
  * @property verificationRateLimiter Rate limiter service.
  * @property meterRegistry Micrometer metrics registry.
