@@ -1198,14 +1198,78 @@ A public demo environment on AWS is created before each demo and destroyed after
   through OIDC. It's created by hand rather than by Terraform. See its
   [runbook](../infrastructure/github-deploy-role.md).
 - **Demo stack** (`infrastructure/demo/`): Terraform for the per-demo resources, created before
-  a demo and destroyed afterwards. The network and data tier (PIN-541) are built:
-  - a VPC with public and private subnets in two Availability Zones and one NAT gateway;
-  - RDS for PostgreSQL with logical replication on, holding the five service databases;
-  - DocumentDB 8.0, ElastiCache for Redis and MSK Provisioned;
-  - the PostgreSQL and DocumentDB credentials in Secrets Manager;
-  - a security group the data stores accept traffic from, for the services to use.
+  a demo and destroyed afterwards. It holds:
+  - the network and data tier (PIN-541): a VPC with public and private subnets in two
+    Availability Zones and one NAT gateway; RDS for PostgreSQL with logical replication on,
+    holding the five service databases; DocumentDB 8.0, ElastiCache for Redis and MSK
+    Provisioned; the PostgreSQL and DocumentDB credentials in Secrets Manager;
+  - the services and the edge (PIN-542), described below.
 
   A one-off ECS task inside the VPC creates the databases and checks that every data store is
-  reachable, because Terraform on a laptop can't connect to private RDS. See its
-  [runbook](../infrastructure/demo/README.md). The ECS services, load balancer and DNS (PIN-542)
-  and the deploy and destroy workflows (PIN-544) are not built yet.
+  reachable, because Terraform on a laptop can't connect to private RDS. See the stack's
+  [runbook](../infrastructure/demo/README.md). The deploy and destroy workflows (PIN-544) are
+  not built yet, so the images are pushed to ECR by hand.
+
+### Services and request routing
+
+The five backends (identity, customer, notification, product, shopping-cart) and the two
+frontends run as ECS Fargate services in the private subnets, one service per app. Identity runs
+two tasks and the rest one. `infrastructure/demo/apps.tf` lists the apps with their ports and
+health paths, and the load balancer, the services and the metrics scrape all read that list.
+
+```mermaid
+flowchart LR
+    Internet --> ALB[Application Load Balancer<br/>HTTPS, ACM certificate]
+    ALB -->|www.domain| CF[customer-frontend]
+    ALB -->|admin.domain| AF[admin-frontend]
+    ALB -->|api.domain, by path| BE[identity, customer, product,<br/>shopping-cart, notification]
+    BE -->|Service Connect| BE
+    BE --> Data[(RDS, DocumentDB,<br/>Redis, MSK)]
+    BE -->|OTLP traces| ADOT[ADOT collector]
+    ADOT -->|scrapes /actuator/prometheus| BE
+    ADOT --> AMP[Managed Prometheus]
+    ADOT --> XRay[X-Ray]
+```
+
+- **One load balancer, three hostnames.** Route 53 points `www.`, `admin.` and `api.<domain>` at
+  it. The foundation stack's certificate covers all three. The frontends are matched by host
+  name. The backends share the API host and are matched by path (`alb.tf`):
+
+  | Path prefix | Service |
+  | -- | -- |
+  | `/api/v1/auth`, `/api/v1/users` | identity |
+  | `/api/v1/customers` | customer |
+  | `/api/v1/products`, `/categories`, `/inventory`, `/prices`, `/search` | product |
+  | `/api/v1/carts` | shopping-cart |
+  | `/api/v1/notifications` | notification |
+  | `/api/v1/test/customers` | customer's test API |
+  | `/api/v1/test/*` | identity's test API |
+
+  The customer test rule has a lower priority number than the identity one, so it is evaluated
+  first. Nothing routes `/actuator`, so it falls through to the load balancer's 404 and is not
+  reachable from the internet.
+- **One API host keeps the sign-in cookie working.** Identity sets `access_token` for its own
+  host only and with `SameSite=Strict`. With every backend on `api.<domain>`, the browser sends
+  it to all of them, and the frontends' subdomains share a registrable domain with the API host,
+  so `SameSite=Strict` doesn't block it (ADR-0064, decision 6).
+- **Service-to-service calls skip the load balancer.** ECS Service Connect makes each backend
+  reachable from the other tasks at `http://<name>:<port>`: notification calls customer,
+  shopping-cart calls product, and customer and shopping-cart fetch identity's JWKS.
+- **Identity's two tasks share a signing key.** Terraform generates the RSA key and stores it in
+  Secrets Manager (`acme-demo/jwt-signing`); ECS injects it as `JWT_SIGNING_KEY`. A token issued
+  by one task verifies on the other, and a restart keeps users signed in. The private key is
+  in Terraform state, so the state bucket must stay private.
+- **Secrets are injected, not baked in.** The database credentials, the DocumentDB URI, the
+  signing key, the test API key and the service-to-service tokens are Secrets Manager secrets
+  that the task definitions inject as environment variables. Terraform generates the per-deploy
+  ones. The SendGrid and Twilio secrets belong to the foundation stack and are filled in by hand.
+- **The browser-facing settings come from the hostnames.** CORS origins, identity's
+  `FRONTEND_BASE_URL` and notification's email links are set from them. The customer frontend's
+  backend URLs are baked into the image at build time and must be the API host.
+- **Observability.** Every container logs to a CloudWatch log group, `/acme-demo/<service>`. An
+  ADOT collector scrapes each backend's `/actuator/prometheus` over Service Connect and writes
+  to Managed Prometheus, under the job names the local Prometheus uses. The services send OTLP
+  traces to the collector, which forwards them to X-Ray.
+- **Test APIs are on.** Identity's test API (`TEST_API_ENABLED`) is guarded by a per-deploy key,
+  sent in `X-Test-Api-Key`. Customer's test API runs under the `test` profile, as in Docker
+  Compose, and has no key. The order service isn't deployed.

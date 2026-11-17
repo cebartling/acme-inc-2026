@@ -19,7 +19,7 @@ output "services_security_group_id" {
 }
 
 output "ecs_cluster_name" {
-  description = "ECS cluster that runs the database setup task."
+  description = "ECS cluster that runs the services and the database setup task."
   value       = aws_ecs_cluster.demo.name
 }
 
@@ -66,4 +66,19 @@ output "redis_port" {
 output "kafka_bootstrap_brokers" {
   description = "MSK plaintext bootstrap brokers, comma-separated. The services' KAFKA_BOOTSTRAP_SERVERS."
   value       = aws_msk_cluster.demo.bootstrap_brokers
+}
+
+output "urls" {
+  description = "Public URLs: the customer frontend, the admin frontend and the API host."
+  value       = { for name, hostname in local.hostnames : name => "https://${hostname}" }
+}
+
+output "load_balancer_dns_name" {
+  description = "Load balancer DNS name. The Route 53 records for the three hostnames alias it."
+  value       = aws_lb.demo.dns_name
+}
+
+output "test_api_key_secret_arn" {
+  description = "Secrets Manager secret holding IDENTITY_TEST_API_KEY, the key for identity's test API (X-Test-Api-Key)."
+  value       = aws_secretsmanager_secret.test_api_key.arn
 }
