@@ -20,6 +20,7 @@ import com.acme.identity.infrastructure.util.PhoneNumberUtils
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Profile
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -41,7 +42,9 @@ import java.util.concurrent.ConcurrentHashMap
 /**
  * Test-only controller for acceptance and integration testing.
  *
- * This controller is only available when the "test" or "docker" profile is active.
+ * This controller is only available when the "test" or "docker" profile is active AND
+ * `acme.test-api.enabled` is true (`TEST_API_ENABLED`, off by default, PIN-548). The Containerfile
+ * turns the "docker" profile on, so the profile alone would serve it from a container deploy.
  * It provides endpoints that expose internal data for testing purposes,
  * such as verification tokens and test session management.
  *
@@ -54,6 +57,7 @@ import java.util.concurrent.ConcurrentHashMap
 @RestController
 @RequestMapping("/api/v1/test")
 @Profile("test", "docker")
+@ConditionalOnProperty(name = ["acme.test-api.enabled"], havingValue = "true", matchIfMissing = false)
 class TestController(
     private val verificationTokenRepository: VerificationTokenRepository,
     private val userRepository: UserRepository,

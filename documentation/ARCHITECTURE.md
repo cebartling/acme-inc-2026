@@ -952,7 +952,7 @@ Identity's event publishing and read model (PIN-548, [ADR-0067](adrs/0067-identi
   there until their next sign-in; compare `lockedUntil` with the clock.
 - **Backfill.** `IDENTITY_READ_MODEL_BACKFILL=true` writes a snapshot for every user at startup, for
   users that predate the read model.
-- **Reading it.** Nothing reads the read model yet. The test API (`test`/`docker` profiles) has
+- **Reading it.** Nothing reads the read model yet. The test API (`test`/`docker` profiles, and only when `TEST_API_ENABLED` is true; off by default) has
   `GET /api/v1/test/users/{id}/read-model` for acceptance tests, and `POST /users/{id}/status` writes
   a snapshot because no event describes that change.
 - **Retention.** The outbox is not purged yet.

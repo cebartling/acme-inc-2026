@@ -56,7 +56,7 @@ Three things differ from customer, cart and order:
    last snapshot wins. `UserReadModelBackfill` writes a snapshot for every existing user when
    `IDENTITY_READ_MODEL_BACKFILL` is true, because the connector starts with `snapshot.mode: no_data`.
 6. **Nothing reads the read model yet.** Identity's reads stay where they are, as in
-   [ADR-0006](0006-mongodb-query-store.md). The test API (`test`/`docker` profiles only) reads a user's
+   [ADR-0006](0006-mongodb-query-store.md). The test API (`test`/`docker` profiles, and only when `TEST_API_ENABLED` is true) reads a user's
    document back for acceptance tests, and writes a snapshot when it sets a status directly.
 
 ## Consequences
