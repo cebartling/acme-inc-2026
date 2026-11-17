@@ -214,7 +214,7 @@ These are still open, on PIN-533 unless noted. This ADR doesn't decide them. Ite
 - **Managed Grafana sign-in:** it uses IAM Identity Center (or SAML). Is IAM Identity Center set
   up in the account? **Decided** (PIN-540): IAM Identity Center, set up by hand in `us-east-2`.
   AWS lists Managed Grafana as supporting neither account instances of Identity Center nor
-  Identity Center's additional Regions, so the workspace must be in the same Region as an
+  Identity Center's additional Regions, so the workspace must be in the primary Region of an
   organization instance.
 - **Email sender:** real SendGrid sending needs a verified sender or domain. The sender
   defaults to `noreply@acme.com`, and SendGrid's sandbox mode delivers nothing, so a person
