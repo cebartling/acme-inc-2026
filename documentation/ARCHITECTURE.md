@@ -931,6 +931,32 @@ their orders back (PIN-367) and cancel a submitted one (PIN-429).
     (`P7D`) once a day (`interval`, after a 5 minute `initial-delay`); `retention.enabled=false`
     turns it off (PIN-433). It counts what it deletes in `outbox_rows_purged_total`.
 
+### Identity Service: events and the users read model
+
+Identity's event publishing and read model (PIN-548, [ADR-0067](adrs/0067-identity-outbox-and-users-read-model.md)).
+
+- **Events go through a transactional outbox** (ADR-0022). `UserEventPublisher` keeps its 19
+  `publish*` methods, and each hands the event to `OutboxWriter`, which saves it to the `outbox` table
+  (V13) in the caller's transaction, or in its own for the Redis-backed session, device and
+  token-reuse events. Debezium's `identity-outbox` connector
+  (`docker/debezium/connectors/identity-outbox.json`) publishes each row to its topic
+  (`identity.user.events`, `.account.events`, `.authentication.events`, `.device.events`,
+  `.mfa.events`, `.session.events`), keyed by aggregate id. Nothing sends to Kafka directly. A failed
+  outbox write throws, so the request fails rather than losing the event. Every event is also
+  appended to `event_store`, which is the audit history.
+- **Users read model.** `UserRegistered`, `EmailVerified`, `UserActivated`, `AccountLocked` and
+  `AccountUnlocked` also write a snapshot of the user (no password hash, TOTP secret, phone number or
+  device fingerprint) to the outbox for `identity.read-model`. `UserSnapshotProjector` replaces the
+  user's document in the `user_read_models` collection of `acme_query` (`MONGODB_URI`, `MONGODB_DB`),
+  keeping the last 50 source event ids. An expired lock has no event, so a locked user stays `LOCKED`
+  there until their next sign-in; compare `lockedUntil` with the clock.
+- **Backfill.** `IDENTITY_READ_MODEL_BACKFILL=true` writes a snapshot for every user at startup, for
+  users that predate the read model.
+- **Reading it.** Nothing reads the read model yet. The test API (`test`/`docker` profiles) has
+  `GET /api/v1/test/users/{id}/read-model` for acceptance tests, and `POST /users/{id}/status` writes
+  a snapshot because no event describes that change.
+- **Retention.** The outbox is not purged yet.
+
 ## Observability
 
 ### Distributed Tracing
