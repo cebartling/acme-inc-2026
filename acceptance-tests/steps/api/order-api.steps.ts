@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { Given, When, Then } from '@cucumber/cucumber';
 import { expect } from '@playwright/test';
 import { CustomWorld } from '../../support/world.js';
@@ -114,6 +115,64 @@ Then('my account cart should be converted into the order', async function (this:
   });
   expect(current.status).toBe(204);
 });
+
+// --- PIN-552: order events reach Kafka through Debezium --------------------------------
+
+const KAFKA_CONTAINER = process.env.KAFKA_CONTAINER ?? 'acme-kafka';
+/** Debezium picks up the outbox row from the log within seconds. */
+const EVENT_TIMEOUT_MS = 30_000;
+const POLL_INTERVAL_MS = 1_000;
+
+/** Every `key<TAB>value` record on the topic, read from the beginning. */
+function readTopic(topic: string): { key: string; value: string }[] {
+  const output = execFileSync(
+    'docker',
+    [
+      'exec',
+      KAFKA_CONTAINER,
+      'kafka-console-consumer',
+      '--bootstrap-server',
+      'localhost:9092',
+      '--topic',
+      topic,
+      '--from-beginning',
+      '--timeout-ms',
+      '5000',
+      '--property',
+      'print.key=true',
+    ],
+    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }
+  );
+  return output
+    .split('\n')
+    .filter((line) => line.includes('\t'))
+    .map((line) => {
+      const [key, ...value] = line.split('\t');
+      return { key, value: value.join('\t') };
+    });
+}
+
+Then(
+  'an OrderCreated event for my order should reach the {string} topic, keyed by the order id',
+  { timeout: EVENT_TIMEOUT_MS + 15_000 },
+  async function (this: CustomWorld, topic: string) {
+    const orderId = this.getTestData<string>('orderId');
+    expect(orderId, 'place the order first').toBeDefined();
+
+    const deadline = Date.now() + EVENT_TIMEOUT_MS;
+    let found: { key: string; value: string } | undefined;
+    while (!found && Date.now() < deadline) {
+      found = readTopic(topic).find((record) => record.key === orderId);
+      if (!found) await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+    }
+
+    expect(found, `no record keyed ${orderId} reached ${topic} within ${EVENT_TIMEOUT_MS}ms`).toBeDefined();
+    const event = JSON.parse(found!.value);
+    expect(event.eventType).toBe('OrderCreated');
+    expect(event.aggregateId).toBe(orderId);
+    expect(event.payload.orderId).toBe(orderId);
+  }
+);
 
 // --- PIN-367: read orders --------------------------------------------------------------
 
