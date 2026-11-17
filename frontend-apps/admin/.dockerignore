@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+
+# Build output (we build fresh in container)
+.output/
+dist/
+.tanstack/
+
+# IDE files
+.idea/
+*.iml
+.vscode/
+
+# Test files
+coverage/
+*.test.*
+*.spec.*
+
+# Git
+# .gitignore stays in the context: Tailwind reads it to skip build output when
+# scanning for classes, which keeps the SSR and client CSS hashes in sync.
+.git/
+
+# Documentation
+*.md
+!README.md
+
+# Local configuration
+.env
+.env.local
+.env.*.local
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor files
+*.swp
+*.swo
+*~
