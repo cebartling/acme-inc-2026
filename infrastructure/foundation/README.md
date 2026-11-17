@@ -147,6 +147,49 @@ Do this once, after the first apply.
 
 ## Removing the stack
 
-This stack is meant to stay. `terraform destroy` stops at the state bucket, which has
-`prevent_destroy` set. To really remove everything, move the state out of the bucket first, then
-delete the `lifecycle` block in `state.tf`.
+This stack is meant to stay: its bucket also holds the demo stack's state. `terraform destroy`
+refuses to run while `state.tf` has `prevent_destroy`. Even without it, destroy would fail on the
+bucket's old state versions and on ECR repositories that still hold images. Deleted secrets also
+stay reserved for 30 days, so applying again soon afterwards would fail on the `acme-demo/*`
+names. To remove everything:
+
+1. Destroy the demo environment first. Its state lives in this bucket.
+2. Move this stack's state to your laptop, because destroy deletes the bucket that holds it. Run
+   this in a directory already initialized against the bucket (see "Later changes"), and answer
+   `yes` when Terraform asks to copy the state:
+
+   ```zsh
+   cat > backend_override.tf <<'EOF'
+   terraform {
+     backend "local" {}
+   }
+   EOF
+   terraform init -migrate-state
+   ```
+
+3. Edit the code so Terraform can delete everything. These edits are only for the teardown; don't
+   commit them.
+   - `state.tf`: delete the `lifecycle` block, and add `force_destroy = true` to
+     `aws_s3_bucket.terraform_state`. Terraform then deletes every object version before the
+     bucket.
+   - `ecr.tf`: add `force_delete = true` to `aws_ecr_repository.images`. Terraform then deletes
+     the images before the repositories.
+   - `secrets.tf`: add `recovery_window_in_days = 0` to both secrets. Terraform then deletes them
+     at once, rather than keeping them reserved for 30 days.
+
+4. Record those settings, then destroy. The `apply` only changes Terraform's state, not AWS.
+
+   ```zsh
+   terraform apply
+   terraform destroy
+   ```
+
+5. Clean up locally:
+
+   ```zsh
+   rm -f backend_override.tf terraform.tfstate terraform.tfstate.backup
+   git checkout -- state.tf ecr.tf secrets.tf
+   ```
+
+Destroy leaves alone what this stack doesn't manage: the domain and its hosted zone, and the GitHub
+deploy role, which has its own removal steps in [`../github-deploy-role.md`](../github-deploy-role.md).
