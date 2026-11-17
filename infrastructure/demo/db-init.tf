@@ -109,22 +109,31 @@ resource "terraform_data" "db_init" {
     interpreter = ["/bin/bash", "-c"]
     command     = <<-EOT
       set -euo pipefail
-      task_arn=$(aws ecs run-task \
+      run_result=$(aws ecs run-task \
         --cluster "$CLUSTER" \
         --task-definition "$TASK_DEFINITION" \
         --launch-type FARGATE \
         --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SECURITY_GROUP],assignPublicIp=DISABLED}" \
-        --query 'tasks[0].taskArn' --output text)
+        --query '[tasks[0].taskArn, failures[0].reason]' --output text)
+      read -r task_arn failure_reason <<< "$run_result"
       if [ "$task_arn" = "None" ]; then
-        echo "ecs run-task did not start a task" >&2
+        echo "ecs run-task did not start a task: $failure_reason" >&2
         exit 1
       fi
       echo "waiting for $task_arn"
-      aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$task_arn"
+      # A task that never stops would keep its network interface and block the destroy.
+      if ! aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$task_arn"; then
+        aws ecs stop-task --cluster "$CLUSTER" --task "$task_arn" --reason "db-init did not stop in time" > /dev/null
+        echo "db-init did not stop in time; see log group $LOG_GROUP" >&2
+        exit 1
+      fi
       exit_code=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$task_arn" \
         --query 'tasks[0].containers[0].exitCode' --output text)
       if [ "$exit_code" != "0" ]; then
-        echo "db-init exited with $exit_code; see log group $LOG_GROUP" >&2
+        echo "db-init failed (exit code $exit_code); see log group $LOG_GROUP" >&2
+        # With no exit code the container never started, and the log group is empty.
+        aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$task_arn" \
+          --query 'tasks[0].[stoppedReason, containers[0].reason]' --output text >&2
         exit 1
       fi
     EOT
