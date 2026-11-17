@@ -87,9 +87,9 @@ Check: the AWS accounts page lists `acme-inc-2026-admin` under the account with
 
    The ARN should contain `assumed-role/AWSReservedSSO_AdministratorAccess_`.
 
-The runbooks assume this profile is set: run `export AWS_PROFILE=acme-demo` in each new shell.
-Credentials last for the permission set's session duration (1 hour by default). When they expire,
-repeat step 2.
+The CLI renews the role's credentials (1 hour, the permission set's default) by itself while your
+Identity Center session lasts (8 hours by default). When that session ends, commands fail with
+`Token has expired and refresh failed`. Then repeat step 2.
 
 ## Troubleshooting
 
