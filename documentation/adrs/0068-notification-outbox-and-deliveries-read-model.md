@@ -68,6 +68,12 @@ Notification differs from the services before it in three ways:
   straight after causing it must poll.
 - **After a Kafka outage the chain recovers in order.** The outbox rows wait in PostgreSQL, Debezium
   publishes them when Kafka is back, and the projector applies the snapshots.
+- **An outbox write that fails every time loses the delivery.** The email consumers' error handler
+  (`KafkaConsumerConfig`) makes 3 attempts, 5 minutes apart, then logs the record and moves on. If the
+  outbox write fails on each attempt (a serialization error, say), the email can be sent up to three
+  times, and no delivery row, event or read model document is left: only an ERROR log shows it. Before
+  this change the delivery committed and only the event was lost. A dead-letter recoverer on that
+  handler would keep the record for replay; it is not part of this change.
 - A snapshot that fails five times is skipped, and that delivery stays out of date or missing until
   the backfill rewrites it. Deliveries do not change again, so there is no later snapshot to repair it.
 - Every event is written to the outbox as well as to PostgreSQL's delivery table, and the outbox has no
