@@ -10,7 +10,6 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase
 import org.springframework.context.annotation.Import
-import org.springframework.data.domain.PageRequest
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.springframework.transaction.IllegalTransactionStateException
@@ -24,11 +23,10 @@ import org.testcontainers.postgresql.PostgreSQLContainer
 import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 
 /**
- * The outbox against real Postgres (PIN-368): the relay's query, and that an event commits
- * or rolls back with the caller's transaction. Tests manage their own transactions.
+ * The outbox against real Postgres (PIN-368): that an event commits or rolls back with the
+ * caller's transaction, and the retention delete (PIN-552). Tests manage their own transactions.
  */
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -78,7 +76,7 @@ class OutboxRepositoryIntegrationTest {
         outbox.deleteAll()
     }
 
-    private fun message(createdAt: Instant, publishedAt: Instant? = null, retryCount: Int = 0) = OutboxMessage(
+    private fun message(createdAt: Instant) = OutboxMessage(
         aggregateId = UUID.randomUUID(),
         aggregateType = "Order",
         eventType = "TestEvent",
@@ -86,26 +84,21 @@ class OutboxRepositoryIntegrationTest {
         topic = "order.events",
         messageKey = UUID.randomUUID().toString(),
         payload = """{"eventType":"TestEvent"}""",
-        createdAt = createdAt,
-        publishedAt = publishedAt,
-        retryCount = retryCount
+        createdAt = createdAt
     )
 
     @Test
-    fun `findUnsent returns unsent messages in the order they were written, however often they failed`() {
-        // created_at runs backwards, as with clock skew: the database sequence decides
-        val base = Instant.parse("2026-10-21T12:00:00Z")
-        val first = message(base.plusSeconds(3), retryCount = 50)
-        val sent = message(base.plusSeconds(2), publishedAt = base)
-        val second = message(base.plusSeconds(1))
-        val third = message(base)
-        listOf(first, sent, second, third).forEach { outbox.saveAndFlush(it) }
+    fun `deleteCreatedBefore deletes only the messages written before the cutoff`() {
+        val cutoff = Instant.parse("2026-11-09T12:00:00Z")
+        val old = message(cutoff.minusSeconds(1))
+        val atCutoff = message(cutoff)
+        val recent = message(cutoff.plusSeconds(1))
+        listOf(old, atCutoff, recent).forEach { outbox.saveAndFlush(it) }
 
-        assertEquals(listOf(first.id, second.id), outbox.findUnsent(PageRequest.of(0, 2)).map { it.id })
-        assertEquals(
-            listOf(first.id, second.id, third.id),
-            outbox.findUnsent(PageRequest.of(0, 10)).map { it.id }
-        )
+        // The use case supplies the transaction in production; these tests manage their own
+        assertEquals(1, TransactionTemplate(transactionManager).execute { outbox.deleteCreatedBefore(cutoff) })
+
+        assertEquals(setOf(atCutoff.id, recent.id), outbox.findAll().map { it.id }.toSet())
     }
 
     @Test
@@ -119,13 +112,12 @@ class OutboxRepositoryIntegrationTest {
     }
 
     @Test
-    fun `an event written in a transaction that commits is saved unsent`() {
+    fun `an event written in a transaction that commits is saved`() {
         val event = TestEvent()
         TransactionTemplate(transactionManager).executeWithoutResult { writer.write(event) }
 
         val saved = outbox.findAll().single()
         assertEquals(event.eventId, saved.eventId)
-        assertTrue(saved.publishedAt == null)
     }
 
     @Test

@@ -489,8 +489,6 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
 
-      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-
       # Orders read and convert the checkout session's cart (PIN-366)
       CART_SERVICE_URL: http://shopping-cart-service:10304
       # Sent on those calls; must match the cart's (PIN-382)

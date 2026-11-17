@@ -50,7 +50,7 @@ class OrderServiceApplicationTest {
 
     @Test
     fun `the context starts and Flyway applies every migration`() {
-        assertEquals("6", flyway.info().current()?.version?.version)
+        assertEquals("8", flyway.info().current()?.version?.version)
     }
 
     /** Prometheus scrapes this; the job counters must be in it (PIN-493). */
@@ -63,5 +63,6 @@ class OrderServiceApplicationTest {
         assertTrue(body.contains("jvm_memory_used_bytes"), "JVM metrics are missing")
         assertTrue(body.contains("orders_cancelled_total"), "orders_cancelled_total is missing")
         assertTrue(body.contains("orders_recovered_total"), "orders_recovered_total is missing")
+        assertTrue(body.contains("outbox_rows_purged_total"), "outbox_rows_purged_total is missing")
     }
 }

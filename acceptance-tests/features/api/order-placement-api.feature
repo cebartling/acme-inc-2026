@@ -20,6 +20,12 @@ Feature: Place Order API
     And the order should be submitted with an order number for today
     And my account cart should be converted into the order
 
+  # PIN-552: the order service only writes the outbox; Debezium publishes it
+  Scenario: A placed order's OrderCreated event reaches the order.events topic
+    When I place an order for my checkout session
+    Then the API should respond with status 201
+    And an OrderCreated event for my order should reach the "order.events" topic, keyed by the order id
+
   # AC-5.8
   Scenario: Placing the same order twice with the same idempotency key creates one order
     Given I place an order for my checkout session

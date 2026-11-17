@@ -24,15 +24,13 @@ spring:
       # Like the cart (PIN-279): reject a decimal in an integer field with a 400 instead of
       # truncating it. Affects the Jackson 3 mappers of Spring MVC and of the cart RestClient
       # (built from Boot's RestClient.Builder, PIN-497), so a decimal in the cart's integer
-      # fields fails the call too. Not JacksonConfig's Kafka mapper.
+      # fields fails the call too. Not JacksonConfig's event mapper.
       accept-float-as-int: false
-  kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
   task:
     scheduling:
       pool:
-        # One thread per job (outbox relay, abandoned orders), so the relay blocked on Kafka
-        # never holds up the other. The default is a single shared thread.
+        # One thread per job (outbox purge, abandoned orders), so a slow run of one never holds
+        # up the other. The default is a single shared thread.
         size: 2
   security:
     oauth2:
@@ -60,14 +58,14 @@ acme:
     # (PIN-382). No default: the service won't start without it.
     service-token: ${ACME_ORDER_SERVICE_TOKEN:}
   order:
-    events:
-      publish-timeout-seconds: 10
-    # OutboxRelay (PIN-368): how often it polls, after how many failed sends of one message
-    # it logs errors (it never gives up), and how many messages one poll sends
+    # Outbox rows are deleted after max-age (PIN-552, PIN-433); Debezium has published them
+    # long before. ISO-8601 durations.
     outbox:
-      poll-delay-ms: 1000
-      alert-after-attempts: 5
-      batch-size: 100
+      retention:
+        enabled: ${ACME_ORDER_OUTBOX_RETENTION_ENABLED:true}
+        max-age: ${ACME_ORDER_OUTBOX_RETENTION_MAX_AGE:P7D}
+        initial-delay: ${ACME_ORDER_OUTBOX_RETENTION_INITIAL_DELAY:PT5M}
+        interval: ${ACME_ORDER_OUTBOX_RETENTION_INTERVAL:P1D}
     abandoned:
       # The job that settles orders left PENDING (PIN-427, PIN-491): it submits one whose cart
       # converted for it and cancels the rest; ISO-8601 durations. max-age must be

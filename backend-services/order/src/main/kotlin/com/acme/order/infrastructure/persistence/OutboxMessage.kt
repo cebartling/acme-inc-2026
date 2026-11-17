@@ -12,8 +12,8 @@ import java.util.UUID
 /**
  * An event waiting in the transactional outbox (PIN-368, ADR-0022).
  *
- * `OutboxWriter` saves it in the same transaction as the order change, and `OutboxRelay`
- * sends it to Kafka afterwards, so an order is never committed without its event.
+ * `OutboxWriter` saves it in the same transaction as the order change, and Debezium
+ * publishes it to Kafka afterwards (PIN-552), so an order is never committed without its event.
  */
 @Entity
 @Table(name = "outbox")
@@ -48,14 +48,5 @@ class OutboxMessage(
     val payload: String,
 
     @Column(name = "created_at", nullable = false)
-    val createdAt: Instant = Instant.now(),
-
-    @Column(name = "published_at")
-    var publishedAt: Instant? = null,
-
-    @Column(name = "retry_count", nullable = false)
-    var retryCount: Int = 0,
-
-    @Column(name = "last_error", columnDefinition = "TEXT")
-    var lastError: String? = null
+    val createdAt: Instant = Instant.now()
 )
