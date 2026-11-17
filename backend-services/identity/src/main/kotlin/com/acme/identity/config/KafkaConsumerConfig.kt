@@ -20,6 +20,8 @@ import org.springframework.kafka.support.ExponentialBackOffWithMaxRetries
  * - A failing message is retried at 1s, 2s, 4s, 8s and 16s; after that the error is logged and
  *   the listener moves on
  * - Read committed isolation
+ * - The listener starts with the application unless `identity.events.read-model-listener-enabled` is
+ *   false. Tests that provide no Kafka turn it off, so they do not join the real consumer group.
  */
 @Configuration
 @EnableKafka
@@ -28,7 +30,10 @@ class KafkaConsumerConfig(
     private val bootstrapServers: String,
 
     @Value("\${spring.kafka.consumer.group-id}")
-    private val groupId: String
+    private val groupId: String,
+
+    @Value("\${identity.events.read-model-listener-enabled:true}")
+    private val listenerEnabled: Boolean
 ) {
 
     @Bean
@@ -50,6 +55,7 @@ class KafkaConsumerConfig(
         val factory = ConcurrentKafkaListenerContainerFactory<String, String>()
         factory.setConsumerFactory(consumerFactory())
         factory.containerProperties.ackMode = ContainerProperties.AckMode.MANUAL
+        factory.setAutoStartup(listenerEnabled)
         factory.setCommonErrorHandler(defaultErrorHandler())
         return factory
     }

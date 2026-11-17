@@ -63,6 +63,8 @@ identity:
   events:
     # Full user state for the read model's projector only; Debezium publishes it from the outbox (PIN-548).
     read-model-topic: identity.read-model
+    # Set false to keep the projector's listener from starting (tests without Kafka)
+    read-model-listener-enabled: ${IDENTITY_READ_MODEL_LISTENER_ENABLED:true}
   read-model:
     # Writes a snapshot for every user at startup, for users that predate the read model
     backfill-on-startup: ${IDENTITY_READ_MODEL_BACKFILL:false}
