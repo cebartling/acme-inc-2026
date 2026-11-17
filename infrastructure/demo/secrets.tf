@@ -19,7 +19,7 @@ resource "random_password" "documentdb" {
 
 locals {
   postgres_user   = "postgres"
-  documentdb_user = "acme_admin"
+  documentdb_user = "acmeadmin"
 }
 
 # Read by every backend service: POSTGRES_USER and POSTGRES_PASSWORD in docker-compose.apps.yml.
