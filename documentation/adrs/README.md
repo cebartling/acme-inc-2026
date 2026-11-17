@@ -34,6 +34,7 @@ An Architecture Decision Record documents a significant architectural decision, 
 | [ADR-0065](0065-customer-read-model-from-snapshots.md) | The Customer Read Model Is Built from State Snapshots, and Reads Wait for Their Own Writes | Accepted |
 | [ADR-0066](0066-cart-read-model-from-snapshots.md) | The Cart Read Model Follows ADR-0065, and the Order Service Hands the Browser the Cart's Read-After | Accepted |
 | [ADR-0067](0067-identity-outbox-and-users-read-model.md) | Identity Publishes Through the Outbox, and Its Users Read Model Follows ADR-0065 | Accepted |
+| [ADR-0068](0068-notification-outbox-and-deliveries-read-model.md) | Notification Publishes Through the Outbox, and Its Deliveries Read Model Follows ADR-0065 | Accepted |
 
 ### Shopping Cart
 

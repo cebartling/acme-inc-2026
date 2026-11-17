@@ -957,6 +957,29 @@ Identity's event publishing and read model (PIN-548, [ADR-0067](adrs/0067-identi
   a snapshot because no event describes that change.
 - **Retention.** The outbox is not purged yet.
 
+### Notification Service: events and the deliveries read model
+
+Notification's event publishing and read model (PIN-549, [ADR-0068](adrs/0068-notification-outbox-and-deliveries-read-model.md)).
+
+- **`NotificationSent` goes through a transactional outbox** (ADR-0022). `NotificationEventPublisher`
+  hands the event to `OutboxWriter`, which saves it to the `outbox` table (V2) in the send use case's
+  transaction. Debezium's `notification-outbox` connector
+  (`docker/debezium/connectors/notification-outbox.json`) publishes each row to `notification.events`,
+  keyed by notification id. Nothing sends to Kafka directly. A failed outbox write throws
+  `OutboxWriteException`, which the use cases rethrow, so the handler fails and Kafka redelivers the
+  triggering event.
+- **Deliveries read model.** After a delivery's final state is saved (SENT or FAILED), the use case
+  also writes a snapshot of it to the outbox for `notification.read-model`. `DeliverySnapshotProjector`
+  replaces the delivery's document in the `notification_delivery_read_models` collection of
+  `acme_query` (`MONGODB_URI`, `MONGODB_DB`), keeping the last 50 source event ids.
+- **Reading it.** `GET /api/v1/notifications/{id}/status`, `/recipient/{recipientId}` and
+  `/by-email/{email}` answer from the read model, so a delivery shows up a few seconds after it is sent.
+  Clients that look one up straight after causing it poll, as the acceptance steps do.
+- **Consumers are unchanged.** It still consumes `identity.user.events` and `customer.events`, with
+  `processed_events` deduplicating by event ID.
+- **Backfill.** `NOTIFICATION_READ_MODEL_BACKFILL=true` writes a snapshot for every existing delivery at startup.
+- **Retention.** The outbox is not purged yet.
+
 ## Observability
 
 ### Distributed Tracing
