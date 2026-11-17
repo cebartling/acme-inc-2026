@@ -50,7 +50,7 @@ class OrderServiceApplicationTest {
 
     @Test
     fun `the context starts and Flyway applies every migration`() {
-        assertEquals("7", flyway.info().current()?.version?.version)
+        assertEquals("8", flyway.info().current()?.version?.version)
     }
 
     /** Prometheus scrapes this; the job counters must be in it (PIN-493). */

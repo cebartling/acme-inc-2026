@@ -904,7 +904,8 @@ their orders back (PIN-367) and cancel a submitted one (PIN-429).
   `order_number_sequences` tables (PIN-366), and `V4` an index on
   `orders (user_id, status, created_at DESC, id DESC)` for the order history (PIN-367).
   `V7` drops the outbox's relay columns and polling index (PIN-552); it stops if the old relay left
-  unpublished rows, because the connector would never publish them.
+  unpublished rows, because the connector would never publish them. `V8` indexes
+  `outbox (created_at)` for the retention job.
   `open-in-view` is off. `acme_orders` and its
   `acme_app` user come from `docker/postgres/init`, which also gives it a
   `dbz_publication FOR ALL TABLES`, which the `order-outbox` connector reads (the
