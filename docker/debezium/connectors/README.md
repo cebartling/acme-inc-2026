@@ -46,6 +46,12 @@ plain JSON value, and the row's `event_id` in the `id` header.
 fails instead of skipping rows silently. To recover, stop the connector, `DELETE /connectors/<name>/offsets`,
 drop and recreate the slot, then resume; rows written in the gap are not published.
 
+A replication slot keeps the write-ahead log (WAL) from its confirmed position onward. The outbox connectors have no
+`heartbeat.interval.ms`, so a connector on a quiet database (such as `order-outbox`) only advances its slot when one of
+its own tables changes, and can hold back WAL that the busier databases on the same Postgres produce. Watch slot lag
+(`SELECT slot_name, pg_size_pretty(pg_wal_lsn_diff(pg_current_wal_lsn(), confirmed_flush_lsn)) FROM pg_replication_slots`).
+If it grows on a quiet database, add `heartbeat.interval.ms` to the connectors.
+
 ## Monitoring
 
 View connector logs:
