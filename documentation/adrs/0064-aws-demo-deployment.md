@@ -210,7 +210,7 @@ These are still open, on PIN-533 unless noted. This ADR doesn't decide them. Ite
   Managed Grafana requires (see Managed Grafana sign-in).
 - **Domain:** which Route 53 domain, and the names of the two frontend subdomains and the API
   host. **Decided** (PIN-540): `acme-inc-2026.shop`, registered through Route 53 in the demo
-  account, with the hosts `api.`, `shop.` (customer frontend) and `admin.`.
+  account, with the hosts `api.`, `www.` (customer frontend) and `admin.`.
 - **Managed Grafana sign-in:** it uses IAM Identity Center (or SAML). Is IAM Identity Center set
   up in the account? **Decided** (PIN-540): IAM Identity Center, set up by hand in `us-east-2`.
   AWS lists Managed Grafana as supporting neither account instances of Identity Center nor

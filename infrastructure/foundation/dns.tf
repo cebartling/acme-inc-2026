@@ -3,7 +3,7 @@ locals {
   # cookie reaches every service (ADR-0064, decision 6).
   hostnames = {
     api      = "api.${var.domain_name}"
-    customer = "shop.${var.domain_name}"
+    customer = "www.${var.domain_name}"
     admin    = "admin.${var.domain_name}"
   }
 }

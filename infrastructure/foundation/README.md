@@ -6,7 +6,7 @@ environment leaves it alone. It contains:
 
 - the S3 bucket for Terraform state, for this stack and the demo stack;
 - ECR repositories for the 5 backend and 2 frontend images;
-- one ACM certificate for `api.`, `shop.` and `admin.<domain>`;
+- one ACM certificate for `api.`, `www.` and `admin.<domain>`;
 - Secrets Manager secrets for SendGrid and Twilio, whose values you set by hand;
 - the Managed Prometheus and Managed Grafana workspaces;
 - a monthly cost budget with an email alert.
