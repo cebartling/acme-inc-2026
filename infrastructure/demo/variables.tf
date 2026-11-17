@@ -29,3 +29,25 @@ variable "kafka_version" {
   type        = string
   default     = "3.9.x"
 }
+
+variable "image_tag" {
+  description = "Tag of the images in the ECR repositories that the services run. Push the images first (README.md)."
+  type        = string
+  default     = "latest"
+}
+
+variable "email_from_address" {
+  description = "Sender address for notification's emails. SendGrid delivers only from a verified sender or domain, so there is no default."
+  type        = string
+}
+
+variable "sms_provider" {
+  description = "Identity's SMS provider: mock, or twilio, which needs the foundation stack's Twilio secret filled in."
+  type        = string
+  default     = "mock"
+
+  validation {
+    condition     = contains(["mock", "twilio"], var.sms_provider)
+    error_message = "sms_provider must be mock or twilio."
+  }
+}

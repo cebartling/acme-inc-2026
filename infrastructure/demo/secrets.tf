@@ -94,3 +94,30 @@ resource "aws_secretsmanager_secret_version" "test_api_key" {
     IDENTITY_TEST_API_KEY = random_password.test_api_key.result
   })
 }
+
+# Tokens the services send each other in X-Service-Token. The services have no default and
+# notification won't start without the customer one. Customer and shopping-cart are reachable
+# from the internet, so a shared default would let anyone call the service-only endpoints.
+resource "random_password" "customer_service_token" {
+  length  = 32
+  special = false
+}
+
+resource "random_password" "order_service_token" {
+  length  = 32
+  special = false
+}
+
+resource "aws_secretsmanager_secret" "service_tokens" {
+  name                    = "acme-demo/service-tokens"
+  description             = "Service-to-service tokens. JSON keys: ACME_CUSTOMER_SERVICE_TOKEN, ACME_ORDER_SERVICE_TOKEN."
+  recovery_window_in_days = 0
+}
+
+resource "aws_secretsmanager_secret_version" "service_tokens" {
+  secret_id = aws_secretsmanager_secret.service_tokens.id
+  secret_string = jsonencode({
+    ACME_CUSTOMER_SERVICE_TOKEN = random_password.customer_service_token.result
+    ACME_ORDER_SERVICE_TOKEN    = random_password.order_service_token.result
+  })
+}
