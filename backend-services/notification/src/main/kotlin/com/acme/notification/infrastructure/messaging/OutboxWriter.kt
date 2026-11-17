@@ -1,12 +1,17 @@
 package com.acme.notification.infrastructure.messaging
 
+import com.acme.notification.api.v1.dto.toStatusResponse
+import com.acme.notification.domain.NotificationDelivery
 import com.acme.notification.domain.events.DomainEvent
+import com.acme.notification.domain.events.NotificationSent
 import com.acme.notification.infrastructure.persistence.OutboxMessage
 import com.acme.notification.infrastructure.persistence.OutboxRepository
+import com.acme.notification.infrastructure.projection.DeliverySnapshotMessage
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
+import java.util.UUID
 
 /**
  * Writes a notification event to the transactional outbox (PIN-549, ADR-0022), for Debezium's
@@ -38,6 +43,33 @@ class OutboxWriter(
         logger.debug(
             "Wrote {} event {} for aggregate {} to the outbox for topic {}",
             event.eventType, event.eventId, event.aggregateId, topic
+        )
+    }
+
+    /**
+     * Writes the delivery's current state to `notification.read-model`, for the read model's projector.
+     * Call it after the delivery is saved. The snapshot goes to its own topic, so consumers of
+     * `notification.events` never see it.
+     *
+     * @param sourceEventId The event the snapshot follows, or a fresh id when no event caused it.
+     */
+    @Transactional
+    fun writeSnapshot(delivery: NotificationDelivery, sourceEventId: UUID) {
+        val message = DeliverySnapshotMessage(
+            sourceEventId = sourceEventId,
+            notificationId = delivery.id,
+            snapshot = delivery.toStatusResponse()
+        )
+        outboxRepository.save(
+            OutboxMessage(
+                aggregateId = delivery.id,
+                aggregateType = NotificationSent.AGGREGATE_TYPE,
+                eventType = DeliverySnapshotMessage.EVENT_TYPE,
+                eventId = UUID.randomUUID(),
+                topic = DeliverySnapshotMessage.TOPIC,
+                messageKey = delivery.id.toString(),
+                payload = objectMapper.writeValueAsString(message)
+            )
         )
     }
 }

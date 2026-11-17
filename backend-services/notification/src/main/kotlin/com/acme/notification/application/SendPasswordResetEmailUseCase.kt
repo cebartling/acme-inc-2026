@@ -7,6 +7,7 @@ import com.acme.notification.domain.events.NotificationSent
 import com.acme.notification.infrastructure.email.EmailSendResult
 import com.acme.notification.infrastructure.email.SendGridEmailSender
 import com.acme.notification.infrastructure.messaging.NotificationEventPublisher
+import com.acme.notification.infrastructure.messaging.OutboxWriteException
 import com.acme.notification.infrastructure.persistence.NotificationDeliveryRepository
 import io.micrometer.core.instrument.Counter
 import io.micrometer.core.instrument.MeterRegistry
@@ -100,6 +101,7 @@ class SendPasswordResetEmailUseCase(
                         correlationId = correlationId
                     )
                     eventPublisher.publish(event)
+                    eventPublisher.publishSnapshot(delivery, event.eventId)
 
                     emailSentCounter.increment()
                     logger.info("Password reset email sent to {} for user {}", email, userId)
@@ -109,6 +111,7 @@ class SendPasswordResetEmailUseCase(
                 is EmailSendResult.Failure -> {
                     delivery.markAsFailed()
                     deliveryRepository.save(delivery)
+                    eventPublisher.publishSnapshot(delivery)
                     emailFailedCounter.increment()
                     logger.error(
                         "Failed to send password reset email to {} for user {}: {}",
@@ -117,6 +120,9 @@ class SendPasswordResetEmailUseCase(
                     SendPasswordResetEmailResult.Failure(result.message, result.cause)
                 }
             }
+        } catch (e: OutboxWriteException) {
+            // The delivery must not commit without its event: fail the handler so Kafka redelivers
+            throw e
         } catch (e: Exception) {
             emailFailedCounter.increment()
             logger.error("Unexpected error sending password reset email to {}: {}", email, e.message, e)

@@ -1,7 +1,7 @@
 package com.acme.notification.api.v1
 
 import com.acme.notification.api.v1.dto.NotificationStatusResponse
-import com.acme.notification.domain.NotificationDelivery
+import com.acme.notification.api.v1.dto.toStatusResponse
 import com.acme.notification.infrastructure.persistence.NotificationDeliveryRepository
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
@@ -58,19 +58,4 @@ class NotificationController(
         val deliveries = deliveryRepository.findByRecipientEmail(email)
         return ResponseEntity.ok(deliveries.map { it.toStatusResponse() })
     }
-
-    private fun NotificationDelivery.toStatusResponse() = NotificationStatusResponse(
-        notificationId = id,
-        notificationType = notificationType,
-        recipientId = recipientId,
-        recipientEmail = recipientEmail,
-        status = status,
-        attemptCount = attemptCount,
-        providerMessageId = providerMessageId,
-        sentAt = sentAt,
-        deliveredAt = deliveredAt,
-        bouncedAt = bouncedAt,
-        bounceReason = bounceReason,
-        createdAt = createdAt
-    )
 }

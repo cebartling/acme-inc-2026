@@ -1,6 +1,7 @@
 package com.acme.notification.infrastructure.persistence
 
 import com.acme.notification.config.JacksonConfig
+import com.acme.notification.domain.NotificationDelivery
 import com.acme.notification.domain.NotificationStatus
 import com.acme.notification.domain.NotificationType
 import com.acme.notification.domain.events.NotificationSent
@@ -103,5 +104,29 @@ class OutboxRepositoryIntegrationTest {
         val payload = objectMapper.readTree(saved.payload)
         assertEquals(event.eventId.toString(), payload["eventId"].asText())
         assertEquals("outbox@example.com", payload["payload"]["recipientEmail"].asText())
+    }
+
+    @Test
+    fun `a snapshot is saved for the read model topic, keyed by notification id, with the delivery's state`() {
+        val delivery = NotificationDelivery(
+            id = UUID.randomUUID(),
+            notificationType = NotificationType.EMAIL_VERIFICATION,
+            recipientId = UUID.randomUUID(),
+            recipientEmail = "snapshot@example.com"
+        ).also { it.markAsSent("msg-9") }
+        val sourceEventId = UUID.randomUUID()
+
+        TransactionTemplate(transactionManager).executeWithoutResult { writer.writeSnapshot(delivery, sourceEventId) }
+
+        val saved = outbox.findAll().single()
+        assertEquals("notification.read-model", saved.topic)
+        assertEquals(delivery.id.toString(), saved.messageKey)
+        assertEquals("NotificationDeliverySnapshot", saved.eventType)
+        val message = objectMapper.readTree(saved.payload)
+        assertEquals(sourceEventId.toString(), message["sourceEventId"].asText())
+        assertEquals(delivery.id.toString(), message["notificationId"].asText())
+        assertEquals("snapshot@example.com", message["snapshot"]["recipientEmail"].asText())
+        assertEquals("SENT", message["snapshot"]["status"].asText())
+        assertEquals("msg-9", message["snapshot"]["providerMessageId"].asText())
     }
 }
