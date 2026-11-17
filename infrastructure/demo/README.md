@@ -54,7 +54,9 @@ If either step fails, `apply` fails. The task's output is in the CloudWatch log 
 `/acme-demo/db-init`. Fix the cause and run `terraform apply` again.
 
 If `apply` rejects an engine version, list what the Region accepts and set the matching variable
-(`postgres_engine_version`, `documentdb_engine_version`, `kafka_version`) in `terraform.tfvars`:
+(`postgres_engine_version`, `documentdb_engine_version`, `kafka_version`) in `terraform.tfvars`.
+Stay within PostgreSQL 16 (the parameter group family and the setup task image are 16) and a
+ZooKeeper-mode Kafka 3.x version (`kafka.t3.small` can't run KRaft):
 
 ```zsh
 aws rds describe-db-engine-versions --engine postgres --query 'DBEngineVersions[].EngineVersion'

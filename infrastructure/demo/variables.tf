@@ -8,7 +8,7 @@ variable "vpc_cidr" {
 # rejects one: README.md shows the CLI calls that list what the Region accepts.
 
 variable "postgres_engine_version" {
-  description = "RDS for PostgreSQL engine version. A major version alone lets RDS pick the current minor release."
+  description = "RDS for PostgreSQL engine version. A major version alone lets RDS pick the current minor release. Keep major version 16: the parameter group family (rds.tf) and the setup task image (db-init.tf) are 16."
   type        = string
   default     = "16"
 }
@@ -20,7 +20,7 @@ variable "documentdb_engine_version" {
 }
 
 variable "kafka_version" {
-  description = "MSK Apache Kafka version."
+  description = "MSK Apache Kafka version. Use a ZooKeeper-mode 3.x version: kafka.t3.small can't run KRaft, so 4.x and '.kraft' versions are rejected."
   type        = string
   default     = "3.9.x"
 }
