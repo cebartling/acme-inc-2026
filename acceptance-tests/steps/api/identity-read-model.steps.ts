@@ -132,15 +132,3 @@ Then(
     );
   }
 );
-
-Then(
-  'the user read model should not contain the password hash',
-  async function (this: CustomWorld) {
-    const { status, data } = await readModel(this);
-    expect(status).toBe(200);
-    const json = JSON.stringify(data);
-    for (const secret of ['passwordHash', 'totpSecret', 'phoneNumber', '$argon2']) {
-      expect(json, `the read model must not contain ${secret}`).not.toContain(secret);
-    }
-  }
-);

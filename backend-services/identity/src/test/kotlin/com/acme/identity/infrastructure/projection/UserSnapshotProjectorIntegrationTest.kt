@@ -1,5 +1,7 @@
 package com.acme.identity.infrastructure.projection
 
+import com.acme.identity.domain.RegistrationSource
+import com.acme.identity.domain.User
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.SerializationFeature
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
@@ -131,5 +133,31 @@ class UserSnapshotProjectorIntegrationTest {
 
         val applied = assertNotNull(load(userId)).getList(UserReadModelDocument.APPLIED_EVENT_IDS, String::class.java)
         assertEquals(sourceIds.takeLast(UserReadModelDocument.MAX_APPLIED_EVENT_IDS).map { it.toString() }, applied)
+    }
+
+    // Goes from a real user with secrets, through the snapshot type, to the whole stored document
+    @Test
+    fun `the stored document holds none of the user's secrets or sensitive fields`() {
+        val user = User(
+            id = UUID.randomUUID(),
+            email = "secrets@example.com",
+            passwordHash = "PASSWORD-HASH-SECRET",
+            firstName = "Sam",
+            lastName = "Secret",
+            tosAcceptedAt = now,
+            registrationSource = RegistrationSource.WEB,
+            totpSecret = "TOTP-SECRET",
+            phoneNumber = "+15555550100",
+            lastDeviceFingerprint = "DEVICE-FINGERPRINT"
+        )
+        val message = UserSnapshotMessage(UUID.randomUUID(), user.id, UserSnapshot.fromDomain(user))
+
+        projector.apply(objectMapper.writeValueAsString(message))
+
+        val stored = assertNotNull(load(user.id)).toJson()
+        assertEquals("secrets@example.com", assertNotNull(load(user.id)).getString(UserReadModelDocument.EMAIL))
+        for (secret in listOf("PASSWORD-HASH-SECRET", "TOTP-SECRET", "+15555550100", "DEVICE-FINGERPRINT")) {
+            assertEquals(false, stored.contains(secret), "the document must not contain $secret")
+        }
     }
 }

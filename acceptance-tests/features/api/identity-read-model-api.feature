@@ -32,11 +32,6 @@ Feature: Identity users read model
     Then the user read model should eventually show "status" as "ACTIVE"
     And the user read model should eventually show "lockedUntil" as "none"
 
-  Scenario: The read model never holds secrets
-    Given I have registered and verified a user for the read model
-    Then the user read model should eventually show "status" as "ACTIVE"
-    And the user read model should not contain the password hash
-
   # Stops the shared Kafka container, so it is left out of the default run (@kafka-outage).
   # Run it on its own: npm run test:kafka-outage
   @kafka-outage

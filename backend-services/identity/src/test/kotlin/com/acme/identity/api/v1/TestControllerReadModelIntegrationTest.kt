@@ -122,7 +122,7 @@ class TestControllerReadModelIntegrationTest {
     }
 
     @Test
-    fun `the read model endpoint answers 404 until the projector has written the user`() {
+    fun `the read model endpoint answers 404 for a user with no document`() {
         mockMvc.perform(get("/api/v1/test/users/${UUID.randomUUID()}/read-model").header("X-Test-Api-Key", API_KEY))
             .andExpect(status().isNotFound)
     }
