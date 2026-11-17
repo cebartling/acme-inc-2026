@@ -36,8 +36,9 @@ US East (Ohio). The menu names below may differ slightly from the console.
    Multi-account permissions, open Permission sets and choose Create permission set. Pick the
    predefined `AdministratorAccess` permission set and keep the defaults.
 3. **Assign the user to the account.** Assignments are made from the account, not from the
-   user's page. Under Multi-account permissions, open AWS accounts and tick the demo account. For an
-   organization instance that's the management account. Choose Assign users or groups, pick
+   user's page. Under Multi-account permissions, open AWS accounts and tick the demo account. It's
+   the organization's management account
+   ([`foundation/README.md`](foundation/README.md), prerequisite 3). Choose Assign users or groups, pick
    `acme-inc-2026-admin`, then pick `AdministratorAccess` and submit.
 4. **Accept the invitation.** Open the email, set a password, and set up MFA if asked.
 
