@@ -3,12 +3,16 @@ package com.acme.identity.infrastructure.messaging
 import com.acme.identity.domain.RegistrationSource
 import com.acme.identity.domain.events.AccountLockReason
 import com.acme.identity.domain.events.AccountLocked
+import com.acme.identity.domain.events.AccountUnlockReason
+import com.acme.identity.domain.events.AccountUnlocked
 import com.acme.identity.domain.events.AuthenticationFailed
 import com.acme.identity.domain.events.AuthenticationFailureReason
 import com.acme.identity.domain.events.DeviceRemembered
 import com.acme.identity.domain.events.DomainEvent
+import com.acme.identity.domain.events.EmailVerified
 import com.acme.identity.domain.events.MFAChallengeInitiated
 import com.acme.identity.domain.events.SessionCreated
+import com.acme.identity.domain.events.UserActivated
 import com.acme.identity.domain.events.UserRegistered
 import io.mockk.Runs
 import io.mockk.every
@@ -104,5 +108,36 @@ class UserEventPublisherTest {
         publisher.publish(event)
 
         verify(exactly = 1) { outboxWriter.write(event, "identity.session.events") }
+    }
+
+    // The other three events that change what the users read model holds
+    @Test
+    fun `EmailVerified goes to identity user events with a snapshot`() {
+        val event = EmailVerified.create(userId, "verified@example.com")
+        expectWriteWithSnapshot(event, "identity.user.events")
+
+        publisher.publishEmailVerified(event)
+
+        verify(exactly = 1) { outboxWriter.writeWithSnapshot(event, "identity.user.events") }
+    }
+
+    @Test
+    fun `UserActivated goes to identity user events with a snapshot`() {
+        val event = UserActivated.create(userId)
+        expectWriteWithSnapshot(event, "identity.user.events")
+
+        publisher.publishUserActivated(event)
+
+        verify(exactly = 1) { outboxWriter.writeWithSnapshot(event, "identity.user.events") }
+    }
+
+    @Test
+    fun `AccountUnlocked goes to identity account events with a snapshot`() {
+        val event = AccountUnlocked.create(userId, "unlocked@example.com", AccountUnlockReason.LOCKOUT_EXPIRED)
+        expectWriteWithSnapshot(event, "identity.account.events")
+
+        publisher.publishAccountUnlocked(event)
+
+        verify(exactly = 1) { outboxWriter.writeWithSnapshot(event, "identity.account.events") }
     }
 }

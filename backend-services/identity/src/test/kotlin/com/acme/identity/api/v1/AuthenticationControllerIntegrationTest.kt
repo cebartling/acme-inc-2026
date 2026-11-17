@@ -452,6 +452,13 @@ class AuthenticationControllerIntegrationTest {
         assertEquals(1, locked.size)
         assertEquals("identity.account.events", locked.single().topic)
         assertEquals(user.id.toString(), locked.single().messageKey)
+
+        // The lock's snapshot is the one the read model builds the user's LOCKED status from
+        val snapshot = outboxRepository.findAll().single { it.topic == "identity.read-model" }
+        assertEquals(user.id.toString(), snapshot.messageKey)
+        val snapshotState = objectMapper.readTree(snapshot.payload)["snapshot"]
+        assertEquals("LOCKED", snapshotState["status"].asText())
+        assertNotNull(snapshotState["lockedUntil"].textValue())
     }
 
     private fun failedSignin(email: String) {
