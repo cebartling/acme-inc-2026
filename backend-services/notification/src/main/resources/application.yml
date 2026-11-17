@@ -33,14 +33,6 @@ spring:
         isolation.level: read_committed
         max.poll.records: 10
         session.timeout.ms: 30000
-    producer:
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.apache.kafka.common.serialization.StringSerializer
-      acks: all
-      retries: 3
-      properties:
-        max.in.flight.requests.per.connection: 1
-        enable.idempotence: true
 
   thymeleaf:
     cache: true
@@ -67,7 +59,6 @@ notification:
   events:
     input-topic: identity.user.events
     customer-input-topic: ${CUSTOMER_EVENTS_TOPIC:customer.events}
-    output-topic: notification.events
     password-reset-group-id: ${PASSWORD_RESET_GROUP_ID:notification-password-reset}
   retry:
     max-attempts: 3

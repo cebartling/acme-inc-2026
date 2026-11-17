@@ -23,9 +23,6 @@ spring:
       group-id: notification-service-test
       auto-offset-reset: earliest
       enable-auto-commit: false
-    producer:
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.apache.kafka.common.serialization.StringSerializer
 
   thymeleaf:
     cache: false
@@ -36,7 +33,6 @@ server:
 notification:
   events:
     input-topic: identity.user.events
-    output-topic: notification.events
   retry:
     max-attempts: 3
     initial-interval-ms: 1000
