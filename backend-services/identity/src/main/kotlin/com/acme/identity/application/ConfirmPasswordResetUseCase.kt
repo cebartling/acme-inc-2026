@@ -1,6 +1,8 @@
 package com.acme.identity.application
 
 import com.acme.identity.domain.UserStatus
+import com.acme.identity.domain.events.AccountUnlockReason
+import com.acme.identity.domain.events.AccountUnlocked
 import com.acme.identity.domain.events.DeviceRevocationReason
 import com.acme.identity.domain.events.PasswordChangeReason
 import com.acme.identity.domain.events.PasswordChanged
@@ -37,7 +39,8 @@ sealed interface ConfirmPasswordResetResult {
  * 1. Validate token (exists, not used, not expired).
  * 2. Validate new password against [PasswordRequirements].
  * 3. Update user password hash (Argon2id).
- * 4. Clear account lockout and reset failed-attempt counter.
+ * 4. Clear account lockout and reset failed-attempt counter, and publish [AccountUnlocked] if the
+ *    account was locked, so the users read model unlocks too (PIN-548).
  * 5. Invalidate all active sessions (with [SessionInvalidated] events).
  * 6. Revoke all device trusts (with DeviceRevoked events).
  * 7. Mark reset token as used.
@@ -89,10 +92,23 @@ class ConfirmPasswordResetUseCase(
         // AC-08: clear lockout + reset failed attempts on reset.
         updated.failedAttempts = 0
         updated.lockedUntil = null
-        if (updated.status == UserStatus.LOCKED) {
+        val wasLocked = updated.status == UserStatus.LOCKED
+        if (wasLocked) {
             updated.status = UserStatus.ACTIVE
         }
         userRepository.save(updated)
+
+        if (wasLocked) {
+            // Written after the save: the event's snapshot of the user holds the unlocked state
+            val unlocked = AccountUnlocked.create(
+                userId = updated.id,
+                email = updated.email,
+                reason = AccountUnlockReason.PASSWORD_RESET,
+                correlationId = correlationId
+            )
+            eventStoreRepository.append(unlocked)
+            userEventPublisher.publishAccountUnlocked(unlocked)
+        }
 
         resetToken.markAsUsed()
         passwordResetTokenRepository.save(resetToken)

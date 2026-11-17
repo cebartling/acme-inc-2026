@@ -5,6 +5,8 @@ import com.acme.identity.domain.RegistrationSource
 import com.acme.identity.domain.Session
 import com.acme.identity.domain.User
 import com.acme.identity.domain.UserStatus
+import com.acme.identity.domain.events.AccountUnlockReason
+import com.acme.identity.domain.events.AccountUnlocked
 import com.acme.identity.domain.events.DeviceRevocationReason
 import com.acme.identity.domain.events.PasswordChanged
 import com.acme.identity.domain.events.PasswordChangeReason
@@ -60,6 +62,7 @@ class ConfirmPasswordResetUseCaseTest {
         every { deviceTrustService.revokeAllDevices(any(), any(), any()) } returns 0
         every { publisher.publish(any<SessionInvalidated>()) } just Runs
         every { publisher.publishPasswordChanged(any()) } just Runs
+        every { publisher.publishAccountUnlocked(any()) } just Runs
 
         useCase = ConfirmPasswordResetUseCase(
             passwordResetTokenRepository = tokenRepository,
@@ -118,6 +121,38 @@ class ConfirmPasswordResetUseCaseTest {
         assertEquals(0, userSlot.captured.failedAttempts)
         assertNull(userSlot.captured.lockedUntil)
         assertEquals(UserStatus.ACTIVE, userSlot.captured.status)
+    }
+
+    // PIN-548: the users read model learns of the unlock from this event's snapshot
+    @Test
+    fun `unlocking a locked user on reset publishes AccountUnlocked with the PASSWORD_RESET reason`() {
+        val user = activeUser().apply {
+            failedAttempts = 5
+            lockedUntil = Instant.now().plus(10, ChronoUnit.MINUTES)
+            status = UserStatus.LOCKED
+        }
+        every { tokenRepository.findByToken("rst_unlock") } returns freshToken(user.id)
+        every { userRepository.findById(user.id) } returns Optional.of(user)
+
+        useCase.execute(token = "rst_unlock", newPassword = "NewSecureP@ss123", ipAddress = "127.0.0.1")
+
+        verify(exactly = 1) {
+            publisher.publishAccountUnlocked(
+                match { it.aggregateId == user.id && it.payload.reason == AccountUnlockReason.PASSWORD_RESET }
+            )
+        }
+        verify { eventStore.append(match<AccountUnlocked> { it.aggregateId == user.id }) }
+    }
+
+    @Test
+    fun `a reset for a user who was not locked publishes no AccountUnlocked`() {
+        val user = activeUser()
+        every { tokenRepository.findByToken("rst_unlocked") } returns freshToken(user.id)
+        every { userRepository.findById(user.id) } returns Optional.of(user)
+
+        useCase.execute(token = "rst_unlocked", newPassword = "NewSecureP@ss123", ipAddress = "127.0.0.1")
+
+        verify(exactly = 0) { publisher.publishAccountUnlocked(any()) }
     }
 
     @Test

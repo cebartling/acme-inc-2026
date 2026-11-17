@@ -64,7 +64,8 @@ Three things differ from customer, cart and order:
 - Every event is written twice: to `event_store` (the audit history) and to the outbox. The outbox
   has no retention job yet, so rows accumulate until one exists (ADR-0022, PIN-395).
 - An expired lock has no event. A locked user stays `LOCKED` in the read model, with a `lockedUntil`
-  in the past, until their next sign-in unlocks them. Readers must compare `lockedUntil` with the
+  in the past, until their next sign-in unlocks them. (A password reset that unlocks a locked user
+  publishes `AccountUnlocked`, so it updates the read model at once.) Readers must compare `lockedUntil` with the
   clock rather than trust the status alone.
 - A snapshot is built after the change is saved, in the same transaction. A use case that wrote
   the event before saving the user would snapshot the old state, so the five snapshot-writing
