@@ -23,6 +23,7 @@ import org.junit.jupiter.api.Test
 import java.time.Instant
 import java.util.Optional
 import java.util.UUID
+import org.junit.jupiter.api.assertThrows
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNotEquals
@@ -261,28 +262,24 @@ class RefreshTokensUseCaseTest {
         assertEquals(1, reuseSlot.captured.payload.sessionsInvalidatedCount)
     }
 
+    // PIN-548: events go to the outbox, and a failed write throws rather than being dropped. The
+    // sweep deletes every session first, so the throw cannot leave a stolen token's session alive.
     @Test
-    fun `reuse sweep returns TokenReuse even when Kafka publish throws`() {
-        // The use case's docstring claims a Kafka failure does NOT prevent
-        // the security 401 going back to the client. Stub the publisher to
-        // throw on every invocation and assert: sweep still completes,
-        // sessions still deleted, and the result is still TokenReuse.
+    fun `a failed outbox write during the reuse sweep throws, after every session is deleted`() {
         val triggering = sessionFixture(tokenFamily = "fam_CURRENT_$originalFamily")
+        val other = triggering.copy(id = "sess_${UUID.randomUUID()}")
         every { tokenService.parseRefreshTokenClaims(any()) } returns claims(userId, sessionId, originalFamily)
         every { sessionRepository.findById(sessionId) } returns Optional.of(triggering)
-        every { sessionRepository.findByUserId(userId) } returns listOf(triggering)
-        every { publisher.publish(any<SessionInvalidated>()) } throws RuntimeException("kafka down")
-        every { publisher.publishTokenReuseDetected(any()) } throws RuntimeException("kafka down")
+        every { sessionRepository.findByUserId(userId) } returns listOf(triggering, other)
+        every { publisher.publish(any<SessionInvalidated>()) } throws RuntimeException("outbox down")
+        every { publisher.publishTokenReuseDetected(any()) } throws RuntimeException("outbox down")
 
-        val result = useCase.execute("stale_token")
+        assertThrows<RuntimeException> { useCase.execute("stale_token") }
 
-        assertEquals(RefreshResult.TokenReuse, result)
-        // Session was still deleted even though Kafka failed.
         verify(exactly = 1) { sessionRepository.delete(triggering) }
-        // The event store append for the reuse event was still attempted —
-        // when Kafka is down, the audit trail in the event store is the
-        // durable record we fall back on.
-        verify(atLeast = 1) { eventStore.append(any<TokenReuseDetected>()) }
+        verify(exactly = 1) { sessionRepository.delete(other) }
+        // The audit trail in the event store was still written for the sessions that were deleted
+        verify(atLeast = 1) { eventStore.append(any<SessionInvalidated>()) }
     }
 
     @Test

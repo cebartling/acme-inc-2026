@@ -39,6 +39,8 @@ Three things differ from customer, cart and order:
 2. **A failed outbox write fails the request.** The old sends were best-effort: a failure was
    logged and the request went on. Now an event is never silently dropped, and a database outage
    that stops the outbox write also stops the change it describes. Customer, cart and order made the same choice.
+   The token-reuse sweep deletes every session before it writes any event, so a failed write there fails
+   the request but cannot leave a stolen token's session alive.
 3. **Redis-backed events get their own transaction.** `OutboxWriter.write` joins the caller's
    transaction when there is one and opens its own when there is not. The event is saved, but not
    atomically with the Redis change: a crash between them can leave a session that has no
