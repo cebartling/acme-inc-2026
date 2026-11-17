@@ -97,12 +97,15 @@ databases.
 terraform destroy
 ```
 
-Check that nothing is left. Both commands should return nothing for this stack:
+Check that nothing is left. Both commands should return nothing for this stack. The first one
+leaves out task definitions, which stay behind as inactive revisions (below). The second includes
+secrets scheduled for deletion, the ones that would block the next `apply`:
 
 ```zsh
 aws resourcegroupstaggingapi get-resources --tag-filters Key=Stack,Values=demo \
-  --query 'ResourceTagMappingList[].ResourceARN'
-aws secretsmanager list-secrets --filters Key=name,Values=acme-demo/postgres Key=name,Values=acme-demo/documentdb \
+  --query 'ResourceTagMappingList[?!contains(ResourceARN, `":task-definition/"`)].ResourceARN'
+aws secretsmanager list-secrets --include-planned-deletion \
+  --filters Key=name,Values=acme-demo/postgres,acme-demo/documentdb \
   --query 'SecretList[].Name'
 ```
 
