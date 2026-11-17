@@ -1,0 +1,6 @@
+# Terraform working files. The provider lock file (.terraform.lock.hcl) is committed.
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*_override.tf
