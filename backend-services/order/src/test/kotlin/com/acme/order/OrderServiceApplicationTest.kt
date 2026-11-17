@@ -63,5 +63,6 @@ class OrderServiceApplicationTest {
         assertTrue(body.contains("jvm_memory_used_bytes"), "JVM metrics are missing")
         assertTrue(body.contains("orders_cancelled_total"), "orders_cancelled_total is missing")
         assertTrue(body.contains("orders_recovered_total"), "orders_recovered_total is missing")
+        assertTrue(body.contains("outbox_rows_purged_total"), "outbox_rows_purged_total is missing")
     }
 }

@@ -929,7 +929,7 @@ their orders back (PIN-367) and cancel a submitted one (PIN-429).
     broker creates the topic on first use.
   - **Retention:** `PurgeOutboxUseCase` deletes rows older than `acme.order.outbox.retention.max-age`
     (`P7D`) once a day (`interval`, after a 5 minute `initial-delay`); `retention.enabled=false`
-    turns it off (PIN-433).
+    turns it off (PIN-433). It counts what it deletes in `outbox_rows_purged_total`.
 
 ## Observability
 
