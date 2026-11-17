@@ -7,6 +7,7 @@ import com.acme.notification.domain.events.NotificationSent
 import com.acme.notification.infrastructure.email.EmailSendResult
 import com.acme.notification.infrastructure.email.SendGridEmailSender
 import com.acme.notification.infrastructure.messaging.NotificationEventPublisher
+import com.acme.notification.infrastructure.messaging.OutboxWriteException
 import com.acme.notification.infrastructure.persistence.NotificationDeliveryRepository
 import io.micrometer.core.instrument.Counter
 import io.micrometer.core.instrument.MeterRegistry
@@ -136,6 +137,7 @@ class SendVerificationEmailUseCase(
                         correlationId = correlationId
                     )
                     eventPublisher.publish(event)
+                    eventPublisher.publishSnapshot(delivery, event.eventId)
 
                     emailSentCounter.increment()
                     logger.info(
@@ -150,6 +152,7 @@ class SendVerificationEmailUseCase(
                 is EmailSendResult.Failure -> {
                     delivery.markAsFailed()
                     deliveryRepository.save(delivery)
+                    eventPublisher.publishSnapshot(delivery)
 
                     emailFailedCounter.increment()
                     logger.error(
@@ -162,6 +165,9 @@ class SendVerificationEmailUseCase(
                     return SendVerificationEmailResult.Failure(result.message, result.cause)
                 }
             }
+        } catch (e: OutboxWriteException) {
+            // The delivery must not commit without its event: fail the handler so Kafka redelivers
+            throw e
         } catch (e: Exception) {
             emailFailedCounter.increment()
             logger.error(

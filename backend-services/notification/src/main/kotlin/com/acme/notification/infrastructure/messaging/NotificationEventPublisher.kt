@@ -1,64 +1,51 @@
 package com.acme.notification.infrastructure.messaging
 
+import com.acme.notification.domain.NotificationDelivery
 import com.acme.notification.domain.events.NotificationSent
-import com.fasterxml.jackson.databind.ObjectMapper
-import org.slf4j.LoggerFactory
-import org.springframework.beans.factory.annotation.Value
-import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.stereotype.Component
+import java.util.UUID
 
 /**
- * Publishes notification events to Kafka.
+ * Publishes notification events and read model snapshots (PIN-549, ADR-0068).
+ *
+ * Both go to the transactional outbox, in the caller's transaction. Debezium's outbox event router
+ * publishes the event to `notification.events`, keyed by notification id, and the snapshot to
+ * `notification.read-model`. A failed outbox write throws [OutboxWriteException], so nothing is
+ * silently dropped.
  */
 @Component
 class NotificationEventPublisher(
-    private val kafkaTemplate: KafkaTemplate<String, String>,
-    private val objectMapper: ObjectMapper,
-    @Value("\${notification.events.output-topic}")
-    private val outputTopic: String
+    private val outboxWriter: OutboxWriter
 ) {
-    private val logger = LoggerFactory.getLogger(NotificationEventPublisher::class.java)
 
     /**
-     * Publishes a NotificationSent event to Kafka.
+     * Writes a NotificationSent event to the outbox. Call it inside the transaction that saves the delivery.
      *
      * @param event The event to publish.
      */
     fun publish(event: NotificationSent) {
         try {
-            val eventJson = objectMapper.writeValueAsString(event)
-            val key = event.aggregateId.toString()
-
-            kafkaTemplate.send(outputTopic, key, eventJson)
-                .whenComplete { result, ex ->
-                    if (ex != null) {
-                        logger.error(
-                            "Failed to publish {} event {} to topic {}: {}",
-                            event.eventType,
-                            event.eventId,
-                            outputTopic,
-                            ex.message,
-                            ex
-                        )
-                    } else {
-                        logger.info(
-                            "Published {} event {} to topic {} partition {} offset {}",
-                            event.eventType,
-                            event.eventId,
-                            result.recordMetadata.topic(),
-                            result.recordMetadata.partition(),
-                            result.recordMetadata.offset()
-                        )
-                    }
-                }
+            outboxWriter.write(event, NotificationSent.TOPIC)
         } catch (e: Exception) {
-            logger.error(
-                "Failed to serialize {} event {}: {}",
-                event.eventType,
-                event.eventId,
-                e.message,
-                e
-            )
+            throw OutboxWriteException("Could not write ${event.eventType} event ${event.eventId} to the outbox", e)
+        }
+    }
+
+    /**
+     * Writes the delivery's state to the outbox for the read model, with an id of its own because no
+     * event caused it. Call it after the delivery's final state is saved.
+     */
+    fun publishSnapshot(delivery: NotificationDelivery) = publishSnapshot(delivery, UUID.randomUUID())
+
+    /**
+     * Writes the delivery's state to the outbox for the read model, following the event [sourceEventId].
+     * Call it after the delivery's final state is saved.
+     */
+    fun publishSnapshot(delivery: NotificationDelivery, sourceEventId: UUID) {
+        try {
+            outboxWriter.writeSnapshot(delivery, sourceEventId)
+        } catch (e: Exception) {
+            throw OutboxWriteException("Could not write a snapshot of notification ${delivery.id} to the outbox", e)
         }
     }
 }

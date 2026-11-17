@@ -23,9 +23,6 @@ spring:
       group-id: notification-service-test
       auto-offset-reset: earliest
       enable-auto-commit: false
-    producer:
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.apache.kafka.common.serialization.StringSerializer
 
   thymeleaf:
     cache: false
@@ -36,7 +33,9 @@ server:
 notification:
   events:
     input-topic: identity.user.events
-    output-topic: notification.events
+    read-model-topic: notification.read-model
+    # The projector is tested directly; a listener here would join the real consumer group on localhost:9092
+    read-model-listener-enabled: false
   retry:
     max-attempts: 3
     initial-interval-ms: 1000
