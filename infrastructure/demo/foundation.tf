@@ -44,6 +44,10 @@ data "aws_prometheus_workspaces" "demo" {
   alias_prefix = "acme-demo"
 }
 
+data "aws_prometheus_workspace" "demo" {
+  workspace_id = one(data.aws_prometheus_workspaces.demo.workspace_ids)
+}
+
 data "aws_secretsmanager_secret" "sendgrid" {
   name = "acme-demo/sendgrid"
 }

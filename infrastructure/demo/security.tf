@@ -95,3 +95,13 @@ resource "aws_vpc_security_group_ingress_rule" "services_from_services" {
   from_port                    = tonumber(each.value)
   to_port                      = tonumber(each.value)
 }
+
+# The ADOT collector takes OTLP traces over HTTP from the service tasks (adot.tf).
+resource "aws_vpc_security_group_ingress_rule" "services_to_collector" {
+  security_group_id            = aws_security_group.services.id
+  description                  = "OTLP over HTTP from the service tasks"
+  referenced_security_group_id = aws_security_group.services.id
+  ip_protocol                  = "tcp"
+  from_port                    = 4318
+  to_port                      = 4318
+}
