@@ -16,6 +16,8 @@ import com.acme.identity.infrastructure.persistence.SessionRepository
 import com.acme.identity.infrastructure.persistence.UserRepository
 import com.acme.identity.infrastructure.security.PasswordHasher
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
+import io.mockk.just
+import io.mockk.Runs
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -26,7 +28,6 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.Optional
 import java.util.UUID
-import java.util.concurrent.CompletableFuture
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNull
@@ -57,8 +58,8 @@ class ConfirmPasswordResetUseCaseTest {
         every { userRepository.save(any<User>()) } answers { firstArg() }
         every { sessionRepository.findByUserId(any()) } returns emptyList()
         every { deviceTrustService.revokeAllDevices(any(), any(), any()) } returns 0
-        every { publisher.publish(any<SessionInvalidated>()) } returns CompletableFuture.completedFuture(null)
-        every { publisher.publishPasswordChanged(any()) } returns CompletableFuture.completedFuture(null)
+        every { publisher.publish(any<SessionInvalidated>()) } just Runs
+        every { publisher.publishPasswordChanged(any()) } just Runs
 
         useCase = ConfirmPasswordResetUseCase(
             passwordResetTokenRepository = tokenRepository,

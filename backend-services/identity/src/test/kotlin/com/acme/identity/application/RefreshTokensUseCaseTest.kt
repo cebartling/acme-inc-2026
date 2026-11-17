@@ -12,6 +12,8 @@ import com.acme.identity.infrastructure.persistence.SessionRepository
 import com.acme.identity.infrastructure.persistence.UserRepository
 import com.nimbusds.jwt.JWTClaimsSet
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
+import io.mockk.just
+import io.mockk.Runs
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -21,7 +23,6 @@ import org.junit.jupiter.api.Test
 import java.time.Instant
 import java.util.Optional
 import java.util.UUID
-import java.util.concurrent.CompletableFuture
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNotEquals
@@ -108,8 +109,8 @@ class RefreshTokensUseCaseTest {
         every { tokenService.parseRefreshTokenClaims(any()) } returns claims(userId, sessionId, originalFamily)
         every { sessionRepository.findById(sessionId) } returns Optional.of(sessionAfterRotation)
         every { sessionRepository.findByUserId(userId) } returns listOf(sessionAfterRotation)
-        every { publisher.publish(any<SessionInvalidated>()) } returns CompletableFuture.completedFuture(null)
-        every { publisher.publishTokenReuseDetected(any()) } returns CompletableFuture.completedFuture(null)
+        every { publisher.publish(any<SessionInvalidated>()) } just Runs
+        every { publisher.publishTokenReuseDetected(any()) } just Runs
 
         val result = useCase.execute("stale_token")
 
@@ -139,8 +140,8 @@ class RefreshTokensUseCaseTest {
         every { tokenService.parseRefreshTokenClaims(any()) } returns claims(userId, sessionId, originalFamily)
         every { sessionRepository.findById(sessionId) } returns Optional.of(triggering)
         every { sessionRepository.findByUserId(userId) } returns listOf(triggering, other)
-        every { publisher.publish(any<SessionInvalidated>()) } returns CompletableFuture.completedFuture(null)
-        every { publisher.publishTokenReuseDetected(any()) } returns CompletableFuture.completedFuture(null)
+        every { publisher.publish(any<SessionInvalidated>()) } just Runs
+        every { publisher.publishTokenReuseDetected(any()) } just Runs
 
         val result = useCase.execute("stale_token")
 
@@ -244,8 +245,8 @@ class RefreshTokensUseCaseTest {
         // First delete succeeds; second throws (e.g. Redis hiccup).
         every { sessionRepository.delete(triggering) } returns Unit
         every { sessionRepository.delete(other) } throws RuntimeException("Redis unavailable")
-        every { publisher.publish(any<SessionInvalidated>()) } returns CompletableFuture.completedFuture(null)
-        every { publisher.publishTokenReuseDetected(any()) } returns CompletableFuture.completedFuture(null)
+        every { publisher.publish(any<SessionInvalidated>()) } just Runs
+        every { publisher.publishTokenReuseDetected(any()) } just Runs
 
         val result = useCase.execute("stale_token")
 

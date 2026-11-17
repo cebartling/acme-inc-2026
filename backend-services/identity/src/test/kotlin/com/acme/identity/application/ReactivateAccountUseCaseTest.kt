@@ -12,6 +12,8 @@ import com.acme.identity.infrastructure.persistence.UserRepository
 import com.acme.identity.infrastructure.security.PasswordHasher
 import com.acme.identity.infrastructure.security.ReactivationTokenGenerator
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
+import io.mockk.Runs
+import io.mockk.just
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -20,7 +22,6 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.time.Instant
 import java.util.UUID
-import java.util.concurrent.CompletableFuture
 import kotlin.test.assertEquals
 
 class ReactivateAccountUseCaseTest {
@@ -66,7 +67,7 @@ class ReactivateAccountUseCaseTest {
         every { passwordHasher.verify("CorrectP@ss1", "real_hash") } returns true
         every {
             publisher.publishReactivationRequested(any())
-        } returns CompletableFuture.completedFuture(null)
+        } just Runs
 
         val tokenSlot = slot<ReactivationToken>()
         every { tokenRepository.save(capture(tokenSlot)) } answers { tokenSlot.captured }
