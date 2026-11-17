@@ -33,6 +33,9 @@ server:
 notification:
   events:
     input-topic: identity.user.events
+    read-model-topic: notification.read-model
+    # The projector is tested directly; a listener here would join the real consumer group on localhost:9092
+    read-model-listener-enabled: false
   retry:
     max-attempts: 3
     initial-interval-ms: 1000

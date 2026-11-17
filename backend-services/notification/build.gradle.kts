@@ -52,6 +52,9 @@ dependencies {
     // Kafka
     implementation("org.springframework.kafka:spring-kafka")
 
+    // MongoDB read model of notification deliveries (PIN-549)
+    implementation("org.springframework.boot:spring-boot-starter-data-mongodb")
+
     // Resilience4j for Circuit Breaker (using core library directly, not Spring Cloud starter)
     implementation("io.github.resilience4j:resilience4j-circuitbreaker:2.4.0")
     implementation("io.github.resilience4j:resilience4j-micrometer:2.4.0")
@@ -96,6 +99,7 @@ dependencies {
     testImplementation("org.testcontainers:testcontainers-junit-jupiter:2.0.5")
     testImplementation("org.testcontainers:testcontainers-postgresql:2.0.5")
     testImplementation("org.testcontainers:testcontainers-kafka:2.0.5")
+    testImplementation("org.testcontainers:testcontainers-mongodb:2.0.5")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 

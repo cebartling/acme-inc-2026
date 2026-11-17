@@ -34,6 +34,11 @@ spring:
         max.poll.records: 10
         session.timeout.ms: 30000
 
+  mongodb:
+    # On AWS the URI carries the DocumentDB credentials and tls=true (PIN-538, ADR-0064)
+    uri: ${MONGODB_URI:mongodb://localhost:27017}
+    database: ${MONGODB_DB:acme_query}
+
   thymeleaf:
     cache: true
     prefix: classpath:/templates/
@@ -60,6 +65,13 @@ notification:
     input-topic: identity.user.events
     customer-input-topic: ${CUSTOMER_EVENTS_TOPIC:customer.events}
     password-reset-group-id: ${PASSWORD_RESET_GROUP_ID:notification-password-reset}
+    # Delivery state for the read model's projector only; Debezium publishes it from the outbox (PIN-549).
+    read-model-topic: notification.read-model
+    # Set false to keep the projector's listener from starting (tests without Kafka)
+    read-model-listener-enabled: ${NOTIFICATION_READ_MODEL_LISTENER_ENABLED:true}
+  read-model:
+    # Writes a snapshot for every delivery at startup, for deliveries that predate the read model
+    backfill-on-startup: ${NOTIFICATION_READ_MODEL_BACKFILL:false}
   retry:
     max-attempts: 3
     initial-interval-ms: 300000
