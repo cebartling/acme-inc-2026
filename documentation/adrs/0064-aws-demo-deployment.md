@@ -45,9 +45,12 @@ keeps an open-source build of the same tool available.
 The code is split into two stacks, so destroying a demo doesn't remove things that are slow or
 awkward to recreate:
 
-- **Foundation (long-lived):** the Terraform state bucket, the GitHub OIDC role, ECR
-  repositories, the Route 53 hosted zone, ACM certificates, third-party secrets (SendGrid,
-  Twilio), the Managed Grafana and Managed Prometheus workspaces, and an AWS Budgets alert.
+- **Foundation (long-lived):** the Terraform state bucket, ECR repositories, ACM certificates
+  (validated in the Route 53 hosted zone that registering the domain creates), third-party
+  secrets (SendGrid, Twilio), the Managed Grafana and Managed Prometheus workspaces, and an AWS
+  Budgets alert. The GitHub OIDC provider and deploy role are created by hand from a runbook
+  (`infrastructure/github-deploy-role.md`, PIN-540), so no workflow can change the role it signs
+  in with.
 - **Demo environment (per demo):** the VPC with a NAT gateway, the ECS cluster and services, the
   load balancer, RDS, DocumentDB, ElastiCache, MSK, MSK Connect (unless the open Debezium
   hosting decision changes it), and per-deploy secrets (database passwords, the test API key).
@@ -156,9 +159,10 @@ Two workflows, each started by hand (`workflow_dispatch`):
   guarded by a random test API key generated for each deploy.
 - **Destroy demo:** `destroy` the demo stack.
 
-The workflows reach AWS through GitHub OIDC, with no long-lived keys. The only step run from a
-laptop is the first foundation apply, because the state bucket and the OIDC role don't exist
-yet.
+The workflows reach AWS through GitHub OIDC, with no long-lived keys, by signing in as a deploy
+role created by hand. Two steps run from a laptop: creating that role, and the first foundation
+apply, because the state bucket doesn't exist yet. Until PIN-544 adds a workflow for the
+foundation stack, later foundation changes run from a laptop too.
 
 **Rejected:**
 
