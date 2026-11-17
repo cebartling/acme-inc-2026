@@ -115,4 +115,24 @@ class DeliverySnapshotUseCaseTest {
             assertTrue(thrown.message!!.contains("outbox down"), name)
         }
     }
+
+    @Test
+    fun `a failed snapshot write after a sent notification fails the use case`() {
+        for ((name, build) in useCases) {
+            sendSucceeds()
+            every { eventPublisher.publishSnapshot(any(), any()) } throws OutboxWriteException("outbox down", RuntimeException())
+
+            assertThrows<OutboxWriteException>(name) { build()() }
+        }
+    }
+
+    @Test
+    fun `a failed snapshot write after a failed send fails the use case instead of becoming a Failure result`() {
+        for ((name, build) in useCases) {
+            sendFails()
+            every { eventPublisher.publishSnapshot(any()) } throws OutboxWriteException("outbox down", RuntimeException())
+
+            assertThrows<OutboxWriteException>(name) { build()() }
+        }
+    }
 }

@@ -9,6 +9,7 @@ import com.acme.notification.infrastructure.messaging.OutboxWriter
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase
@@ -55,6 +56,9 @@ class OutboxRepositoryIntegrationTest {
 
     @Autowired
     private lateinit var outbox: OutboxRepository
+
+    @Autowired
+    private lateinit var deliveries: NotificationDeliveryRepository
 
     @Autowired
     private lateinit var writer: OutboxWriter
@@ -105,6 +109,43 @@ class OutboxRepositoryIntegrationTest {
         assertEquals(event.eventId.toString(), payload["eventId"].asText())
         assertEquals("outbox@example.com", payload["payload"]["recipientEmail"].asText())
     }
+
+    @Test
+    fun `a delivery and its snapshot roll back together when the transaction fails`() {
+        val delivery = delivery()
+
+        assertThrows<IllegalStateException> {
+            TransactionTemplate(transactionManager).executeWithoutResult {
+                deliveries.save(delivery)
+                writer.writeSnapshot(delivery, UUID.randomUUID())
+                throw IllegalStateException("fail after both writes")
+            }
+        }
+
+        assertEquals(0, deliveries.count())
+        assertEquals(0, outbox.count())
+    }
+
+    @Test
+    fun `a delivery and its snapshot commit together`() {
+        val delivery = delivery()
+
+        TransactionTemplate(transactionManager).executeWithoutResult {
+            deliveries.save(delivery)
+            writer.writeSnapshot(delivery, UUID.randomUUID())
+        }
+
+        assertEquals(1, deliveries.count())
+        assertEquals(1, outbox.count())
+        deliveries.deleteAll()
+    }
+
+    private fun delivery() = NotificationDelivery(
+        id = UUID.randomUUID(),
+        notificationType = NotificationType.WELCOME,
+        recipientId = UUID.randomUUID(),
+        recipientEmail = "atomic@example.com"
+    )
 
     @Test
     fun `a snapshot is saved for the read model topic, keyed by notification id, with the delivery's state`() {
