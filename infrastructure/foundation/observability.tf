@@ -25,6 +25,22 @@ resource "aws_iam_role_policy_attachment" "grafana_prometheus" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonPrometheusQueryAccess"
 }
 
+# Grafana's AWS data sources page lists and describes workspaces to find
+# them. The query policy above doesn't allow that.
+resource "aws_iam_role_policy" "grafana_prometheus_discovery" {
+  name = "prometheus-discovery"
+  role = aws_iam_role.grafana.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["aps:ListWorkspaces", "aps:DescribeWorkspace"]
+      Resource = "*"
+    }]
+  })
+}
+
 # People sign in through IAM Identity Center, which must be set up before the
 # first apply. The Prometheus data source and user roles are set by hand
 # (README.md), so no Grafana access token lands in Terraform state.
