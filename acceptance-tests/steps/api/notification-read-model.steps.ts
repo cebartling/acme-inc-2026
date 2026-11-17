@@ -72,9 +72,12 @@ Then(
           const response = await this.notificationApiClient.get<NotificationStatus[]>(
             `/api/v1/notifications/by-email/${encodeURIComponent(email)}`
           );
-          const sent = response.status === 200
-            ? response.data.find((n) => n.notificationType === 'EMAIL_VERIFICATION' && n.status === 'SENT')
-            : undefined;
+          const sent =
+            response.status === 200
+              ? response.data.find(
+                  (n) => n.notificationType === 'EMAIL_VERIFICATION' && n.status === 'SENT'
+                )
+              : undefined;
           if (sent) this.setTestData('notificationReadModelDelivery', sent);
           return sent !== undefined;
         },
@@ -92,7 +95,9 @@ Then(
       `/api/v1/notifications/recipient/${registeredUser(this).userId}`
     );
     expect(response.status).toBe(200);
-    expect(response.data.find((n) => n.notificationId === expected.notificationId)).toEqual(expected);
+    expect(response.data.find((n) => n.notificationId === expected.notificationId)).toEqual(
+      expected
+    );
   }
 );
 
