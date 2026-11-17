@@ -149,9 +149,11 @@ resource "terraform_data" "db_init" {
   }
 
   # The task reaches every data store, pulls its image through the NAT gateway, and needs the
-  # security group rules in place.
+  # security group rules and the execution role's policies in place.
   depends_on = [
     aws_docdb_cluster_instance.demo,
+    aws_iam_role_policy_attachment.db_init_execution,
+    aws_iam_role_policy.db_init_read_postgres_secret,
     aws_route_table_association.private,
     aws_vpc_security_group_ingress_rule.from_services,
     aws_vpc_security_group_egress_rule.services_all,
