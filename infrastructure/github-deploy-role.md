@@ -9,8 +9,9 @@ change or break the role it signs in with.
 
 - **Permissions:** the AWS managed policy `AdministratorAccess`. The demo stack creates IAM roles,
   networking and data stores, so a narrower policy would need updating with every change to it.
-- **Who can use it:** only workflows in `cebartling/acme-inc-2026`, from any branch, pull request
-  or environment. Workflows in other repositories are refused.
+- **Who can use it:** only workflows in `cebartling/acme-inc-2026`, matched by its owner and
+  repository IDs, from any branch, pull request or environment. Workflows in other repositories
+  are refused, including a repository that later takes over this name.
 - **Session length:** up to 2 hours. A deploy takes half an hour or more, plus the smoke suite, and
   the 1-hour default could run out partway through.
 
@@ -48,6 +49,20 @@ There's no `--thumbprint-list`: it's optional, and AWS checks GitHub's certifica
 
 ## 3. Write the trust policy
 
+First, switch this repository's OIDC tokens to GitHub's immutable subject format, which adds the
+owner and repository IDs to the `sub` claim. Then no other repository that later takes this name
+can match the trust policy.
+
+```zsh
+gh api -X PUT repos/cebartling/acme-inc-2026/actions/oidc/customization/sub \
+  -F use_default=true -F use_immutable_subject=true
+gh api repos/cebartling/acme-inc-2026/actions/oidc/customization/sub --jq .sub_claim_prefix
+```
+
+The second command should print `repo:cebartling@33961/acme-inc-2026@1126364509`, the prefix the
+policy below matches. If it still prints `repo:cebartling/acme-inc-2026`, the switch didn't take
+effect.
+
 ```zsh
 TRUST_POLICY=$(mktemp)
 cat > "$TRUST_POLICY" <<EOF
@@ -65,7 +80,7 @@ cat > "$TRUST_POLICY" <<EOF
           "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
         },
         "StringLike": {
-          "token.actions.githubusercontent.com:sub": "repo:cebartling/acme-inc-2026:*"
+          "token.actions.githubusercontent.com:sub": "repo:cebartling@33961/acme-inc-2026@1126364509:*"
         }
       }
     }
@@ -75,7 +90,8 @@ EOF
 ```
 
 - The `aud` condition accepts only tokens that GitHub issued for AWS STS.
-- The `sub` condition accepts only tokens from this repository.
+- The `sub` condition accepts only tokens from this repository, matched by its owner ID (`33961`)
+  and repository ID (`1126364509`).
 
 ## 4. Create the role
 
@@ -133,8 +149,14 @@ workflow logs, so the account ID in the ARN stays out of public logs.
 
 To narrow the role, change the `sub` condition in step 3, for example:
 
-- `repo:cebartling/acme-inc-2026:ref:refs/heads/main`: only workflows running on `main`.
-- `repo:cebartling/acme-inc-2026:environment:<name>`: only jobs that use that GitHub environment.
+- `repo:cebartling@33961/acme-inc-2026@1126364509:ref:refs/heads/main`: only workflows running on
+  `main`.
+- `repo:cebartling@33961/acme-inc-2026@1126364509:environment:<name>`: only jobs that use that
+  GitHub environment.
+
+The subject also contains the owner and repository names, so renaming or transferring the
+repository changes it. Afterwards, update the trust policy with the prefix that step 3's
+`gh api ... --jq .sub_claim_prefix` command prints.
 
 Write the new policy to `$TRUST_POLICY` as in step 3, then:
 
