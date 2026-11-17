@@ -30,8 +30,8 @@ Once per account. Sign in to the AWS console as root or as any administrator, an
 US East (Ohio). The menu names below may differ slightly from the console.
 
 1. **Create a user.** In IAM Identity Center, open Users, then Add user. Use the username
-   `acme-inc-2026-admin`, and enter a name and email. AWS emails an invitation, or you can set a
-   one-time password.
+   `acme-inc-2026-admin`, and enter a name and email. Choose the option that emails the user
+   password setup instructions.
 2. **Create the permission set**, unless one with `AdministratorAccess` exists. Under
    Multi-account permissions, open Permission sets and choose Create permission set. Pick the
    predefined `AdministratorAccess` permission set and keep the defaults.
