@@ -50,5 +50,4 @@ resource "aws_grafana_workspace" "demo" {
   authentication_providers = ["AWS_SSO"]
   permission_type          = "CUSTOMER_MANAGED"
   role_arn                 = aws_iam_role.grafana.arn
-  data_sources             = ["PROMETHEUS"]
 }
