@@ -1,0 +1,25 @@
+name: AWS demo OIDC check
+
+# Checks that this repository's workflows can sign in to AWS as the deploy role.
+# Run it by hand after creating or changing the role; see
+# infrastructure/github-deploy-role.md.
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write # the OIDC token AWS exchanges for credentials
+
+jobs:
+  check:
+    name: Sign in as the deploy role
+    runs-on: ubuntu-latest
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+          # The repository is public, so keep the account ID out of the logs.
+          mask-aws-account-id: true
+
+      - name: Show the assumed role
+        run: aws sts get-caller-identity

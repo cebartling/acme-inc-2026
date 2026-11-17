@@ -36,18 +36,21 @@ ECS replaces failed tasks, and tasks run in private subnets next to the data tie
 - **EC2 with Docker Compose:** no self-healing or scaling.
 - **App Runner:** weak private networking to the data tier.
 
-### 2. Infrastructure as code: Terraform / OpenTofu
+### 2. Infrastructure as code: Terraform
 
-Terraform (or OpenTofu) describes the environment, with remote state in S3. `plan`, `apply` and
-`destroy` map directly onto creating and destroying the environment for each demo, and OpenTofu
-keeps an open-source build of the same tool available.
+Terraform describes the environment, with remote state in S3 and S3's built-in state locking (no
+DynamoDB table). The code pins Terraform 1.17 and the AWS provider 6.x (PIN-540). `plan`, `apply`
+and `destroy` map directly onto creating and destroying the environment for each demo.
 
 The code is split into two stacks, so destroying a demo doesn't remove things that are slow or
 awkward to recreate:
 
-- **Foundation (long-lived):** the Terraform state bucket, the GitHub OIDC role, ECR
-  repositories, the Route 53 hosted zone, ACM certificates, third-party secrets (SendGrid,
-  Twilio), the Managed Grafana and Managed Prometheus workspaces, and an AWS Budgets alert.
+- **Foundation (long-lived):** the Terraform state bucket, ECR repositories, ACM certificates
+  (validated in the Route 53 hosted zone that registering the domain creates), third-party
+  secrets (SendGrid, Twilio), the Managed Grafana and Managed Prometheus workspaces, and an AWS
+  Budgets alert. The GitHub OIDC provider and deploy role are created by hand from a runbook
+  (`infrastructure/github-deploy-role.md`, PIN-540), so no workflow can change the role it signs
+  in with.
 - **Demo environment (per demo):** the VPC with a NAT gateway, the ECS cluster and services, the
   load balancer, RDS, DocumentDB, ElastiCache, MSK, MSK Connect (unless the open Debezium
   hosting decision changes it), and per-deploy secrets (database passwords, the test API key).
@@ -62,6 +65,8 @@ RDS or DocumentDB.
 - **CloudFormation:** verbose templates.
 - **Pulumi:** adds a general-purpose language and its runtime, and is less widely known than
   Terraform.
+- **OpenTofu:** a fork that runs the same code, but the code and CI pin one tool's version, and
+  PIN-540 chose Terraform.
 
 ### 3. Data tier: AWS managed services
 
@@ -156,9 +161,10 @@ Two workflows, each started by hand (`workflow_dispatch`):
   guarded by a random test API key generated for each deploy.
 - **Destroy demo:** `destroy` the demo stack.
 
-The workflows reach AWS through GitHub OIDC, with no long-lived keys. The only step run from a
-laptop is the first foundation apply, because the state bucket and the OIDC role don't exist
-yet.
+The workflows reach AWS through GitHub OIDC, with no long-lived keys, by signing in as a deploy
+role created by hand. Two steps run from a laptop: creating that role, and the first foundation
+apply, because the state bucket doesn't exist yet. Until PIN-544 adds a workflow for the
+foundation stack, later foundation changes run from a laptop too.
 
 **Rejected:**
 
@@ -189,7 +195,8 @@ environment runs only on AWS, so being AWS-specific costs nothing there.
 
 ## Open Decisions
 
-These are still open, on PIN-533 unless noted. This ADR doesn't decide them.
+These are still open, on PIN-533 unless noted. This ADR doesn't decide them. Items marked
+**Decided** were settled later, in the issue named.
 
 - **Order service.** The repo has a sixth backend, order, which the customer frontend's
   checkout calls. PIN-533 doesn't cover it. Deploy it, or leave checkout out of the demo?
@@ -198,16 +205,20 @@ These are still open, on PIN-533 unless noted. This ADR doesn't decide them.
   while running. One self-hosted Kafka Connect worker on Fargate could run all five connectors
   ([ADR-0008](0008-debezium-cdc-connector.md); order's is deferred) for much less and keeps the
   Kafka Connect REST API, but it breaks the "all AWS managed" decision. Keep MSK Connect?
-- **AWS account and region.**
+- **AWS account and region.** **Decided** (PIN-540): `us-east-1`, in the account the foundation
+  stack is applied to.
 - **Domain:** which Route 53 domain, and the names of the two frontend subdomains and the API
-  host.
+  host. **Decided** (PIN-540): the domain is registered through Route 53 in the demo account,
+  and the hosts are `api.`, `shop.` (customer frontend) and `admin.`. The domain name itself is
+  still to be chosen.
 - **Managed Grafana sign-in:** it uses IAM Identity Center (or SAML). Is IAM Identity Center set
-  up in the account?
+  up in the account? **Decided** (PIN-540): IAM Identity Center, set up by hand before the first
+  foundation apply.
 - **Email sender:** real SendGrid sending needs a verified sender or domain. The sender
   defaults to `noreply@acme.com`, and SendGrid's sandbox mode delivers nothing, so a person
   couldn't verify their email. Which sender address, on which domain?
 - **SMS:** use real Twilio, or keep the `mock` provider?
-- **Budgets alert threshold:** what monthly amount?
+- **Budgets alert threshold:** what monthly amount? **Decided** (PIN-540): $50 a month.
 - **Notification lookup endpoints:** the smoke suite reads notification's
   `/api/v1/notifications` endpoints, so they'll be public on the demo environment, with no auth
   and no test-key guard. Anyone could learn whether an email address has an account. Accept that

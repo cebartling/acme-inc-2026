@@ -78,3 +78,8 @@ demo-all: demo-register demo-signin demo-logout demo-product-search demo-invalid
 
 # Run all demos sequentially in record mode.
 demo-all-record: demo-register-record demo-signin-record demo-logout-record demo-product-search-record demo-invalid-credentials-record demo-inactive-account-record demo-token-refresh-record
+
+# See infrastructure/foundation/README.md.
+# Run Terraform in the AWS demo foundation stack, e.g. `just foundation plan`.
+foundation *args:
+    cd infrastructure/foundation && terraform {{args}}

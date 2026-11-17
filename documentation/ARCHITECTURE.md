@@ -1151,3 +1151,25 @@ export VITE_IDENTITY_SERVICE_URL=$T:8443 VITE_CUSTOMER_SERVICE_URL=$T:8444 \
        VITE_ORDER_SERVICE_URL=$T:8447 ACME_CORS_EXTRA_ORIGINS=$T
 zsh scripts/docker-manage.sh apps-build && zsh scripts/docker-manage.sh apps-up
 ```
+
+## AWS Demo Deployment
+
+A public demo environment on AWS is created before each demo and destroyed afterwards
+([ADR-0064](adrs/0064-aws-demo-deployment.md), PIN-533). Its infrastructure lives in
+`infrastructure/`:
+
+- **Foundation stack** (`infrastructure/foundation/`, PIN-540): Terraform for the long-lived
+  resources the demo environment builds on:
+  - the Terraform state bucket;
+  - ECR repositories;
+  - the ACM certificate for `api.`, `shop.` and `admin.<domain>`;
+  - the SendGrid and Twilio secrets;
+  - the Managed Prometheus and Managed Grafana workspaces;
+  - a cost budget.
+
+  It's applied from a laptop. See its [runbook](../infrastructure/foundation/README.md).
+- **GitHub deploy role** (`acme-demo-github-deploy`): the IAM role GitHub Actions signs in as,
+  through OIDC. It's created by hand rather than by Terraform. See its
+  [runbook](../infrastructure/github-deploy-role.md).
+- **Demo stack** (PIN-541, PIN-542) and the deploy and destroy workflows (PIN-544): not built
+  yet.
