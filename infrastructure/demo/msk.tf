@@ -1,8 +1,8 @@
 # Kafka. Two of the smallest brokers, one per Availability Zone.
 
 # MSK's default configuration has topic auto-creation off, and no service creates its own
-# topics. The replication settings must not exceed the broker count: topics created with
-# MSK's default replication factor of 3 would fail on two brokers.
+# topics. The replication settings are pinned to fit two brokers: Apache Kafka's internal
+# topics (offsets, transaction state) default to a replication factor of 3.
 resource "aws_msk_configuration" "demo" {
   name           = "acme-demo"
   kafka_versions = [var.kafka_version]
