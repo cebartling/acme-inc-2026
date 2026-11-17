@@ -45,7 +45,7 @@ class NotificationReadModelQueries(
     fun findByRecipientEmail(email: String): List<NotificationStatusResponse> =
         findAll(Criteria.where(NotificationReadModelDocument.RECIPIENT_EMAIL).`is`(email))
 
-    /** Oldest first, as the PostgreSQL lookups returned them in insertion order. */
+    /** Oldest first. The PostgreSQL lookups had no ORDER BY, so this is a stricter guarantee than before. */
     private fun findAll(criteria: Criteria): List<NotificationStatusResponse> =
         mongoTemplate.find(
             Query(criteria).with(Sort.by(Sort.Direction.ASC, NotificationReadModelDocument.CREATED_AT)),

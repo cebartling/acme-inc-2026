@@ -143,6 +143,18 @@ class DeliverySnapshotProjectorIntegrationTest {
     }
 
     @Test
+    fun `deliveries created within the same second are still returned oldest first`() {
+        // As ISO strings, "...:00.500Z" sorts before "...:00Z"
+        val recipient = UUID.randomUUID()
+        val wholeSecond = UUID.randomUUID()
+        val halfPast = UUID.randomUUID()
+        projector.apply(message(snapshot(halfPast, recipient, createdAt = now.plusMillis(500))))
+        projector.apply(message(snapshot(wholeSecond, recipient, createdAt = now)))
+
+        assertEquals(listOf(wholeSecond, halfPast), queries.findByRecipientId(recipient).map { it.notificationId })
+    }
+
+    @Test
     fun `an unknown id or recipient finds nothing`() {
         assertNull(queries.findById(UUID.randomUUID()))
         assertEquals(emptyList(), queries.findByRecipientId(UUID.randomUUID()))

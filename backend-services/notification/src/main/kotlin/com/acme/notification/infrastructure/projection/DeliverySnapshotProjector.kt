@@ -11,6 +11,7 @@ import org.springframework.data.mongodb.core.query.Update
 import org.springframework.kafka.annotation.KafkaListener
 import org.springframework.kafka.support.Acknowledgment
 import org.springframework.stereotype.Component
+import java.util.Date
 
 /**
  * Keeps the MongoDB delivery read model current by applying the snapshots Debezium publishes to
@@ -55,7 +56,8 @@ class DeliverySnapshotProjector(
         val update = Update()
             .set(NotificationReadModelDocument.RECIPIENT_ID, snapshot.recipientId.toString())
             .set(NotificationReadModelDocument.RECIPIENT_EMAIL, snapshot.recipientEmail)
-            .set(NotificationReadModelDocument.CREATED_AT, snapshot.createdAt.toString())
+            // A BSON date, so the queries' sort is chronological; an ISO string sorts "…:00.500Z" before "…:00Z"
+            .set(NotificationReadModelDocument.CREATED_AT, Date.from(snapshot.createdAt))
             .set(NotificationReadModelDocument.SNAPSHOT, Document.parse(objectMapper.writeValueAsString(snapshot)))
             .push(NotificationReadModelDocument.APPLIED_EVENT_IDS)
             .slice(-NotificationReadModelDocument.MAX_APPLIED_EVENT_IDS)

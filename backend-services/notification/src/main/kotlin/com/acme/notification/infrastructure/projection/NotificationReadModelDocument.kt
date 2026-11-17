@@ -5,7 +5,7 @@ package com.acme.notification.infrastructure.projection
  * projector (writes) and the queries class (reads).
  *
  * ```
- * { _id: notificationId, recipientId, recipientEmail, createdAt,   // the lookups a reader uses
+ * { _id: notificationId, recipientId, recipientEmail, createdAt,   // the lookups a reader uses; createdAt is a BSON date
  *   snapshot: { notificationId, notificationType, recipientId, recipientEmail, status, attemptCount,
  *               providerMessageId, sentAt, deliveredAt, bouncedAt, bounceReason, createdAt },
  *   appliedEventIds: [ ...the last MAX_APPLIED_EVENT_IDS source events ] }
