@@ -1,3 +1,8 @@
+variable "domain_name" {
+  description = "Domain registered in Route 53 in this account. The same value the foundation stack was applied with."
+  type        = string
+}
+
 variable "vpc_cidr" {
   description = "CIDR block of the demo VPC. Two public and two private /24 subnets are carved out of it."
   type        = string
