@@ -20,8 +20,8 @@ Changes to this stack run from a laptop. PIN-544 plans a GitHub Actions workflow
 
 1. **Tools:**
    - Terraform 1.17 (`terraform version`).
-   - AWS CLI v2, signed in to the demo account with administrator rights. Check with
-     `aws sts get-caller-identity`.
+   - AWS CLI v2, signed in to the demo account with administrator rights
+     ([`../aws-cli-sign-in.md`](../aws-cli-sign-in.md)). Check with `aws sts get-caller-identity`.
    - The CLI pointed at the stack's Region, for the commands below: `export AWS_REGION=us-east-2`.
      In the AWS console, switch to US East (Ohio) too.
 2. **Domain:** registered through Route 53 in this account. Registering it creates a hosted zone

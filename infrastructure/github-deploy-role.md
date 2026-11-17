@@ -17,8 +17,8 @@ change or break the role it signs in with.
 
 ## Prerequisites
 
-- AWS CLI v2, signed in to the demo account with administrator rights. Check with
-  `aws sts get-caller-identity`.
+- AWS CLI v2, signed in to the demo account with administrator rights
+  ([`aws-cli-sign-in.md`](aws-cli-sign-in.md)). Check with `aws sts get-caller-identity`.
 - GitHub CLI (`gh`), signed in with admin access to this repository, so it can set secrets.
 - A shell in the repository root.
 
