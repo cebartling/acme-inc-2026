@@ -34,10 +34,9 @@ Changes to this stack run from a laptop. PIN-544 plans a GitHub Actions workflow
 3. **IAM Identity Center:** turned on in `us-east-2`, with a user for you. Grafana signs people
    in through it, and two AWS requirements apply. The Grafana workspace must be in Identity
    Center's primary Region (`us-east-2`). And Identity Center must be an *organization* instance:
-   Grafana doesn't work with account instances. The IAM Identity Center console's Settings page
-   shows which kind you have. AWS's Grafana documentation also lists AWS Organizations
-   permissions for a standalone account, so turning Identity Center on may put the account into
-   AWS Organizations.
+   Grafana doesn't work with account instances. An organization instance can only be enabled in
+   an AWS Organizations management account. Enabling one from a standalone account creates an
+   organization, with this account as its management account.
 
 Run the commands below from `infrastructure/foundation`. From anywhere in the repository,
 `just foundation <args>` runs `terraform <args>` in this directory.
