@@ -6,7 +6,7 @@ environment leaves it alone. It contains:
 
 - the S3 bucket for Terraform state, for this stack and the demo stack;
 - ECR repositories for the 5 backend and 2 frontend images;
-- one ACM certificate for `api.`, `shop.` and `admin.<domain>`;
+- one ACM certificate for `api.`, `www.` and `admin.<domain>`;
 - Secrets Manager secrets for SendGrid and Twilio, whose values you set by hand;
 - the Managed Prometheus and Managed Grafana workspaces;
 - a monthly cost budget with an email alert.
@@ -22,6 +22,8 @@ Changes to this stack run from a laptop. PIN-544 plans a GitHub Actions workflow
    - Terraform 1.17 (`terraform version`).
    - AWS CLI v2, signed in to the demo account with administrator rights. Check with
      `aws sts get-caller-identity`.
+   - The CLI pointed at the stack's Region, for the commands below: `export AWS_REGION=us-east-2`.
+     In the AWS console, switch to US East (Ohio) too.
 2. **Domain:** registered through Route 53 in this account. Registering it creates a hosted zone
    with the same name, which this stack uses. Check that the zone exists:
 
@@ -29,9 +31,12 @@ Changes to this stack run from a laptop. PIN-544 plans a GitHub Actions workflow
    aws route53 list-hosted-zones-by-name --dns-name <domain> --query 'HostedZones[0].Name'
    ```
 
-3. **IAM Identity Center:** turned on in `us-east-1`, with a user for you. Grafana signs people
-   in through it. AWS's Grafana documentation lists AWS Organizations permissions for a
-   standalone account, so turning Identity Center on may put the account into AWS Organizations.
+3. **IAM Identity Center:** turned on in `us-east-2`, with a user for you. Grafana signs people
+   in through it, and two AWS requirements apply. The Grafana workspace must be in Identity
+   Center's primary Region (`us-east-2`). And Identity Center must be an *organization* instance:
+   Grafana doesn't work with account instances. An organization instance can only be enabled in
+   an AWS Organizations management account. Enabling one from a standalone account creates an
+   organization, with this account as its management account.
 
 Run the commands below from `infrastructure/foundation`. From anywhere in the repository,
 `just foundation <args>` runs `terraform <args>` in this directory.
@@ -142,7 +147,7 @@ Do this once, after the first apply.
    ```
 
 3. In Grafana, open the AWS data sources page, choose Amazon Managed Service for Prometheus in
-   `us-east-1`, and add the `acme-demo` workspace. Grafana queries it through the workspace's
+   `us-east-2`, and add the `acme-demo` workspace. Grafana queries it through the workspace's
    `acme-demo-grafana` role, which this stack creates.
 
 ## Removing the stack

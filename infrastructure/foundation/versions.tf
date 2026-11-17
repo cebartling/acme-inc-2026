@@ -13,13 +13,13 @@ terraform {
   # README.md covers the first apply, before the bucket exists.
   backend "s3" {
     key          = "foundation/terraform.tfstate"
-    region       = "us-east-1"
+    region       = "us-east-2"
     use_lockfile = true
   }
 }
 
 provider "aws" {
-  region = "us-east-1"
+  region = "us-east-2"
 
   default_tags {
     tags = {

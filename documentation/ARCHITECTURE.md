@@ -1162,7 +1162,7 @@ A public demo environment on AWS is created before each demo and destroyed after
   resources the demo environment builds on:
   - the Terraform state bucket;
   - ECR repositories;
-  - the ACM certificate for `api.`, `shop.` and `admin.<domain>`;
+  - the ACM certificate for `api.`, `www.` and `admin.<domain>`;
   - the SendGrid and Twilio secrets;
   - the Managed Prometheus and Managed Grafana workspaces;
   - a cost budget.
