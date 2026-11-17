@@ -14,9 +14,9 @@ variable "postgres_engine_version" {
 }
 
 variable "documentdb_engine_version" {
-  description = "DocumentDB engine version. The services need 8.0.2 or later (retryable writes)."
+  description = "DocumentDB engine version. Must be 8.0.2 or later: retryable writes (ADR-0064, decision 4). A minor version is only applied when you choose it here."
   type        = string
-  default     = "8.0.0"
+  default     = "8.0.2"
 }
 
 variable "kafka_version" {

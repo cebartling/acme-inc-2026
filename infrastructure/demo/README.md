@@ -62,8 +62,8 @@ aws docdb describe-db-engine-versions --engine docdb --query 'DBEngineVersions[]
 aws kafka list-kafka-versions --query 'KafkaVersions[].Version'
 ```
 
-The services need DocumentDB 8.0.2 or later (retryable writes). After `apply`, check which
-version the cluster runs:
+The services need DocumentDB 8.0.2 or later (retryable writes), and AWS applies a minor version
+only when you choose it. After `apply`, check that the cluster runs 8.0.2 or later:
 
 ```zsh
 aws docdb describe-db-clusters --db-cluster-identifier acme-demo --query 'DBClusters[0].EngineVersion'
