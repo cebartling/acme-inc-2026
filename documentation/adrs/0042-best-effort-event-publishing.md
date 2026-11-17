@@ -67,7 +67,7 @@ Cart and product events are **best-effort**:
   at its publish timeout; cart and product don't.
 - A slow product search counts toward the customer app's search circuit breaker even
   though search itself is healthy (`ARCHITECTURE.md`, Product Service, Events).
-- Services publish in different ways (identity's `UserEventPublisher` has no outbox either),
+- Services publish in different ways (identity's `UserEventPublisher` had no outbox either until [ADR-0067](0067-identity-outbox-and-users-read-model.md), PIN-548),
   so each new service has to choose.
 
 ### Mitigations
