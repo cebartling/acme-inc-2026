@@ -166,7 +166,10 @@ Then(
       if (!found) await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
     }
 
-    expect(found, `no record keyed ${orderId} reached ${topic} within ${EVENT_TIMEOUT_MS}ms`).toBeDefined();
+    expect(
+      found,
+      `no record keyed ${orderId} reached ${topic} within ${EVENT_TIMEOUT_MS}ms`
+    ).toBeDefined();
     const event = JSON.parse(found!.value);
     expect(event.eventType).toBe('OrderCreated');
     expect(event.aggregateId).toBe(orderId);
