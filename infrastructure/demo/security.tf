@@ -42,3 +42,56 @@ resource "aws_vpc_security_group_ingress_rule" "from_services" {
   from_port                    = each.value
   to_port                      = each.value
 }
+
+# The load balancer takes HTTPS from the internet. Port 80 only redirects to it.
+resource "aws_security_group" "alb" {
+  name        = "acme-demo-alb"
+  description = "The demo load balancer: HTTP and HTTPS from the internet."
+  vpc_id      = aws_vpc.demo.id
+}
+
+resource "aws_vpc_security_group_ingress_rule" "alb_from_internet" {
+  for_each = toset(["80", "443"])
+
+  security_group_id = aws_security_group.alb.id
+  description       = "Port ${each.value} from the internet"
+  ip_protocol       = "tcp"
+  from_port         = tonumber(each.value)
+  to_port           = tonumber(each.value)
+  cidr_ipv4         = "0.0.0.0/0"
+}
+
+resource "aws_vpc_security_group_egress_rule" "alb_to_services" {
+  for_each = toset([for app in local.apps : tostring(app.port)])
+
+  security_group_id            = aws_security_group.alb.id
+  description                  = "App port ${each.value} on the service tasks"
+  referenced_security_group_id = aws_security_group.services.id
+  ip_protocol                  = "tcp"
+  from_port                    = tonumber(each.value)
+  to_port                      = tonumber(each.value)
+}
+
+# The service tasks accept traffic on their app ports from the load balancer, and from each
+# other: service-to-service calls (Service Connect) and the metrics scrape (adot.tf).
+resource "aws_vpc_security_group_ingress_rule" "services_from_alb" {
+  for_each = toset([for app in local.apps : tostring(app.port)])
+
+  security_group_id            = aws_security_group.services.id
+  description                  = "App port ${each.value} from the load balancer"
+  referenced_security_group_id = aws_security_group.alb.id
+  ip_protocol                  = "tcp"
+  from_port                    = tonumber(each.value)
+  to_port                      = tonumber(each.value)
+}
+
+resource "aws_vpc_security_group_ingress_rule" "services_from_services" {
+  for_each = toset([for app in local.backends : tostring(app.port)])
+
+  security_group_id            = aws_security_group.services.id
+  description                  = "Backend port ${each.value} from other service tasks"
+  referenced_security_group_id = aws_security_group.services.id
+  ip_protocol                  = "tcp"
+  from_port                    = tonumber(each.value)
+  to_port                      = tonumber(each.value)
+}
