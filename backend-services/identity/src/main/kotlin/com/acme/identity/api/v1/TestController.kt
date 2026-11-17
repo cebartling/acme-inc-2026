@@ -73,6 +73,8 @@ class TestController(
     private val passwordResetRequestLogRepository: PasswordResetRequestLogRepository,
     private val passwordResetTokenGenerator: PasswordResetTokenGenerator,
     private val tokenService: com.acme.identity.application.TokenService,
+    private val outboxWriter: com.acme.identity.infrastructure.messaging.OutboxWriter,
+    private val mongoTemplate: org.springframework.data.mongodb.core.MongoTemplate,
     @Value("\${identity.test.api-key:test-api-key-for-acceptance-tests}")
     private val testApiKey: String
 ) {
@@ -380,6 +382,8 @@ class TestController(
             user.failedAttempts = request.failedAttempts
         }
         userRepository.save(user)
+        // No event describes this change, so write the read model's snapshot here (PIN-548)
+        outboxWriter.writeSnapshot(user.id, "User")
 
         logger.info("Set user {} status to {}", userId, parsedStatus)
         return ResponseEntity.ok(
@@ -390,6 +394,24 @@ class TestController(
                 lockedUntil = user.lockedUntil?.toString(),
                 failedAttempts = user.failedAttempts
             )
+        )
+    }
+
+    /**
+     * Test-only: the user's document in the MongoDB users read model, as the projector wrote it
+     * (PIN-548). 404 until the projector has applied a snapshot for the user, so callers poll.
+     * Nothing else reads the read model yet.
+     */
+    @GetMapping("/users/{userId}/read-model")
+    fun getUserReadModel(@PathVariable userId: UUID): ResponseEntity<Any> {
+        val document = mongoTemplate.findById(
+            userId.toString(),
+            org.bson.Document::class.java,
+            com.acme.identity.infrastructure.projection.UserReadModelDocument.COLLECTION
+        ) ?: return ResponseEntity.notFound().build()
+
+        return ResponseEntity.ok(
+            document[com.acme.identity.infrastructure.projection.UserReadModelDocument.SNAPSHOT]
         )
     }
 
