@@ -96,6 +96,7 @@ Identity Center session lasts (8 hours by default). When that session ends, comm
 | Symptom | Cause |
 | --- | --- |
 | `aws configure sso` fails with `Input is not a terminal` | It needs an interactive terminal. Use part 2 instead. |
-| `invalid_grant` / `Invalid device code provided` | The code expired, or the sign-in used the wrong identity. Run the login again. |
+| `The pending authorization to retrieve an SSO token has expired` | The code wasn't approved in time. Run step 2 again and approve it right away. |
+| `invalid_grant` / `Invalid device code provided` | The login wasn't approved by `acme-inc-2026-admin`. Run step 2 again and approve it while signed in to the portal as that user. |
 | Signing in at the portal fails for root | Root can't sign in there. Use `acme-inc-2026-admin`. |
 | The portal lists no accounts | The assignment in part 1, step 3 is missing or still provisioning. |
