@@ -83,3 +83,8 @@ demo-all-record: demo-register-record demo-signin-record demo-logout-record demo
 # Run Terraform in the AWS demo foundation stack, e.g. `just foundation plan`.
 foundation *args:
     cd infrastructure/foundation && terraform {{args}}
+
+# See infrastructure/demo/README.md.
+# Run Terraform in the per-demo AWS stack (network and data tier), e.g. `just aws-demo plan`.
+aws-demo *args:
+    cd infrastructure/demo && terraform {{args}}

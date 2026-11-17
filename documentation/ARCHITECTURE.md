@@ -1197,5 +1197,15 @@ A public demo environment on AWS is created before each demo and destroyed after
 - **GitHub deploy role** (`acme-demo-github-deploy`): the IAM role GitHub Actions signs in as,
   through OIDC. It's created by hand rather than by Terraform. See its
   [runbook](../infrastructure/github-deploy-role.md).
-- **Demo stack** (PIN-541, PIN-542) and the deploy and destroy workflows (PIN-544): not built
-  yet.
+- **Demo stack** (`infrastructure/demo/`): Terraform for the per-demo resources, created before
+  a demo and destroyed afterwards. The network and data tier (PIN-541) are built:
+  - a VPC with public and private subnets in two Availability Zones and one NAT gateway;
+  - RDS for PostgreSQL with logical replication on, holding the five service databases;
+  - DocumentDB 8.0, ElastiCache for Redis and MSK Provisioned;
+  - the PostgreSQL and DocumentDB credentials in Secrets Manager;
+  - a security group the data stores accept traffic from, for the services to use.
+
+  A one-off ECS task inside the VPC creates the databases and checks that every data store is
+  reachable, because Terraform on a laptop can't connect to private RDS. See its
+  [runbook](../infrastructure/demo/README.md). The ECS services, load balancer and DNS (PIN-542)
+  and the deploy and destroy workflows (PIN-544) are not built yet.
