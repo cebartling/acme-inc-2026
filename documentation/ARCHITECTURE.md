@@ -921,6 +921,9 @@ their orders back (PIN-367) and cancel a submitted one (PIN-429).
     PIN-552) reads `outbox` from the write-ahead log and its event router sends each row to
     `order.events`, keyed by `message_key` (the aggregate ID), with the `payload` as the value.
     A Kafka or Debezium outage loses nothing: the connector resumes from its replication slot.
+    The router expands the `payload` JSON, which re-writes numbers as doubles: `110.00` arrives
+    as `110.0`, and a number with more than about 15 significant digits loses precision. Consumers
+    must parse amounts as decimals; keys, field names and values are otherwise as written.
   - **Delivery** is at least once, so consumers deduplicate by `eventId` (ADR-0018).
   - `OrderCreated` (PIN-366) and `OrderCancelled` (PIN-429) are the only events so far. The
     broker creates the topic on first use.
