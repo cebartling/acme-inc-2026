@@ -11,12 +11,13 @@ import com.acme.identity.infrastructure.persistence.UserRepository
 import com.acme.identity.infrastructure.persistence.VerificationTokenRepository
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import io.mockk.*
+import io.mockk.Runs
+import io.mockk.just
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.time.Instant
 import java.util.Optional
 import java.util.UUID
-import java.util.concurrent.CompletableFuture
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
@@ -63,8 +64,8 @@ class VerifyEmailUseCaseTest {
         every { userRepository.findById(testUserId) } returns Optional.of(user)
         every { userRepository.save(any()) } answers { firstArg() }
         every { eventStoreRepository.append(any()) } just Runs
-        every { userEventPublisher.publishEmailVerified(any()) } returns CompletableFuture.completedFuture(null)
-        every { userEventPublisher.publishUserActivated(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publishEmailVerified(any()) } just Runs
+        every { userEventPublisher.publishUserActivated(any()) } just Runs
 
         // When
         val result = verifyEmailUseCase.execute(testToken)
@@ -211,8 +212,8 @@ class VerifyEmailUseCaseTest {
         every { userRepository.findById(testUserId) } returns Optional.of(user)
         every { userRepository.save(any()) } answers { firstArg() }
         every { eventStoreRepository.append(any()) } just Runs
-        every { userEventPublisher.publishEmailVerified(any()) } returns CompletableFuture.completedFuture(null)
-        every { userEventPublisher.publishUserActivated(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publishEmailVerified(any()) } just Runs
+        every { userEventPublisher.publishUserActivated(any()) } just Runs
 
         // When
         verifyEmailUseCase.execute(testToken)
@@ -233,8 +234,8 @@ class VerifyEmailUseCaseTest {
         every { userRepository.findById(testUserId) } returns Optional.of(user)
         every { userRepository.save(capture(savedUser)) } answers { firstArg() }
         every { eventStoreRepository.append(any()) } just Runs
-        every { userEventPublisher.publishEmailVerified(any()) } returns CompletableFuture.completedFuture(null)
-        every { userEventPublisher.publishUserActivated(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publishEmailVerified(any()) } just Runs
+        every { userEventPublisher.publishUserActivated(any()) } just Runs
 
         // When
         verifyEmailUseCase.execute(testToken)
@@ -260,8 +261,8 @@ class VerifyEmailUseCaseTest {
             val event = firstArg<Any>()
             eventOrder.add(event.javaClass.simpleName)
         }
-        every { userEventPublisher.publishEmailVerified(any()) } returns CompletableFuture.completedFuture(null)
-        every { userEventPublisher.publishUserActivated(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publishEmailVerified(any()) } just Runs
+        every { userEventPublisher.publishUserActivated(any()) } just Runs
 
         // When
         verifyEmailUseCase.execute(testToken)
@@ -283,8 +284,8 @@ class VerifyEmailUseCaseTest {
         every { userRepository.findById(testUserId) } returns Optional.of(user)
         every { userRepository.save(any()) } answers { firstArg() }
         every { eventStoreRepository.append(any()) } just Runs
-        every { userEventPublisher.publishEmailVerified(any()) } returns CompletableFuture.completedFuture(null)
-        every { userEventPublisher.publishUserActivated(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publishEmailVerified(any()) } just Runs
+        every { userEventPublisher.publishUserActivated(any()) } just Runs
 
         // When
         verifyEmailUseCase.execute(testToken)

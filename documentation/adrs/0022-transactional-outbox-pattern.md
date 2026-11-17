@@ -13,6 +13,7 @@ Accepted, amended in [PIN-534](https://linear.app/pintail-consulting/issue/PIN-5
 - **Topics, keys and payloads are unchanged.** The router takes the Kafka topic from `topic`, the key from `message_key` and the value from `payload`.
 - **Ordering and duplicates.** Events for one aggregate stay in commit order, because they share a message key and so a partition. Delivery is still at-least-once, so consumers stay idempotent ([ADR-0018](0018-idempotent-event-processing.md)).
 - **Order service.** PIN-552 moved order onto Debezium: its `order-outbox` connector publishes `acme_orders`' outbox, its V7 migration drops the relay columns and the polling index (`sequence_number` stays) and stops if the relay left unpublished rows, as cart's V11 does. The router expands the payload JSON, so numbers arrive as doubles (`110.00` becomes `110.0`) and consumers must parse amounts as decimals, and a scheduled retention job deletes rows older than 7 days (`acme.order.outbox.retention.*`, which also covers PIN-433).
+- **Identity service.** PIN-548 moved identity onto Debezium ([ADR-0067](0067-identity-outbox-and-users-read-model.md)): its `identity-outbox` connector publishes `acme_identity`'s outbox, and V13 creates the table without the relay columns, because identity sent straight to Kafka and had no relay. The retention job is still to do.
 - **Exceptions.** Product's catalog tables are captured directly, because product has no write path. Product's analytics events (`ProductViewed`, `SearchExecuted`, `FiltersApplied`) are not state changes, so they keep publishing directly. Identity's session, device and token-reuse events describe state in Redis, so the outbox gives them one path to Kafka but not atomicity with the Redis change.
 
 ## Context
@@ -274,6 +275,7 @@ Currently implemented in:
 | Customer Service | `CreateCustomerUseCase`, `ActivateCustomerUseCase` |
 | Order Service | All order lifecycle events, starting with `OrderCreated` (PIN-366) |
 | Shopping-Cart Service | All cart events on `cart.events` ([ADR-0060](0060-cart-events-through-outbox.md)) |
+| Identity Service | All 19 identity events on 6 topics, published by Debezium ([ADR-0067](0067-identity-outbox-and-users-read-model.md)) |
 
 The order service has its own copy (PIN-368), since the services share no code. Its
 relay is gone (PIN-552); Debezium publishes the rows. It differs from the customer
@@ -286,7 +288,6 @@ Future candidates:
 
 | Service | Use Cases |
 |---------|-----------|
-| Identity Service | `RegisterUserUseCase`, `VerifyEmailUseCase` |
 | Notification Service | `SendVerificationEmailUseCase` |
 
 ## References

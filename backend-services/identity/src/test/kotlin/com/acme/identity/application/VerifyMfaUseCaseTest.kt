@@ -18,11 +18,12 @@ import com.acme.identity.infrastructure.persistence.UserRepository
 import com.acme.identity.infrastructure.security.TotpService
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import io.mockk.*
+import io.mockk.Runs
+import io.mockk.just
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.time.Instant
 import java.util.*
-import java.util.concurrent.CompletableFuture
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
@@ -68,9 +69,9 @@ class VerifyMfaUseCaseTest {
 
         // Default mock setups
         every { eventStoreRepository.append(any()) } just Runs
-        every { userEventPublisher.publishMFAVerificationSucceeded(any()) } returns CompletableFuture.completedFuture(null)
-        every { userEventPublisher.publishMFAVerificationFailed(any()) } returns CompletableFuture.completedFuture(null)
-        every { userEventPublisher.publishMFAChallengeInitiated(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publishMFAVerificationSucceeded(any()) } just Runs
+        every { userEventPublisher.publishMFAVerificationFailed(any()) } just Runs
+        every { userEventPublisher.publishMFAChallengeInitiated(any()) } just Runs
     }
 
     @Test

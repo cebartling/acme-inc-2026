@@ -13,6 +13,8 @@ import com.acme.identity.infrastructure.ratelimit.PasswordResetRateLimiter
 import com.acme.identity.infrastructure.ratelimit.RateLimitResult
 import com.acme.identity.infrastructure.security.PasswordResetTokenGenerator
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
+import io.mockk.Runs
+import io.mockk.just
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -21,7 +23,6 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.time.Instant
 import java.util.UUID
-import java.util.concurrent.CompletableFuture
 import kotlin.test.assertEquals
 
 class RequestPasswordResetUseCaseTest {
@@ -50,7 +51,7 @@ class RequestPasswordResetUseCaseTest {
         every { rateLimiter.checkRateLimit(any()) } returns RateLimitResult.Allowed(remaining = 3)
         every {
             publisher.publishPasswordResetRequested(any())
-        } returns CompletableFuture.completedFuture(null)
+        } just Runs
 
         useCase = RequestPasswordResetUseCase(
             userRepository = userRepository,

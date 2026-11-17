@@ -1,6 +1,7 @@
 package com.acme.identity.application
 
 import com.acme.identity.domain.Session
+import com.acme.identity.domain.events.DomainEvent
 import com.acme.identity.domain.events.SessionInvalidated
 import com.acme.identity.domain.events.TokenReuseDetected
 import com.acme.identity.infrastructure.messaging.UserEventPublisher
@@ -168,21 +169,21 @@ class RefreshTokensUseCase(
      * [TokenReuseDetected] event captures the security signal and the size
      * of the sweep.
      *
-     * Designed to be best-effort: a Kafka failure here does NOT prevent the
-     * security 401 response from going back to the client. The events are
-     * persisted to the event store first, so even if Kafka is down the
-     * audit trail is durable.
+     * Every session is deleted before any event is written, so a failed write
+     * cannot leave a stolen token's session alive. The events then go to the
+     * event store (a failure there is logged, since the audit trail is
+     * best-effort) and the outbox (PIN-548): a failed outbox write throws,
+     * like every other identity event, and the request fails after the sweep.
      */
     private fun handleTokenReuse(
         triggeringSession: Session,
         userId: UUID,
         presentedTokenFamily: String
     ) {
-        val userSessions = sessionRepository.findByUserId(userId)
-        var sessionsInvalidated = 0
-        userSessions.forEach { s ->
+        val deletedSessions = sessionRepository.findByUserId(userId).filter { s ->
             try {
                 sessionRepository.delete(s)
+                true
             } catch (e: Exception) {
                 // A delete failure during a reuse sweep is security-relevant:
                 // a stolen refresh token can still rotate the un-deleted
@@ -193,34 +194,18 @@ class RefreshTokensUseCase(
                     "Failed to delete session {} during reuse sweep — session remains active: {}",
                     s.id, e.message, e
                 )
-                return@forEach
+                false
             }
+        }
+
+        deletedSessions.forEach { s ->
             val invalidated = SessionInvalidated.create(
                 sessionId = s.id,
                 userId = userId,
                 reason = SessionInvalidated.REASON_SECURITY
             )
-            // Event store and Kafka publish failures are non-fatal: the
-            // session is already deleted (durable), and the security 401
-            // must still go back to the client. Catch and log so the
-            // forEach doesn't bail mid-sweep.
-            try {
-                eventStoreRepository.append(invalidated)
-            } catch (e: Exception) {
-                logger.error(
-                    "Failed to append SessionInvalidated event for session {}: {}",
-                    s.id, e.message, e
-                )
-            }
-            try {
-                userEventPublisher.publish(invalidated)
-            } catch (e: Exception) {
-                logger.error(
-                    "Failed to publish SessionInvalidated event for session {}: {}",
-                    s.id, e.message, e
-                )
-            }
-            sessionsInvalidated++
+            appendToEventStore(invalidated)
+            userEventPublisher.publish(invalidated)
         }
 
         val reuseEvent = TokenReuseDetected.create(
@@ -228,22 +213,20 @@ class RefreshTokensUseCase(
             userId = userId,
             sessionTokenFamily = triggeringSession.tokenFamily,
             presentedTokenFamily = presentedTokenFamily,
-            sessionsInvalidatedCount = sessionsInvalidated
+            sessionsInvalidatedCount = deletedSessions.size
         )
+        appendToEventStore(reuseEvent)
+        userEventPublisher.publishTokenReuseDetected(reuseEvent)
+    }
+
+    /** The event store is the audit trail; a failure to append is logged and does not stop the sweep. */
+    private fun appendToEventStore(event: DomainEvent) {
         try {
-            eventStoreRepository.append(reuseEvent)
+            eventStoreRepository.append(event)
         } catch (e: Exception) {
             logger.error(
-                "Failed to append TokenReuseDetected event for session {}: {}",
-                triggeringSession.id, e.message, e
-            )
-        }
-        try {
-            userEventPublisher.publishTokenReuseDetected(reuseEvent)
-        } catch (e: Exception) {
-            logger.error(
-                "Failed to publish TokenReuseDetected event for session {}: {}",
-                triggeringSession.id, e.message, e
+                "Failed to append {} event {} for aggregate {}: {}",
+                event.eventType, event.eventId, event.aggregateId, e.message, e
             )
         }
     }

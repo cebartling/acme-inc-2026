@@ -1,3 +1,7 @@
 acme:
   test-api:
     enabled: true
+identity:
+  events:
+    # The projector is tested directly; a listener here would join the real consumer group on localhost:9092
+    read-model-listener-enabled: false

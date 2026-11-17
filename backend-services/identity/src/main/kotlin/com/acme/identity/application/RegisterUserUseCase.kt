@@ -55,7 +55,7 @@ sealed interface RegistrationError {
  * - UUID v7 generation for user IDs
  * - Event store persistence (before HTTP response)
  * - User and verification token persistence
- * - Kafka event publishing
+ * - Event publishing through the outbox
  * - Metrics collection
  *
  * The entire operation is transactional to ensure data consistency.
@@ -63,7 +63,7 @@ sealed interface RegistrationError {
  * @property userRepository Repository for user persistence.
  * @property verificationTokenRepository Repository for verification tokens.
  * @property eventStoreRepository Repository for event sourcing.
- * @property userEventPublisher Kafka event publisher.
+ * @property userEventPublisher Writes events to the outbox, which Debezium publishes to Kafka.
  * @property passwordHasher Argon2id password hasher.
  * @property userIdGenerator UUID v7 generator.
  * @property verificationTokenGenerator Secure token generator.
@@ -168,7 +168,9 @@ class RegisterUserUseCase(
                 userRepository.save(user)
                 verificationTokenRepository.save(verificationToken)
 
-                // Publish event to Kafka (async, but we log failures)
+                // Write the event to the outbox in this transaction, after the user is saved (it also
+                // writes a snapshot of the user for the read model). A failed write throws and rolls
+                // the registration back.
                 userEventPublisher.publish(event)
 
                 logger.info("User registered successfully: {} with ID: {}", user.email, userId)

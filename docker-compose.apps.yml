@@ -62,6 +62,10 @@ services:
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
 
+      # MongoDB configuration (the users read model, PIN-548)
+      MONGODB_URI: mongodb://mongodb:27017
+      MONGODB_DB: acme_query
+
       # Kafka configuration
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       SCHEMA_REGISTRY_URL: http://schema-registry:8081

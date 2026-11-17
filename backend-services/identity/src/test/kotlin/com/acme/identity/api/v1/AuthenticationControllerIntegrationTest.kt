@@ -6,6 +6,7 @@ import com.acme.identity.application.TokenService
 import com.acme.identity.config.JwtConfig
 import com.acme.identity.domain.User
 import com.acme.identity.domain.UserStatus
+import com.acme.identity.infrastructure.persistence.OutboxRepository
 import com.acme.identity.infrastructure.persistence.UserRepository
 import com.acme.identity.infrastructure.security.PasswordHasher
 import com.acme.identity.infrastructure.security.RateLimiter
@@ -53,6 +54,9 @@ class AuthenticationControllerIntegrationTest {
     private lateinit var userRepository: UserRepository
 
     @Autowired
+    private lateinit var outboxRepository: OutboxRepository
+
+    @Autowired
     private lateinit var passwordHasher: PasswordHasher
 
     @Autowired
@@ -96,6 +100,7 @@ class AuthenticationControllerIntegrationTest {
     @BeforeEach
     fun setUp() {
         userRepository.deleteAll()
+        outboxRepository.deleteAll()
         rateLimiter.reset("127.0.0.1")
         // Clear signin rate-limit sliding-window sorted sets between tests.
         stringRedisTemplate.connectionFactory?.connection?.use { conn ->
@@ -422,6 +427,53 @@ class AuthenticationControllerIntegrationTest {
         )
             .andExpect(status().isUnauthorized)
             .andExpect(jsonPath("$.error").value("INVALID_CREDENTIALS"))
+    }
+
+    // PIN-548: a failed signin returns a 401 from inside the @Transactional use case, so the
+    // events it writes to the outbox must still commit
+    @Test
+    fun `a failed signin writes AuthenticationFailed to the outbox`() {
+        createUserWithNoMfa("outbox-failed@example.com", "ValidP@ss123!")
+
+        failedSignin("outbox-failed@example.com")
+
+        val rows = outboxRepository.findAll()
+        assertEquals(listOf("AuthenticationFailed"), rows.map { it.eventType })
+        assertEquals("identity.authentication.events", rows.single().topic)
+    }
+
+    @Test
+    fun `the signin that locks the account writes AccountLocked to the outbox`() {
+        val user = createUserWithNoMfa("outbox-locked@example.com", "ValidP@ss123!")
+
+        repeat(5) { failedSignin("outbox-locked@example.com") }
+
+        val locked = outboxRepository.findAll().filter { it.eventType == "AccountLocked" }
+        assertEquals(1, locked.size)
+        assertEquals("identity.account.events", locked.single().topic)
+        assertEquals(user.id.toString(), locked.single().messageKey)
+
+        // The lock's snapshot is the one the read model builds the user's LOCKED status from
+        val snapshot = outboxRepository.findAll().single { it.topic == "identity.read-model" }
+        assertEquals(user.id.toString(), snapshot.messageKey)
+        val snapshotState = objectMapper.readTree(snapshot.payload)["snapshot"]
+        assertEquals("LOCKED", snapshotState["status"].asText())
+        assertNotNull(snapshotState["lockedUntil"].textValue())
+    }
+
+    private fun failedSignin(email: String) {
+        val request = SigninRequest(
+            email = email,
+            password = "WrongPassword123!",
+            rememberMe = false,
+            deviceFingerprint = null,
+            deviceTrustToken = null
+        )
+        mockMvc.perform(
+            post("/api/v1/auth/signin")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request))
+        )
     }
 
     @Test

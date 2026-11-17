@@ -129,14 +129,14 @@ data class AuthenticationContext(
  * - Account status validation
  * - Failed attempts tracking
  * - Event store persistence
- * - Kafka event publishing
+ * - Event publishing through the outbox
  * - Metrics collection
  *
  * The entire operation is transactional to ensure data consistency.
  *
  * @property userRepository Repository for user persistence.
  * @property eventStoreRepository Repository for event sourcing.
- * @property userEventPublisher Kafka event publisher.
+ * @property userEventPublisher Writes events to the outbox, which Debezium publishes to Kafka.
  * @property passwordHasher Argon2id password hasher.
  * @property meterRegistry Micrometer metrics registry.
  * @property maxFailedAttempts Maximum failed attempts before lockout consideration.
@@ -501,7 +501,7 @@ class AuthenticateUserUseCase(
     }
 
     /**
-     * Publishes an AuthenticationFailed event to the event store and Kafka.
+     * Publishes an AuthenticationFailed event to the event store and the outbox.
      */
     private fun publishFailedEvent(
         userId: UUID,
@@ -525,12 +525,12 @@ class AuthenticateUserUseCase(
         // Persist to event store first
         eventStoreRepository.append(event)
 
-        // Publish to Kafka (async)
+        // Write to the outbox
         userEventPublisher.publishAuthenticationFailed(event)
     }
 
     /**
-     * Publishes an AuthenticationSucceeded event to the event store and Kafka.
+     * Publishes an AuthenticationSucceeded event to the event store and the outbox.
      */
     private fun publishSuccessEvent(
         user: User,
@@ -551,7 +551,7 @@ class AuthenticateUserUseCase(
         // Persist to event store first
         eventStoreRepository.append(event)
 
-        // Publish to Kafka (async)
+        // Write to the outbox
         userEventPublisher.publishAuthenticationSucceeded(event)
     }
 
@@ -573,7 +573,7 @@ class AuthenticateUserUseCase(
     }
 
     /**
-     * Publishes an AccountLocked event to the event store and Kafka.
+     * Publishes an AccountLocked event to the event store and the outbox.
      *
      * This triggers the Notification Service to send a lockout email to the customer.
      */
@@ -597,12 +597,13 @@ class AuthenticateUserUseCase(
         // Persist to event store first
         eventStoreRepository.append(event)
 
-        // Publish to Kafka (async) - triggers notification email
+        // Write to the outbox, after the user is saved (this also writes a user snapshot) - triggers
+        // notification email
         userEventPublisher.publishAccountLocked(event)
     }
 
     /**
-     * Publishes an AccountUnlocked event to the event store and Kafka.
+     * Publishes an AccountUnlocked event to the event store and the outbox.
      */
     private fun publishUnlockEvent(
         user: User,
@@ -621,7 +622,7 @@ class AuthenticateUserUseCase(
         // Persist to event store first
         eventStoreRepository.append(event)
 
-        // Publish to Kafka (async)
+        // Write to the outbox, after the user is saved (this also writes a user snapshot)
         userEventPublisher.publishAccountUnlocked(event)
     }
 

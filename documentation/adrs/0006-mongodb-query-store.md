@@ -9,7 +9,7 @@ Narrowed in scope by [ADR-0041](0041-per-service-persistence-model.md): this des
 **Amended 2026-11-14 ([PIN-534](https://linear.app/pintail-consulting/issue/PIN-534/wire-debezium-cdc-into-cqrs-for-all-services), PIN-545):** This is a decision, not yet implemented: today only customer writes a read model, and nothing reads one. Five services (identity, customer, notification, product, shopping-cart) get MongoDB read models, kept current by projectors that consume the events Debezium publishes ([ADR-0004](0004-change-data-capture.md)). This restores the "all services" scope of the Decision below for those five. The order service is deferred: none of PIN-534's sub-issues covers it, so it gets no read model until a separate issue does.
 
 - **Serve reads from MongoDB:** customer, product, shopping-cart and notification serve their read endpoints from their read models. Customer's profile reads move off PostgreSQL and the Redis profile cache.
-- **Identity gets a users read model.** Its other reads stay where they are, each for its own reason:
+- **Identity gets a users read model** (built in PIN-548, [ADR-0067](0067-identity-outbox-and-users-read-model.md)). Its other reads stay where they are, each for its own reason:
 
   | Read | Stays in | Why |
   |------|----------|-----|

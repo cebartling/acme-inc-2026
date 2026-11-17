@@ -17,12 +17,13 @@ import com.acme.identity.infrastructure.persistence.UserRepository
 import com.acme.identity.infrastructure.security.PasswordHasher
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import io.mockk.*
+import io.mockk.Runs
+import io.mockk.just
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.time.Duration
 import java.time.Instant
 import java.util.UUID
-import java.util.concurrent.CompletableFuture
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
@@ -85,7 +86,7 @@ class AuthenticateUserUseCaseTest {
         every { passwordHasher.verify(testPassword, user.passwordHash) } returns true
         every { userRepository.save(any()) } answers { firstArg() }
         every { eventStoreRepository.append(any()) } just Runs
-        every { userEventPublisher.publishAuthenticationSucceeded(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publishAuthenticationSucceeded(any()) } just Runs
 
         // When
         val result = authenticateUserUseCase.execute(request, context)
@@ -117,7 +118,7 @@ class AuthenticateUserUseCaseTest {
         every { userRepository.findByEmail(testEmail) } returns null
         every { passwordHasher.verify(any(), any()) } returns false
         every { eventStoreRepository.append(any()) } just Runs
-        every { userEventPublisher.publishAuthenticationFailed(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publishAuthenticationFailed(any()) } just Runs
 
         // When
         val result = authenticateUserUseCase.execute(request, context)
@@ -151,7 +152,7 @@ class AuthenticateUserUseCaseTest {
         every { passwordHasher.verify(testPassword, user.passwordHash) } returns false
         every { userRepository.save(any()) } answers { firstArg() }
         every { eventStoreRepository.append(any()) } just Runs
-        every { userEventPublisher.publishAuthenticationFailed(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publishAuthenticationFailed(any()) } just Runs
 
         // When
         val result = authenticateUserUseCase.execute(request, context)
@@ -183,7 +184,7 @@ class AuthenticateUserUseCaseTest {
         every { passwordHasher.verify(testPassword, user.passwordHash) } returns false
         every { userRepository.save(any()) } answers { firstArg() }
         every { eventStoreRepository.append(any()) } just Runs
-        every { userEventPublisher.publishAuthenticationFailed(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publishAuthenticationFailed(any()) } just Runs
 
         // When
         val result = authenticateUserUseCase.execute(request, context)
@@ -214,7 +215,7 @@ class AuthenticateUserUseCaseTest {
         every { passwordHasher.verify(testPassword, user.passwordHash) } returns true
         every { userRepository.save(any()) } answers { firstArg() }
         every { eventStoreRepository.append(any()) } just Runs
-        every { userEventPublisher.publishAuthenticationSucceeded(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publishAuthenticationSucceeded(any()) } just Runs
 
         // When
         val result = authenticateUserUseCase.execute(request, context)
@@ -237,7 +238,7 @@ class AuthenticateUserUseCaseTest {
         every { userRepository.findByEmail(testEmail) } returns user
         every { passwordHasher.verify(testPassword, user.passwordHash) } returns true
         every { eventStoreRepository.append(any()) } just Runs
-        every { userEventPublisher.publishAuthenticationFailed(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publishAuthenticationFailed(any()) } just Runs
 
         // When
         val result = authenticateUserUseCase.execute(request, context)
@@ -263,7 +264,7 @@ class AuthenticateUserUseCaseTest {
         every { userRepository.findByEmail(testEmail) } returns user
         every { passwordHasher.verify(testPassword, user.passwordHash) } returns true
         every { eventStoreRepository.append(any()) } just Runs
-        every { userEventPublisher.publishAuthenticationFailed(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publishAuthenticationFailed(any()) } just Runs
 
         // When
         val result = authenticateUserUseCase.execute(request, context)
@@ -289,7 +290,7 @@ class AuthenticateUserUseCaseTest {
         every { userRepository.findByEmail(testEmail) } returns user
         every { passwordHasher.verify(testPassword, user.passwordHash) } returns true
         every { eventStoreRepository.append(any()) } just Runs
-        every { userEventPublisher.publishAuthenticationFailed(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publishAuthenticationFailed(any()) } just Runs
 
         // When
         val result = authenticateUserUseCase.execute(request, context)
@@ -316,7 +317,7 @@ class AuthenticateUserUseCaseTest {
 
         every { userRepository.findByEmail(testEmail) } returns user
         every { eventStoreRepository.append(any()) } just Runs
-        every { userEventPublisher.publishAuthenticationFailed(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publishAuthenticationFailed(any()) } just Runs
 
         // When
         val result = authenticateUserUseCase.execute(request, context)
@@ -350,8 +351,8 @@ class AuthenticateUserUseCaseTest {
         every { passwordHasher.verify(testPassword, user.passwordHash) } returns true
         every { userRepository.save(any()) } answers { firstArg() }
         every { eventStoreRepository.append(any()) } just Runs
-        every { userEventPublisher.publishAccountUnlocked(any()) } returns CompletableFuture.completedFuture(null)
-        every { userEventPublisher.publishAuthenticationSucceeded(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publishAccountUnlocked(any()) } just Runs
+        every { userEventPublisher.publishAuthenticationSucceeded(any()) } just Runs
 
         // When
         val result = authenticateUserUseCase.execute(request, context)
@@ -376,8 +377,8 @@ class AuthenticateUserUseCaseTest {
         every { passwordHasher.verify(testPassword, user.passwordHash) } returns true
         every { userRepository.save(any()) } answers { firstArg() }
         every { eventStoreRepository.append(any()) } just Runs
-        every { userEventPublisher.publishAccountUnlocked(any()) } returns CompletableFuture.completedFuture(null)
-        every { userEventPublisher.publishAuthenticationSucceeded(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publishAccountUnlocked(any()) } just Runs
+        every { userEventPublisher.publishAuthenticationSucceeded(any()) } just Runs
 
         // When
         authenticateUserUseCase.execute(request, context)
@@ -407,8 +408,8 @@ class AuthenticateUserUseCaseTest {
         every { passwordHasher.verify(testPassword, user.passwordHash) } returns true
         every { userRepository.save(any()) } answers { firstArg() }
         every { eventStoreRepository.append(capture(capturedEvents)) } just Runs
-        every { userEventPublisher.publishAccountUnlocked(any()) } returns CompletableFuture.completedFuture(null)
-        every { userEventPublisher.publishAuthenticationSucceeded(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publishAccountUnlocked(any()) } just Runs
+        every { userEventPublisher.publishAuthenticationSucceeded(any()) } just Runs
 
         // When
         authenticateUserUseCase.execute(request, context)
@@ -433,8 +434,8 @@ class AuthenticateUserUseCaseTest {
         every { passwordHasher.verify(testPassword, user.passwordHash) } returns true
         every { userRepository.save(any()) } answers { firstArg() }
         every { eventStoreRepository.append(any()) } just Runs
-        every { userEventPublisher.publishAccountUnlocked(any()) } returns CompletableFuture.completedFuture(null)
-        every { userEventPublisher.publishAuthenticationSucceeded(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publishAccountUnlocked(any()) } just Runs
+        every { userEventPublisher.publishAuthenticationSucceeded(any()) } just Runs
 
         // When
         val result = authenticateUserUseCase.execute(request, context)
@@ -463,8 +464,8 @@ class AuthenticateUserUseCaseTest {
         every { passwordHasher.verify(testPassword, user.passwordHash) } returns true
         every { userRepository.save(any()) } answers { firstArg() }
         every { eventStoreRepository.append(any()) } just Runs
-        every { userEventPublisher.publishAccountUnlocked(any()) } returns CompletableFuture.completedFuture(null)
-        every { userEventPublisher.publishAuthenticationSucceeded(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publishAccountUnlocked(any()) } just Runs
+        every { userEventPublisher.publishAuthenticationSucceeded(any()) } just Runs
 
         // When
         authenticateUserUseCase.execute(request, context)
@@ -489,8 +490,8 @@ class AuthenticateUserUseCaseTest {
         every { passwordHasher.verify(testPassword, user.passwordHash) } returns false
         every { userRepository.save(any()) } answers { firstArg() }
         every { eventStoreRepository.append(any()) } just Runs
-        every { userEventPublisher.publishAuthenticationFailed(any()) } returns CompletableFuture.completedFuture(null)
-        every { userEventPublisher.publishAccountLocked(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publishAuthenticationFailed(any()) } just Runs
+        every { userEventPublisher.publishAccountLocked(any()) } just Runs
 
         // When
         val result = authenticateUserUseCase.execute(request, context)
@@ -524,7 +525,7 @@ class AuthenticateUserUseCaseTest {
         every { passwordHasher.verify(testPassword, user.passwordHash) } returns false
         every { userRepository.save(any()) } answers { firstArg() }
         every { eventStoreRepository.append(any()) } just Runs
-        every { userEventPublisher.publishAuthenticationFailed(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publishAuthenticationFailed(any()) } just Runs
 
         // When
         val result = authenticateUserUseCase.execute(request, context)
@@ -562,8 +563,8 @@ class AuthenticateUserUseCaseTest {
         every { passwordHasher.verify(testPassword, user.passwordHash) } returns false
         every { userRepository.save(any()) } answers { firstArg() }
         every { eventStoreRepository.append(capture(capturedEvents)) } just Runs
-        every { userEventPublisher.publishAuthenticationFailed(any()) } returns CompletableFuture.completedFuture(null)
-        every { userEventPublisher.publishAccountLocked(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publishAuthenticationFailed(any()) } just Runs
+        every { userEventPublisher.publishAccountLocked(any()) } just Runs
 
         // When
         authenticateUserUseCase.execute(request, context)
@@ -585,8 +586,8 @@ class AuthenticateUserUseCaseTest {
         every { passwordHasher.verify(testPassword, user.passwordHash) } returns false
         every { userRepository.save(any()) } answers { firstArg() }
         every { eventStoreRepository.append(any()) } just Runs
-        every { userEventPublisher.publishAuthenticationFailed(any()) } returns CompletableFuture.completedFuture(null)
-        every { userEventPublisher.publishAccountLocked(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publishAuthenticationFailed(any()) } just Runs
+        every { userEventPublisher.publishAccountLocked(any()) } just Runs
 
         // When
         val result = authenticateUserUseCase.execute(request, context)
@@ -614,8 +615,8 @@ class AuthenticateUserUseCaseTest {
         every { passwordHasher.verify(testPassword, user.passwordHash) } returns false
         every { userRepository.save(any()) } answers { firstArg() }
         every { eventStoreRepository.append(any()) } just Runs
-        every { userEventPublisher.publishAuthenticationFailed(any()) } returns CompletableFuture.completedFuture(null)
-        every { userEventPublisher.publishAccountLocked(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publishAuthenticationFailed(any()) } just Runs
+        every { userEventPublisher.publishAccountLocked(any()) } just Runs
 
         // When
         authenticateUserUseCase.execute(request, context)
@@ -636,7 +637,7 @@ class AuthenticateUserUseCaseTest {
 
         every { userRepository.findByEmail(testEmail) } returns user
         every { eventStoreRepository.append(any()) } just Runs
-        every { userEventPublisher.publishAuthenticationFailed(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publishAuthenticationFailed(any()) } just Runs
 
         // When
         val result = authenticateUserUseCase.execute(request, context)
@@ -668,7 +669,7 @@ class AuthenticateUserUseCaseTest {
         every { passwordHasher.verify(testPassword, user.passwordHash) } returns true
         every { userRepository.save(any()) } answers { firstArg() }
         every { eventStoreRepository.append(any()) } just Runs
-        every { userEventPublisher.publishAuthenticationSucceeded(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publishAuthenticationSucceeded(any()) } just Runs
         every { mfaChallengeService.createChallenge(any(), any(), any()) } answers {
             com.acme.identity.domain.MfaChallenge.create(
                 userId = firstArg(),
@@ -700,7 +701,7 @@ class AuthenticateUserUseCaseTest {
         every { passwordHasher.verify(testPassword, user.passwordHash) } returns true
         every { userRepository.save(any()) } answers { firstArg() }
         every { eventStoreRepository.append(any()) } just Runs
-        every { userEventPublisher.publishAuthenticationSucceeded(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publishAuthenticationSucceeded(any()) } just Runs
 
         // When
         val result = authenticateUserUseCase.execute(request, context)
@@ -725,7 +726,7 @@ class AuthenticateUserUseCaseTest {
         every { passwordHasher.verify(testPassword, user.passwordHash) } returns true
         every { userRepository.save(any()) } answers { callOrder.add("userRepo"); firstArg() }
         every { eventStoreRepository.append(any()) } answers { callOrder.add("eventStore") }
-        every { userEventPublisher.publishAuthenticationSucceeded(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publishAuthenticationSucceeded(any()) } just Runs
 
         // When
         authenticateUserUseCase.execute(request, context)
@@ -744,7 +745,7 @@ class AuthenticateUserUseCaseTest {
         every { userRepository.findByEmail("customer@example.com") } returns null
         every { passwordHasher.verify(any(), any()) } returns false
         every { eventStoreRepository.append(any()) } just Runs
-        every { userEventPublisher.publishAuthenticationFailed(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publishAuthenticationFailed(any()) } just Runs
 
         // When
         authenticateUserUseCase.execute(request, context)
@@ -764,7 +765,7 @@ class AuthenticateUserUseCaseTest {
         every { passwordHasher.verify(testPassword, user.passwordHash) } returns true
         every { userRepository.save(any()) } answers { firstArg() }
         every { eventStoreRepository.append(any()) } just Runs
-        every { userEventPublisher.publishAuthenticationSucceeded(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publishAuthenticationSucceeded(any()) } just Runs
 
         // When
         authenticateUserUseCase.execute(request, context)
@@ -783,7 +784,7 @@ class AuthenticateUserUseCaseTest {
         every { userRepository.findByEmail(testEmail) } returns null
         every { passwordHasher.verify(any(), any()) } returns false
         every { eventStoreRepository.append(any()) } just Runs
-        every { userEventPublisher.publishAuthenticationFailed(any()) } returns CompletableFuture.completedFuture(null)
+        every { userEventPublisher.publishAuthenticationFailed(any()) } just Runs
 
         // When
         authenticateUserUseCase.execute(request, context)

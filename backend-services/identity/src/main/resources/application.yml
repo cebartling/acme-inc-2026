@@ -23,14 +23,13 @@ spring:
 
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
-    producer:
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.apache.kafka.common.serialization.StringSerializer
-      acks: all
-      retries: 3
-      properties:
-        max.in.flight.requests.per.connection: 1
-        enable.idempotence: true
+    consumer:
+      group-id: identity-service
+
+  mongodb:
+    # On AWS the URI carries the DocumentDB credentials and tls=true (PIN-538, ADR-0064)
+    uri: ${MONGODB_URI:mongodb://localhost:27017}
+    database: ${MONGODB_DB:acme_query}
 
   data:
     redis:
@@ -61,6 +60,14 @@ management:
 
 # Application-specific configuration
 identity:
+  events:
+    # Full user state for the read model's projector only; Debezium publishes it from the outbox (PIN-548).
+    read-model-topic: identity.read-model
+    # Set false to keep the projector's listener from starting (tests without Kafka)
+    read-model-listener-enabled: ${IDENTITY_READ_MODEL_LISTENER_ENABLED:true}
+  read-model:
+    # Writes a snapshot for every user at startup, for users that predate the read model
+    backfill-on-startup: ${IDENTITY_READ_MODEL_BACKFILL:false}
   password:
     argon2:
       memory: 65536  # 64 MB in KB

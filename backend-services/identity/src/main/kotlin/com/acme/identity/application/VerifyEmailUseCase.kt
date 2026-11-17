@@ -78,7 +78,7 @@ data class VerificationSuccess(
  * @property userRepository Repository for user persistence.
  * @property verificationTokenRepository Repository for verification tokens.
  * @property eventStoreRepository Repository for event sourcing.
- * @property userEventPublisher Kafka event publisher.
+ * @property userEventPublisher Writes events to the outbox, which Debezium publishes to Kafka.
  * @property meterRegistry Micrometer metrics registry.
  */
 @Service
@@ -184,7 +184,8 @@ class VerifyEmailUseCase(
                 eventStoreRepository.append(emailVerifiedEvent)
                 eventStoreRepository.append(userActivatedEvent)
 
-                // Publish events to Kafka (async)
+                // Write the events to the outbox in this transaction, after the user is saved: they also
+                // write a snapshot of the user, so it must hold the activated state
                 userEventPublisher.publishEmailVerified(emailVerifiedEvent)
                 userEventPublisher.publishUserActivated(userActivatedEvent)
 
