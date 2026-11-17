@@ -69,6 +69,9 @@ Three things differ from customer, cart and order:
   in the past, until their next sign-in unlocks them. (A password reset that unlocks a locked user
   publishes `AccountUnlocked`, so it updates the read model at once.) Readers must compare `lockedUntil` with the
   clock rather than trust the status alone.
+- The projector retries a failing snapshot five times over about 31 seconds, then logs and skips it
+  (as customer's does). A MongoDB outage longer than that leaves those users' documents stale until they
+  next change or the backfill rewrites them.
 - A snapshot is built after the change is saved, in the same transaction. A use case that wrote
   the event before saving the user would snapshot the old state, so the five snapshot-writing
   methods must be called after the save. Today's callers all do.

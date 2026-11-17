@@ -18,7 +18,10 @@ import org.springframework.stereotype.Component
  *
  * Each message holds the user's full state, so applying it replaces the document. That makes
  * redelivery harmless: Kafka redelivers from the last acknowledged offset in order, so the last
- * snapshot always wins. A message that fails is not acknowledged and is retried by the container.
+ * snapshot always wins. A message that fails is not acknowledged and is retried by the container
+ * (see `KafkaConsumerConfig`: five retries over about 31 seconds). After that it is logged and skipped,
+ * so a MongoDB outage longer than that loses the snapshots that arrived during it; a user's document
+ * then stays stale until they next change, or until the backfill rewrites it.
  */
 @Component
 class UserSnapshotProjector(
