@@ -205,15 +205,17 @@ These are still open, on PIN-533 unless noted. This ADR doesn't decide them. Ite
   while running. One self-hosted Kafka Connect worker on Fargate could run all five connectors
   ([ADR-0008](0008-debezium-cdc-connector.md); order's is deferred) for much less and keeps the
   Kafka Connect REST API, but it breaks the "all AWS managed" decision. Keep MSK Connect?
-- **AWS account and region.** **Decided** (PIN-540): `us-east-1`, in the account the foundation
-  stack is applied to.
+- **AWS account and region.** **Decided** (PIN-540): `us-east-2` (Ohio), in the account the
+  foundation stack is applied to. It's the Region where IAM Identity Center is enabled, which
+  Managed Grafana requires (see Managed Grafana sign-in).
 - **Domain:** which Route 53 domain, and the names of the two frontend subdomains and the API
-  host. **Decided** (PIN-540): the domain is registered through Route 53 in the demo account,
-  and the hosts are `api.`, `shop.` (customer frontend) and `admin.`. The domain name itself is
-  still to be chosen.
+  host. **Decided** (PIN-540): `acme-inc-2026.shop`, registered through Route 53 in the demo
+  account, with the hosts `api.`, `shop.` (customer frontend) and `admin.`.
 - **Managed Grafana sign-in:** it uses IAM Identity Center (or SAML). Is IAM Identity Center set
-  up in the account? **Decided** (PIN-540): IAM Identity Center, set up by hand before the first
-  foundation apply.
+  up in the account? **Decided** (PIN-540): IAM Identity Center, set up by hand in `us-east-2`.
+  AWS lists Managed Grafana as supporting neither account instances of Identity Center nor
+  Identity Center's additional Regions, so the workspace must be in the same Region as an
+  organization instance.
 - **Email sender:** real SendGrid sending needs a verified sender or domain. The sender
   defaults to `noreply@acme.com`, and SendGrid's sandbox mode delivers nothing, so a person
   couldn't verify their email. Which sender address, on which domain?

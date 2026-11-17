@@ -17,7 +17,7 @@ jobs:
       - uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
-          aws-region: us-east-1
+          aws-region: us-east-2
           # The repository is public, so keep the account ID out of the logs.
           mask-aws-account-id: true
 

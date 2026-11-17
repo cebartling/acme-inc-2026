@@ -29,9 +29,13 @@ Changes to this stack run from a laptop. PIN-544 plans a GitHub Actions workflow
    aws route53 list-hosted-zones-by-name --dns-name <domain> --query 'HostedZones[0].Name'
    ```
 
-3. **IAM Identity Center:** turned on in `us-east-1`, with a user for you. Grafana signs people
-   in through it. AWS's Grafana documentation lists AWS Organizations permissions for a
-   standalone account, so turning Identity Center on may put the account into AWS Organizations.
+3. **IAM Identity Center:** turned on in `us-east-2`, with a user for you. Grafana signs people
+   in through it, and two AWS requirements apply. The Grafana workspace must be in Identity
+   Center's primary Region (`us-east-2`). And Identity Center must be an *organization* instance:
+   Grafana doesn't work with account instances. The IAM Identity Center console's Settings page
+   shows which kind you have. AWS's Grafana documentation also lists AWS Organizations
+   permissions for a standalone account, so turning Identity Center on may put the account into
+   AWS Organizations.
 
 Run the commands below from `infrastructure/foundation`. From anywhere in the repository,
 `just foundation <args>` runs `terraform <args>` in this directory.
@@ -142,7 +146,7 @@ Do this once, after the first apply.
    ```
 
 3. In Grafana, open the AWS data sources page, choose Amazon Managed Service for Prometheus in
-   `us-east-1`, and add the `acme-demo` workspace. Grafana queries it through the workspace's
+   `us-east-2`, and add the `acme-demo` workspace. Grafana queries it through the workspace's
    `acme-demo-grafana` role, which this stack creates.
 
 ## Removing the stack
