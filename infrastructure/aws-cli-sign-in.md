@@ -66,6 +66,11 @@ Check: the AWS accounts page lists `acme-inc-2026-admin` under the account with
    `acme-inc-2026-admin` (not root)**, and approve the request. The code expires after a few
    minutes, so have the browser ready before you run the command.
 
+   The command keeps polling until the code is approved or expires. An agent runs it in the
+   background (or with a timeout of at least 10 minutes), shows the person the URL and code, and
+   waits for `Successfully logged into Start URL`. If the command is killed first, approving in
+   the browser does nothing.
+
    The default flow redirects to `127.0.0.1` on the machine running the CLI, so it only works when
    the browser is on that machine. The device-code flow works from anywhere.
 
