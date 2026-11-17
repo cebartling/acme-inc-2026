@@ -34,6 +34,7 @@ with no recovery window.
      ([`../aws-cli-sign-in.md`](../aws-cli-sign-in.md)). Check with `aws sts get-caller-identity`.
    - The CLI pointed at the stack's Region: `export AWS_REGION=us-east-2`.
    - `bash` on the machine that runs `apply`: a `local-exec` step starts the database setup task.
+   - `jq`, for the manual check below.
 
 Run the commands below from `infrastructure/demo`. From anywhere in the repository,
 `just aws-demo <args>` runs `terraform <args>` in this directory.
