@@ -28,18 +28,20 @@ passwords or MFA codes for them.
 Once per account. Sign in to the AWS console as root or as any administrator, and switch to
 US East (Ohio). The menu names below may differ slightly from the console.
 
-1. **Create a user.** In IAM Identity Center, open Users, then Add user. Enter a name and email.
-   AWS emails an invitation, or you can set a one-time password.
+1. **Create a user.** In IAM Identity Center, open Users, then Add user. Use the username
+   `acme-inc-2026-admin`, and enter a name and email. AWS emails an invitation, or you can set a
+   one-time password.
 2. **Create the permission set**, unless one with `AdministratorAccess` exists. Under
    Multi-account permissions, open Permission sets and choose Create permission set. Pick the
    predefined `AdministratorAccess` permission set and keep the defaults.
 3. **Assign the user to the account.** Assignments are made from the account, not from the
    user's page. Under Multi-account permissions, open AWS accounts and tick the demo account. For an
-   organization instance that's the management account. Choose Assign users or groups, pick the
-   user, then pick `AdministratorAccess` and submit.
+   organization instance that's the management account. Choose Assign users or groups, pick
+   `acme-inc-2026-admin`, then pick `AdministratorAccess` and submit.
 4. **Accept the invitation.** Open the email, set a password, and set up MFA if asked.
 
-Check: the AWS accounts page lists the user under the account with `AdministratorAccess`.
+Check: the AWS accounts page lists `acme-inc-2026-admin` under the account with
+`AdministratorAccess`.
 
 ## 2. Configure and sign in the CLI
 
@@ -58,8 +60,8 @@ Check: the AWS accounts page lists the user under the account with `Administrato
    aws sso login --sso-session acme --use-device-code --no-browser
    ```
 
-   It prints a URL and a code. Open the URL in a browser on any machine, sign in **as the Identity
-   Center user from part 1 (not root)**, and approve the request. The code expires after a few
+   It prints a URL and a code. Open the URL in a browser on any machine, sign in **as
+   `acme-inc-2026-admin` (not root)**, and approve the request. The code expires after a few
    minutes, so have the browser ready before you run the command.
 
    The default flow redirects to `127.0.0.1` on the machine running the CLI, so it only works when
@@ -95,5 +97,5 @@ repeat step 2.
 | --- | --- |
 | `aws configure sso` fails with `Input is not a terminal` | It needs an interactive terminal. Use part 2 instead. |
 | `invalid_grant` / `Invalid device code provided` | The code expired, or the sign-in used the wrong identity. Run the login again. |
-| Signing in at the portal fails for root | Root can't sign in there. Use the Identity Center user. |
+| Signing in at the portal fails for root | Root can't sign in there. Use `acme-inc-2026-admin`. |
 | The portal lists no accounts | The assignment in part 1, step 3 is missing or still provisioning. |
