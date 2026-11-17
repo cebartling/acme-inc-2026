@@ -147,7 +147,8 @@ workflow logs, so the account ID in the ARN stays out of public logs.
 
 ## Changing who can use the role
 
-To narrow the role, change the `sub` condition in step 3, for example:
+Run step 1 first to set `ACCOUNT_ID`. To narrow the role, change the `sub` condition in step 3,
+for example:
 
 - `repo:cebartling@33961/acme-inc-2026@1126364509:ref:refs/heads/main`: only workflows running on
   `main`.
@@ -167,6 +168,8 @@ aws iam update-assume-role-policy \
 ```
 
 ## Removing the role
+
+Run step 1 first to set `ACCOUNT_ID`.
 
 ```zsh
 aws iam detach-role-policy \
