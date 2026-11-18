@@ -195,11 +195,14 @@ Then(
   }
 );
 
-Then("the Product Service should report the product's variant IN_STOCK", async function (this: CustomWorld) {
-  const response = await availability(this, newProduct(this).variantId);
-  expect(response.status).toBe(200);
-  expect(response.data.availability).toBe('IN_STOCK');
-});
+Then(
+  "the Product Service should report the product's variant IN_STOCK",
+  async function (this: CustomWorld) {
+    const response = await availability(this, newProduct(this).variantId);
+    expect(response.status).toBe(200);
+    expect(response.data.availability).toBe('IN_STOCK');
+  }
+);
 
 When('the product is deleted from the catalog database', function (this: CustomWorld) {
   // The variant goes with it (ON DELETE CASCADE), as three more change events
@@ -220,14 +223,20 @@ Then(
   }
 );
 
-Then("searching for the product's unique word should find nothing", async function (this: CustomWorld) {
-  expect(await searchSlugs(this, newProduct(this).word)).toEqual([]);
-});
+Then(
+  "searching for the product's unique word should find nothing",
+  async function (this: CustomWorld) {
+    expect(await searchSlugs(this, newProduct(this).word)).toEqual([]);
+  }
+);
 
-Then("the Product Service should answer 404 for the product's variant", async function (this: CustomWorld) {
-  const response = await availability(this, newProduct(this).variantId);
-  expect(response.status).toBe(404);
-});
+Then(
+  "the Product Service should answer 404 for the product's variant",
+  async function (this: CustomWorld) {
+    const response = await availability(this, newProduct(this).variantId);
+    expect(response.status).toBe(404);
+  }
+);
 
 // Leaves the catalog as it was, whether or not the scenario got to its own clean-up
 After({ tags: '@catalog-change' }, function (this: CustomWorld) {
