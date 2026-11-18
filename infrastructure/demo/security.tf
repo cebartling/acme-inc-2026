@@ -62,23 +62,60 @@ resource "aws_vpc_security_group_ingress_rule" "alb_from_internet" {
 }
 
 resource "aws_vpc_security_group_egress_rule" "alb_to_services" {
-  for_each = toset([for app in local.apps : tostring(app.port)])
+  for_each = toset([for app in local.backends : tostring(app.port)])
 
   security_group_id            = aws_security_group.alb.id
-  description                  = "App port ${each.value} on the service tasks"
+  description                  = "Backend port ${each.value} on the service tasks"
   referenced_security_group_id = aws_security_group.services.id
   ip_protocol                  = "tcp"
   from_port                    = tonumber(each.value)
   to_port                      = tonumber(each.value)
 }
 
-# The service tasks accept traffic on their app ports from the load balancer, and from each
-# other: service-to-service calls (Service Connect) and the metrics scrape (adot.tf).
+# The frontends call no data store, so they get their own group rather than `services`: the
+# load balancer in, anything out (the image pull, and the API host if they call it).
+resource "aws_security_group" "frontends" {
+  name        = "acme-demo-frontends"
+  description = "The frontend tasks: traffic from the load balancer only."
+  vpc_id      = aws_vpc.demo.id
+}
+
+resource "aws_vpc_security_group_egress_rule" "frontends_all" {
+  security_group_id = aws_security_group.frontends.id
+  description       = "Everything outbound, through the NAT gateway"
+  ip_protocol       = "-1"
+  cidr_ipv4         = "0.0.0.0/0"
+}
+
+resource "aws_vpc_security_group_ingress_rule" "frontends_from_alb" {
+  for_each = toset([for app in local.frontends : tostring(app.port)])
+
+  security_group_id            = aws_security_group.frontends.id
+  description                  = "Frontend port ${each.value} from the load balancer"
+  referenced_security_group_id = aws_security_group.alb.id
+  ip_protocol                  = "tcp"
+  from_port                    = tonumber(each.value)
+  to_port                      = tonumber(each.value)
+}
+
+resource "aws_vpc_security_group_egress_rule" "alb_to_frontends" {
+  for_each = toset([for app in local.frontends : tostring(app.port)])
+
+  security_group_id            = aws_security_group.alb.id
+  description                  = "Frontend port ${each.value} on the frontend tasks"
+  referenced_security_group_id = aws_security_group.frontends.id
+  ip_protocol                  = "tcp"
+  from_port                    = tonumber(each.value)
+  to_port                      = tonumber(each.value)
+}
+
+# The backend tasks accept traffic on their ports from the load balancer, and from each other:
+# service-to-service calls (Service Connect) and the metrics scrape (adot.tf).
 resource "aws_vpc_security_group_ingress_rule" "services_from_alb" {
-  for_each = toset([for app in local.apps : tostring(app.port)])
+  for_each = toset([for app in local.backends : tostring(app.port)])
 
   security_group_id            = aws_security_group.services.id
-  description                  = "App port ${each.value} from the load balancer"
+  description                  = "Backend port ${each.value} from the load balancer"
   referenced_security_group_id = aws_security_group.alb.id
   ip_protocol                  = "tcp"
   from_port                    = tonumber(each.value)

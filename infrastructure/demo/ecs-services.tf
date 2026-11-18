@@ -202,7 +202,7 @@ resource "aws_ecs_service" "apps" {
 
   network_configuration {
     subnets          = aws_subnet.private[*].id
-    security_groups  = [aws_security_group.services.id]
+    security_groups  = [each.value.is_frontend ? aws_security_group.frontends.id : aws_security_group.services.id]
     assign_public_ip = false
   }
 
