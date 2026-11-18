@@ -1270,6 +1270,11 @@ flowchart LR
   ADOT collector scrapes each backend's `/actuator/prometheus` over Service Connect and writes
   to Managed Prometheus, under the job names the local Prometheus uses. The services send OTLP
   traces to the collector, which forwards them to X-Ray.
+- **Events need Debezium, which isn't deployed yet.** Identity and the cart write their events
+  to an outbox table, and a Debezium connector publishes them to Kafka (PIN-534). The demo
+  stack has no Kafka Connect yet (PIN-543), so until it does, no verification email is sent and
+  the customer and cart read models stay empty. Registering, verifying and the signed-in cart
+  don't work end to end; browsing does.
 - **Test APIs are on.** Identity's test API (`TEST_API_ENABLED`) is guarded by a per-deploy key,
   sent in `X-Test-Api-Key`. Customer's test API runs under the `test` profile, as in Docker
   Compose, and has no key. The order service isn't deployed.

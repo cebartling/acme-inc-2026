@@ -175,8 +175,15 @@ curl -s -o /dev/null -w '%{http_code}\n' "$api/actuator/health"   # 404: /actuat
 By hand in the browser, at the `www.` URL: register, open the verification email, sign in, browse
 products, and add an item to the cart.
 
+**Until Debezium is deployed (PIN-543), only browsing works end to end.** Identity and the cart
+publish their events through the outbox table, and nothing reads the table without a Debezium
+connector: no verification email is sent, and the customer and cart read models stay empty. So
+registering, verifying, and the signed-in cart can't be checked yet. The health checks, the
+routing, and the metrics, logs and traces below don't depend on it.
+
 A token from either identity task must be accepted by the other, and a redeploy must keep users
-signed in, because both tasks sign with the key in `acme-demo/jwt-signing`. Sign in, then:
+signed in, because both tasks sign with the key in `acme-demo/jwt-signing`. This needs a signed-in
+customer, so it waits for PIN-543 too. Sign in, then:
 
 ```zsh
 aws ecs update-service --cluster acme-demo --service identity --force-new-deployment
