@@ -1,7 +1,7 @@
 package com.acme.product.application
 
-import com.acme.product.infrastructure.persistence.AutocompleteProductProjection
-import com.acme.product.infrastructure.persistence.ProductRepository
+import com.acme.product.domain.ProductSuggestion
+import com.acme.product.infrastructure.projection.CatalogSearchQueries
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.BeforeEach
@@ -12,34 +12,28 @@ import kotlin.test.assertTrue
 
 class AutocompleteUseCaseTest {
 
-    private lateinit var repository: ProductRepository
+    private lateinit var queries: CatalogSearchQueries
     private lateinit var useCase: AutocompleteUseCase
 
     @BeforeEach
     fun setUp() {
-        repository = mockk()
-        useCase = AutocompleteUseCase(repository)
+        queries = mockk()
+        useCase = AutocompleteUseCase(queries)
     }
 
-    private fun createProductProjection(
+    private fun createProduct(
         id: UUID = UUID.randomUUID(),
         name: String = "Test Product",
         slug: String = "test-product"
-    ): AutocompleteProductProjection {
-        val projection = mockk<AutocompleteProductProjection>()
-        every { projection.getId() } returns id
-        every { projection.getName() } returns name
-        every { projection.getSlug() } returns slug
-        return projection
-    }
+    ) = ProductSuggestion(id, name, slug)
 
     @Test
     fun `execute should return product and category suggestions`() {
         val productId = UUID.randomUUID()
-        val product = createProductProjection(id = productId, name = "Wireless Router", slug = "wireless-router")
+        val product = createProduct(id = productId, name = "Wireless Router", slug = "wireless-router")
 
-        every { repository.autocompleteProducts("wir", 5) } returns listOf(product)
-        every { repository.autocompleteCategories("wir", 3) } returns listOf("Wires & Cables")
+        every { queries.autocompleteProducts("wir", 5) } returns listOf(product)
+        every { queries.autocompleteCategories("wir", 3) } returns listOf("Wires & Cables")
 
         val result = useCase.execute("wir")
 
@@ -60,8 +54,8 @@ class AutocompleteUseCaseTest {
 
     @Test
     fun `execute should return empty suggestions when no matches`() {
-        every { repository.autocompleteProducts("xyz", 5) } returns emptyList()
-        every { repository.autocompleteCategories("xyz", 3) } returns emptyList()
+        every { queries.autocompleteProducts("xyz", 5) } returns emptyList()
+        every { queries.autocompleteCategories("xyz", 3) } returns emptyList()
 
         val result = useCase.execute("xyz")
 
@@ -71,11 +65,11 @@ class AutocompleteUseCaseTest {
 
     @Test
     fun `execute should cap total suggestions at limit`() {
-        val products = (1..5).map { createProductProjection(name = "Product $it", slug = "product-$it") }
+        val products = (1..5).map { createProduct(name = "Product $it", slug = "product-$it") }
         val categories = listOf("Category A", "Category B", "Category C")
 
-        every { repository.autocompleteProducts("pro", 4) } returns products.take(4)
-        every { repository.autocompleteCategories("pro", 3) } returns categories
+        every { queries.autocompleteProducts("pro", 4) } returns products.take(4)
+        every { queries.autocompleteCategories("pro", 3) } returns categories
 
         val result = useCase.execute("pro", limit = 4)
 
@@ -84,10 +78,10 @@ class AutocompleteUseCaseTest {
 
     @Test
     fun `execute should place products before categories`() {
-        val product = createProductProjection(name = "Widget Pro", slug = "widget-pro")
+        val product = createProduct(name = "Widget Pro", slug = "widget-pro")
 
-        every { repository.autocompleteProducts("wi", 5) } returns listOf(product)
-        every { repository.autocompleteCategories("wi", 3) } returns listOf("Widgets")
+        every { queries.autocompleteProducts("wi", 5) } returns listOf(product)
+        every { queries.autocompleteCategories("wi", 3) } returns listOf("Widgets")
 
         val result = useCase.execute("wi")
 
@@ -97,8 +91,8 @@ class AutocompleteUseCaseTest {
 
     @Test
     fun `execute should generate category slug from category name`() {
-        every { repository.autocompleteProducts("el", 5) } returns emptyList()
-        every { repository.autocompleteCategories("el", 3) } returns listOf("Electronics")
+        every { queries.autocompleteProducts("el", 5) } returns emptyList()
+        every { queries.autocompleteCategories("el", 3) } returns listOf("Electronics")
 
         val result = useCase.execute("el")
 

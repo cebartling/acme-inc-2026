@@ -62,7 +62,7 @@ class CatalogReadModelQueries(
                 .limit(pageSize),
             Document::class.java,
             CatalogReadModel.VIEW
-        ).map { toSummary(it) }
+        ).map { it.toProductSummary() }
 
     fun findBySlug(slug: String): CatalogProduct? =
         find(published().and("slug").`is`(slug)).firstOrNull()?.let { toProduct(it) }
@@ -77,7 +77,7 @@ class CatalogReadModelQueries(
             ).with(NEWEST_FIRST).limit(limit),
             Document::class.java,
             CatalogReadModel.VIEW
-        ).map { toSummary(it) }
+        ).map { it.toProductSummary() }
 
     /** The variant with the price of the published product it belongs to; null if there is none. */
     fun findVariant(variantId: UUID): VariantOfProduct? {
@@ -93,16 +93,6 @@ class CatalogReadModelQueries(
 
     @Suppress("UNCHECKED_CAST")
     private fun variants(product: Document): List<Document> = product.get("variants") as List<Document>
-
-    private fun toSummary(doc: Document) = ProductSummary(
-        id = UUID.fromString(doc.getString("_id")),
-        slug = doc.getString("slug"),
-        name = doc.getString("name"),
-        price = decimal(doc, "price")!!,
-        category = doc.getString("category"),
-        inStock = doc.getBoolean("inStock"),
-        imageUrl = doc.getString("imageUrl")
-    )
 
     private fun toProduct(doc: Document) = CatalogProduct(
         id = UUID.fromString(doc.getString("_id")),

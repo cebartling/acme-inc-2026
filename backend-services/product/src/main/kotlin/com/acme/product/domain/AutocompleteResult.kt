@@ -14,3 +14,9 @@ data class AutocompleteResult(
     val query: String,
     val suggestions: List<AutocompleteSuggestion>
 )
+
+data class ProductSuggestion(
+    val id: UUID,
+    val name: String,
+    val slug: String
+)
