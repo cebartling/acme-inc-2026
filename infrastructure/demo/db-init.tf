@@ -3,8 +3,7 @@
 # all four data stores are reachable, then creates the five service databases. If either step
 # fails, the apply fails.
 #
-# This cluster is only for that task. The services stack (next sub-issue) can reuse it or
-# create its own.
+# This cluster also runs the services (ecs-services.tf) and the ADOT collector (adot.tf).
 
 locals {
   service_databases = ["acme_identity", "acme_customers", "acme_notifications", "acme_products", "acme_carts"]

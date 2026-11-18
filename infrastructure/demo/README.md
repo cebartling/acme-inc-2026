@@ -25,9 +25,8 @@ and destroy it afterwards. It contains:
 
 The order service isn't deployed, so checkout doesn't work in the demo (ADR-0064, Open Decisions).
 
-**Cost:** while it runs, roughly $200 a month at on-demand prices, mostly MSK, DocumentDB and the
-NAT gateway. The whole demo environment, with the services and load balancer, is roughly
-$350–500 a month (ADR-0064, decision 7). Destroy it after the demo.
+**Cost:** while it runs, roughly $350–500 a month at on-demand prices (ADR-0064, decision 7),
+mostly MSK, DocumentDB and the NAT gateway. Destroy it after the demo.
 
 Everything is destroyable: no deletion protection, no final snapshots, and secrets are deleted
 with no recovery window.

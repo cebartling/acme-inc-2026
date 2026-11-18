@@ -1,6 +1,7 @@
-# One security group for everything that talks to the data stores: the services (next
-# sub-issue) and the database setup task (db-init.tf). Each data store accepts its own
-# port from that group and nothing else.
+# One security group for everything that talks to the data stores: the five backends, the
+# ADOT collector (adot.tf) and the database setup task (db-init.tf). Each data store accepts
+# its own port from that group and nothing else. The frontends call no data store, so they
+# have their own group (below).
 
 resource "aws_security_group" "services" {
   name        = "acme-demo-services"
