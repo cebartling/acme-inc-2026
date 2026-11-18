@@ -135,8 +135,8 @@ resource "aws_ecs_service" "adot" {
     assign_public_ip = false
   }
 
-  # It advertises the OTLP port for the services, and, being in the namespace, resolves the
-  # backends it scrapes.
+  # It advertises the OTLP port for the services. To resolve the backends it scrapes, it has to
+  # start after they exist (adot_redeploy below).
   service_connect_configuration {
     enabled   = true
     namespace = aws_service_discovery_http_namespace.demo.arn
@@ -156,4 +156,24 @@ resource "aws_ecs_service" "adot" {
     aws_iam_role_policy_attachment.app_execution,
     aws_iam_role_policy.adot_task,
   ]
+}
+
+# A Service Connect task resolves only the endpoints that existed when it started. The collector
+# starts long before the backends, which wait for MSK and the database setup, so its first
+# tasks can't resolve them and every scrape fails. Once the backend services exist, start the
+# collector again so its new tasks can. This runs on the first apply and when the services are
+# replaced, not on every apply.
+resource "terraform_data" "adot_redeploy" {
+  triggers_replace = [for service in aws_ecs_service.apps : service.id]
+
+  provisioner "local-exec" {
+    interpreter = ["/bin/bash", "-c"]
+    command     = "aws ecs update-service --cluster \"$CLUSTER\" --service \"$SERVICE\" --force-new-deployment > /dev/null"
+
+    environment = {
+      AWS_REGION = data.aws_region.current.region
+      CLUSTER    = aws_ecs_cluster.demo.name
+      SERVICE    = aws_ecs_service.adot.name
+    }
+  }
 }
