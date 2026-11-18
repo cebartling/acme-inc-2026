@@ -1,10 +1,9 @@
 package com.acme.product.api.v1
 
-import com.acme.product.domain.Product
-import com.acme.product.domain.ProductStatus
-import com.acme.product.domain.ProductVariant
+import com.acme.product.domain.CatalogVariant
 import com.acme.product.domain.VariantNotFoundException
-import com.acme.product.infrastructure.persistence.ProductVariantRepository
+import com.acme.product.domain.VariantOfProduct
+import com.acme.product.infrastructure.projection.CatalogReadModelQueries
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.BeforeEach
@@ -12,44 +11,41 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.springframework.http.HttpStatus
 import java.math.BigDecimal
-import java.util.Optional
 import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 
 class InventoryControllerTest {
 
-    private lateinit var variantRepository: ProductVariantRepository
+    private lateinit var queries: CatalogReadModelQueries
     private lateinit var controller: InventoryController
 
     @BeforeEach
     fun setUp() {
-        variantRepository = mockk()
-        controller = InventoryController(variantRepository)
+        queries = mockk()
+        controller = InventoryController(queries)
     }
 
-    private fun makeProduct(): Product = Product(
-        id = UUID.randomUUID(),
-        slug = "gadget-pro",
-        name = "Gadget Pro",
-        price = BigDecimal("119.99")
-    )
-
-    private fun makeVariant(product: Product, inStock: Boolean): ProductVariant = ProductVariant(
-        id = UUID.randomUUID(),
-        product = product,
-        sku = "ACME-GP-BLK",
-        name = "Black",
-        color = "Black",
-        isDefault = true,
-        inStock = inStock
+    private fun makeVariant(id: UUID, inStock: Boolean) = VariantOfProduct(
+        variant = CatalogVariant(
+            id = id,
+            sku = "ACME-GP-BLK",
+            name = "Black",
+            color = "Black",
+            size = null,
+            isDefault = true,
+            inStock = inStock,
+            priceOverride = null,
+            images = emptyList(),
+            tierPricing = emptyList()
+        ),
+        productPrice = BigDecimal("119.99")
     )
 
     @Test
     fun `getAvailability returns IN_STOCK for in-stock variant`() {
         val variantId = UUID.randomUUID()
-        val variant = makeVariant(makeProduct(), inStock = true)
-        every { variantRepository.findByIdAndProductStatus(variantId, ProductStatus.PUBLISHED) } returns Optional.of(variant)
+        every { queries.findVariant(variantId) } returns makeVariant(variantId, inStock = true)
 
         val response = controller.getAvailability(variantId)
 
@@ -63,8 +59,7 @@ class InventoryControllerTest {
     @Test
     fun `getAvailability returns OUT_OF_STOCK for out-of-stock variant`() {
         val variantId = UUID.randomUUID()
-        val variant = makeVariant(makeProduct(), inStock = false)
-        every { variantRepository.findByIdAndProductStatus(variantId, ProductStatus.PUBLISHED) } returns Optional.of(variant)
+        every { queries.findVariant(variantId) } returns makeVariant(variantId, inStock = false)
 
         val response = controller.getAvailability(variantId)
 
@@ -75,7 +70,7 @@ class InventoryControllerTest {
     @Test
     fun `getAvailability throws VariantNotFoundException for unknown variant`() {
         val variantId = UUID.randomUUID()
-        every { variantRepository.findByIdAndProductStatus(variantId, ProductStatus.PUBLISHED) } returns Optional.empty()
+        every { queries.findVariant(variantId) } returns null
 
         assertThrows<VariantNotFoundException> {
             controller.getAvailability(variantId)

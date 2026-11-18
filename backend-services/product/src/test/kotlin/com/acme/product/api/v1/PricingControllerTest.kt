@@ -1,11 +1,10 @@
 package com.acme.product.api.v1
 
-import com.acme.product.domain.Product
-import com.acme.product.domain.ProductStatus
-import com.acme.product.domain.ProductVariant
-import com.acme.product.domain.ProductVariantTierPricing
+import com.acme.product.domain.CatalogVariant
+import com.acme.product.domain.TierPrice
 import com.acme.product.domain.VariantNotFoundException
-import com.acme.product.infrastructure.persistence.ProductVariantRepository
+import com.acme.product.domain.VariantOfProduct
+import com.acme.product.infrastructure.projection.CatalogReadModelQueries
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.BeforeEach
@@ -13,7 +12,6 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.springframework.http.HttpStatus
 import java.math.BigDecimal
-import java.util.Optional
 import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -21,36 +19,41 @@ import kotlin.test.assertNull
 
 class PricingControllerTest {
 
-    private lateinit var variantRepository: ProductVariantRepository
+    private lateinit var queries: CatalogReadModelQueries
     private lateinit var controller: PricingController
 
     @BeforeEach
     fun setUp() {
-        variantRepository = mockk()
-        controller = PricingController(variantRepository)
+        queries = mockk()
+        controller = PricingController(queries)
     }
 
-    private fun makeProduct(price: BigDecimal = BigDecimal("119.99")): Product = Product(
-        id = UUID.randomUUID(),
-        slug = "gadget-pro",
-        name = "Gadget Pro",
-        price = price
+    private fun lookup(
+        variantId: UUID,
+        productPrice: String,
+        priceOverride: String? = null,
+        inStock: Boolean = true,
+        tiers: List<TierPrice> = emptyList()
+    ) = VariantOfProduct(
+        variant = CatalogVariant(
+            id = variantId,
+            sku = "ACME-GP-BLK",
+            name = "Black",
+            color = null,
+            size = null,
+            isDefault = true,
+            inStock = inStock,
+            priceOverride = priceOverride?.let { BigDecimal(it) },
+            images = emptyList(),
+            tierPricing = tiers
+        ),
+        productPrice = BigDecimal(productPrice)
     )
 
     @Test
     fun `getPrice returns product base price when variant has no price override`() {
         val variantId = UUID.randomUUID()
-        val product = makeProduct(BigDecimal("119.99"))
-        val variant = ProductVariant(
-            id = variantId,
-            product = product,
-            sku = "ACME-GP-BLK",
-            name = "Black",
-            isDefault = true,
-            inStock = true,
-            priceOverride = null
-        )
-        every { variantRepository.findByIdAndProductStatus(variantId, ProductStatus.PUBLISHED) } returns Optional.of(variant)
+        every { queries.findVariant(variantId) } returns lookup(variantId, "119.99")
 
         val response = controller.getPrice(variantId)
 
@@ -66,21 +69,10 @@ class PricingControllerTest {
     @Test
     fun `getPrice returns override price and original product price when override is a discount`() {
         val variantId = UUID.randomUUID()
-        val product = makeProduct(BigDecimal("199.99"))
-        val variant = ProductVariant(
-            id = variantId,
-            product = product,
-            sku = "ACME-NCH-WHT",
-            name = "Pearl White",
-            isDefault = false,
-            inStock = true,
-            priceOverride = BigDecimal("189.99")
-        )
-        every { variantRepository.findByIdAndProductStatus(variantId, ProductStatus.PUBLISHED) } returns Optional.of(variant)
+        every { queries.findVariant(variantId) } returns lookup(variantId, "199.99", priceOverride = "189.99")
 
-        val response = controller.getPrice(variantId)
+        val body = controller.getPrice(variantId).body
 
-        val body = response.body
         assertNotNull(body)
         assertEquals(BigDecimal("189.99"), body.price)
         assertEquals(BigDecimal("199.99"), body.originalPrice)
@@ -89,57 +81,28 @@ class PricingControllerTest {
     @Test
     fun `getPrice does not set originalPrice when override is higher than base price`() {
         val variantId = UUID.randomUUID()
-        val product = makeProduct(BigDecimal("199.99"))
-        val variant = ProductVariant(
-            id = variantId,
-            product = product,
-            sku = "ACME-NCH-NVY-LTD",
-            name = "Navy Limited Edition",
-            isDefault = false,
-            inStock = false,
-            priceOverride = BigDecimal("219.99")
-        )
-        every { variantRepository.findByIdAndProductStatus(variantId, ProductStatus.PUBLISHED) } returns Optional.of(variant)
+        every { queries.findVariant(variantId) } returns
+            lookup(variantId, "199.99", priceOverride = "219.99", inStock = false)
 
-        val response = controller.getPrice(variantId)
+        val body = controller.getPrice(variantId).body
 
-        val body = response.body
         assertNotNull(body)
         assertEquals(BigDecimal("219.99"), body.price)
         assertNull(body.originalPrice)
     }
 
+    // The read model stores the tiers sorted by minQuantity; the controller passes them through
     @Test
-    fun `getPrice returns tier pricing rows sorted by minQuantity`() {
+    fun `getPrice returns the tier pricing rows in the order they are held`() {
         val variantId = UUID.randomUUID()
-        val product = makeProduct()
-        val tierRow1 = ProductVariantTierPricing(
-            id = UUID.randomUUID(),
-            variant = mockk(relaxed = true),
-            minQuantity = 3,
-            price = BigDecimal("109.99")
+        every { queries.findVariant(variantId) } returns lookup(
+            variantId,
+            "119.99",
+            tiers = listOf(TierPrice(3, BigDecimal("109.99")), TierPrice(10, BigDecimal("99.99")))
         )
-        val tierRow2 = ProductVariantTierPricing(
-            id = UUID.randomUUID(),
-            variant = mockk(relaxed = true),
-            minQuantity = 10,
-            price = BigDecimal("99.99")
-        )
-        val variant = ProductVariant(
-            id = variantId,
-            product = product,
-            sku = "ACME-GP-BLK",
-            name = "Black",
-            isDefault = true,
-            inStock = true,
-            priceOverride = null,
-            tierPricing = listOf(tierRow1, tierRow2)
-        )
-        every { variantRepository.findByIdAndProductStatus(variantId, ProductStatus.PUBLISHED) } returns Optional.of(variant)
 
-        val response = controller.getPrice(variantId)
+        val body = controller.getPrice(variantId).body
 
-        val body = response.body
         assertNotNull(body)
         assertEquals(2, body.tierPricing.size)
         assertEquals(3, body.tierPricing[0].minQuantity)
@@ -151,7 +114,7 @@ class PricingControllerTest {
     @Test
     fun `getPrice throws VariantNotFoundException for unknown variant`() {
         val variantId = UUID.randomUUID()
-        every { variantRepository.findByIdAndProductStatus(variantId, ProductStatus.PUBLISHED) } returns Optional.empty()
+        every { queries.findVariant(variantId) } returns null
 
         assertThrows<VariantNotFoundException> {
             controller.getPrice(variantId)

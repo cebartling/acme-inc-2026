@@ -5,7 +5,6 @@ import com.acme.product.domain.ProductStatus
 import com.acme.product.domain.ProductVariant
 import jakarta.persistence.EntityManager
 import org.junit.jupiter.api.Test
-import org.springframework.data.domain.PageRequest
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase
@@ -144,23 +143,5 @@ class ProductStockRepositoryIntegrationTest {
         image(first, "https://img/first-0", 0)
 
         assertEquals("https://img/first-0", stockOf(noDefault).getValue(noDefault.id).getImageUrl())
-    }
-
-    // US-0004-10 AC-04: alternatives must be in stock, and the rule is in the query, so older
-    // in-stock products are found even when every newer one is out of stock
-    @Test
-    fun `in-stock related products skip out-of-stock ones, however many are newer`() {
-        val category = "PIN-273-${UUID.randomUUID()}"
-        val base = Instant.parse("2026-01-01T00:00:00Z")
-        val viewed = product(category, base).also { variant(it, inStock = false) }
-        val olderInStock = product(category, base.plusSeconds(1)).also { variant(it, inStock = false); variant(it, inStock = true) }
-        val noVariants = product(category, base.plusSeconds(2))
-        (10L..14L).forEach { product(category, base.plusSeconds(it)).also { p -> variant(p, inStock = false) } }
-        product(category, base.plusSeconds(20), ProductStatus.ARCHIVED).also { variant(it, inStock = true) }
-        productRepository.flush()
-
-        val related = productRepository.findInStockRelatedProducts(category, viewed.id, PageRequest.of(0, 4))
-
-        assertEquals(listOf(noVariants.id, olderInStock.id), related.map { it.id })
     }
 }

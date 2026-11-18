@@ -1,6 +1,5 @@
 package com.acme.product.application
 
-import com.acme.product.domain.Product
 import com.acme.product.domain.ProductSummary
 import com.acme.product.infrastructure.persistence.ProductRepository
 import com.acme.product.infrastructure.persistence.ProductStockProjection
@@ -45,4 +44,3 @@ internal fun summaryOf(
     imageUrl = stock?.getImageUrl()
 )
 
-internal fun Product.toSummary(stock: ProductStockProjection?) = summaryOf(id, slug, name, price, category, stock)

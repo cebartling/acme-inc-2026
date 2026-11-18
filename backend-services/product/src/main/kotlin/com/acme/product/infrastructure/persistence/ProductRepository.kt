@@ -1,15 +1,12 @@
 package com.acme.product.infrastructure.persistence
 
 import com.acme.product.domain.Product
-import com.acme.product.domain.ProductStatus
 import com.acme.product.domain.ProductSummary
-import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
 import org.springframework.stereotype.Repository
 import java.math.BigDecimal
-import java.util.Optional
 import java.util.UUID
 
 /**
@@ -313,51 +310,10 @@ interface ProductRepository : JpaRepository<Product, UUID> {
     ): List<CategoryFacetProjection>
 
     /**
-     * All distinct categories across published products, with a product count each.
-     *
-     * Deliberately avoids the full-text search path (search_vector/tsquery) so category
-     * browsing keeps working when search is degraded — this backs the client-side circuit
-     * breaker fallback in US-0004-09.
-     */
-    @Query(
-        value = """
-            SELECT category, COUNT(*) AS count
-            FROM products
-            WHERE status = 'PUBLISHED'
-              AND category IS NOT NULL
-            GROUP BY category
-            ORDER BY category
-        """,
-        nativeQuery = true
-    )
-    fun findDistinctCategories(): List<CategoryFacetProjection>
-
-    /**
-     * Published products in a category, most recent first. Paginated.
-     */
-    @Query("SELECT p FROM Product p WHERE p.category = :category AND p.status = com.acme.product.domain.ProductStatus.PUBLISHED ORDER BY p.createdAt DESC, p.id")
-    fun findByCategory(
-        @Param("category") category: String,
-        pageable: Pageable
-    ): List<Product>
-
-    /**
-     * Counts published products in a category. Used for fallback browse pagination.
-     */
-    @Query("SELECT COUNT(p) FROM Product p WHERE p.category = :category AND p.status = com.acme.product.domain.ProductStatus.PUBLISHED")
-    fun countByCategory(@Param("category") category: String): Long
-
-    /**
-     * Finds a published product by its URL slug.
-     * Returns empty if the product does not exist or is not PUBLISHED.
-     */
-    fun findBySlugAndStatus(slug: String, status: ProductStatus): Optional<Product>
-
-    /**
      * Stock and card image for a page of products, in one query (US-0004-10, PIN-273). A product
      * is out of stock when it has variants and none is in stock; one without variants is in
-     * stock. [findInStockRelatedProducts] filters by the same rule and `ProductController`
-     * applies it to a product's own `availability` (PIN-318); keep the three in sync. The image
+     * stock. The catalog read model derives the same rule (`CatalogViewRebuilder`) for a product's
+     * own `availability` (PIN-318) and the related products; keep them in sync. The image
      * is the first by `display_order` of the variant the product page opens on: the default,
      * else the first in [com.acme.product.domain.Product.variants] order; or null.
      * Pass a non-empty collection: `IN ()` is not valid SQL.
@@ -383,30 +339,6 @@ interface ProductRepository : JpaRepository<Product, UUID> {
         nativeQuery = true
     )
     fun findStockSummaries(@Param("ids") ids: Collection<UUID>): List<ProductStockProjection>
-
-    /**
-     * Published, in-stock products in the same category, excluding the given product, newest
-     * first. Used for the related products on the product detail page, which double as
-     * alternatives when the viewed variant is out of stock (US-0004-10 AC-04, PIN-273). In stock
-     * follows [findStockSummaries]: no variants, or at least one variant in stock. The rule is in
-     * the query so older in-stock products are found however many newer ones are out of stock.
-     */
-    @Query(
-        """
-        SELECT p FROM Product p
-        WHERE p.category = :category
-          AND p.id <> :excludeId
-          AND p.status = com.acme.product.domain.ProductStatus.PUBLISHED
-          AND (NOT EXISTS (SELECT v FROM ProductVariant v WHERE v.product = p)
-               OR EXISTS (SELECT v FROM ProductVariant v WHERE v.product = p AND v.inStock = true))
-        ORDER BY p.createdAt DESC, p.id
-        """
-    )
-    fun findInStockRelatedProducts(
-        @Param("category") category: String,
-        @Param("excludeId") excludeId: UUID,
-        pageable: Pageable
-    ): List<Product>
 
     /**
      * Autocomplete: product names matching the query prefix using ILIKE.

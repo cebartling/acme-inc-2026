@@ -1,7 +1,6 @@
 package com.acme.product.api.v1
 
 import com.acme.product.application.GetProductDetailUseCase
-import com.acme.product.domain.ProductStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -41,12 +40,8 @@ class ProductController(
                 ?.map { it.trim() }
                 ?.filter { it.isNotEmpty() }
                 ?: emptyList(),
-            // Published, and ProductRepository.findStockSummaries' stock rule: no variants, or one
-            // in stock (PIN-318)
-            availability = if (
-                product.status == ProductStatus.PUBLISHED &&
-                (product.variants.isEmpty() || product.variants.any { it.inStock })
-            ) "IN_STOCK" else "OUT_OF_STOCK",
+            // The read model's stock rule, shared with the summaries: no variants, or one in stock (PIN-318)
+            availability = if (product.inStock) "IN_STOCK" else "OUT_OF_STOCK",
             relatedProducts = result.relatedProducts.map { ProductSummaryResponse.from(it) },
             variants = product.variants.map { v ->
                 ProductVariantResponse(
@@ -58,7 +53,7 @@ class ProductController(
                     isDefault = v.isDefault,
                     inStock = v.inStock,
                     priceOverride = v.priceOverride,
-                    images = v.images.map { it.url },
+                    images = v.images,
                     tierPricing = v.tierPricing.map { tp ->
                         TierPricingEntry(minQuantity = tp.minQuantity, price = tp.price)
                     }

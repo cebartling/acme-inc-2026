@@ -1,19 +1,15 @@
 package com.acme.product.application
 
-import com.acme.product.domain.Product
+import com.acme.product.domain.CatalogProduct
 import com.acme.product.domain.ProductNotFoundException
-import com.acme.product.domain.ProductStatus
+import com.acme.product.domain.ProductSummary
 import com.acme.product.domain.events.ProductViewed
 import com.acme.product.infrastructure.messaging.ProductEventPublisher
-import com.acme.product.infrastructure.persistence.ProductRepository
+import com.acme.product.infrastructure.projection.CatalogReadModelQueries
 import io.mockk.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import org.springframework.data.domain.PageRequest
-import org.springframework.data.domain.Pageable
 import java.math.BigDecimal
-import java.time.Instant
-import java.util.Optional
 import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -21,16 +17,15 @@ import kotlin.test.assertNotNull
 
 class GetProductDetailUseCaseTest {
 
-    private lateinit var repository: ProductRepository
+    private lateinit var queries: CatalogReadModelQueries
     private lateinit var eventPublisher: ProductEventPublisher
     private lateinit var useCase: GetProductDetailUseCase
 
     @BeforeEach
     fun setUp() {
-        repository = mockk()
+        queries = mockk()
         eventPublisher = mockk()
-        useCase = GetProductDetailUseCase(repository, eventPublisher)
-        every { repository.findStockSummaries(any()) } returns emptyList()
+        useCase = GetProductDetailUseCase(queries, eventPublisher)
     }
 
     private fun createProduct(
@@ -38,27 +33,37 @@ class GetProductDetailUseCaseTest {
         slug: String = "test-product",
         name: String = "Test Product",
         price: BigDecimal = BigDecimal("49.99"),
-        status: ProductStatus = ProductStatus.PUBLISHED,
         category: String? = "Electronics",
         tags: String? = "gadget,tech"
-    ) = Product(
+    ) = CatalogProduct(
         id = id,
         slug = slug,
         name = name,
+        description = null,
         price = price,
-        status = status,
         category = category,
         tags = tags,
-        createdAt = Instant.now(),
-        updatedAt = Instant.now()
+        inStock = true,
+        imageUrl = null,
+        variants = emptyList()
+    )
+
+    private fun summary(slug: String, imageUrl: String? = null) = ProductSummary(
+        id = UUID.randomUUID(),
+        slug = slug,
+        name = slug,
+        price = BigDecimal("19.99"),
+        category = "Electronics",
+        inStock = true,
+        imageUrl = imageUrl
     )
 
     @Test
     fun `execute should return product detail for valid slug`() {
         val product = createProduct(slug = "premium-widget", name = "Premium Widget")
 
-        every { repository.findBySlugAndStatus("premium-widget", ProductStatus.PUBLISHED) } returns Optional.of(product)
-        every { repository.findInStockRelatedProducts(any(), any(), any()) } returns emptyList()
+        every { queries.findBySlug("premium-widget") } returns product
+        every { queries.findInStockRelated(any(), any(), any()) } returns emptyList()
         every { eventPublisher.publish(any()) } just Runs
 
         val result = useCase.execute("premium-widget")
@@ -67,55 +72,41 @@ class GetProductDetailUseCaseTest {
         assertEquals(emptyList(), result.relatedProducts)
     }
 
+    // The query finds published products only, so an archived product is an unknown slug too
     @Test
-    fun `execute should throw ProductNotFoundException for unknown slug`() {
-        every { repository.findBySlugAndStatus("unknown-slug", ProductStatus.PUBLISHED) } returns Optional.empty()
+    fun `execute should throw ProductNotFoundException for unknown or archived slug`() {
+        every { queries.findBySlug("unknown-slug") } returns null
 
         assertFailsWith<ProductNotFoundException> {
             useCase.execute("unknown-slug")
         }
-    }
-
-    @Test
-    fun `execute should throw ProductNotFoundException for archived product`() {
-        val archivedProduct = createProduct(slug = "archived-product", status = ProductStatus.ARCHIVED)
-        every { repository.findBySlugAndStatus("archived-product", ProductStatus.PUBLISHED) } returns Optional.empty()
-
-        assertFailsWith<ProductNotFoundException> {
-            useCase.execute("archived-product")
-        }
-        // Confirm the archived product would be found by slug alone (verifies the filter matters)
         verify(exactly = 0) { eventPublisher.publish(any()) }
     }
 
     @Test
     fun `execute should return related products from same category`() {
         val product = createProduct(slug = "main-product", category = "Electronics")
-        val related1 = createProduct(slug = "related-1", name = "Related One")
-        val related2 = createProduct(slug = "related-2", name = "Related Two")
 
-        every { repository.findBySlugAndStatus("main-product", ProductStatus.PUBLISHED) } returns Optional.of(product)
-        every { repository.findInStockRelatedProducts("Electronics", product.id, any<Pageable>()) } returns listOf(related1, related2)
+        every { queries.findBySlug("main-product") } returns product
+        every { queries.findInStockRelated("Electronics", product.id, any()) } returns listOf(summary("related-1"), summary("related-2"))
         every { eventPublisher.publish(any()) } just Runs
 
         val result = useCase.execute("main-product")
 
-        assertEquals(2, result.relatedProducts.size)
-        assertEquals("related-1", result.relatedProducts[0].slug)
-        assertEquals("related-2", result.relatedProducts[1].slug)
+        assertEquals(listOf("related-1", "related-2"), result.relatedProducts.map { it.slug })
     }
 
     @Test
     fun `execute should return no related products when product has no category`() {
         val product = createProduct(slug = "no-category-product", category = null)
 
-        every { repository.findBySlugAndStatus("no-category-product", ProductStatus.PUBLISHED) } returns Optional.of(product)
+        every { queries.findBySlug("no-category-product") } returns product
         every { eventPublisher.publish(any()) } just Runs
 
         val result = useCase.execute("no-category-product")
 
         assertEquals(emptyList(), result.relatedProducts)
-        verify(exactly = 0) { repository.findInStockRelatedProducts(any(), any(), any()) }
+        verify(exactly = 0) { queries.findInStockRelated(any(), any(), any()) }
     }
 
     @Test
@@ -124,8 +115,8 @@ class GetProductDetailUseCaseTest {
         val product = createProduct(id = productId, slug = "my-product")
         val eventSlot = slot<ProductViewed>()
 
-        every { repository.findBySlugAndStatus("my-product", ProductStatus.PUBLISHED) } returns Optional.of(product)
-        every { repository.findInStockRelatedProducts(any(), any(), any()) } returns emptyList()
+        every { queries.findBySlug("my-product") } returns product
+        every { queries.findInStockRelated(any(), any(), any()) } returns emptyList()
         every { eventPublisher.publish(capture(eventSlot)) } just Runs
 
         val correlationId = UUID.randomUUID()
@@ -143,8 +134,8 @@ class GetProductDetailUseCaseTest {
     fun `execute should not fail when event publishing throws`() {
         val product = createProduct(slug = "resilient-product")
 
-        every { repository.findBySlugAndStatus("resilient-product", ProductStatus.PUBLISHED) } returns Optional.of(product)
-        every { repository.findInStockRelatedProducts(any(), any(), any()) } returns emptyList()
+        every { queries.findBySlug("resilient-product") } returns product
+        every { queries.findInStockRelated(any(), any(), any()) } returns emptyList()
         every { eventPublisher.publish(any()) } throws RuntimeException("Kafka unavailable")
 
         val result = useCase.execute("resilient-product")
@@ -153,17 +144,14 @@ class GetProductDetailUseCaseTest {
         assertEquals("resilient-product", result.product.slug)
     }
 
-    // US-0004-10 AC-04 (PIN-273): the query returns only in-stock products, so the use case asks
-    // for exactly 4 and adds their images
+    // US-0004-10 AC-04 (PIN-273): the query returns only in-stock products, with their images, so
+    // the use case asks for exactly 4
     @Test
     fun `execute should return up to 4 in-stock related products, with their images`() {
         val product = createProduct(slug = "main-product", category = "Electronics")
-        val related = (1..4).map { createProduct(slug = "related-$it") }
-        every { repository.findBySlugAndStatus("main-product", ProductStatus.PUBLISHED) } returns Optional.of(product)
-        every { repository.findInStockRelatedProducts("Electronics", product.id, PageRequest.of(0, 4)) } returns related
-        every { repository.findStockSummaries(any()) } returns listOf(
-            stockProjection(related[0].id, inStock = true, imageUrl = "https://img/1")
-        )
+        every { queries.findBySlug("main-product") } returns product
+        every { queries.findInStockRelated("Electronics", product.id, 4) } returns
+            (1..4).map { summary("related-$it", imageUrl = if (it == 1) "https://img/1" else null) }
         every { eventPublisher.publish(any()) } just Runs
 
         val result = useCase.execute("main-product").relatedProducts

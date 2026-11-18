@@ -1,21 +1,20 @@
 package com.acme.product.application
 
 import com.acme.product.domain.ProductSummary
-import com.acme.product.infrastructure.persistence.ProductRepository
-import org.springframework.data.domain.PageRequest
+import com.acme.product.infrastructure.projection.CatalogReadModelQueries
 import org.springframework.stereotype.Service
 import kotlin.math.ceil
 
 /**
  * Category browsing, used as the fallback when product search is unavailable (US-0004-09).
  *
- * Reads categories and products straight from the products table rather than going through
- * [SearchProductsUseCase], so this path stays available when the full-text search path is
- * failing. Categories are a flat list: `category` is a plain column on products, not a tree.
+ * Reads categories and products straight from the catalog read model rather than going through
+ * [SearchProductsUseCase], so this path stays available when the search path is failing.
+ * Categories are a flat list: `category` is a plain field on a product, not a tree.
  */
 @Service
 class BrowseCategoriesUseCase(
-    private val repository: ProductRepository
+    private val queries: CatalogReadModelQueries
 ) {
     data class Category(
         val name: String,
@@ -35,9 +34,7 @@ class BrowseCategoriesUseCase(
      * Lists every category that has at least one published product, alphabetically.
      */
     fun listCategories(): List<Category> =
-        repository.findDistinctCategories().map {
-            Category(name = it.getCategory(), productCount = it.getCount())
-        }
+        queries.listCategories().map { Category(name = it.name, productCount = it.productCount) }
 
     /**
      * Lists published products in a category.
@@ -54,13 +51,12 @@ class BrowseCategoriesUseCase(
         require(page >= 1) { "page must be 1 or greater" }
         require(pageSize in 1..100) { "pageSize must be between 1 and 100" }
 
-        val totalResults = repository.countByCategory(category)
-        val products = repository.findByCategory(category, PageRequest.of(page - 1, pageSize))
-        val stock = repository.stockOf(products.map { it.id })
+        val totalResults = queries.countByCategory(category)
+        val products = queries.findByCategory(category, page, pageSize)
 
         return CategoryProducts(
             category = category,
-            products = products.map { it.toSummary(stock[it.id]) },
+            products = products,
             totalResults = totalResults,
             page = page,
             pageSize = pageSize,
