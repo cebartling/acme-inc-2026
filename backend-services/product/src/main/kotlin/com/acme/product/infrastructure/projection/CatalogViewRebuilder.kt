@@ -21,6 +21,12 @@ import java.util.Date
  * rules the SQL used: a product is in stock when it has no variants or any variant is in stock, and
  * its image is the first by display order of the product's first variant (default first, then
  * oldest).
+ *
+ * A rebuild reads the mirrors and then writes the view, with nothing guarding the two: it is safe
+ * because one consumer applies every catalog message (see `CatalogKafkaConfig`). With more than one
+ * consumer, two rebuilds of the same product could interleave and leave a stale view until the
+ * product next changes. Then key the changes by product (Debezium's `message.key.columns`, so a
+ * product's rows share a partition) or check a version when writing the view.
  */
 @Component
 class CatalogViewRebuilder(

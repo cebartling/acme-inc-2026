@@ -21,6 +21,8 @@ import org.springframework.kafka.support.ExponentialBackOffWithMaxRetries
  * - A failing message is retried at 1s, 2s, 4s, 8s and 16s; after that the error is logged and
  *   the listener moves on. A message that is invalid (bad JSON, no id, an unknown table) is not
  *   retried, but logged and skipped at once.
+ * - One consumer thread applies every catalog message, which `CatalogViewRebuilder` relies on: do
+ *   not raise the container's concurrency or run a second instance without reading its notes
  * - The listener starts with the application unless `product.catalog.listener-enabled` is false.
  *   Tests that provide no Kafka turn it off, so they do not join the real consumer group.
  */
