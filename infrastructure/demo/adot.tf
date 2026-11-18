@@ -5,9 +5,11 @@
 # Service Connect gives it the same names the services call each other by, so it scrapes
 # http://identity:10300 and the services send traces to http://adot-collector:4318.
 #
-# A scrape goes through Service Connect, which picks one task. Identity runs two, so its
-# metrics come from either, and counters from the two tasks are interleaved. That's fine for
-# a demo dashboard.
+# A scrape goes through Service Connect, which picks one task. Identity runs two, and both
+# write to the same series, so a scrape that lands on the task with the lower count looks like a
+# counter reset, and rate() and increase() for identity's counters come out inflated. Gauges
+# (up, JVM memory) and the services with one task are fine. Scraping each task would fix it, but
+# needs ADOT's ecs_observer extension and more IAM, which isn't worth it for a demo.
 
 locals {
   # The job names are the ones docker/prometheus/config/prometheus.yml uses, so the PromQL

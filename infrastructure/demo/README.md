@@ -194,7 +194,8 @@ Once the new tasks are healthy, reload the page: you should still be signed in.
 Metrics, logs and traces:
 
 - Managed Grafana, with the Prometheus data source set up as in the foundation runbook: `up`
-  should be 1 for the `*-service` jobs.
+  should be 1 for the `*-service` jobs. Identity runs two tasks and the collector scrapes one at
+  random each time, so identity's `rate()` and `increase()` graphs are unreliable here.
 - CloudWatch Logs: the `/acme-demo/<service>` log groups.
 - X-Ray: traces for the services, after some traffic.
 
