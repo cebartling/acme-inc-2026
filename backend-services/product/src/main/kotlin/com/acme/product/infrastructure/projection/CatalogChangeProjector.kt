@@ -80,17 +80,22 @@ class CatalogChangeProjector(
 
         // The mirror's document id is the row's id; Debezium's own fields are not kept
         row.remove(listOf("id", "__op", "__source_ts_ms", "__deleted"))
-        val mirror = Document.parse(objectMapper.writeValueAsString(row)).append("_id", id)
 
-        if (deleted) {
-            mongoTemplate.remove(Query(Criteria.where("_id").`is`(id)), collection)
+        // A delete carries only the row's id (the tables use the default replica identity) and blanks
+        // in every other column, so the owning product is read from the row as it was stored
+        val source = if (deleted) {
+            mongoTemplate.findOne(Query(Criteria.where("_id").`is`(id)), Document::class.java, collection)
+                .also { mongoTemplate.remove(Query(Criteria.where("_id").`is`(id)), collection) }
         } else {
-            mongoTemplate.save(mirror, collection)
+            Document.parse(objectMapper.writeValueAsString(row)).append("_id", id)
+                .also { mongoTemplate.save(it, collection) }
         }
 
-        val productId = productIdOf(table, id, mirror)
+        // A product is its own id even when its row is already gone, so a retried product delete still
+        // removes the view; a child that is not stored has no product to find
+        val productId = if (table == "products") id else source?.let { productIdOf(table, id, it) }
         if (productId == null) {
-            logger.debug("No product to rebuild yet for {} {}; its variant has not arrived", table, id)
+            logger.debug("No product to rebuild for {} {}: its variant, or the row itself, is not stored", table, id)
         } else {
             rebuilder.rebuild(productId)
             logger.info("Projected {} {} to the catalog read model (product {})", table, id, productId)

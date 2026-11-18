@@ -59,6 +59,28 @@ class CatalogChangeProjectorIntegrationTest {
             row + mapOf("__op" to op, "__source_ts_ms" to 1794968919122L, "__deleted" to deleted.toString())
         )
 
+    /**
+     * A delete as Debezium sends it: the tables use the default replica identity, so only the id is
+     * real and every other column is blank (a zero, "" or the epoch), not the row's old values.
+     */
+    private fun deleteMessage(table: String, id: String): String {
+        val epoch = "1970-01-01T00:00:00.000000Z"
+        val blank: Map<String, Any?> = when (table) {
+            "products" -> mapOf(
+                "slug" to "", "name" to "", "description" to null, "price" to "0.00", "status" to "",
+                "category" to null, "tags" to null, "created_at" to epoch, "updated_at" to epoch
+            )
+            "product_variants" -> mapOf(
+                "product_id" to "", "sku" to "", "name" to "", "color" to null, "size" to null,
+                "is_default" to false, "in_stock" to true, "price_override" to null, "created_at" to epoch
+            )
+            "product_variant_images" -> mapOf("variant_id" to "", "url" to "", "display_order" to 0)
+            "product_variant_tier_pricing" -> mapOf("variant_id" to "", "min_quantity" to 0, "price" to "0.00")
+            else -> error("unknown table $table")
+        }
+        return message(blank + ("id" to id), op = "d", deleted = true)
+    }
+
     private fun productRow(
         id: String = PRODUCT_ID,
         slug: String = "premium-widget",
@@ -220,10 +242,67 @@ class CatalogChangeProjectorIntegrationTest {
         projector.apply("product_variants", message(variantRow(OTHER_VARIANT_ID, isDefault = false, inStock = true)))
         assertEquals(true, view()!!.getBoolean("inStock"))
 
-        projector.apply("product_variants", message(variantRow(OTHER_VARIANT_ID, isDefault = false, inStock = true), op = "d", deleted = true))
+        projector.apply("product_variants", deleteMessage("product_variants", OTHER_VARIANT_ID))
 
         assertEquals(listOf(VARIANT_ID), view()!!.variants().map { it.getString("id") })
         assertEquals(false, view()!!.getBoolean("inStock"))
+    }
+
+    @Test
+    fun `a deleted image leaves its variant, and the card image falls back to the next one`() {
+        val first = "22222222-0000-0000-0000-000000000001"
+        val second = "22222222-0000-0000-0000-000000000002"
+        projector.apply("products", message(productRow()))
+        projector.apply("product_variants", message(variantRow()))
+        projector.apply("product_variant_images", message(imageRow(first, url = "/a.png", order = 0)))
+        projector.apply("product_variant_images", message(imageRow(second, url = "/b.png", order = 1)))
+        assertEquals("/a.png", view()!!.getString("imageUrl"))
+
+        projector.apply("product_variant_images", deleteMessage("product_variant_images", first))
+
+        assertEquals("/b.png", view()!!.getString("imageUrl"))
+        assertEquals(listOf("/b.png"), view()!!.variants()[0].getList("images", Document::class.java).map { it.getString("url") })
+    }
+
+    @Test
+    fun `a deleted tier price leaves its variant`() {
+        val tier = "33333333-0000-0000-0000-000000000001"
+        projector.apply("products", message(productRow()))
+        projector.apply("product_variants", message(variantRow()))
+        projector.apply("product_variant_tier_pricing", message(tierRow(tier, minQuantity = 5, price = "45.00")))
+        assertEquals(1, view()!!.variants()[0].getList("tierPricing", Document::class.java).size)
+
+        projector.apply("product_variant_tier_pricing", deleteMessage("product_variant_tier_pricing", tier))
+
+        assertTrue(view()!!.variants()[0].getList("tierPricing", Document::class.java).isEmpty())
+    }
+
+    @Test
+    fun `deleting a product and then its variants and images, as the cascade does, leaves nothing behind`() {
+        val image = "22222222-0000-0000-0000-000000000001"
+        projector.apply("products", message(productRow()))
+        projector.apply("product_variants", message(variantRow()))
+        projector.apply("product_variant_images", message(imageRow(image, url = "/a.png", order = 0)))
+
+        projector.apply("products", deleteMessage("products", PRODUCT_ID))
+        projector.apply("product_variants", deleteMessage("product_variants", VARIANT_ID))
+        projector.apply("product_variant_images", deleteMessage("product_variant_images", image))
+
+        assertNull(view())
+        listOf(CatalogReadModel.PRODUCTS, CatalogReadModel.VARIANTS, CatalogReadModel.IMAGES).forEach {
+            assertEquals(0L, mongoTemplate.getCollection(it).countDocuments(), "$it should be empty")
+        }
+    }
+
+    @Test
+    fun `a delete that is applied again changes nothing and does not fail`() {
+        projector.apply("products", message(productRow()))
+        projector.apply("product_variants", message(variantRow()))
+        projector.apply("product_variants", deleteMessage("product_variants", VARIANT_ID))
+
+        projector.apply("product_variants", deleteMessage("product_variants", VARIANT_ID))
+
+        assertTrue(view()!!.variants().isEmpty())
     }
 
     @Test
@@ -231,7 +310,7 @@ class CatalogChangeProjectorIntegrationTest {
         projector.apply("products", message(productRow()))
         projector.apply("product_variants", message(variantRow()))
 
-        projector.apply("products", message(productRow(), op = "d", deleted = true))
+        projector.apply("products", deleteMessage("products", PRODUCT_ID))
 
         assertNull(view())
     }
