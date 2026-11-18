@@ -52,6 +52,18 @@ its own tables changes, and can hold back WAL that the busier databases on the s
 (`SELECT slot_name, pg_size_pretty(pg_wal_lsn_diff(pg_current_wal_lsn(), confirmed_flush_lsn)) FROM pg_replication_slots`).
 If it grows on a quiet database, add `heartbeat.interval.ms` to the connectors.
 
+## Table Capture Connectors
+
+`product-catalog.json` captures product's four catalog tables (`products`, `product_variants`,
+`product_variant_images`, `product_variant_tier_pricing`) directly, because product has no write path and
+so no outbox (PIN-550). It publishes each table's row changes to `product.public.<table>`, flattened by
+`ExtractNewRecordState`: the row's columns are the value, `__op` and `__source_ts_ms` are added, and a delete
+arrives as the old row with `__deleted: true`. Only product's own projector consumes these topics.
+
+Unlike the outbox connectors, `snapshot.mode` is `initial`: the first run publishes every existing row, which is
+how the seeded catalog reaches MongoDB. `products.search_vector` (a generated `tsvector`) is excluded.
+`acme_products`'s `dbz_publication` is created by `product-db-init`, like the cart's.
+
 ## Monitoring
 
 View connector logs:
