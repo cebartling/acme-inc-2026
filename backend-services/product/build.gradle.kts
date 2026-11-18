@@ -5,7 +5,6 @@ plugins {
     id("io.spring.dependency-management") version "1.1.7"
     kotlin("jvm") version "2.4.20"
     kotlin("plugin.spring") version "2.4.20"
-    kotlin("plugin.jpa") version "2.4.20"
 }
 
 group = "com.acme"
@@ -24,7 +23,8 @@ repositories {
 dependencies {
     // Spring Boot starters
     implementation("org.springframework.boot:spring-boot-starter-web")
-    implementation("org.springframework.boot:spring-boot-starter-data-jpa")
+    // The DataSource Flyway migrates the catalog schema through; reads come from MongoDB (PIN-550)
+    implementation("org.springframework.boot:spring-boot-starter-jdbc")
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
 
@@ -53,6 +53,9 @@ dependencies {
     // Kafka
     implementation("org.springframework.kafka:spring-kafka")
 
+    // MongoDB read model of the product catalog (PIN-550)
+    implementation("org.springframework.boot:spring-boot-starter-data-mongodb")
+
     // Observability
     // Exports the actuator metrics at /actuator/prometheus for Prometheus to scrape (PIN-537)
     runtimeOnly("io.micrometer:micrometer-registry-prometheus")
@@ -67,13 +70,13 @@ dependencies {
     }
     testImplementation("org.springframework.boot:spring-boot-test-autoconfigure")
     testImplementation("org.springframework.boot:spring-boot-webmvc-test")
-    testImplementation("org.springframework.boot:spring-boot-data-jpa-test")
     testImplementation("org.springframework.kafka:spring-kafka-test")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
     testImplementation("io.mockk:mockk:1.14.11")
     testImplementation("org.testcontainers:testcontainers-junit-jupiter:2.0.5")
     testImplementation("org.testcontainers:testcontainers-postgresql:2.0.5")
     testImplementation("org.testcontainers:testcontainers-kafka:2.0.5")
+    testImplementation("org.testcontainers:testcontainers-mongodb:2.0.5")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 

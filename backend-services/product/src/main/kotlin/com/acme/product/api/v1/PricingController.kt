@@ -1,8 +1,7 @@
 package com.acme.product.api.v1
 
-import com.acme.product.domain.ProductStatus
 import com.acme.product.domain.VariantNotFoundException
-import com.acme.product.infrastructure.persistence.ProductVariantRepository
+import com.acme.product.infrastructure.projection.CatalogReadModelQueries
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -13,18 +12,16 @@ import java.util.UUID
 @RestController
 @RequestMapping("/api/v1/prices")
 class PricingController(
-    private val variantRepository: ProductVariantRepository
+    private val queries: CatalogReadModelQueries
 ) {
 
     @GetMapping("/{variantId}")
     fun getPrice(@PathVariable variantId: UUID): ResponseEntity<VariantPriceResponse> {
-        val variant = variantRepository.findByIdAndProductStatus(variantId, ProductStatus.PUBLISHED)
-            .orElseThrow { VariantNotFoundException(variantId) }
+        val (variant, productPrice) = queries.findVariant(variantId) ?: throw VariantNotFoundException(variantId)
 
         val override = variant.priceOverride
-        val effectivePrice = override ?: variant.product.price
-        val originalPrice = if (override != null && override < variant.product.price)
-            variant.product.price else null
+        val effectivePrice = override ?: productPrice
+        val originalPrice = if (override != null && override < productPrice) productPrice else null
 
         val response = VariantPriceResponse(
             variantId = variantId,

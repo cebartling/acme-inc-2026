@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Superseded by [ADR-0069](0069-product-catalog-read-model-from-table-capture.md) for the search engine: search now runs on MongoDB. The decision to search inside the product service stands.
 
 ## Context
 

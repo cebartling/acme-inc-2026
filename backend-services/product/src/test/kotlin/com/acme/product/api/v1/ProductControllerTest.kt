@@ -1,13 +1,11 @@
 package com.acme.product.api.v1
 
 import com.acme.product.application.GetProductDetailUseCase
-import com.acme.product.domain.Product
+import com.acme.product.domain.CatalogProduct
+import com.acme.product.domain.CatalogVariant
 import com.acme.product.domain.ProductNotFoundException
-import com.acme.product.domain.ProductStatus
 import com.acme.product.domain.ProductSummary
-import com.acme.product.domain.ProductVariant
-import com.acme.product.domain.ProductVariantImage
-import com.acme.product.domain.ProductVariantTierPricing
+import com.acme.product.domain.TierPrice
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -33,31 +31,78 @@ class ProductControllerTest {
         controller = ProductController(getProductDetailUseCase)
     }
 
+    private fun product(
+        id: UUID = UUID.randomUUID(),
+        slug: String = "test-slug",
+        name: String = "Test Product",
+        description: String? = null,
+        price: String = "10.00",
+        category: String? = null,
+        tags: String? = null,
+        inStock: Boolean = true,
+        variants: List<CatalogVariant> = emptyList()
+    ) = CatalogProduct(
+        id = id,
+        slug = slug,
+        name = name,
+        description = description,
+        price = BigDecimal(price),
+        category = category,
+        tags = tags,
+        inStock = inStock,
+        imageUrl = null,
+        variants = variants
+    )
+
+    private fun variant(
+        id: UUID = UUID.randomUUID(),
+        inStock: Boolean = true,
+        images: List<String> = emptyList(),
+        tierPricing: List<TierPrice> = emptyList()
+    ) = CatalogVariant(
+        id = id,
+        sku = "ACME-GP-BLK",
+        name = "Black",
+        color = "Black",
+        size = null,
+        isDefault = true,
+        inStock = inStock,
+        priceOverride = null,
+        images = images,
+        tierPricing = tierPricing
+    )
+
+    private fun returning(product: CatalogProduct, related: List<ProductSummary> = emptyList()) {
+        every { getProductDetailUseCase.execute(any(), any(), any()) } returns
+            GetProductDetailUseCase.Result(product = product, relatedProducts = related)
+    }
+
     @Test
     fun `getProduct should return 200 with correct response shape`() {
         // Given
         val productId = UUID.randomUUID()
         val relatedId = UUID.randomUUID()
-        val product = Product(
-            id = productId,
-            slug = "premium-widget",
-            name = "Premium Widget",
-            description = "A great widget",
-            price = BigDecimal("49.99"),
-            status = ProductStatus.PUBLISHED,
-            category = "Electronics",
-            tags = "sale, featured, new"
+        returning(
+            product(
+                id = productId,
+                slug = "premium-widget",
+                name = "Premium Widget",
+                description = "A great widget",
+                price = "49.99",
+                category = "Electronics",
+                tags = "sale, featured, new"
+            ),
+            related = listOf(
+                ProductSummary(
+                    id = relatedId,
+                    slug = "basic-widget",
+                    name = "Basic Widget",
+                    price = BigDecimal("19.99"),
+                    category = "Electronics",
+                    imageUrl = "https://img/basic-widget"
+                )
+            )
         )
-        val relatedProduct = ProductSummary(
-            id = relatedId,
-            slug = "basic-widget",
-            name = "Basic Widget",
-            price = BigDecimal("19.99"),
-            category = "Electronics",
-            imageUrl = "https://img/basic-widget"
-        )
-        every { getProductDetailUseCase.execute(any(), any(), any()) } returns
-            GetProductDetailUseCase.Result(product = product, relatedProducts = listOf(relatedProduct))
 
         // When
         val response = controller.getProduct(slug = "premium-widget", sessionId = null, correlationId = null)
@@ -86,39 +131,13 @@ class ProductControllerTest {
     }
 
     @Test
-    fun `getProduct should map ARCHIVED status to OUT_OF_STOCK availability`() {
-        // Given
-        val product = Product(
-            id = UUID.randomUUID(),
-            slug = "discontinued-widget",
-            name = "Discontinued Widget",
-            price = BigDecimal("9.99"),
-            status = ProductStatus.ARCHIVED
-        )
-        every { getProductDetailUseCase.execute(any(), any(), any()) } returns
-            GetProductDetailUseCase.Result(product = product, relatedProducts = emptyList())
-
-        // When
-        val response = controller.getProduct(slug = "discontinued-widget", sessionId = null, correlationId = null)
-
-        // Then
-        assertEquals("OUT_OF_STOCK", response.body?.availability)
-    }
-
-    @Test
     fun `getProduct should pass slug and session ID to use case`() {
         // Given
         val slugSlot = slot<String>()
         val sessionSlot = slot<String>()
-        val product = Product(
-            id = UUID.randomUUID(),
-            slug = "test-slug",
-            name = "Test Product",
-            price = BigDecimal("10.00")
-        )
         every {
             getProductDetailUseCase.execute(capture(slugSlot), capture(sessionSlot), any())
-        } returns GetProductDetailUseCase.Result(product = product, relatedProducts = emptyList())
+        } returns GetProductDetailUseCase.Result(product = product(), relatedProducts = emptyList())
 
         // When
         controller.getProduct(slug = "test-slug", sessionId = "session-abc", correlationId = null)
@@ -133,15 +152,9 @@ class ProductControllerTest {
         // Given
         val correlationId = UUID.randomUUID()
         val correlationSlot = slot<UUID>()
-        val product = Product(
-            id = UUID.randomUUID(),
-            slug = "test-slug",
-            name = "Test Product",
-            price = BigDecimal("10.00")
-        )
         every {
             getProductDetailUseCase.execute(any(), any(), capture(correlationSlot))
-        } returns GetProductDetailUseCase.Result(product = product, relatedProducts = emptyList())
+        } returns GetProductDetailUseCase.Result(product = product(), relatedProducts = emptyList())
 
         // When
         controller.getProduct(slug = "test-slug", sessionId = null, correlationId = correlationId.toString())
@@ -154,15 +167,9 @@ class ProductControllerTest {
     fun `getProduct should generate new UUID for invalid correlation ID`() {
         // Given
         val correlationSlot = slot<UUID>()
-        val product = Product(
-            id = UUID.randomUUID(),
-            slug = "test-slug",
-            name = "Test Product",
-            price = BigDecimal("10.00")
-        )
         every {
             getProductDetailUseCase.execute(any(), any(), capture(correlationSlot))
-        } returns GetProductDetailUseCase.Result(product = product, relatedProducts = emptyList())
+        } returns GetProductDetailUseCase.Result(product = product(), relatedProducts = emptyList())
 
         // When
         controller.getProduct(slug = "test-slug", sessionId = null, correlationId = "not-a-uuid")
@@ -186,67 +193,29 @@ class ProductControllerTest {
 
     @Test
     fun `getProduct should return empty tags list when product has no tags`() {
-        // Given
-        val product = Product(
-            id = UUID.randomUUID(),
-            slug = "no-tags-widget",
-            name = "No Tags Widget",
-            price = BigDecimal("25.00"),
-            tags = null
-        )
-        every {
-            getProductDetailUseCase.execute(any(), any(), any())
-        } returns GetProductDetailUseCase.Result(product = product, relatedProducts = emptyList())
+        returning(product(slug = "no-tags-widget", tags = null))
 
-        // When
         val response = controller.getProduct(slug = "no-tags-widget", sessionId = null, correlationId = null)
 
-        // Then
         assertEquals(emptyList(), response.body?.tags)
     }
 
     @Test
     fun `getProduct should map variants with images and tier pricing into response`() {
         // Given
-        val productId = UUID.randomUUID()
         val variantId = UUID.randomUUID()
-        val imageId = UUID.randomUUID()
-        val tierId = UUID.randomUUID()
-
-        val product = mockk<Product>(relaxed = true)
-        every { product.id } returns productId
-        every { product.slug } returns "gadget-pro"
-        every { product.name } returns "Gadget Pro"
-        every { product.description } returns null
-        every { product.price } returns BigDecimal("119.99")
-        every { product.status } returns ProductStatus.PUBLISHED
-        every { product.category } returns "Electronics"
-        every { product.tags } returns "gadget,pro"
-
-        val image = mockk<ProductVariantImage>(relaxed = true)
-        every { image.url } returns "https://example.com/black.jpg"
-
-        val tierEntry = mockk<ProductVariantTierPricing>(relaxed = true)
-        every { tierEntry.minQuantity } returns 3
-        every { tierEntry.price } returns BigDecimal("109.99")
-
-        val variant = mockk<ProductVariant>(relaxed = true)
-        every { variant.id } returns variantId
-        every { variant.sku } returns "ACME-GP-BLK"
-        every { variant.name } returns "Black"
-        every { variant.color } returns "Black"
-        every { variant.size } returns null
-        every { variant.isDefault } returns true
-        every { variant.inStock } returns true
-        every { variant.priceOverride } returns null
-        every { variant.images } returns listOf(image)
-        every { variant.tierPricing } returns listOf(tierEntry)
-
-        every { product.variants } returns listOf(variant)
-
-        every {
-            getProductDetailUseCase.execute(any(), any(), any())
-        } returns GetProductDetailUseCase.Result(product = product, relatedProducts = emptyList())
+        returning(
+            product(
+                slug = "gadget-pro",
+                variants = listOf(
+                    variant(
+                        id = variantId,
+                        images = listOf("https://example.com/black.jpg"),
+                        tierPricing = listOf(TierPrice(3, BigDecimal("109.99")))
+                    )
+                )
+            )
+        )
 
         // When
         val response = controller.getProduct(slug = "gadget-pro", sessionId = null, correlationId = null)
@@ -270,10 +239,10 @@ class ProductControllerTest {
         assertEquals(BigDecimal("109.99"), variantResponse.tierPricing[0].price)
     }
 
-    // PIN-318: availability follows the summaries' rule, not just the product's status
+    // PIN-318: availability follows the summaries' rule, which the read model derives into inStock
     @Test
-    fun `getProduct should report OUT_OF_STOCK when every variant is out of stock`() {
-        stubProductWithVariants(inStock = listOf(false, false))
+    fun `getProduct should report OUT_OF_STOCK when the product is out of stock`() {
+        returning(product(slug = "gadget-pro", inStock = false, variants = listOf(variant(inStock = false))))
 
         val response = controller.getProduct(slug = "gadget-pro", sessionId = null, correlationId = null)
 
@@ -281,38 +250,11 @@ class ProductControllerTest {
     }
 
     @Test
-    fun `getProduct should report IN_STOCK when any variant is in stock`() {
-        stubProductWithVariants(inStock = listOf(false, true))
+    fun `getProduct should report IN_STOCK when the product is in stock`() {
+        returning(product(slug = "gadget-pro", inStock = true, variants = listOf(variant(inStock = false), variant(inStock = true))))
 
         val response = controller.getProduct(slug = "gadget-pro", sessionId = null, correlationId = null)
 
         assertEquals("IN_STOCK", response.body?.availability)
-    }
-
-    @Test
-    fun `getProduct should report OUT_OF_STOCK for an ARCHIVED product even with a variant in stock`() {
-        stubProductWithVariants(inStock = listOf(true), status = ProductStatus.ARCHIVED)
-
-        val response = controller.getProduct(slug = "gadget-pro", sessionId = null, correlationId = null)
-
-        assertEquals("OUT_OF_STOCK", response.body?.availability)
-    }
-
-    private fun stubProductWithVariants(
-        inStock: List<Boolean>,
-        status: ProductStatus = ProductStatus.PUBLISHED
-    ) {
-        val product = mockk<Product>(relaxed = true)
-        every { product.status } returns status
-        every { product.tags } returns null
-        every { product.variants } returns inStock.map { stocked ->
-            mockk<ProductVariant>(relaxed = true).also {
-                every { it.inStock } returns stocked
-                every { it.images } returns emptyList()
-                every { it.tierPricing } returns emptyList()
-            }
-        }
-        every { getProductDetailUseCase.execute(any(), any(), any()) } returns
-            GetProductDetailUseCase.Result(product = product, relatedProducts = emptyList())
     }
 }

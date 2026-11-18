@@ -9,12 +9,6 @@ spring:
     username: ${POSTGRES_USER:acme}
     password: ${POSTGRES_PASSWORD:acme}
     driver-class-name: org.postgresql.Driver
-  jpa:
-    hibernate:
-      ddl-auto: validate
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
   flyway:
     enabled: true
     baseline-on-migrate: true
@@ -34,6 +28,17 @@ spring:
         max.in.flight.requests.per.connection: 1
         enable.idempotence: true
         retries: 3
+    consumer:
+      # The catalog projector's group (PIN-550); the analytics events are only produced
+      group-id: product-service
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+  mongodb:
+    # On AWS the URI carries the DocumentDB credentials and tls=true (PIN-538, ADR-0064)
+    uri: ${MONGODB_URI:mongodb://localhost:27017}
+    database: ${MONGODB_DB:acme_query}
 
 management:
   endpoints:
@@ -42,6 +47,11 @@ management:
         include: health,info,metrics,prometheus
 
 product:
+  catalog:
+    # Debezium's row changes of the four catalog tables, for the read model's projector (PIN-550)
+    topic-prefix: product.public.
+    # Set false to keep the projector's listener from starting (tests without Kafka)
+    listener-enabled: ${PRODUCT_CATALOG_LISTENER_ENABLED:true}
   events:
     publish:
       timeout-seconds: 10

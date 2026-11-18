@@ -14,6 +14,4 @@ data class SearchFilters(
     }
 
     val hasFilters: Boolean get() = categories.isNotEmpty() || priceMin != null || priceMax != null
-
-    val categoryFilter: String? get() = if (categories.isEmpty()) null else categories.joinToString(",")
 }

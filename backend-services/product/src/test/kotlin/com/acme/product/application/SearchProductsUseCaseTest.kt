@@ -6,9 +6,8 @@ import com.acme.product.domain.SortOption
 import com.acme.product.domain.events.FiltersApplied
 import com.acme.product.domain.events.SearchExecuted
 import com.acme.product.infrastructure.messaging.ProductEventPublisher
-import com.acme.product.infrastructure.persistence.CategoryFacetProjection
-import com.acme.product.infrastructure.persistence.ProductRepository
-import com.acme.product.infrastructure.persistence.ProductSearchProjection
+import com.acme.product.domain.ProductSummary
+import com.acme.product.infrastructure.projection.CatalogSearchQueries
 import io.mockk.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -21,16 +20,15 @@ import kotlin.test.assertTrue
 
 class SearchProductsUseCaseTest {
 
-    private lateinit var repository: ProductRepository
+    private lateinit var queries: CatalogSearchQueries
     private lateinit var eventPublisher: ProductEventPublisher
     private lateinit var useCase: SearchProductsUseCase
 
     @BeforeEach
     fun setUp() {
-        repository = mockk()
+        queries = mockk()
         eventPublisher = mockk()
-        useCase = SearchProductsUseCase(repository, eventPublisher)
-        every { repository.findStockSummaries(any()) } returns emptyList()
+        useCase = SearchProductsUseCase(queries, eventPublisher)
     }
 
     private fun createProjection(
@@ -38,23 +36,10 @@ class SearchProductsUseCaseTest {
         slug: String = "test-product",
         name: String = "Test Product",
         price: BigDecimal = BigDecimal("29.99"),
-        category: String? = "Electronics"
-    ): ProductSearchProjection {
-        val projection = mockk<ProductSearchProjection>()
-        every { projection.getId() } returns id
-        every { projection.getSlug() } returns slug
-        every { projection.getName() } returns name
-        every { projection.getPrice() } returns price
-        every { projection.getCategory() } returns category
-        return projection
-    }
-
-    private fun createFacetProjection(category: String, count: Long): CategoryFacetProjection {
-        val projection = mockk<CategoryFacetProjection>()
-        every { projection.getCategory() } returns category
-        every { projection.getCount() } returns count
-        return projection
-    }
+        category: String? = "Electronics",
+        inStock: Boolean = true,
+        imageUrl: String? = null
+    ) = ProductSummary(id, slug, name, price, category, inStock, imageUrl)
 
     @Test
     fun `execute should return correct SearchResult shape with matching products`() {
@@ -63,9 +48,9 @@ class SearchProductsUseCaseTest {
         val projection1 = createProjection(slug = "premium-widget", name = "Premium Widget", price = BigDecimal("49.99"))
         val projection2 = createProjection(slug = "basic-widget", name = "Basic Widget", price = BigDecimal("9.99"))
 
-        every { repository.searchByRelevance("widget", 24, 0) } returns listOf(projection1, projection2)
-        every { repository.countByQuery("widget") } returns 2L
-        every { repository.getCategoryFacets("widget", null, null) } returns emptyList()
+        every { queries.search("widget", SearchFilters(), SortOption.RELEVANCE, 0, 24) } returns listOf(projection1, projection2)
+        every { queries.count("widget", SearchFilters()) } returns 2L
+        every { queries.categoryFacets("widget", null, null) } returns emptyMap()
         every { eventPublisher.publish(any()) } just Runs
 
         // When
@@ -93,12 +78,9 @@ class SearchProductsUseCaseTest {
         val query = SearchQuery(query = "widget", page = 1, pageSize = 24, sort = SortOption.RELEVANCE)
         val projection = createProjection()
 
-        every { repository.searchByRelevance("widget", 24, 0) } returns listOf(projection)
-        every { repository.countByQuery("widget") } returns 1L
-        every { repository.getCategoryFacets("widget", null, null) } returns listOf(
-            createFacetProjection("Electronics", 5L),
-            createFacetProjection("Gaming", 3L)
-        )
+        every { queries.search("widget", SearchFilters(), SortOption.RELEVANCE, 0, 24) } returns listOf(projection)
+        every { queries.count("widget", SearchFilters()) } returns 1L
+        every { queries.categoryFacets("widget", null, null) } returns mapOf("Electronics" to 5L, "Gaming" to 3L)
         every { eventPublisher.publish(any()) } just Runs
 
         // When
@@ -115,9 +97,9 @@ class SearchProductsUseCaseTest {
         val projection = createProjection(name = "Super Gadget")
         val eventSlot = slot<SearchExecuted>()
 
-        every { repository.searchByRelevance("gadget", 24, 0) } returns listOf(projection)
-        every { repository.countByQuery("gadget") } returns 1L
-        every { repository.getCategoryFacets("gadget", null, null) } returns emptyList()
+        every { queries.search("gadget", SearchFilters(), SortOption.RELEVANCE, 0, 24) } returns listOf(projection)
+        every { queries.count("gadget", SearchFilters()) } returns 1L
+        every { queries.categoryFacets("gadget", null, null) } returns emptyMap()
         every { eventPublisher.publish(capture(eventSlot)) } just Runs
 
         // When
@@ -137,10 +119,10 @@ class SearchProductsUseCaseTest {
         // Given
         val query = SearchQuery(query = "wiget", page = 1, pageSize = 24, sort = SortOption.RELEVANCE)
 
-        every { repository.searchByRelevance("wiget", 24, 0) } returns emptyList()
-        every { repository.countByQuery("wiget") } returns 0L
-        every { repository.findSpellingSuggestion("wiget") } returns "Premium Widget"
-        every { repository.getCategoryFacets("wiget", null, null) } returns emptyList()
+        every { queries.search("wiget", SearchFilters(), SortOption.RELEVANCE, 0, 24) } returns emptyList()
+        every { queries.count("wiget", SearchFilters()) } returns 0L
+        every { queries.spellingSuggestion("wiget") } returns "Premium Widget"
+        every { queries.categoryFacets("wiget", null, null) } returns emptyMap()
         every { eventPublisher.publish(any()) } just Runs
 
         // When
@@ -160,9 +142,9 @@ class SearchProductsUseCaseTest {
         val query = SearchQuery(query = "widget", page = 1, pageSize = 24, sort = SortOption.RELEVANCE)
         val projection = createProjection(name = "Premium Widget")
 
-        every { repository.searchByRelevance("widget", 24, 0) } returns listOf(projection)
-        every { repository.countByQuery("widget") } returns 1L
-        every { repository.getCategoryFacets("widget", null, null) } returns emptyList()
+        every { queries.search("widget", SearchFilters(), SortOption.RELEVANCE, 0, 24) } returns listOf(projection)
+        every { queries.count("widget", SearchFilters()) } returns 1L
+        every { queries.categoryFacets("widget", null, null) } returns emptyMap()
         every { eventPublisher.publish(any()) } throws RuntimeException("Kafka unavailable")
 
         // When
@@ -178,18 +160,18 @@ class SearchProductsUseCaseTest {
         // Given
         val query = SearchQuery(query = "widget", page = 1, pageSize = 10, sort = SortOption.PRICE_ASC)
 
-        every { repository.searchByPriceAsc("widget", 10, 0) } returns emptyList()
-        every { repository.countByQuery("widget") } returns 0L
-        every { repository.findSpellingSuggestion("widget") } returns null
-        every { repository.getCategoryFacets("widget", null, null) } returns emptyList()
+        every { queries.search("widget", SearchFilters(), SortOption.PRICE_ASC, 0, 10) } returns emptyList()
+        every { queries.count("widget", SearchFilters()) } returns 0L
+        every { queries.spellingSuggestion("widget") } returns null
+        every { queries.categoryFacets("widget", null, null) } returns emptyMap()
         every { eventPublisher.publish(any()) } just Runs
 
         // When
         useCase.execute(query)
 
         // Then
-        verify(exactly = 1) { repository.searchByPriceAsc("widget", 10, 0) }
-        verify(exactly = 0) { repository.searchByRelevance(any(), any(), any()) }
+        verify(exactly = 1) { queries.search("widget", SearchFilters(), SortOption.PRICE_ASC, 0, 10) }
+        verify(exactly = 0) { queries.search(any(), any(), SortOption.RELEVANCE, any(), any()) }
     }
 
     @Test
@@ -198,9 +180,9 @@ class SearchProductsUseCaseTest {
         val query = SearchQuery(query = "product", page = 1, pageSize = 10, sort = SortOption.RELEVANCE)
         val projections = (1..10).map { createProjection(name = "Product $it") }
 
-        every { repository.searchByRelevance("product", 10, 0) } returns projections
-        every { repository.countByQuery("product") } returns 25L
-        every { repository.getCategoryFacets("product", null, null) } returns emptyList()
+        every { queries.search("product", SearchFilters(), SortOption.RELEVANCE, 0, 10) } returns projections
+        every { queries.count("product", SearchFilters()) } returns 25L
+        every { queries.categoryFacets("product", null, null) } returns emptyMap()
         every { eventPublisher.publish(any()) } just Runs
 
         // When
@@ -212,21 +194,15 @@ class SearchProductsUseCaseTest {
     }
 
     @Test
-    fun `execute with category filter should use filtered repository methods`() {
+    fun `execute with category filter should pass the filters to the search and the count`() {
         // Given
         val filters = SearchFilters(categories = listOf("Electronics", "Gaming"))
         val query = SearchQuery(query = "widget", page = 1, pageSize = 24, sort = SortOption.RELEVANCE, filters = filters)
         val projection = createProjection(category = "Electronics")
 
-        every {
-            repository.searchByRelevanceFiltered("widget", "Electronics,Gaming", null, null, 24, 0)
-        } returns listOf(projection)
-        every {
-            repository.countByQueryFiltered("widget", "Electronics,Gaming", null, null)
-        } returns 1L
-        every { repository.getCategoryFacets("widget", null, null) } returns listOf(
-            createFacetProjection("Electronics", 1L)
-        )
+        every { queries.search("widget", filters, SortOption.RELEVANCE, 0, 24) } returns listOf(projection)
+        every { queries.count("widget", filters) } returns 1L
+        every { queries.categoryFacets("widget", null, null) } returns mapOf("Electronics" to 1L)
         every { eventPublisher.publish(any()) } just Runs
 
         // When
@@ -235,28 +211,19 @@ class SearchProductsUseCaseTest {
         // Then
         assertEquals(1, result.products.size)
         assertEquals(1L, result.totalResults)
-        verify(exactly = 1) {
-            repository.searchByRelevanceFiltered("widget", "Electronics,Gaming", null, null, 24, 0)
-        }
-        verify(exactly = 0) { repository.searchByRelevance(any(), any(), any()) }
+        verify(exactly = 1) { queries.search("widget", filters, SortOption.RELEVANCE, 0, 24) }
     }
 
     @Test
-    fun `execute with price filter should use filtered repository methods`() {
+    fun `execute with price filter should pass the filters to the search and the count, and the price range to the facets`() {
         // Given
         val filters = SearchFilters(priceMin = BigDecimal("25.00"), priceMax = BigDecimal("75.00"))
         val query = SearchQuery(query = "mouse", page = 1, pageSize = 24, sort = SortOption.RELEVANCE, filters = filters)
         val projection = createProjection(price = BigDecimal("49.99"))
 
-        every {
-            repository.searchByRelevanceFiltered("mouse", null, BigDecimal("25.00"), BigDecimal("75.00"), 24, 0)
-        } returns listOf(projection)
-        every {
-            repository.countByQueryFiltered("mouse", null, BigDecimal("25.00"), BigDecimal("75.00"))
-        } returns 1L
-        every {
-            repository.getCategoryFacets("mouse", BigDecimal("25.00"), BigDecimal("75.00"))
-        } returns emptyList()
+        every { queries.search("mouse", filters, SortOption.RELEVANCE, 0, 24) } returns listOf(projection)
+        every { queries.count("mouse", filters) } returns 1L
+        every { queries.categoryFacets("mouse", BigDecimal("25.00"), BigDecimal("75.00")) } returns emptyMap()
         every { eventPublisher.publish(any()) } just Runs
 
         // When
@@ -264,9 +231,7 @@ class SearchProductsUseCaseTest {
 
         // Then
         assertEquals(1, result.products.size)
-        verify(exactly = 1) {
-            repository.searchByRelevanceFiltered("mouse", null, BigDecimal("25.00"), BigDecimal("75.00"), 24, 0)
-        }
+        verify(exactly = 1) { queries.search("mouse", filters, SortOption.RELEVANCE, 0, 24) }
     }
 
     @Test
@@ -277,11 +242,9 @@ class SearchProductsUseCaseTest {
         val projection = createProjection(category = "Gaming")
         val publishedEvents = mutableListOf<com.acme.product.domain.events.DomainEvent>()
 
-        every {
-            repository.searchByRelevanceFiltered("headset", "Gaming", null, null, 24, 0)
-        } returns listOf(projection)
-        every { repository.countByQueryFiltered("headset", "Gaming", null, null) } returns 1L
-        every { repository.getCategoryFacets("headset", null, null) } returns emptyList()
+        every { queries.search("headset", filters, SortOption.RELEVANCE, 0, 24) } returns listOf(projection)
+        every { queries.count("headset", filters) } returns 1L
+        every { queries.categoryFacets("headset", null, null) } returns emptyMap()
         every { eventPublisher.publish(capture(publishedEvents)) } just Runs
 
         // When
@@ -306,9 +269,9 @@ class SearchProductsUseCaseTest {
         val projection = createProjection()
         val publishedEvents = mutableListOf<com.acme.product.domain.events.DomainEvent>()
 
-        every { repository.searchByRelevance("mouse", 24, 0) } returns listOf(projection)
-        every { repository.countByQuery("mouse") } returns 1L
-        every { repository.getCategoryFacets("mouse", null, null) } returns emptyList()
+        every { queries.search("mouse", SearchFilters(), SortOption.RELEVANCE, 0, 24) } returns listOf(projection)
+        every { queries.count("mouse", SearchFilters()) } returns 1L
+        every { queries.categoryFacets("mouse", null, null) } returns emptyMap()
         every { eventPublisher.publish(capture(publishedEvents)) } just Runs
 
         // When
@@ -319,45 +282,39 @@ class SearchProductsUseCaseTest {
         assertTrue(publishedEvents.single() is SearchExecuted)
     }
 
-    // US-0004-10 AC-06 (PIN-273): search cards show an Out of Stock badge and an image
+    // US-0004-10 AC-06 (PIN-273): search cards show an Out of Stock badge and an image, which the
+    // read model holds on each product
     @Test
-    fun `execute should give each result its stock and image, one lookup for the page`() {
-        val outId = UUID.randomUUID()
-        val inId = UUID.randomUUID()
-        val bareId = UUID.randomUUID()
+    fun `execute should give each result its stock and image`() {
         val query = SearchQuery(query = "widget", page = 1, pageSize = 24, sort = SortOption.RELEVANCE)
-        every { repository.searchByRelevance("widget", 24, 0) } returns listOf(
-            createProjection(id = outId), createProjection(id = inId), createProjection(id = bareId)
+        every { queries.search("widget", SearchFilters(), SortOption.RELEVANCE, 0, 24) } returns listOf(
+            createProjection(inStock = false),
+            createProjection(inStock = true, imageUrl = "https://img/in"),
+            createProjection()
         )
-        every { repository.countByQuery("widget") } returns 3L
-        every { repository.getCategoryFacets("widget", null, null) } returns emptyList()
+        every { queries.count("widget", SearchFilters()) } returns 3L
+        every { queries.categoryFacets("widget", null, null) } returns emptyMap()
         every { eventPublisher.publish(any()) } just Runs
-        every { repository.findStockSummaries(match { it.toSet() == setOf(outId, inId, bareId) }) } returns listOf(
-            stockProjection(outId, inStock = false),
-            stockProjection(inId, inStock = true, imageUrl = "https://img/in")
-        )
 
         val products = useCase.execute(query).products
 
         assertEquals(listOf(false, true, true), products.map { it.inStock })
         assertEquals(listOf(null, "https://img/in", null), products.map { it.imageUrl })
-        verify(exactly = 1) { repository.findStockSummaries(any()) }
     }
 
-    // PIN-273 review: the stock lookup is best-effort like the facets; a failure must not 500
-    // search, which would also count toward the customer app's search circuit breaker
+    // Facets are best-effort: a failure must not 500 search, which would also count toward the
+    // customer app's search circuit breaker
     @Test
-    fun `execute should still answer, with products in stock, when the stock lookup fails`() {
+    fun `execute should still answer, with no facets, when the facets query fails`() {
         val query = SearchQuery(query = "widget", page = 1, pageSize = 24, sort = SortOption.RELEVANCE)
-        every { repository.searchByRelevance("widget", 24, 0) } returns listOf(createProjection())
-        every { repository.countByQuery("widget") } returns 1L
-        every { repository.getCategoryFacets("widget", null, null) } returns emptyList()
+        every { queries.search("widget", SearchFilters(), SortOption.RELEVANCE, 0, 24) } returns listOf(createProjection())
+        every { queries.count("widget", SearchFilters()) } returns 1L
+        every { queries.categoryFacets("widget", null, null) } throws RuntimeException("connection reset")
         every { eventPublisher.publish(any()) } just Runs
-        every { repository.findStockSummaries(any()) } throws RuntimeException("connection reset")
 
-        val products = useCase.execute(query).products
+        val result = useCase.execute(query)
 
-        assertEquals(listOf(true), products.map { it.inStock })
-        assertEquals(listOf(null), products.map { it.imageUrl })
+        assertEquals(1, result.products.size)
+        assertEquals(emptyMap(), result.facets.categories)
     }
 }

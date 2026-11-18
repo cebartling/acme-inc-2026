@@ -7,7 +7,7 @@ import com.acme.product.domain.SortOption
 import com.acme.product.domain.events.FiltersApplied
 import com.acme.product.domain.events.SearchExecuted
 import com.acme.product.infrastructure.messaging.ProductEventPublisher
-import com.acme.product.infrastructure.persistence.ProductRepository
+import com.acme.product.infrastructure.projection.CatalogSearchQueries
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.util.UUID
@@ -15,7 +15,7 @@ import kotlin.math.ceil
 
 @Service
 class SearchProductsUseCase(
-    private val repository: ProductRepository,
+    private val queries: CatalogSearchQueries,
     private val eventPublisher: ProductEventPublisher
 ) {
     private val logger = LoggerFactory.getLogger(SearchProductsUseCase::class.java)
@@ -28,58 +28,27 @@ class SearchProductsUseCase(
         val startTime = System.currentTimeMillis()
         val filters = query.filters
 
-        val results = if (filters.hasFilters) {
-            when (query.sort) {
-                SortOption.RELEVANCE -> repository.searchByRelevanceFiltered(
-                    query.query, filters.categoryFilter, filters.priceMin, filters.priceMax, query.pageSize, query.offset
-                )
-                SortOption.PRICE_ASC -> repository.searchByPriceAscFiltered(
-                    query.query, filters.categoryFilter, filters.priceMin, filters.priceMax, query.pageSize, query.offset
-                )
-                SortOption.PRICE_DESC -> repository.searchByPriceDescFiltered(
-                    query.query, filters.categoryFilter, filters.priceMin, filters.priceMax, query.pageSize, query.offset
-                )
-                SortOption.NEWEST -> repository.searchByNewestFiltered(
-                    query.query, filters.categoryFilter, filters.priceMin, filters.priceMax, query.pageSize, query.offset
-                )
-            }
-        } else {
-            when (query.sort) {
-                SortOption.RELEVANCE -> repository.searchByRelevance(query.query, query.pageSize, query.offset)
-                SortOption.PRICE_ASC -> repository.searchByPriceAsc(query.query, query.pageSize, query.offset)
-                SortOption.PRICE_DESC -> repository.searchByPriceDesc(query.query, query.pageSize, query.offset)
-                SortOption.NEWEST -> repository.searchByNewest(query.query, query.pageSize, query.offset)
-            }
-        }
-
-        val totalResults = if (filters.hasFilters) {
-            repository.countByQueryFiltered(query.query, filters.categoryFilter, filters.priceMin, filters.priceMax)
-        } else {
-            repository.countByQuery(query.query)
-        }
+        val results = queries.search(query.query, filters, query.sort, query.offset, query.pageSize)
+        val totalResults = queries.count(query.query, filters)
 
         val executionTimeMs = System.currentTimeMillis() - startTime
 
         val spellingSuggestion = if (totalResults == 0L) {
-            repository.findSpellingSuggestion(query.query)
+            queries.spellingSuggestion(query.query)
         } else null
 
         val totalPages = if (totalResults == 0L) 0
         else ceil(totalResults.toDouble() / query.pageSize).toInt()
 
         val facets = try {
-            val rows = repository.getCategoryFacets(query.query, filters.priceMin, filters.priceMax)
-            SearchFacets(categories = rows.associate { it.getCategory() to it.getCount() })
+            SearchFacets(categories = queries.categoryFacets(query.query, filters.priceMin, filters.priceMax))
         } catch (ex: Exception) {
             logger.warn("Failed to compute category facets: {}", ex.message)
             SearchFacets()
         }
 
-        val stock = repository.stockOf(results.map { it.getId() })
         val searchResult = SearchResult(
-            products = results.map { p ->
-                summaryOf(p.getId(), p.getSlug(), p.getName(), p.getPrice(), p.getCategory(), stock[p.getId()])
-            },
+            products = results,
             totalResults = totalResults,
             page = query.page,
             pageSize = query.pageSize,

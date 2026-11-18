@@ -1,18 +1,14 @@
 package com.acme.product.application
 
-import com.acme.product.domain.Product
-import com.acme.product.domain.ProductStatus
-import com.acme.product.infrastructure.persistence.CategoryFacetProjection
-import com.acme.product.infrastructure.persistence.ProductRepository
+import com.acme.product.domain.CategoryCount
+import com.acme.product.domain.ProductSummary
+import com.acme.product.infrastructure.projection.CatalogReadModelQueries
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.slot
 import io.mockk.verify
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import org.springframework.data.domain.Pageable
 import java.math.BigDecimal
-import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -20,38 +16,30 @@ import kotlin.test.assertTrue
 
 class BrowseCategoriesUseCaseTest {
 
-    private lateinit var repository: ProductRepository
+    private lateinit var queries: CatalogReadModelQueries
     private lateinit var useCase: BrowseCategoriesUseCase
 
     @BeforeEach
     fun setUp() {
-        repository = mockk()
-        useCase = BrowseCategoriesUseCase(repository)
-        every { repository.findStockSummaries(any()) } returns emptyList()
+        queries = mockk()
+        useCase = BrowseCategoriesUseCase(queries)
     }
 
-    private fun createFacetProjection(category: String, count: Long): CategoryFacetProjection {
-        val projection = mockk<CategoryFacetProjection>()
-        every { projection.getCategory() } returns category
-        every { projection.getCount() } returns count
-        return projection
-    }
-
-    private fun createProduct(
+    private fun summary(
         id: UUID = UUID.randomUUID(),
         slug: String = "test-product",
         name: String = "Test Product",
         price: BigDecimal = BigDecimal("29.99"),
-        category: String? = "Electronics"
-    ) = Product(
+        inStock: Boolean = true,
+        imageUrl: String? = null
+    ) = ProductSummary(
         id = id,
         slug = slug,
         name = name,
         price = price,
-        status = ProductStatus.PUBLISHED,
-        category = category,
-        createdAt = Instant.now(),
-        updatedAt = Instant.now()
+        category = "Electronics",
+        inStock = inStock,
+        imageUrl = imageUrl
     )
 
     // ---------------------------------------------------------------------
@@ -59,12 +47,9 @@ class BrowseCategoriesUseCaseTest {
     // ---------------------------------------------------------------------
 
     @Test
-    fun `listCategories should map projections to categories with counts`() {
+    fun `listCategories should return the categories with their counts`() {
         // Given
-        every { repository.findDistinctCategories() } returns listOf(
-            createFacetProjection("Apparel", 12L),
-            createFacetProjection("Electronics", 5L)
-        )
+        every { queries.listCategories() } returns listOf(CategoryCount("Apparel", 12L), CategoryCount("Electronics", 5L))
 
         // When
         val categories = useCase.listCategories()
@@ -80,7 +65,7 @@ class BrowseCategoriesUseCaseTest {
     @Test
     fun `listCategories should return empty list when no categories exist`() {
         // Given
-        every { repository.findDistinctCategories() } returns emptyList()
+        every { queries.listCategories() } returns emptyList()
 
         // When / Then
         assertTrue(useCase.listCategories().isEmpty())
@@ -91,12 +76,12 @@ class BrowseCategoriesUseCaseTest {
     // ---------------------------------------------------------------------
 
     @Test
-    fun `productsInCategory should return mapped products with pagination metadata`() {
+    fun `productsInCategory should return the products with pagination metadata`() {
         // Given
         val id = UUID.randomUUID()
-        every { repository.countByCategory("Electronics") } returns 1L
-        every { repository.findByCategory("Electronics", any()) } returns listOf(
-            createProduct(id = id, slug = "premium-widget", name = "Premium Widget", price = BigDecimal("49.99"))
+        every { queries.countByCategory("Electronics") } returns 1L
+        every { queries.findByCategory("Electronics", 1, 24) } returns listOf(
+            summary(id = id, slug = "premium-widget", name = "Premium Widget", price = BigDecimal("49.99"))
         )
 
         // When
@@ -117,26 +102,23 @@ class BrowseCategoriesUseCaseTest {
     }
 
     @Test
-    fun `productsInCategory should convert 1-based page to 0-based pageable`() {
+    fun `productsInCategory should pass the requested page and page size to the query`() {
         // Given
-        val pageableSlot = slot<Pageable>()
-        every { repository.countByCategory("Electronics") } returns 100L
-        every { repository.findByCategory("Electronics", capture(pageableSlot)) } returns emptyList()
+        every { queries.countByCategory("Electronics") } returns 100L
+        every { queries.findByCategory("Electronics", 3, 10) } returns emptyList()
 
         // When
         useCase.productsInCategory("Electronics", page = 3, pageSize = 10)
 
         // Then
-        assertEquals(2, pageableSlot.captured.pageNumber)
-        assertEquals(10, pageableSlot.captured.pageSize)
-        verify(exactly = 1) { repository.findByCategory("Electronics", any()) }
+        verify(exactly = 1) { queries.findByCategory("Electronics", 3, 10) }
     }
 
     @Test
     fun `productsInCategory should round totalPages up on a partial last page`() {
         // Given
-        every { repository.countByCategory("Electronics") } returns 25L
-        every { repository.findByCategory("Electronics", any()) } returns emptyList()
+        every { queries.countByCategory("Electronics") } returns 25L
+        every { queries.findByCategory("Electronics", any(), any()) } returns emptyList()
 
         // When
         val result = useCase.productsInCategory("Electronics", page = 1, pageSize = 24)
@@ -148,8 +130,8 @@ class BrowseCategoriesUseCaseTest {
     @Test
     fun `productsInCategory should report zero totalPages for an empty category`() {
         // Given
-        every { repository.countByCategory("Unknown") } returns 0L
-        every { repository.findByCategory("Unknown", any()) } returns emptyList()
+        every { queries.countByCategory("Unknown") } returns 0L
+        every { queries.findByCategory("Unknown", any(), any()) } returns emptyList()
 
         // When
         val result = useCase.productsInCategory("Unknown")
@@ -174,35 +156,19 @@ class BrowseCategoriesUseCaseTest {
         }
     }
 
-    // US-0004-10 (PIN-273): the category fallback's cards carry stock and image like search's
+    // US-0004-10 (PIN-273): the category fallback's cards carry stock and image like search's; the
+    // read model holds both on each product
     @Test
     fun `productsInCategory should give each product its stock and image`() {
-        val out = createProduct(slug = "out")
-        val inStock = createProduct(slug = "in")
-        every { repository.countByCategory("Electronics") } returns 2L
-        every { repository.findByCategory("Electronics", any()) } returns listOf(out, inStock)
-        every { repository.findStockSummaries(match { it.toSet() == setOf(out.id, inStock.id) }) } returns listOf(
-            stockProjection(out.id, inStock = false),
-            stockProjection(inStock.id, inStock = true, imageUrl = "https://img/in")
+        every { queries.countByCategory("Electronics") } returns 2L
+        every { queries.findByCategory("Electronics", 1, 24) } returns listOf(
+            summary(slug = "out", inStock = false),
+            summary(slug = "in", inStock = true, imageUrl = "https://img/in")
         )
 
         val products = useCase.productsInCategory("Electronics").products
 
         assertEquals(listOf(false, true), products.map { it.inStock })
         assertEquals(listOf(null, "https://img/in"), products.map { it.imageUrl })
-    }
-
-    // PIN-273 review: the category fallback exists to stay up when search is failing, so a
-    // failing stock lookup must not take it down either
-    @Test
-    fun `productsInCategory should still answer, with products in stock, when the stock lookup fails`() {
-        val product = createProduct()
-        every { repository.countByCategory("Electronics") } returns 1L
-        every { repository.findByCategory("Electronics", any()) } returns listOf(product)
-        every { repository.findStockSummaries(any()) } throws RuntimeException("connection reset")
-
-        val products = useCase.productsInCategory("Electronics").products
-
-        assertEquals(listOf(true), products.map { it.inStock })
     }
 }
