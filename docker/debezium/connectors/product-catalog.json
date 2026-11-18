@@ -25,7 +25,7 @@
 
     "transforms": "unwrap",
     "transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
-    "transforms.unwrap.delete.handling.mode": "rewrite",
+    "transforms.unwrap.delete.tombstone.handling.mode": "rewrite",
     "transforms.unwrap.add.fields": "op,source.ts_ms"
   }
 }
