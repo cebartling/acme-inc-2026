@@ -69,7 +69,7 @@ the customer that one capability rather than blocking the journey.
 
 The first application is product search (US-0004-09). Search and the product catalog are
 both served by the product service, but they are separate code paths — search goes through
-PostgreSQL full-text queries, category browsing reads the `products` table directly — so
+a MongoDB text index, category browsing reads the catalog read model's documents directly — so
 category browsing stays usable when search is degraded.
 
 **Implementation**: `frontend-apps/customer/src/lib/searchCircuitBreaker.ts`
@@ -626,6 +626,26 @@ their variants, variant images and tier pricing. It serves search, category brow
 product detail to the customer app, and prices to the cart. Every endpoint is public; there
 is no authentication.
 
+**Catalog read model** ([ADR-0069](adrs/0069-product-catalog-read-model-from-table-capture.md), PIN-550).
+Product has no write path: Flyway migrations write the catalog to PostgreSQL, and every endpoint below
+reads MongoDB.
+
+- **Capture.** The Debezium connector `product-catalog` (`docker/debezium/connectors/product-catalog.json`)
+  captures `products`, `product_variants`, `product_variant_images` and `product_variant_tier_pricing`
+  directly (no outbox: this is the exception [ADR-0004](adrs/0004-change-data-capture.md) names) and
+  publishes row changes to `product.public.<table>`. Its first snapshot loads the seeded catalog. A delete
+  carries only the row's `id`.
+- **Projection.** `CatalogChangeProjector` mirrors each row into a `catalog_*` collection of `acme_query`
+  (`MONGODB_URI`, `MONGODB_DB`), and `CatalogViewRebuilder` rebuilds the product's `catalog_product_view`
+  document from the mirrors, so the order of messages across the four topics does not matter. One
+  consumer thread applies every message; an invalid message is skipped at once and any other is retried
+  for about 31 seconds, then skipped.
+- **Reading.** `CatalogReadModelQueries` (categories, detail, prices, availability) and
+  `CatalogSearchQueries` (search, facets, spelling suggestion, autocomplete) query the view. A catalog
+  change shows up in under a second locally. The three analytics events below keep publishing directly.
+- **Tests.** The projector and both query classes run against a Testcontainers MongoDB; the acceptance
+  feature `product-read-model-api.feature` changes catalog rows in PostgreSQL and follows them to the API.
+
 | Endpoint | Result |
 | -- | -- |
 | `POST /api/v1/search` | A page of published products matching the query, with category facets |
@@ -640,21 +660,23 @@ is no authentication.
   200 characters; `page` ≥ 1 (default 1); `pageSize` 1–100 (default 24); the
   `filters.priceMin`/`priceMax` are ≥ 0. `page` and `pageSize` must be JSON integers, so
   `24.9` and even `24.0` are a 400 (PIN-302, `spring.jackson.deserialization.accept-float-as-int:
-  false`). A category name must not contain a comma (`SearchFilters.kt`), since the filter
-  is passed to SQL as one comma-joined string. `sort` is `relevance` (default), `price_asc`,
+  false`). A category name must not contain a comma (`SearchFilters.kt`), a rule from when the
+  filter was passed to SQL as one comma-joined string. `sort` is `relevance` (default), `price_asc`,
   `price_desc` or `newest`, case-insensitive; an unknown value falls back to `relevance`
   rather than failing.
-- **Search** is PostgreSQL full text ([ADR-0053](adrs/0053-search-on-postgresql-full-text.md)): `products.search_vector` is a generated `tsvector` over
-  name (weight A), description (B) and category (C), matched with `plainto_tsquery('english', …)`
-  and ranked by `ts_rank`. Only `PUBLISHED` products are searched (`status` is `PUBLISHED` or
-  `ARCHIVED`). A search with no results gets a `spellingSuggestion`: the closest published
-  product name by `pg_trgm` similarity, or none if no name scores above 0.1. Category facets
-  count matches by query and price only, so they don't narrow as categories are selected;
-  if computing them fails, search still answers with empty facets. Autocomplete is a prefix
-  `ILIKE` on product names and categories, not full text; `q` must be 2–200 characters, and
-  `limit` (1–20, default 8) caps the combined list, products first, so a limit under 8 can
+- **Search** runs on a MongoDB text index ([ADR-0069](adrs/0069-product-catalog-read-model-from-table-capture.md),
+  which supersedes [ADR-0053](adrs/0053-search-on-postgresql-full-text.md) for the engine): name, description
+  and category are indexed with weights 10, 4 and 2 and English stemming, and results are ranked by text
+  score, so their order after the first one or two differs from the old `ts_rank`. A single word is
+  stemmed; several words must all match, each as an exact word. Only `PUBLISHED` products are searched
+  (`status` is `PUBLISHED` or `ARCHIVED`). A search with no results gets a `spellingSuggestion`: the closest
+  published product name by trigram similarity (`TrigramSimilarity`, `pg_trgm`'s measure), or none if no
+  name scores above 0.1. Category facets count matches by query and price only, so they don't narrow as
+  categories are selected; if computing them fails, search still answers with empty facets. Autocomplete is
+  a case-insensitive prefix match on product names and categories, not full text; `q` must be 2–200
+  characters, and `limit` (1–20, default 8) caps the combined list, products first, so a limit under 8 can
   crowd out the categories.
-- **Category browsing** reads `products` directly, never `search_vector`, so it keeps
+- **Category browsing** reads the read model's product documents, never the text index, so it keeps
   working when search is degraded; the customer app falls back to it (see
   [Client-Side Resilience](#client-side-resilience-circuit-breaker)). `page` ≥ 1 (default 1)
   and `pageSize` 1–100 (default 24).
@@ -669,17 +691,16 @@ is no authentication.
   returns published products, follows the summaries' rule: `IN_STOCK` when it has no
   variants or any variant is in stock, else `OUT_OF_STOCK` (PIN-318); per-variant stock is
   `variants[].inStock`. The price and availability lookups only find a variant whose
-  product is `PUBLISHED` (`findByIdAndProductStatus`), so an archived product's variant is a
+  product is `PUBLISHED` (`CatalogReadModelQueries.findVariant`), so an archived product's variant is a
   404, like an unknown one (PIN-306).
 - **Product summaries** (search, category browsing, related products) carry `inStock` and
   `imageUrl` (US-0004-10, PIN-273). A product is out of stock when it has variants and none is
   in stock; one without variants counts as in stock. `imageUrl` is the first image, by
   `display_order`, of the variant the product page opens on (the default, else the oldest).
-  Both come from one `findStockSummaries` query per page, so the search queries are unchanged.
-  That lookup is best-effort, like the facets: if it fails, it is logged and every product
-  shows as in stock with no image, so search and the category fallback keep answering. Related
-  products are in stock by query (`findInStockRelatedProducts`), newest first, up to 4, so they
-  double as alternatives when the viewed variant is out of stock.
+  The read model derives both when it rebuilds a product's document (`CatalogViewRebuilder`), so
+  every list reads them from the document with no separate lookup. Related products are the
+  in-stock ones of the category (`findInStockRelated`), newest first, up to 4, so they double as
+  alternatives when the viewed variant is out of stock.
 - **Events**: product views (`ProductViewed`) and searches (`SearchExecuted`, plus
   `FiltersApplied` when filters are set) are published to the `product.events` Kafka topic,
   keyed by aggregate ID (the product's ID for a view, a new random ID for each search event),

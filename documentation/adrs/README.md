@@ -35,6 +35,7 @@ An Architecture Decision Record documents a significant architectural decision, 
 | [ADR-0066](0066-cart-read-model-from-snapshots.md) | The Cart Read Model Follows ADR-0065, and the Order Service Hands the Browser the Cart's Read-After | Accepted |
 | [ADR-0067](0067-identity-outbox-and-users-read-model.md) | Identity Publishes Through the Outbox, and Its Users Read Model Follows ADR-0065 | Accepted |
 | [ADR-0068](0068-notification-outbox-and-deliveries-read-model.md) | Notification Publishes Through the Outbox, and Its Deliveries Read Model Follows ADR-0065 | Accepted |
+| [ADR-0069](0069-product-catalog-read-model-from-table-capture.md) | Product's Catalog Read Model Is Built from Table Capture, and Search Moves to MongoDB | Accepted |
 
 ### Shopping Cart
 
@@ -50,7 +51,7 @@ An Architecture Decision Record documents a significant architectural decision, 
 
 | ADR | Title | Status |
 |-----|-------|--------|
-| [ADR-0053](0053-search-on-postgresql-full-text.md) | Product Search on PostgreSQL Full-Text Search | Accepted |
+| [ADR-0053](0053-search-on-postgresql-full-text.md) | Product Search on PostgreSQL Full-Text Search | Superseded by [ADR-0069](0069-product-catalog-read-model-from-table-capture.md) for the search engine |
 | [ADR-0056](0056-money-representation.md) | Money as NUMERIC(10,2) and BigDecimal Without Currency | Accepted |
 | [ADR-0058](0058-inventory-as-in-stock-flag.md) | Inventory as an In-Stock Flag Without Reservation | Accepted |
 
