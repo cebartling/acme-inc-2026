@@ -57,8 +57,11 @@ If it grows on a quiet database, add `heartbeat.interval.ms` to the connectors.
 `product-catalog.json` captures product's four catalog tables (`products`, `product_variants`,
 `product_variant_images`, `product_variant_tier_pricing`) directly, because product has no write path and
 so no outbox (PIN-550). It publishes each table's row changes to `product.public.<table>`, flattened by
-`ExtractNewRecordState`: the row's columns are the value, `__op` and `__source_ts_ms` are added, and a delete
-arrives as the old row with `__deleted: true`. Only product's own projector consumes these topics.
+`ExtractNewRecordState`: the row's columns are the value, and `__op` and `__source_ts_ms` are added. A delete
+arrives with `__deleted: "true"` (a string) and only the row's `id`: the tables use the default replica identity,
+so every other column is blank (`""`, `0` or the epoch, not null) and the foreign keys are not there. The
+projector finds the owning product from the row it stored earlier. Only product's own projector consumes these
+topics.
 
 Unlike the outbox connectors, `snapshot.mode` is `initial`: the first run publishes every existing row, which is
 how the seeded catalog reaches MongoDB. `products.search_vector` (a generated `tsvector`) is excluded.

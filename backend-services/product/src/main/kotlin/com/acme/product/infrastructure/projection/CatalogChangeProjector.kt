@@ -17,14 +17,16 @@ import org.springframework.stereotype.Component
  * four catalog tables, `product.public.<table>` (PIN-550).
  *
  * Each message is applied to the table's mirror collection, and then the affected product's view
- * document is rebuilt from the mirrors ([CatalogViewRebuilder]). A message holds the row's full
- * state, so applying it replaces the mirror document, and a rebuild reads the mirrors as they are:
- * redelivery and out-of-order arrival across the four topics both converge on the same result.
+ * document is rebuilt from the mirrors ([CatalogViewRebuilder]). A message other than a delete holds
+ * the row's full state, so applying it replaces the mirror document, and a rebuild reads the mirrors
+ * as they are: redelivery and out-of-order arrival across the four topics both converge on the same
+ * result. A delete holds only the row's id, so the owning product comes from the stored mirror row.
  *
  * A message that fails is not acknowledged and is retried by the container (see
- * `CatalogKafkaConfig`: five retries over about 31 seconds). After that it is logged and skipped,
- * so a MongoDB outage longer than that leaves the view stale for the rows that changed during it,
- * until each of them changes again or the connector's snapshot is re-run.
+ * `CatalogKafkaConfig`: five retries over about 31 seconds; an invalid message is not retried). After
+ * that it is logged and skipped, so a MongoDB outage longer than that leaves the view stale for the
+ * rows that changed during it, until each of them changes again or the connector's snapshot is
+ * re-run.
  */
 @Component
 class CatalogChangeProjector(
