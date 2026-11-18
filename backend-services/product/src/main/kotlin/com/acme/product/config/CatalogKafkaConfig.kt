@@ -1,5 +1,6 @@
 package com.acme.product.config
 
+import com.fasterxml.jackson.core.JsonProcessingException
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.serialization.StringDeserializer
 import org.springframework.beans.factory.annotation.Value
@@ -18,7 +19,8 @@ import org.springframework.kafka.support.ExponentialBackOffWithMaxRetries
  *
  * - Manual acknowledgment, so a row change is acknowledged only after it is in MongoDB
  * - A failing message is retried at 1s, 2s, 4s, 8s and 16s; after that the error is logged and
- *   the listener moves on
+ *   the listener moves on. A message that is invalid (bad JSON, no id, an unknown table) is not
+ *   retried, but logged and skipped at once.
  * - The listener starts with the application unless `product.catalog.listener-enabled` is false.
  *   Tests that provide no Kafka turn it off, so they do not join the real consumer group.
  */
@@ -52,15 +54,20 @@ class CatalogKafkaConfig(
         factory.setConsumerFactory(consumerFactory)
         factory.containerProperties.ackMode = ContainerProperties.AckMode.MANUAL
         factory.setAutoStartup(listenerEnabled)
-        factory.setCommonErrorHandler(
-            DefaultErrorHandler(
-                ExponentialBackOffWithMaxRetries(5).apply {
-                    initialInterval = 1_000
-                    multiplier = 2.0
-                    maxInterval = 16_000
-                }
-            )
-        )
+        factory.setCommonErrorHandler(catalogErrorHandler())
         return factory
+    }
+
+    fun catalogErrorHandler() = DefaultErrorHandler(
+        ExponentialBackOffWithMaxRetries(5).apply {
+            initialInterval = 1_000
+            multiplier = 2.0
+            maxInterval = 16_000
+        }
+    ).apply {
+        // Bad input never gets better, and one consumer thread serves all four topics, so retrying it
+        // would hold up every row change behind it for about 31 seconds. Only an infrastructure
+        // error such as MongoDB being down is worth the backoff.
+        addNotRetryableExceptions(IllegalArgumentException::class.java, JsonProcessingException::class.java)
     }
 }
