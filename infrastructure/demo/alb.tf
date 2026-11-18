@@ -80,15 +80,14 @@ resource "aws_lb_listener_rule" "frontends" {
 
 # The path prefixes are the routing table in ADR-0064 and PIN-542.
 #
-# The customer test API must be matched before the identity one: identity's rule,
-# /api/v1/test/*, would otherwise take /api/v1/test/customers too. Lower priority numbers are
-# evaluated first.
+# The customer test API (customer_test below, priority 10) must be matched before the identity
+# one: identity's rule, /api/v1/test/*, would otherwise take /api/v1/test/customers too. Lower
+# priority numbers are evaluated first.
 #
 # A rule allows 5 match evaluations, and the host condition uses one, so a rule gets at most 4
 # paths. Product has five prefixes, so it takes two rules.
 locals {
   api_routes = {
-    test-customers  = { priority = 10, service = "customer", paths = ["/api/v1/test/customers*"] }
     test-identity   = { priority = 20, service = "identity", paths = ["/api/v1/test/*"] }
     identity        = { priority = 30, service = "identity", paths = ["/api/v1/auth*", "/api/v1/users*"] }
     customer        = { priority = 40, service = "customer", paths = ["/api/v1/customers*"] }
@@ -119,6 +118,39 @@ resource "aws_lb_listener_rule" "api" {
   condition {
     path_pattern {
       values = each.value.paths
+    }
+  }
+}
+
+# Customer's test API has no authentication of its own, and the demo is on a public URL. So this
+# rule matches only a request that carries customer's service token, the one the acceptance
+# tests already send to customer. Any other request falls through to identity's test rule,
+# which asks for its own key.
+resource "aws_lb_listener_rule" "customer_test" {
+  listener_arn = aws_lb_listener.https.arn
+  priority     = 10
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.apps["customer"].arn
+  }
+
+  condition {
+    host_header {
+      values = [local.hostnames.api]
+    }
+  }
+
+  condition {
+    path_pattern {
+      values = ["/api/v1/test/customers*"]
+    }
+  }
+
+  condition {
+    http_header {
+      http_header_name = "X-Service-Token"
+      values           = [random_password.customer_service_token.result]
     }
   }
 }

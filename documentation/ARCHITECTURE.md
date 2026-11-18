@@ -1242,7 +1242,7 @@ flowchart LR
   | `/api/v1/products`, `/categories`, `/inventory`, `/prices`, `/search` | product |
   | `/api/v1/carts` | shopping-cart |
   | `/api/v1/notifications` | notification |
-  | `/api/v1/test/customers` | customer's test API |
+  | `/api/v1/test/customers` | customer's test API, only with customer's `X-Service-Token` |
   | `/api/v1/test/*` | identity's test API |
 
   The customer test rule has a lower priority number than the identity one, so it is evaluated
@@ -1277,4 +1277,5 @@ flowchart LR
   don't work end to end; browsing does.
 - **Test APIs are on.** Identity's test API (`TEST_API_ENABLED`) is guarded by a per-deploy key,
   sent in `X-Test-Api-Key`. Customer's test API runs under the `test` profile, as in Docker
-  Compose, and has no key. The order service isn't deployed.
+  Compose, and has no key of its own, so the load balancer only forwards a request that carries
+  customer's service token (`alb.tf`). The order service isn't deployed.
