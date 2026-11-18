@@ -82,9 +82,11 @@ locals {
       # Identity's verification endpoint, which redirects to the customer app.
       VERIFICATION_BASE_URL   = "https://${local.hostnames.api}/api/v1/users/verify"
       PASSWORD_RESET_BASE_URL = "https://${local.hostnames.customer}/reset-password"
-      SHOP_URL                = "https://${local.hostnames.customer}/shop"
+      SHOP_URL                = "https://${local.hostnames.customer}/"
       PROFILE_URL             = "https://${local.hostnames.customer}/profile"
-      UNSUBSCRIBE_URL         = "https://${local.hostnames.customer}/unsubscribe"
+      # The customer frontend has no unsubscribe page; its preferences page is the closest.
+      UNSUBSCRIBE_URL        = "https://${local.hostnames.customer}/preferences"
+      MANAGE_PREFERENCES_URL = "https://${local.hostnames.customer}/preferences"
     }
     product = {
       ACME_CORS_EXTRA_ORIGINS = local.cors_origins
