@@ -53,6 +53,11 @@ management:
         include: health,info,metrics,prometheus
 
 product:
+  catalog:
+    # Debezium's row changes of the four catalog tables, for the read model's projector (PIN-550)
+    topic-prefix: product.public.
+    # Set false to keep the projector's listener from starting (tests without Kafka)
+    listener-enabled: ${PRODUCT_CATALOG_LISTENER_ENABLED:true}
   events:
     publish:
       timeout-seconds: 10
