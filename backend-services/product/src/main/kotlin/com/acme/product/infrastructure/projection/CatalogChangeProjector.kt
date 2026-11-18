@@ -53,22 +53,16 @@ class CatalogChangeProjector(
         containerFactory = "catalogListenerContainerFactory"
     )
     fun consume(record: ConsumerRecord<String, String?>, acknowledgment: Acknowledgment) {
-        try {
-            // Debezium is configured not to publish tombstones (tombstones.on.delete: false)
-            val value = record.value()
-            if (value == null) {
-                logger.warn("Skipping a null value on {} partition {} offset {}", record.topic(), record.partition(), record.offset())
-            } else {
-                apply(record.topic().substringAfterLast('.'), value)
-            }
-            acknowledgment.acknowledge()
-        } catch (e: Exception) {
-            logger.error(
-                "Failed to project {} partition {} offset {}: {}",
-                record.topic(), record.partition(), record.offset(), e.message, e
-            )
-            throw e
+        // A failure is not caught here: the container's error handler logs the record and the
+        // exception, retries (see `CatalogKafkaConfig`), and logs once more when it gives up
+        // Debezium is configured not to publish tombstones (tombstones.on.delete: false)
+        val value = record.value()
+        if (value == null) {
+            logger.warn("Skipping a null value on {} partition {} offset {}", record.topic(), record.partition(), record.offset())
+        } else {
+            apply(record.topic().substringAfterLast('.'), value)
         }
+        acknowledgment.acknowledge()
     }
 
     /** Applies one row change from [table] (the source table's name) to the read model. */
