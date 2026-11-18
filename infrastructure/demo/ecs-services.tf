@@ -50,9 +50,17 @@ locals {
     MANAGEMENT_OTLP_METRICS_EXPORT_ENABLED = "false"
   }
 
+  # DocumentDB's certificate is signed by Amazon's RDS CA, which the JVM doesn't trust. The
+  # image carries the CA bundle, and these two settings point the Mongo client at it
+  # (ADR-0064, decision 4). Every service that takes MONGODB_URI needs them.
+  docdb_tls = {
+    SPRING_SSL_BUNDLE_PEM_DOCDB_TRUSTSTORE_CERTIFICATE = "file:/app/certs/rds-global-bundle.pem"
+    SPRING_MONGODB_SSL_BUNDLE                          = "docdb"
+  }
+
   # What only some backends take.
   backend_environment_extra = {
-    identity = {
+    identity = merge(local.docdb_tls, {
       ACME_CORS_EXTRA_ORIGINS = local.cors_origins
       FRONTEND_BASE_URL       = "https://${local.hostnames.customer}"
       MONGODB_DB              = "acme_query"
@@ -60,14 +68,14 @@ locals {
       REDIS_PORT              = tostring(aws_elasticache_cluster.demo.cache_nodes[0].port)
       SMS_PROVIDER            = var.sms_provider
       TEST_API_ENABLED        = "true"
-    }
-    customer = {
+    })
+    customer = merge(local.docdb_tls, {
       ACME_CORS_EXTRA_ORIGINS = local.cors_origins
       ACME_IDENTITY_JWKS_URI  = local.jwks_uri
       MONGODB_DB              = "acme_query"
       # The test profile turns on customer's test API, as in docker-compose.apps.yml.
       SPRING_PROFILES_ACTIVE = "docker,test"
-    }
+    })
     notification = {
       CUSTOMER_SERVICE_URL = "http://customer:${local.apps.customer.port}"
       EMAIL_FROM_ADDRESS   = var.email_from_address
@@ -81,12 +89,12 @@ locals {
     product = {
       ACME_CORS_EXTRA_ORIGINS = local.cors_origins
     }
-    shopping-cart = {
+    shopping-cart = merge(local.docdb_tls, {
       ACME_CORS_EXTRA_ORIGINS = local.cors_origins
       ACME_IDENTITY_JWKS_URI  = local.jwks_uri
       MONGODB_DB              = "acme_query"
       PRODUCT_SERVICE_URL     = "http://product:${local.apps.product.port}"
-    }
+    })
   }
 
   # Environment variables ECS fills from Secrets Manager, as "<secret ARN>:<JSON key>::".
