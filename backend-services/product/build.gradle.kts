@@ -53,6 +53,9 @@ dependencies {
     // Kafka
     implementation("org.springframework.kafka:spring-kafka")
 
+    // MongoDB read model of the product catalog (PIN-550)
+    implementation("org.springframework.boot:spring-boot-starter-data-mongodb")
+
     // Observability
     // Exports the actuator metrics at /actuator/prometheus for Prometheus to scrape (PIN-537)
     runtimeOnly("io.micrometer:micrometer-registry-prometheus")
@@ -74,6 +77,7 @@ dependencies {
     testImplementation("org.testcontainers:testcontainers-junit-jupiter:2.0.5")
     testImplementation("org.testcontainers:testcontainers-postgresql:2.0.5")
     testImplementation("org.testcontainers:testcontainers-kafka:2.0.5")
+    testImplementation("org.testcontainers:testcontainers-mongodb:2.0.5")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 

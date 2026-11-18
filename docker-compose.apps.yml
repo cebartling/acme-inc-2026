@@ -344,6 +344,10 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
 
+      # MongoDB configuration (the product catalog read model, PIN-550)
+      MONGODB_URI: mongodb://mongodb:27017
+      MONGODB_DB: acme_query
+
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
 
       OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318
