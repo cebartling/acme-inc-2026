@@ -84,8 +84,9 @@ resource "aws_lb_listener_rule" "frontends" {
 # one: identity's rule, /api/v1/test/*, would otherwise take /api/v1/test/customers too. Lower
 # priority numbers are evaluated first.
 #
-# A rule allows 5 match evaluations, and the host condition uses one, so a rule gets at most 4
-# paths. Product has five prefixes, so it takes two rules.
+# A rule allows 5 match evaluations in all, and the host condition uses one. A single condition
+# is also limited to fewer values than that, so keep each rule to 3 paths or fewer, as here.
+# Product has five prefixes, so it takes two rules.
 locals {
   api_routes = {
     test-identity   = { priority = 20, service = "identity", paths = ["/api/v1/test/*"] }
